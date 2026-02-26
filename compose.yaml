@@ -1,0 +1,32 @@
+services:
+  pbcm-server:
+    container_name: pbcm-server
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server.prod
+    image: pbcm-server:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist SQLite database and other data
+      - ./server-data:/app/server/backend/data
+      # Persist configuration (ensure this file exists or is created)
+      - ./server-config.yaml:/app/server/config.yaml
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+
+  pbcm-client:
+    container_name: pbcm-client
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client.prod
+    image: pbcm-client:latest
+    volumes:
+      # Persist client configuration
+      - ./client-config.yaml:/app/client/config.yaml
+      # Persist SQLite database and other data
+      - ./client-data:/app/client/data
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production

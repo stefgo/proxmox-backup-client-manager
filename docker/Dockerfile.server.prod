@@ -1,0 +1,49 @@
+# Builder Stage
+FROM --platform=linux/amd64 node:22-bookworm AS builder
+
+WORKDIR /app
+
+# Copy manifest files
+COPY package.json package-lock.json ./
+COPY client/package.json client/
+COPY shared/package.json shared/
+COPY server/backend/package.json server/backend/
+COPY server/frontend/package.json server/frontend/
+
+# Install all dependencies
+RUN npm ci
+
+# Copy source code
+COPY shared ./shared
+COPY server ./server
+
+# Build
+RUN npm run build -w shared
+RUN npm run build -w server/backend
+RUN npm run build -w server/frontend
+
+# Prune dev dependencies
+RUN npm ci --omit=dev
+
+# Runner Stage
+FROM --platform=linux/amd64 node:22-bookworm-slim AS runner
+
+ENV NODE_ENV=production
+
+WORKDIR /app
+
+# Copy artifacts from builder
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/shared/package.json ./shared/
+COPY --from=builder /app/shared/dist ./shared/dist
+# Copy Backend
+COPY --from=builder /app/server/backend/package.json ./server/backend/
+COPY --from=builder /app/server/backend/dist ./server/backend/dist
+# Copy Frontend (Static Files)
+COPY --from=builder /app/server/frontend/dist ./server/frontend/dist
+
+# Switch to backend directory
+WORKDIR /app/server/backend
+
+CMD ["node", "dist/index.js"]

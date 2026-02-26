@@ -1,0 +1,89 @@
+import { create } from 'zustand';
+import { Client } from '@pbcm/shared';
+
+interface ClientsState {
+    clients: Client[];
+    isLoading: boolean;
+    error: string | null;
+
+    fetchClients: (token: string) => Promise<void>;
+    deleteClient: (clientId: string, token: string) => Promise<void>;
+    updateClient: (clientId: string, data: { displayName?: string }, token: string) => Promise<void>;
+    setClients: (clients: Client[]) => void;
+}
+
+export const useClientStore = create<ClientsState>((set, get) => ({
+    clients: [],
+    isLoading: false,
+    error: null,
+
+    fetchClients: async (token) => {
+        set({ isLoading: true, error: null });
+        try {
+            const res = await fetch('/api/v1/clients', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch clients');
+            const data = await res.json();
+            set({ clients: data });
+        } catch (e: any) {
+            set({ error: e.message });
+        } finally {
+            set({ isLoading: false });
+        }
+    },
+
+    deleteClient: async (clientId, token) => {
+        // Optimistic update not strictly necessary if we refetch, but good for UX
+        const oldClients = get().clients;
+        set({ clients: oldClients.filter(c => c.id !== clientId) });
+
+        try {
+             const res = await fetch(`/api/v1/clients/${clientId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to delete client');
+            }
+        } catch (e: any) {
+            // Revert on error
+            set({ clients: oldClients, error: e.message });
+            throw e;
+        }
+    },
+
+    updateClient: async (clientId, data, token) => {
+        const oldClients = get().clients;
+        // Optimistic update
+        set({
+            clients: oldClients.map(c => c.id === clientId ? { ...c, ...data } : c)
+        });
+
+        try {
+            const res = await fetch(`/api/v1/clients/${clientId}`, {
+                method: 'PUT',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!res.ok) {
+                 const err = await res.json();
+                 throw new Error(err.error || 'Failed to update client');
+            }
+        } catch(e: any) {
+            // Revert
+            set({ clients: oldClients, error: e.message });
+            throw e;
+        }
+    },
+
+    setClients: (clients) => {
+        set({ clients });
+    }
+}));

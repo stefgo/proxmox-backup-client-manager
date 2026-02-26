@@ -1,0 +1,26 @@
+# Proxmox Backup Client Manager - Client Configuration
+
+# Executable name/path for proxmox-backup-client
+executable: "proxmox-backup-client"
+
+# Unique identifier for this client (Machine ID)
+clientId:
+
+# Log level for the client (debug, info, warn, error)
+logLevel: "info"
+
+# URL of the PBCM Server (e.g., http://your-server:3000)
+serverUrl:
+
+# Authentication token for server communication
+# This is provided during initial registration and stored locally
+authToken:
+
+# Optional: Static parameters to always append to backup jobs
+# For example, to include all file systems:
+backupParams:
+  - "--all-file-systems"
+  - "true"
+
+# Optional: Static parameters to always append to restore jobs
+restoreParams: []

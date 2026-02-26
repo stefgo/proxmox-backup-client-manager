@@ -1,0 +1,112 @@
+# Proxmox Backup Client Manager (PBCM)
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-v22+-green.svg)](https://nodejs.org/)
+
+The **Proxmox Backup Client Manager** (PBCM) is a centralized management system for controlling multiple `proxmox-backup-client` instances across your infrastructure. It consists of a lightweight Node.js agent running on your clients and a central Fastify/React-based server providing a dashboard and API.
+
+## 🚀 Features
+
+- **Centralized Management:** View and manage all your backup clients from a single web dashboard.
+- **Job Scheduling & Execution:** Configure remote backup jobs, define schedules (cron-like), and trigger immediate backups or restores.
+- **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
+- **Secure Communication:** Uses mTLS (Mutual TLS) for secure websocket connections between the clients and the server. Registration works via short-lived tokens.
+- **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
+- **Live Logs & History:** View detailed job execution history and live statuses of ongoing backup runs.
+
+## 🏗 Architecture
+
+The project is structured as a monorepo containing three main components:
+
+1.  **Server Backend (`server/backend`):** A Fastify API server acting as the control plane. It holds the SQLite database for configurations and job histories.
+2.  **Server Frontend (`server/frontend`):** A modern React SPA (Single Page Application) built with Vite and Tailwind CSS.
+3.  **Client Agent (`client`):** A lightweight Node.js daemon that wraps the `proxmox-backup-client` CLI, listens for commands, executes scheduled jobs, and reports back via WebSockets.
+
+## 📚 Documentation
+
+Detailed documentation is available in the [`doc/`](./doc) directory:
+
+- [Installation & Setup](doc/install.md) - Detailed guide on how to build and run the project locally.
+- [API Documentation](doc/api.md) - Full specification of the REST and WebSocket APIs.
+- [Frontend Architecture](doc/frontend.md) - Overview of the React application structure and state management.
+
+## 🐳 Quick Start (Docker Compose)
+
+### Server
+
+The easiest way to get the server running is using Docker Compose. A production-ready example `compose.yaml` could look like this:
+
+```yaml
+services:
+  pbcm-server:
+    container_name: pbcm-server
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server.prod
+    image: pbcm-server:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./server-data:/app/server/backend/data
+      - ./server-config.yaml:/app/server/config.yaml
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+```
+
+1. Copy `server/config.example.yaml` to `server-config.yaml` and configure your settings (like OIDC).
+2. Run `docker compose up -d`
+3. Access the dashboard at `http://localhost:3000` (Default credentials: `admin` / `admin`).
+
+### Client
+
+For the client agent, you also need to pass the host's files that you wish to backup, as well as the configuration.
+
+```yaml
+services:
+  pbcm-client:
+    container_name: pbcm-client
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client.prod
+    image: pbcm-client:latest
+    volumes:
+      - ./client-config.yaml:/app/client/config.yaml
+      - ./client-data:/app/client/data
+      # Mount the host root to allow backing up host files
+      - /:/mnt/host:ro
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+```
+
+1. Copy `client/config example.yaml` to `client-config.yaml`.
+2. Provide the Server URL and a newly generated registration token (obtained from the web dashboard).
+3. Run `docker compose up -d`.
+
+## 🔧 Development
+
+### Prerequisites
+
+- Node.js v22+
+- npm v10+
+
+### Local Setup
+
+1. Clone the repository: `git clone https://github.com/your-org/proxmox-backup-client-manager`
+2. Install dependencies: `npm install`
+3. Build the shared library: `npm run build -w shared`
+4. Start the server stack (Backend + Frontend): `npm run dev:server`
+5. Start a test client: `npm run dev:client`
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## 🚫 Disclaimer
+
+This is an unofficial, community-driven project. It is not affiliated with, endorsed by, or associated with Proxmox Server Solutions GmbH. "Proxmox" is a registered trademark of Proxmox Server Solutions GmbH.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
