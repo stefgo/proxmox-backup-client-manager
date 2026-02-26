@@ -10,7 +10,7 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 - **Centralized Management:** View and manage all your backup clients from a single web dashboard.
 - **Job Scheduling & Execution:** Configure remote backup jobs, define schedules (cron-like), and trigger immediate backups or restores.
 - **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
-- **Secure Communication:** Uses mTLS (Mutual TLS) for secure websocket connections between the clients and the server. Registration works via short-lived tokens.
+- **Secure Communication:** Uses secure websocket connections between the clients and the server. Registration works via short-lived tokens.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
 - **Live Logs & History:** View detailed job execution history and live statuses of ongoing backup runs.
 

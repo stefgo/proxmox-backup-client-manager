@@ -115,9 +115,3 @@ Diese Datei enthält erweiterte Einstellungen für den Server, insbesondere für
 |             | `client_secret` | OIDC Client Secret.                                |
 |             | `redirect_uri`  | OIDC Redirect URI.                                 |
 | `jwtSecret` | (Root)          | Wird automatisch generiert, falls nicht vorhanden. |
-
-### Zertifikate (mTLS)
-
-Das System nutzt mTLS zur Authentifizierung zwischen Client und Server.
-Beim ersten Start des Servers werden CA und Server-Zertifikate in `server/certs` generiert.
-Clients müssen sich registrieren, um ein Zertifikat zu erhalten (der Prozess erfolgt aktuell automatisch oder via `npm run register` im Client-Verzeichnis).
