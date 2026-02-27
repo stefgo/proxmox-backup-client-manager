@@ -15,7 +15,7 @@ export class Executor {
             const result = db.prepare(
                 "UPDATE history SET status = 'abort', end_time = ? WHERE status = 'running'"
             ).run(new Date().toISOString());
-            
+
             if (result.changes > 0) {
                 Logger.info(`Updated ${result.changes} stale jobs to 'abort' status.`);
             }
@@ -158,7 +158,7 @@ export class Executor {
 
         if (pbsPassword) {
             const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => {});
+            passwordPipe.on("error", () => { });
             passwordPipe.write(pbsPassword);
             passwordPipe.end();
         }
@@ -167,8 +167,9 @@ export class Executor {
             const chunk = data.toString();
             process.stdout.write(chunk);
             stdoutBuffer += chunk;
+            Logger.debug("stdout", chunk);
             Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId,
+                jobId: runId,
                 output: chunk,
                 stream: "stdout",
             });
@@ -178,8 +179,9 @@ export class Executor {
             const chunk = data.toString();
             process.stderr.write(chunk);
             stderrBuffer += chunk;
+            Logger.debug("stderr", chunk);
             Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId,
+                jobId: runId,
                 output: chunk,
                 stream: "stderr",
             });
@@ -221,7 +223,7 @@ export class Executor {
 
         child.on("error", (err: Error) => {
             Logger.error("Spawn Error", err);
-            
+
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -242,7 +244,7 @@ export class Executor {
                     stderrBuffer || null,
                     jobId,
                 );
-            } catch (e) {}
+            } catch (e) { }
         });
     }
 
@@ -354,7 +356,7 @@ export class Executor {
 
         if (pbsPassword) {
             const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => {});
+            passwordPipe.on("error", () => { });
             passwordPipe.write(pbsPassword);
             passwordPipe.end();
         }
@@ -446,7 +448,7 @@ export class Executor {
                     stderrBuffer || null,
                     runId,
                 );
-            } catch (e) {}
+            } catch (e) { }
 
             cleanup();
         });

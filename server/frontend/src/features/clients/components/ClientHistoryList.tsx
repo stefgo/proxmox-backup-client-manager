@@ -2,7 +2,7 @@ import { Activity, ChevronRight } from 'lucide-react';
 import { usePagination } from '../../../hooks/usePagination';
 import { PaginationControls } from '../../../components/PaginationControls';
 import { HistoryEntry } from '@pbcm/shared';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDate } from '../../../utils';
 
 // Extend HistoryEntry to include 'error' which is used in frontend but missing in shared type
@@ -31,6 +31,24 @@ export const ClientHistoryList = ({ history, type, title = 'Recent Activity' }: 
     } = usePagination(filteredHistory, 10);
 
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
+
+    useEffect(() => {
+        const handleLogUpdate = (e: Event) => {
+            const customEvent = e as CustomEvent<{ jobId: string, output: string }>;
+            const { jobId, output } = customEvent.detail;
+
+            if (jobId && output) {
+                setLiveLogs(prev => ({
+                    ...prev,
+                    [jobId]: [...(prev[jobId] || []), output]
+                }));
+            }
+        };
+
+        window.addEventListener('pbcm:log_update', handleLogUpdate);
+        return () => window.removeEventListener('pbcm:log_update', handleLogUpdate);
+    }, []);
 
     const toggleExpand = (id: string, e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent propagation if nested
@@ -77,20 +95,29 @@ export const ClientHistoryList = ({ history, type, title = 'Recent Activity' }: 
                                 <span>{formatDate(item.startTime)}</span>
                             </div>
                         </div>
-                        {expandedIds.has(item.id) && (item.error || item.stderr) && (
-                            <div className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === 'failed'
-                                ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400'
-                                : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                                }`}
-                                onClick={(e) => e.stopPropagation()} // Allow selecting text without collapsing
-                            >
-                                {item.error || item.stderr}
-                            </div>
-                        )}
-                        {expandedIds.has(item.id) && !item.error && !item.stderr && (
-                            <div className="mt-2 text-xs text-gray-400 italic pl-4 ml-6 cursor-default">
-                                No output available
-                            </div>
+                        {expandedIds.has(item.id) && (
+                            <>
+                                {(item.status === 'running' && liveLogs[item.id] && liveLogs[item.id].length > 0) ? (
+                                    <div className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-blue-50 dark:bg-blue-900/10 text-blue-800 dark:text-blue-300"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {liveLogs[item.id].join('')}
+                                    </div>
+                                ) : (item.error || item.stderr) ? (
+                                    <div className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === 'failed'
+                                        ? 'bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400'
+                                        : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                                        }`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {item.error || item.stderr}
+                                    </div>
+                                ) : (
+                                    <div className="mt-2 text-xs text-gray-400 italic pl-4 ml-6 cursor-default">
+                                        No output available
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 ))}
