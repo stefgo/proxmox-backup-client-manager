@@ -37,13 +37,13 @@ export const JobScheduleSettings = () => {
                                     type="date"
                                     value={scheduleStartDate}
                                     onChange={(e) => setScheduleStartDate(e.target.value)}
-                                    className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white text-sm"
+                                    className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white text-sm dark:[color-scheme:dark]"
                                 />
                                 <input
                                     type="time"
                                     value={scheduleStartTime}
                                     onChange={(e) => setScheduleStartTime(e.target.value)}
-                                    className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white text-sm"
+                                    className="bg-white dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white text-sm dark:[color-scheme:dark]"
                                 />
                             </div>
                             <div className="text-[10px] text-gray-400 mt-1">If set, the job will not run before this time.</div>
