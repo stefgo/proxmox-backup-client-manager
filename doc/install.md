@@ -1,117 +1,117 @@
 # Installation & Setup
 
-## Voraussetzungen
+## Prerequisites
 
-- **Node.js**: v22.x oder höher
-- **npm**: v10.x oder höher
-- **Docker** & **Docker Compose** (optional, für Container-basiertes Setup)
+- **Node.js**: v22.x or higher
+- **npm**: v10.x or higher
+- **Docker** & **Docker Compose** (optional, for container-based setup)
 
-## Projektstruktur
+## Project Structure
 
-Das Projekt ist als Monorepo organisiert:
+The project is organized as a monorepo:
 
-- `client`: Der Backup-Client (Node.js/TypeScript)
-- `server/backend`: Der API-Server (Fastify)
-- `server/frontend`: Das Web-Dashboard (React/Vite)
-- `shared`: Gemeinsam genutzte Typen und Utilities
+- `client`: The backup client (Node.js/TypeScript)
+- `server/backend`: The API server (Fastify)
+- `server/frontend`: The web dashboard (React/Vite)
+- `shared`: Shared types and utilities
 
-## Installation (Lokal)
+## Installation (Local)
 
-1.  **Repository klonen:**
+1.  **Clone repository:**
 
     ```bash
     git clone <repo-url>
     cd proxmox-backup-client-manager
     ```
 
-2.  **Abhängigkeiten installieren:**
-    Führe diesen Befehl im Hauptverzeichnis aus, um alle Abhängigkeiten für alle Workspaces zu installieren:
+2.  **Install dependencies:**
+    Run this command in the root directory to install all dependencies for all workspaces:
 
     ```bash
     npm install
     ```
 
-3.  **Shared Library bauen:**
-    Bevor Client oder Server starten können, muss die Shared Library gebaut werden:
+3.  **Build Shared Library:**
+    Before the client or server can start, the shared library must be built:
     ```bash
     npm run build -w shared
     ```
 
-## Starten (Entwicklung)
+## Starting (Development)
 
-### Variante A: Lokal (ohne Docker)
+### Variant A: Local (without Docker)
 
-Du kannst Client und Server separat starten.
+You can start the client and server separately.
 
-**Server Starten:**
-Dies startet das Backend und das Frontend (sofern konfiguriert):
+**Start Server:**
+This starts the backend and the frontend (if configured):
 
 ```bash
 npm run dev:server
 ```
 
-_Der Server läuft standardmäßig auf <http://localhost:3000>._
+_The server runs on <http://localhost:3000> by default._
 
-**Client Starten:**
+**Start Client:**
 
 ```bash
 npm run dev:client
 ```
 
-### Variante B: Docker Compose
+### Variant B: Docker Compose
 
-Für eine komplette Entwicklungsumgebung inkl. Isolation:
+For a complete development environment including isolation:
 
 ```bash
 docker compose -f compose.dev.yml up -d --build
 ```
 
 - **Server**: <http://localhost:3000>
-- Logs ansehen: `docker compose -f compose.dev.yml logs -f`
+- View logs: `docker compose -f compose.dev.yml logs -f`
 
-## Konfiguration
+## Configuration
 
-Das Verhalten von Client und Server kann über Umgebungsvariablen gesteuert werden.
+The behavior of the client and server can be controlled via environment variables.
 
 ### Logging
 
-| Variable     | Werte                             | Standard      | Beschreibung                                                                                                |
-| :----------- | :-------------------------------- | :------------ | :---------------------------------------------------------------------------------------------------------- |
-| `LOG_LEVEL`  | `debug`, `info`, `warn`, `error`  | `info`        | Steuert die Ausführlichkeit der Logs.                                                                       |
-| `LOG_FORMAT` | `pretty`, `json`                  | _auto_        | `pretty` für einzeilige, farbige Logs (Default in Dev). `json` für strukturierten Output (Default in Prod). |
-| `SERVER_URL` | URL (z.B. `wss://localhost:3000`) | _aus config_  | (Nur Client) Überschreibt die Server-URL aus `config.yaml`.                                                 |
-| `NODE_ENV`   | `development`, `production`       | `development` | Steuert allgemeines Verhalten wie Logging-Defaults.                                                         |
+| Variable     | Values                             | Default       | Description                                                                                              |
+| :----------- | :--------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------- |
+| `LOG_LEVEL`  | `debug`, `info`, `warn`, `error`   | `info`        | Controls the verbosity of the logs.                                                                      |
+| `LOG_FORMAT` | `pretty`, `json`                   | _auto_        | `pretty` for single-line, colored logs (default in Dev). `json` for structured output (default in Prod). |
+| `SERVER_URL` | URL (e.g., `wss://localhost:3000`) | _from config_ | (Client only) Overrides the server URL from `config.yaml`.                                               |
+| `NODE_ENV`   | `development`, `production`        | `development` | Controls general behavior like logging defaults.                                                         |
 
-**Beispiele:**
+**Examples:**
 
 ```bash
-# Debug-Level und JSON-Output erzwingen
+# Force debug level and JSON output
 LOG_LEVEL=debug LOG_FORMAT=json npm run dev -w server/backend
 ```
 
-### Konfigurationsdateien (`config.yaml`)
+### Configuration Files (`config.yaml`)
 
-Neben den Umgebungsvariablen gibt es Konfigurationsdateien für spezifische Einstellungen.
+In addition to environment variables, there are configuration files for specific settings.
 
 #### Client Config (`client/config.yaml`)
 
-Diese Datei wird automatisch erstellt oder kann manuell angelegt werden.
+This file is created automatically or can be created manually.
 
-| Key          | Beschreibung                                                                |
-| :----------- | :-------------------------------------------------------------------------- |
-| `serverUrl`  | URL zum Management-Server (z.B. `wss://backup-server:3000/ws`).             |
-| `clientId`   | Eindeutige ID des Clients (wird automatisch generiert).                     |
-| `executable` | Pfad zur `proxmox-backup-client` Binary (Default: `proxmox-backup-client`). |
+| Key          | Description                                                                        |
+| :----------- | :--------------------------------------------------------------------------------- |
+| `serverUrl`  | URL to the management server (e.g., `wss://backup-server:3000/ws`).                |
+| `clientId`   | Unique ID of the client (generated automatically).                                 |
+| `executable` | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
 
 #### Server Config (`server/config.yaml`)
 
-Diese Datei enthält erweiterte Einstellungen für den Server, insbesondere für die Authentifizierung.
+This file contains advanced settings for the server, specifically for authentication.
 
-| Key         | Unter-Key       | Beschreibung                                       |
-| :---------- | :-------------- | :------------------------------------------------- |
-| `oidc`      | `enabled`       | Aktiviert/Deaktiviert (true/false) OIDC.           |
-|             | `issuer`        | OIDC Issuer URL.                                   |
-|             | `client_id`     | OIDC Client ID.                                    |
-|             | `client_secret` | OIDC Client Secret.                                |
-|             | `redirect_uri`  | OIDC Redirect URI.                                 |
-| `jwtSecret` | (Root)          | Wird automatisch generiert, falls nicht vorhanden. |
+| Key         | Sub-Key         | Description                             |
+| :---------- | :-------------- | :-------------------------------------- |
+| `oidc`      | `enabled`       | Enables/Disables (true/false) OIDC.     |
+|             | `issuer`        | OIDC Issuer URL.                        |
+|             | `client_id`     | OIDC Client ID.                         |
+|             | `client_secret` | OIDC Client Secret.                     |
+|             | `redirect_uri`  | OIDC Redirect URI.                      |
+| `jwtSecret` | (Root)          | Generated automatically if not present. |
