@@ -1,4 +1,4 @@
-import { Monitor, Key, Users, Settings as SettingsIcon, Archive as ArchiveIcon } from 'lucide-react';
+import { Monitor, Key, Users, Settings as SettingsIcon, Server as ServerIcon } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 
 interface NavItemProps {
@@ -56,7 +56,7 @@ export const Sidebar = ({ view, setView, selectedClient, stats }: SidebarProps) 
                         badge={`${stats.clients.active} / ${stats.clients.total}`}
                     />
                     <NavItem
-                        icon={<ArchiveIcon size={18} />} // Renamed from Archive to ArchiveIcon to avoid conflict if any, but import needs check
+                        icon={<ServerIcon size={18} />} // Renamed from Archive to ArchiveIcon to avoid conflict if any, but import needs check
                         label="Repositories"
                         active={view === 'repositories'}
                         onClick={() => setView('repositories')}
