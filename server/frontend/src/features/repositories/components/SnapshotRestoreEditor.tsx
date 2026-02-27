@@ -211,7 +211,6 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                             onNavigate={setBrowserPath}
                             files={fileList}
                             isLoading={isLoadingFiles}
-
                             onSelect={setSelectedTarget}
                             className="flex-1 min-h-[250px] max-h-[300px]"
                         />

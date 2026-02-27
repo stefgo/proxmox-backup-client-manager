@@ -62,7 +62,7 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {client ? (
                                             <div className="text-sm text-gray-500 dark:text-[#ccc] flex items-center gap-2">
-                                                {client.hostname}
+                                                {client.displayName || client.hostname}
                                             </div>
                                         ) : (
                                             <span className="text-sm text-gray-400 dark:text-[#666]">-</span>
