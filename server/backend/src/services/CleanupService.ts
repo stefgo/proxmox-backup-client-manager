@@ -1,12 +1,12 @@
 import cron from 'node-cron';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import { SettingsService } from './SettingsService.js';
 import { logger } from '../core/Logger.js';
 
 export class CleanupService {
     static initialize() {
         logger.info('Initializing CleanupService...');
-        
+
         // Run on startup
         this.cleanupTokens();
 
@@ -21,7 +21,7 @@ export class CleanupService {
         try {
             const retentionDaysStr = SettingsService.getSetting('retention_invalid_tokens_days') || '30';
             const minCountStr = SettingsService.getSetting('retention_invalid_tokens_count') || '10';
-            
+
             const retentionDays = parseInt(retentionDaysStr);
             const minCount = parseInt(minCountStr);
 
@@ -40,27 +40,27 @@ export class CleanupService {
 
             // 2. Identify tokens to potentially delete (those beyond the minCount)
             const candidateTokens = invalidTokens.slice(minCount);
-            
+
             // 3. Delete those that substracting retentionDays from now are still older than their creation/invalidation
             // Actually, the requirement says "Retention time in days". 
             // We'll use created_at as the reference for simplicity, or we could use used_at/expires_at.
             // Let's use the most conservative one: max(created_at, used_at, expires_at)
-            
+
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
             const cutoffStr = cutoffDate.toISOString();
 
             let deletedCount = 0;
             const deleteStmt = db.prepare('DELETE FROM registration_tokens WHERE token = ?');
-            
+
             const transaction = db.transaction((tokens: { token: string }[]) => {
                 for (const item of tokens) {
                     // We check if it's older than cutoff
                     // We need the actual token data to check the date
                     const tokenData = db.prepare('SELECT created_at, used_at, expires_at FROM registration_tokens WHERE token = ?').get(item.token) as any;
-                    
+
                     const dateToCompare = tokenData.used_at || tokenData.expires_at || tokenData.created_at;
-                    
+
                     if (dateToCompare < cutoffStr) {
                         deleteStmt.run(item.token);
                         deletedCount++;
@@ -69,7 +69,7 @@ export class CleanupService {
             });
 
             transaction(candidateTokens);
-            
+
             if (deletedCount > 0) {
                 logger.info(`Cleaned up ${deletedCount} invalid client tokens.`);
             } else {

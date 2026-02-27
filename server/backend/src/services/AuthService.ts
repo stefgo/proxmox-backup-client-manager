@@ -1,4 +1,4 @@
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import bcrypt from 'bcryptjs';
 import * as client from 'openid-client';
 import { appConfig, getOidcConfig } from '../config/AppConfig.js';

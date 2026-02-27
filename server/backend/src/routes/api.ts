@@ -6,7 +6,7 @@ import { JobController } from '../controllers/JobController.js';
 import { RepositoryController } from '../controllers/RepositoryController.js';
 import { TokenController } from '../controllers/TokenController.js';
 import { SettingsController } from '../controllers/SettingsController.js';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import crypto from 'crypto';
 
 import { ProxyService } from '../services/ProxyService.js';

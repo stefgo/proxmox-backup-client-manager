@@ -2,13 +2,18 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import db from "../core/db.js";
+import db from "../core/Database.js";
 import { config } from "../core/Config.js";
 import { WS_EVENTS, ProtocolMap } from "@pbcm/shared";
 import { Logger } from "../core/Logger.js";
 import { Connection } from "../core/Connection.js";
 
 export class Executor {
+    /**
+     * Cleans up stale jobs from the history table that are still marked as 'running'
+     * by setting their status to 'abort'. This usually runs on client agent startup
+     * to ensure no ghost jobs remain.
+     */
     static async cleanupRunningJobs() {
         Logger.info("Checking for stale 'running' jobs in history...");
         try {
@@ -24,6 +29,15 @@ export class Executor {
         }
     }
 
+    /**
+     * Executes a backup job by spawning the proxmox-backup-client CLI tool.
+     * Resolves the job configuration from the local database, mounts repository 
+     * credentials, processes encryption keys, and pipes live log streams back 
+     * to the backend server via WebSocket.
+     * 
+     * @param runId - A unique identifier for this specific execution run.
+     * @param jobId - The database ID of the job configuration to execute.
+     */
     static async executeBackup(runId: string, jobId: string) {
         let jobName: string | undefined;
         let pbsPassword: string | undefined;
@@ -248,6 +262,14 @@ export class Executor {
         });
     }
 
+    /**
+     * Executes a restore operation by spawning the proxmox-backup-client CLI tool.
+     * Automatically handles downloading and decrypting a snapshot archive into a 
+     * specified local directory, while streaming logs back to the server.
+     * 
+     * @param runId - A unique identifier for this specific restore run.
+     * @param payload - Payload containing restore configuration (snapshot, targetPath, etc.).
+     */
     static async executeRestore(runId: string, payload: any) {
         const { snapshot, targetPath, repository, archives, encryption } = payload;
         let pbsPassword: string | undefined;

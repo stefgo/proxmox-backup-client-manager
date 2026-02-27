@@ -17,6 +17,11 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     isLoading: false,
     error: null,
 
+    /**
+     * Fetches the complete list of registered clients from the backend.
+     * Updates loading and error states during the network request.
+     * @param token - The JWT bearer token for authentication
+     */
     fetchClients: async (token) => {
         set({ isLoading: true, error: null });
         try {
@@ -33,13 +38,19 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         }
     },
 
+    /**
+     * Deletes a client by ID. Uses optimistic UI updates to instantly remove 
+     * the client from the list, reverting if the API call fails.
+     * @param clientId - The UUID of the client to delete
+     * @param token - The JWT bearer token for authentication
+     */
     deleteClient: async (clientId, token) => {
         // Optimistic update not strictly necessary if we refetch, but good for UX
         const oldClients = get().clients;
         set({ clients: oldClients.filter(c => c.id !== clientId) });
 
         try {
-             const res = await fetch(`/api/v1/clients/${clientId}`, {
+            const res = await fetch(`/api/v1/clients/${clientId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -65,7 +76,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         try {
             const res = await fetch(`/api/v1/clients/${clientId}`, {
                 method: 'PUT',
-                headers: { 
+                headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
@@ -73,10 +84,10 @@ export const useClientStore = create<ClientsState>((set, get) => ({
             });
 
             if (!res.ok) {
-                 const err = await res.json();
-                 throw new Error(err.error || 'Failed to update client');
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to update client');
             }
-        } catch(e: any) {
+        } catch (e: any) {
             // Revert
             set({ clients: oldClients, error: e.message });
             throw e;

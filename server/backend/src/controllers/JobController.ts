@@ -1,9 +1,14 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { ProxyService } from '../services/ProxyService.js';
-import { WS_EVENTS } from '@pbcm/shared';
+import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from '@pbcm/shared';
 import { randomUUID } from 'crypto';
 
 export class JobController {
+    /**
+     * Queries the connected client for its list of configured backup jobs.
+     * @param request - Fastify request containing the clientId
+     * @param reply - Fastify reply
+     */
     static async list(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
         try {
@@ -14,12 +19,21 @@ export class JobController {
         }
     }
 
+    /**
+     * Sends a new or updated job configuration back to the client agent to be saved 
+     * in its local SQLite database.
+     * @param request - Fastify request with job details in the body
+     * @param reply - Fastify reply
+     */
     static async save(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const { name, archives, schedule, scheduleEnabled, id, nextRunAt, repository, encryption } = request.body as any;
+        const parsed = BackupJobSchema.partial().safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
 
         try {
-            const jobData = { id, name, archives, schedule, scheduleEnabled, nextRunAt, repository, encryption };
+            const jobData = parsed.data;
             const result = await ProxyService.sendRequest(clientId, WS_EVENTS.JOB_SAVE_CONFIG, { requestId: request.id, job: jobData });
 
             if (result.success) return { status: 'saved' };
@@ -28,7 +42,6 @@ export class JobController {
             return reply.code(500).send({ error: e.message });
         }
     }
-
     static async delete(request: FastifyRequest, reply: FastifyReply) {
         const { clientId, jobId } = request.params as { clientId: string, jobId: string };
 
@@ -55,7 +68,11 @@ export class JobController {
 
     static async triggerRestore(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const { snapshot, targetPath, repository, archives, encryption } = request.body as any;
+        const parsed = RestoreJobSchema.pick({ snapshot: true, targetPath: true, repository: true, archives: true, encryption: true }).safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
+        const { snapshot, targetPath, repository, archives, encryption } = parsed.data;
         const runId = randomUUID();
 
         try {

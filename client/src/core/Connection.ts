@@ -10,6 +10,9 @@ import { Logger } from "./Logger.js";
 export class Connection {
     private static wsInstance: WebSocket | null = null;
 
+    /**
+     * Checks if the WebSocket connection to the server is currently open.
+     */
     static isConnected(): boolean {
         return (
             this.wsInstance !== null &&
@@ -17,6 +20,12 @@ export class Connection {
         );
     }
 
+    /**
+     * Sends a typed message payload to the server over the WebSocket connection.
+     * 
+     * @param type - The event type from WS_EVENTS.
+     * @param payload - The data payload matching the protocol map for the event.
+     */
     static send<T extends keyof ProtocolMap>(
         type: T,
         payload: ProtocolMap[T]["req"],
@@ -26,6 +35,13 @@ export class Connection {
         }
     }
 
+    /**
+     * Establishes a WebSocket connection to the central backend server using the 
+     * configured URL and authentication token. Implements automatic reconnection, 
+     * handles incoming messages and routes them to the appropriate Handlers.
+     * 
+     * @returns A promise resolving to an object indicating connection success or failure.
+     */
     static connect(): Promise<{ connected: boolean; error?: string }> {
         if (this.isConnected()) {
             return Promise.resolve({ connected: true });
@@ -53,7 +69,7 @@ export class Connection {
         if (this.wsInstance) {
             try {
                 this.wsInstance.close();
-            } catch (_) {}
+            } catch (_) { }
             this.wsInstance = null;
         }
 

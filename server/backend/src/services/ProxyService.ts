@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import crypto, { randomUUID } from 'crypto';
 import { WS_EVENTS, WsMessage, ProtocolMap } from '@pbcm/shared';
 import { logger } from '../core/Logger.js';
@@ -45,15 +45,19 @@ export class ProxyService {
 
     static updateClient(id: string, data: { displayName?: string }) {
         if (data.displayName !== undefined) {
-             const info = db.prepare('UPDATE clients SET display_name = ? WHERE id = ?').run(data.displayName, id);
-             if (info.changes > 0) {
-                 this.broadcastClientUpdate();
-                 return true;
-             }
+            const info = db.prepare('UPDATE clients SET display_name = ? WHERE id = ?').run(data.displayName, id);
+            if (info.changes > 0) {
+                this.broadcastClientUpdate();
+                return true;
+            }
         }
         return false;
     }
 
+    /**
+     * Broadcasts the complete list of registered clients and their online status
+     * to all active dashboard WebSocket sessions.
+     */
     static broadcastClientUpdate() {
         try {
             const clients = this.getClientsWithStatus();
@@ -74,6 +78,15 @@ export class ProxyService {
         }
     }
 
+    /**
+     * Sends an asynchronous, typed request to a specific client agent via WebSocket.
+     * Automatically generates a unique requestId and waits for the correlating response.
+     * Times out if the client does not respond within 5 seconds.
+     * 
+     * @param clientId - The target agent's UUID
+     * @param type - The exact event type from WS_EVENTS
+     * @param payload - The payload matching the specific event protocol
+     */
     static async sendRequest<K extends keyof ProtocolMap>(clientId: string, type: K, payload: ProtocolMap[K]['req']): Promise<ProtocolMap[K]['res']> {
         const socket = this.connectedClients.get(clientId);
         if (!socket) {
@@ -109,6 +122,10 @@ export class ProxyService {
         });
     }
 
+    /**
+     * Sends a one-way message to a client agent without waiting for a response.
+     * Primarily used for 'fire-and-forget' manual triggers (e.g. starting a backup).
+     */
     static sendFireAndForget(clientId: string, type: string, payload: any) {
         const socket = this.connectedClients.get(clientId);
         if (!socket) throw new Error('Client not connected');

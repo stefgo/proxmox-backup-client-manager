@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { spawn } from "child_process";
-import db from "../core/db.js";
+import db from "../core/Database.js";
 import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
@@ -76,9 +76,9 @@ export class Handlers {
                         v && r
                             ? `${v}.${r}`
                             : v ||
-                              (typeof data === "string"
-                                  ? data
-                                  : JSON.stringify(data));
+                            (typeof data === "string"
+                                ? data
+                                : JSON.stringify(data));
 
                     Connection.send(WS_EVENTS.GET_VERSION, {
                         requestId,
@@ -127,14 +127,14 @@ export class Handlers {
                 let config: any = {};
                 try {
                     config = row.config ? JSON.parse(row.config) : {};
-                } catch (e) {}
+                } catch (e) { }
 
                 const archives: any[] = config.archives || [];
 
                 let schedule: ScheduleConfig | null = null;
                 try {
                     if (row.schedule) schedule = JSON.parse(row.schedule);
-                } catch (e) {}
+                } catch (e) { }
 
                 return {
                     id: row.id,

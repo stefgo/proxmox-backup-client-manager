@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import crypto from 'crypto';
 
 import { ProxyService } from '../services/ProxyService.js';
@@ -39,12 +39,12 @@ export const TokenController = {
         try {
             const clientId = (request.body as any).clientId;
             const hostname = (request.body as any).hostname || 'unknown';
-            
+
             if (!clientId) return reply.code(400).send({ error: 'Missing clientId' });
 
             // Generate Auth Token
             const authToken = crypto.randomBytes(64).toString('hex');
-            
+
             // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
             const allowedIp = request.ip;
 
@@ -61,7 +61,7 @@ export const TokenController = {
                     allowed_ip = excluded.allowed_ip,
                     updated_at = datetime('now')
             `);
-            
+
             stmt.run(clientId, hostname, authToken, allowedIp);
 
             ProxyService.broadcastClientUpdate();

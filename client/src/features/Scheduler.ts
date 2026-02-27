@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import db from "../core/db.js";
+import db from "../core/Database.js";
 import { randomUUID } from "crypto";
 import { Executor } from "./Executor.js";
 import { ScheduleConfig } from "@pbcm/shared";
@@ -8,6 +8,11 @@ import { Logger } from "../core/Logger.js";
 export class Scheduler {
     private static interval: NodeJS.Timeout | null = null;
 
+    /**
+     * Starts the client-side scheduling loop. Checks the database every minute 
+     * for any jobs that have reached their scheduled 'next_run' time. If a job 
+     * should run, it spawns the Executor.
+     */
     static start() {
         if (this.interval) clearInterval(this.interval);
         Logger.info("Starting Scheduler Loop...");

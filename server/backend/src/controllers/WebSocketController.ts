@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { WS_EVENTS, WsMessage, ProtocolMap } from '@pbcm/shared';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import { ProxyService } from '../services/ProxyService.js';
 import { appConfig } from '../config/AppConfig.js';
 import { isIpInNetworks } from '../utils/NetworkUtils.js';
@@ -35,7 +35,7 @@ export class WebSocketController {
 
     static async handleAgentConnection(connection: any, req: any, fastify: FastifyInstance) {
         // Correctly handle IP address with trustProxy (configured in Fastify)
-        const clientIp = req.ip; 
+        const clientIp = req.ip;
         fastify.log.info({ msg: 'Client connected', ip: clientIp });
 
         const socket = connection.socket || connection;

@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import { randomUUID } from 'crypto';
 
 export class RepositoryController {

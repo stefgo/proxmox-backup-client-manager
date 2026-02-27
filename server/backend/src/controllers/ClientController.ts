@@ -1,13 +1,24 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import db from '../core/db.js';
+import db from '../core/Database.js';
 import { ProxyService } from '../services/ProxyService.js';
-import { WS_EVENTS } from '@pbcm/shared';
+import { WS_EVENTS, ClientSchema } from '@pbcm/shared';
 
 export class ClientController {
+    /**
+     * Retrieves a list of all clients combined with their live WebSocket connection status.
+     * @param request - Fastify request
+     * @param reply - Fastify reply
+     */
     static async list(request: FastifyRequest, reply: FastifyReply) {
         return ProxyService.getClientsWithStatus();
     }
 
+    /**
+     * Deletes a client from the database. If the client is currently connected,
+     * immediately terminates their WebSocket session.
+     * @param request - Fastify request containing the clientId in params
+     * @param reply - Fastify reply
+     */
     static async delete(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
         const info = db.prepare('DELETE FROM clients WHERE id = ?').run(clientId);
@@ -29,19 +40,28 @@ export class ClientController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const body = request.body as { displayName?: string };
-        
+        const parsed = ClientSchema.pick({ displayName: true }).safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.issues[0].message });
+        }
+        const body = parsed.data;
+
         try {
             const updated = ProxyService.updateClient(clientId, body);
             if (!updated) {
-                 return reply.code(404).send({ error: 'Client not found' });
+                return reply.code(404).send({ error: 'Client not found' });
             }
             return { success: true };
         } catch (e: any) {
-             return reply.code(500).send({ error: e.message });
+            return reply.code(500).send({ error: e.message });
         }
     }
 
+    /**
+     * Proxies a request to fetch the backup history directly from the connected client agent.
+     * @param request - Fastify request containing the clientId
+     * @param reply - Fastify reply
+     */
     static async getHistory(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
         try {

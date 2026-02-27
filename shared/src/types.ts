@@ -1,35 +1,28 @@
-export interface RegistrationPayload {
-    token: string;
-    clientId: string;
-    hostname?: string;
-}
+import { z } from 'zod';
+import {
+    ClientSchema,
+    BackupJobSchema,
+    JobSchema,
+    RestoreJobSchema,
+    RepositorySchema,
+    RegistrationPayloadSchema,
+    RegistrationResponseSchema,
+    ArchiveSchema,
+    EncryptionConfigSchema,
+    ScheduleConfigSchema
+} from './schemas.js';
 
-export interface RegistrationResponse {
-    token: string;
-    clientId: string;
-}
+export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
+export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
 
-export interface Repository {
-    baseUrl: string;
-    datastore: string;
-    fingerprint?: string;
-    username: string;
-    tokenname?: string;
-    secret: string;
-}
+export type Repository = z.infer<typeof RepositorySchema>;
 
 export interface ManagedRepository extends Repository {
     id: string | number;
     status: 'online' | 'offline' | 'unknown' | 'loading';
 }
 
-export interface Client {
-    id: string;
-    hostname: string;
-    displayName?: string;
-    status: 'online' | 'offline';
-    lastSeen: string;
-}
+export type Client = z.infer<typeof ClientSchema>;
 
 export interface Token {
     token: string;
@@ -38,44 +31,12 @@ export interface Token {
     usedAt?: string;
 }
 
-export interface ScheduleConfig {
-    interval: number;
-    unit: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks';
-    weekdays: string[];
-}
-
-export interface Archive {
-    path: string;
-    name: string;
-}
-
-export interface Job {
-    id: string;
-    name: string;
-    schedule: ScheduleConfig | null;
-    scheduleEnabled: boolean;
-    createdAt?: string;
-    nextRunAt?: string;
-    lastRunAt?: string;
-}
-
-export interface EncryptionConfig {
-    enabled: boolean;
-    keyContent?: string;
-}
-
-export interface BackupJob extends Job {
-    archives: Archive[];
-    repository: Repository;
-    encryption?: EncryptionConfig;
-}
-
-export interface RestoreJob extends Job {
-    snapshot: string;
-    targetPath: string;
-    archives: string[];
-    repository: Repository;
-}
+export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
+export type Archive = z.infer<typeof ArchiveSchema>;
+export type Job = z.infer<typeof JobSchema>;
+export type EncryptionConfig = z.infer<typeof EncryptionConfigSchema>;
+export type BackupJob = z.infer<typeof BackupJobSchema>;
+export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
 export interface Snapshot {
     backupType: string;
@@ -128,6 +89,7 @@ export interface RestoreSnapshotPayload {
     targetPath: string;
     repository: Repository;
     archives: string[];
+    encryption?: EncryptionConfig;
 }
 
 export interface FsListRequest {
