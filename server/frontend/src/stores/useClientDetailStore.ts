@@ -36,7 +36,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     error: null,
 
     fetchClientData: async (clientId, token) => {
-        set({ isLoading: true, error: null });
+        set({ isLoading: true, error: null, sessionJobs: [] });
         try {
             const [historyRes, backupJobsRes] = await Promise.all([
                 fetch(`/api/v1/clients/${clientId}/history`, { headers: { 'Authorization': `Bearer ${token}` } }),
