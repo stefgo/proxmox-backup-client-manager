@@ -45,10 +45,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const {
         configuredJobs,
         history: backupJobs,
-        sessionJobs,
+        sessionHistory,
         clientSnapshots,
         fetchClientData,
-        refreshJobs,
         deleteBackupJob: storeDeleteJob,
         triggerBackupJob: storeTriggerJob,
         fetchClientSnapshots
@@ -59,7 +58,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { repositories, fetchRepositories } = useRepositoryStore();
 
     const refreshCurrentClient = () => {
-        if (token) refreshJobs(client.id, token);
+        if (token) fetchClientData(client.id, token);
     };
 
     const deleteJob = (clientId: string, jobId: string) => {
@@ -258,11 +257,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                             onDeleteJob={handleDeleteJob}
                                             onCreateJob={jobForm.startCreateJob}
                                         />
-                                        {sessionJobs.length > 0 && (
+                                        {sessionHistory.length > 0 && (
                                             <div className="mt-6">
                                                 <ClientHistoryList
                                                     title="Running Jobs (Session)"
-                                                    history={sessionJobs}
+                                                    history={sessionHistory}
                                                 />
                                             </div>
                                         )}

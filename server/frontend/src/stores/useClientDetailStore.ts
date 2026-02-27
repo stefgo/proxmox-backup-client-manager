@@ -4,15 +4,14 @@ import { BackupJob, HistoryEntry, Snapshot } from '@pbcm/shared';
 interface ClientDataState {
     history: HistoryEntry[];
     configuredJobs: BackupJob[];
-    sessionJobs: HistoryEntry[];
+    sessionHistory: HistoryEntry[];
     clientSnapshots: Snapshot[];
     isLoading: boolean;
     error: string | null;
 
     fetchClientData: (clientId: string, token: string) => Promise<void>;
-    refreshJobs: (clientId: string, token: string) => Promise<void>;
     fetchClientSnapshots: (clientId: string, repositories: any[], token: string) => Promise<void>;
-    
+
     // Configured Job Actions
     addBackupJob: (job: BackupJob) => void;
     updateBackupJob: (job: BackupJob) => void;
@@ -30,13 +29,13 @@ interface ClientDataState {
 export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     history: [],
     configuredJobs: [],
-    sessionJobs: [],
+    sessionHistory: [],
     clientSnapshots: [],
     isLoading: false,
     error: null,
 
     fetchClientData: async (clientId, token) => {
-        set({ isLoading: true, error: null, sessionJobs: [] });
+        set({ isLoading: true, error: null, sessionHistory: [] });
         try {
             const [historyRes, backupJobsRes] = await Promise.all([
                 fetch(`/api/v1/clients/${clientId}/history`, { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -55,10 +54,6 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         } finally {
             set({ isLoading: false });
         }
-    },
-
-    refreshJobs: async (clientId, token) => {
-        await get().fetchClientData(clientId, token);
     },
 
     fetchClientSnapshots: async (clientId, repositories, token) => {
@@ -141,11 +136,11 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     }),
 
     updateSession: (job: any) => set((state) => {
-        const exists = state.sessionJobs.find((j: any) => j.id === job.id);
+        const exists = state.sessionHistory.find((j: any) => j.id === job.id);
         if (exists) {
-            return { sessionJobs: state.sessionJobs.map((j: any) => j.id === job.id ? { ...j, ...job } : j) };
+            return { sessionHistory: state.sessionHistory.map((j: any) => j.id === job.id ? { ...j, ...job } : j) };
         } else {
-            return { sessionJobs: [job, ...state.sessionJobs] };
+            return { sessionHistory: [job, ...state.sessionHistory] };
         }
     })
 }));
