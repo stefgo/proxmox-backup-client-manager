@@ -9,7 +9,7 @@ Development is performed entirely within Docker containers to ensure a consisten
 ### Prerequisites
 
 - Docker and Docker Compose (or Docker Desktop)
-- Environment variables file (copy a template if available or create a `.env` file)
+- Environment variables file. You **must** create a `.env` file manually in the root directory (this file is excluded from git).
 
 ### Starting the Development Environment
 
