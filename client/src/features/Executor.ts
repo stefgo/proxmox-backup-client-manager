@@ -17,12 +17,15 @@ export class Executor {
     static async cleanupRunningJobs() {
         Logger.info("Checking for stale 'running' jobs in history...");
         try {
-            const result = db.prepare(
-                "UPDATE history SET status = 'abort', end_time = ? WHERE status = 'running'"
-            ).run(new Date().toISOString());
+            const stmt = db.prepare(
+                "UPDATE job_history SET status = 'abort', end_time = ? WHERE status = 'running'",
+            );
+            const result = stmt.run(new Date().toISOString());
 
             if (result.changes > 0) {
-                Logger.info(`Updated ${result.changes} stale jobs to 'abort' status.`);
+                Logger.info(
+                    `Updated ${result.changes} stale jobs to 'abort' status.`,
+                );
             }
         } catch (e) {
             Logger.error("Failed to cleanup stale running jobs", e);
@@ -31,10 +34,10 @@ export class Executor {
 
     /**
      * Executes a backup job by spawning the proxmox-backup-client CLI tool.
-     * Resolves the job configuration from the local database, mounts repository 
-     * credentials, processes encryption keys, and pipes live log streams back 
+     * Resolves the job configuration from the local database, mounts repository
+     * credentials, processes encryption keys, and pipes live log streams back
      * to the backend server via WebSocket.
-     * 
+     *
      * @param runId - A unique identifier for this specific execution run.
      * @param jobId - The database ID of the job configuration to execute.
      */
@@ -60,12 +63,26 @@ export class Executor {
                 // Encryption: write keyContent to a temp file and configure --keyfile
                 if (jobConfigData.encryption?.keyContent) {
                     try {
-                        tempKeyfilePath = path.join(os.tmpdir(), `pbcm_key_${runId}.json`);
-                        fs.writeFileSync(tempKeyfilePath, jobConfigData.encryption.keyContent, { mode: 0o600 });
-                        args.push("--crypt-mode", "encrypt", "--keyfile", tempKeyfilePath);
+                        tempKeyfilePath = path.join(
+                            os.tmpdir(),
+                            `pbcm_key_${runId}.json`,
+                        );
+                        fs.writeFileSync(
+                            tempKeyfilePath,
+                            jobConfigData.encryption.keyContent,
+                            { mode: 0o600 },
+                        );
+                        args.push(
+                            "--crypt-mode",
+                            "encrypt",
+                            "--keyfile",
+                            tempKeyfilePath,
+                        );
                     } catch (e: any) {
                         Logger.error("Failed to write encryption key file", e);
-                        throw new Error("Failed to write encryption key file: " + e.message);
+                        throw new Error(
+                            "Failed to write encryption key file: " + e.message,
+                        );
                     }
                 }
 
@@ -116,7 +133,10 @@ export class Executor {
                     args.push("--backup-id", config.clientId);
                 }
 
-                if (Array.isArray(config.backupParams) && config.backupParams.length > 0) {
+                if (
+                    Array.isArray(config.backupParams) &&
+                    config.backupParams.length > 0
+                ) {
                     config.backupParams.forEach((param) => args.push(param));
                 }
             } else {
@@ -143,10 +163,10 @@ export class Executor {
         try {
             db.prepare(
                 `
-                INSERT INTO history (id, job_id, type, status, start_time, name)
-                VALUES (?, ?, ?, 'running', ?, ?)
+                INSERT INTO job_history (id, job_id, type, status, start_time, name)
+                VALUES (?, ?, ?, ?, ?, ?)
             `,
-            ).run(runId, jobId, jobType, startTime, jobName || null);
+            ).run(runId, jobId, jobType, "running", startTime, jobName || null);
         } catch (e) {
             Logger.error("DB Log Error", e);
         }
@@ -172,7 +192,7 @@ export class Executor {
 
         if (pbsPassword) {
             const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => { });
+            passwordPipe.on("error", () => {});
             passwordPipe.write(pbsPassword);
             passwordPipe.end();
         }
@@ -208,7 +228,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
                 ).run(
                     status,
                     endTime,
@@ -251,27 +271,28 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
                 ).run(
                     "failed",
                     new Date().toISOString(),
                     stderrBuffer || null,
                     jobId,
                 );
-            } catch (e) { }
+            } catch (e) {}
         });
     }
 
     /**
      * Executes a restore operation by spawning the proxmox-backup-client CLI tool.
-     * Automatically handles downloading and decrypting a snapshot archive into a 
+     * Automatically handles downloading and decrypting a snapshot archive into a
      * specified local directory, while streaming logs back to the server.
-     * 
+     *
      * @param runId - A unique identifier for this specific restore run.
      * @param payload - Payload containing restore configuration (snapshot, targetPath, etc.).
      */
     static async executeRestore(runId: string, payload: any) {
-        const { snapshot, targetPath, repository, archives, encryption } = payload;
+        const { snapshot, targetPath, repository, archives, encryption } =
+            payload;
         let pbsPassword: string | undefined;
         let tempKeyfilePath: string | undefined;
         let command = config.executable || "proxmox-backup-client";
@@ -282,12 +303,23 @@ export class Executor {
         try {
             if (encryption?.keyContent) {
                 try {
-                    tempKeyfilePath = path.join(os.tmpdir(), `pbcm_restore_key_${runId}.json`);
-                    fs.writeFileSync(tempKeyfilePath, encryption.keyContent, { mode: 0o600 });
+                    tempKeyfilePath = path.join(
+                        os.tmpdir(),
+                        `pbcm_restore_key_${runId}.json`,
+                    );
+                    fs.writeFileSync(tempKeyfilePath, encryption.keyContent, {
+                        mode: 0o600,
+                    });
                     args.push("--keyfile", tempKeyfilePath);
                 } catch (e: any) {
-                    Logger.error("Failed to write restore encryption key file", e);
-                    throw new Error("Failed to write restore encryption key file: " + e.message);
+                    Logger.error(
+                        "Failed to write restore encryption key file",
+                        e,
+                    );
+                    throw new Error(
+                        "Failed to write restore encryption key file: " +
+                            e.message,
+                    );
                 }
             }
 
@@ -325,7 +357,10 @@ export class Executor {
             args.push(archive);
             args.push(targetPath);
 
-            if (Array.isArray(config.restoreParams) && config.restoreParams.length > 0) {
+            if (
+                Array.isArray(config.restoreParams) &&
+                config.restoreParams.length > 0
+            ) {
                 config.restoreParams.forEach((param) => args.push(param));
             }
         } catch (e: any) {
@@ -350,10 +385,10 @@ export class Executor {
             // We use runId as the ID for history. restore jobs might not have a persistent 'job_id' configuration, so we set job_id to null or a placeholder.
             db.prepare(
                 `
-                INSERT INTO history (id, job_id, type, status, start_time, name)
-                VALUES (?, ?, ?, 'running', ?, ?)
+                INSERT INTO job_history (id, job_id, type, status, start_time, name)
+                VALUES (?, ?, ?, ?, ?, ?)
             `,
-            ).run(runId, "restore-manual", jobType, startTime, jobName);
+            ).run(runId, null, jobType, "running", startTime, jobName);
         } catch (e) {
             Logger.error("DB Log Error", e);
         }
@@ -378,7 +413,7 @@ export class Executor {
 
         if (pbsPassword) {
             const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => { });
+            passwordPipe.on("error", () => {});
             passwordPipe.write(pbsPassword);
             passwordPipe.end();
         }
@@ -470,7 +505,7 @@ export class Executor {
                     stderrBuffer || null,
                     runId,
                 );
-            } catch (e) { }
+            } catch (e) {}
 
             cleanup();
         });

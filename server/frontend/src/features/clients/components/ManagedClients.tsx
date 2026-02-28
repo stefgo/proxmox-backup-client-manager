@@ -1,30 +1,41 @@
-import { Client } from '@pbcm/shared';
-import { ClientList } from './ClientList';
-import { ClientEditor } from './ClientEditor';
-import { useState } from 'react';
-import { useClientStore } from '../../../stores/useClientStore';
-import { useAuth } from '../../auth/AuthContext';
-import { TokenModal } from '../../tokens/components/TokenModal';
+import { Client } from "@pbcm/shared";
+import { ClientList } from "./ClientList";
+import { ClientEditor } from "./ClientEditor";
+import { useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
+import { TokenModal } from "../../tokens/components/TokenModal";
 
 interface ManagedClientsProps {
     clients: Client[];
     onSelect: (client: Client | null) => void;
     onRefresh: () => void;
     onDelete: (clientId: string) => void;
-    onUpdate: (clientId: string, data: { displayName?: string }) => Promise<void>;
+    onUpdate: (
+        clientId: string,
+        data: { displayName?: string },
+    ) => Promise<void>;
 }
 
-export const ManagedClients = ({ clients, onSelect, onRefresh, onDelete, onUpdate }: ManagedClientsProps) => {
+export const ManagedClients = ({
+    clients,
+    onSelect,
+    onRefresh,
+    onDelete,
+    onUpdate,
+}: ManagedClientsProps) => {
     const { token } = useAuth();
-    const [createdToken, setCreatedToken] = useState<{ token: string, expiresAt: string } | null>(null);
+    const [createdToken, setCreatedToken] = useState<{
+        token: string;
+        expiresAt: string;
+    } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<Client | null>(null);
 
     const handleGenerateToken = async () => {
         try {
-            const res = await fetch('/api/v1/tokens', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch("/api/v1/tokens", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const data = await res.json();
@@ -39,7 +50,7 @@ export const ManagedClients = ({ clients, onSelect, onRefresh, onDelete, onUpdat
 
     const handleDeleteClient = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('Delete this client?')) return;
+        if (!confirm("Delete this client?")) return;
         onDelete(id);
     };
 
@@ -48,7 +59,10 @@ export const ManagedClients = ({ clients, onSelect, onRefresh, onDelete, onUpdat
         setEditingClient(client);
     };
 
-    const handleSaveClient = async (id: string, data: { displayName?: string }) => {
+    const handleSaveClient = async (
+        id: string,
+        data: { displayName?: string },
+    ) => {
         await onUpdate(id, data);
         setEditingClient(null);
     };

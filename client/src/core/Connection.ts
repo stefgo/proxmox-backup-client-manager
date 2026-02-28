@@ -4,6 +4,7 @@ import os from "os";
 import { config } from "./Config.js";
 import { WS_EVENTS, WsMessage, ProtocolMap } from "@pbcm/shared";
 import { Handlers } from "../features/Handlers.js";
+import db from "./Database.js";
 
 import { Logger } from "./Logger.js";
 
@@ -22,7 +23,7 @@ export class Connection {
 
     /**
      * Sends a typed message payload to the server over the WebSocket connection.
-     * 
+     *
      * @param type - The event type from WS_EVENTS.
      * @param payload - The data payload matching the protocol map for the event.
      */
@@ -36,10 +37,10 @@ export class Connection {
     }
 
     /**
-     * Establishes a WebSocket connection to the central backend server using the 
-     * configured URL and authentication token. Implements automatic reconnection, 
+     * Establishes a WebSocket connection to the central backend server using the
+     * configured URL and authentication token. Implements automatic reconnection,
      * handles incoming messages and routes them to the appropriate Handlers.
-     * 
+     *
      * @returns A promise resolving to an object indicating connection success or failure.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
@@ -56,9 +57,7 @@ export class Connection {
         }
 
         if (!config.authToken) {
-            Logger.warn(
-                'No Token. Please register first. Connection skipped.',
-            );
+            Logger.warn("No Token. Please register first. Connection skipped.");
             return Promise.resolve({
                 connected: false,
                 error: "No Token. Register first.",
@@ -69,7 +68,7 @@ export class Connection {
         if (this.wsInstance) {
             try {
                 this.wsInstance.close();
-            } catch (_) { }
+            } catch (_) {}
             this.wsInstance = null;
         }
 
@@ -108,6 +107,53 @@ export class Connection {
                         case WS_EVENTS.AUTH_SUCCESS:
                             clearTimeout(timeout);
                             Logger.info("Authenticated successfully");
+
+                            // Delta Sync History
+                            try {
+                                const lastSyncTime =
+                                    message.payload?.lastSyncTime;
+                                let historyToSync = [];
+                                if (lastSyncTime) {
+                                    historyToSync = db
+                                        .prepare(
+                                            "SELECT * FROM job_history WHERE end_time > ? AND status != 'running'",
+                                        )
+                                        .all(lastSyncTime) as any[];
+                                } else {
+                                    historyToSync = db
+                                        .prepare(
+                                            "SELECT * FROM job_history WHERE end_time IS NOT NULL AND status != 'running'",
+                                        )
+                                        .all() as any[];
+                                }
+
+                                if (historyToSync.length > 0) {
+                                    const formattedHistory = historyToSync.map(
+                                        (h: any) => ({
+                                            id: h.id,
+                                            jobConfigId: h.job_id,
+                                            name: h.name,
+                                            type: h.type,
+                                            status: h.status,
+                                            startTime: h.start_time,
+                                            endTime: h.end_time,
+                                            exitCode: h.exit_code,
+                                            stdout: h.stdout,
+                                            stderr: h.stderr,
+                                        }),
+                                    );
+
+                                    Logger.info(
+                                        `Syncing ${formattedHistory.length} history records to server...`,
+                                    );
+                                    Connection.send(WS_EVENTS.SYNC_HISTORY, {
+                                        history: formattedHistory,
+                                    });
+                                }
+                            } catch (e) {
+                                Logger.error("Failed to sync history", e);
+                            }
+
                             resolve({ connected: true });
                             break;
                         case WS_EVENTS.RUN_BACKUP:
