@@ -16,14 +16,9 @@ export const ManagedJobs = () => {
     const { globalJobs, sessionHistory, fetchAllJobs, isLoading, error } = useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
     const { repositories, fetchRepositories } = useRepositoryStore();
-    const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
 
     const [isEditing, setIsEditing] = useState(false);
     const [editingJob, setEditingJob] = useState<GlobalJob | null>(null);
-
-    // We reuse the hook, but we need to set the clientId dynamically based on what job is being edited
-    // The useJobForm hook expects a fixed clientId initially, so we might need a workaround or adapt it.
-    // Let's create a local wrapper for the form state since we edit jobs across clients.
 
     useEffect(() => {
         if (token) {
@@ -76,23 +71,6 @@ export const ManagedJobs = () => {
         return client?.displayName || client?.hostname || clientId;
     };
 
-    // --- Editor Wrapper Logic ---
-    // We use a separate state to handle editing, rendering ClientJobEditor exactly like ClientOverview does.
-    const jobForm = useJobForm({
-        clientId: editingJob?.clientId || '',
-        onSaveSuccess: () => {
-            setIsEditing(false);
-            setEditingJob(null);
-            handleRefresh();
-        }
-    });
-
-    useEffect(() => {
-        if (isEditing && editingJob && token) {
-            fetchFileList(editingJob.clientId, jobForm.fileBrowserPath, token);
-        }
-    }, [isEditing, jobForm.fileBrowserPath, editingJob, token]);
-
     const handleEditJob = (job: GlobalJob) => {
         setEditingJob(job);
         // We need to bypass the standard startEditJob of useJobForm because it assumes a fixed clientId.
@@ -110,7 +88,11 @@ export const ManagedJobs = () => {
 
     if (isEditing && editingJob) {
         // Render a dedicated JobEditor per selected job so the hook gets the right clientId on mount
-        return <JobsEditorWrapper job={editingJob} onCancel={() => setIsEditing(false)} onSaveSuccess={handleRefresh} />;
+        return <JobsEditorWrapper job={editingJob} onCancel={() => setIsEditing(false)} onSaveSuccess={() => {
+            setIsEditing(false);
+            setEditingJob(null);
+            handleRefresh();
+        }} />;
     }
 
     return (
@@ -162,10 +144,16 @@ const JobsEditorWrapper = ({ job, onCancel, onSaveSuccess }: { job: GlobalJob, o
     }, [jobForm.fileBrowserPath, token]);
 
 
+    const customSetIsCreatingJob = (val: boolean | ((prevState: boolean) => boolean)) => {
+        const newValue = typeof val === 'function' ? val(jobForm.isCreatingJob) : val;
+        jobForm.setIsCreatingJob(newValue);
+        if (!newValue) onCancel();
+    };
+
     return (
         <ClientJobEditor
             {...jobForm}
-            cancelEditJob={onCancel}
+            setIsCreatingJob={customSetIsCreatingJob as any}
             repositories={repositories}
             fileList={fileList}
             isLoadingFiles={isLoadingFiles}

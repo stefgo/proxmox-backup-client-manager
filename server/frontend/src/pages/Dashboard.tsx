@@ -27,7 +27,7 @@ export default function Dashboard() {
     const { token } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const matchClient = useMatch('/client/:clientId');
     const matchRepo = useMatch('/repository/:repoId');
 

@@ -2,7 +2,6 @@ import { Client } from '@pbcm/shared';
 import { ClientList } from './ClientList';
 import { ClientEditor } from './ClientEditor';
 import { useState } from 'react';
-import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
 import { TokenModal } from '../../tokens/components/TokenModal';
 
