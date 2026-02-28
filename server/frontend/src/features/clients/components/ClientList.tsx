@@ -34,7 +34,7 @@ export const ClientList = ({ clients, selectedClient, setSelectedClient, deleteC
             {/* Clients List */}
             <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col h-full">
                 <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#252525] flex justify-between items-center rounded-t-xl">
-                    <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Monitor size={18} className="text-gray-500 dark:text-[#888]" />Connected Clients</h2>
+                    <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Monitor size={18} className="text-gray-500 dark:text-[#888]" />Clients</h2>
                     <button
                         onClick={generateToken}
                         className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"

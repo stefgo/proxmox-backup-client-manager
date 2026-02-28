@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 import {
     ClientSchema,
     BackupJobSchema,
@@ -9,8 +9,8 @@ import {
     RegistrationResponseSchema,
     ArchiveSchema,
     EncryptionConfigSchema,
-    ScheduleConfigSchema
-} from './schemas.js';
+    ScheduleConfigSchema,
+} from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
@@ -19,7 +19,7 @@ export type Repository = z.infer<typeof RepositorySchema>;
 
 export interface ManagedRepository extends Repository {
     id: string | number;
-    status: 'online' | 'offline' | 'unknown' | 'loading';
+    status: "online" | "offline" | "unknown" | "loading";
 }
 
 export type Client = z.infer<typeof ClientSchema>;
@@ -80,7 +80,7 @@ export interface StatusUpdatePayload {
 export interface LogUpdatePayload {
     jobId: string;
     output: string;
-    stream: 'stdout' | 'stderr';
+    stream: "stdout" | "stderr";
 }
 
 export interface RestoreSnapshotPayload {
@@ -184,66 +184,74 @@ export interface HistoryResponse {
     history: HistoryEntry[];
 }
 
+export interface SyncHistoryPayload {
+    history: HistoryEntry[];
+}
+
 export interface WsMessage<T = any> {
     type: string;
     payload: T;
 }
 
 export interface ProtocolMap {
-    'AUTH': {
+    AUTH: {
         req: AuthPayload;
         res: void;
     };
-    'AUTH_SUCCESS': {
+    AUTH_SUCCESS: {
         req: void;
-        res: void;
+        res: { lastSyncTime?: string | null };
     };
-    'AUTH_FAILURE': {
+    AUTH_FAILURE: {
         req: { error?: string };
         res: void;
     };
-    'GET_VERSION': {
+    GET_VERSION: {
         req: GetVersionRequest;
         res: GetVersionResponse;
     };
-    'JOB_LIST_CONFIG': {
+    JOB_LIST_CONFIG: {
         req: JobListRequest;
         res: JobListResponse;
     };
-    'JOB_SAVE_CONFIG': {
+    JOB_SAVE_CONFIG: {
         req: JobSaveRequest;
         res: JobSaveResponse;
     };
-    'JOB_DELETE_CONFIG': {
+    JOB_DELETE_CONFIG: {
         req: JobDeleteRequest;
         res: JobDeleteResponse;
     };
-    'GENERATE_KEY_CONFIG': {
+    GENERATE_KEY_CONFIG: {
         req: GenerateKeyRequest;
         res: GenerateKeyResponse;
     };
-    'RUN_BACKUP': {
+    RUN_BACKUP: {
         req: RunJobPayload;
         res: void;
     };
-    'RUN_RESTORE': {
+    RUN_RESTORE: {
         req: RestoreSnapshotPayload;
         res: void;
     };
-    'FS_LIST': {
+    FS_LIST: {
         req: FsListRequest;
         res: FsListResponse;
     };
-    'HISTORY': {
+    HISTORY: {
         req: HistoryRequest;
         res: HistoryResponse;
     };
-    'STATUS_UPDATE': {
+    STATUS_UPDATE: {
         req: StatusUpdatePayload;
         res: void;
     };
-    'LOG_UPDATE': {
+    LOG_UPDATE: {
         req: LogUpdatePayload;
+        res: void;
+    };
+    SYNC_HISTORY: {
+        req: SyncHistoryPayload;
         res: void;
     };
 }

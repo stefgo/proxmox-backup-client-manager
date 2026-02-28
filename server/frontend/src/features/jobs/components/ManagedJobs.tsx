@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '../../auth/AuthContext';
-import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
-import { useClientStore } from '../../../stores/useClientStore';
-import { GlobalJobList } from './GlobalJobList';
-import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
-import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
-import { useJobForm } from '../../clients/hooks/useJobForm';
-import { useRepositoryStore } from '../../../stores/useRepositoryStore';
-import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { GlobalJob } from '../../../stores/useGlobalJobsStore';
-import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
+import { useEffect, useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
+import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
+import { useClientStore } from "../../../stores/useClientStore";
+import { JobList } from "./JobList";
+import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
+import { ClientJobEditor } from "../../clients/components/ClientJobEditor";
+import { useJobForm } from "../../clients/hooks/useJobForm";
+import { useRepositoryStore } from "../../../stores/useRepositoryStore";
+import { useClientFileSystemStore } from "../../../stores/useClientFileSystemStore";
+import { GlobalJob } from "../../../stores/useGlobalJobsStore";
+import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 
 export const ManagedJobs = () => {
     const { token } = useAuth();
-    const { globalJobs, sessionHistory, fetchAllJobs, isLoading, error } = useGlobalJobsStore();
+    const { globalJobs, sessionHistory, fetchAllJobs, isLoading, error } =
+        useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
     const { repositories, fetchRepositories } = useRepositoryStore();
 
@@ -37,11 +38,14 @@ export const ManagedJobs = () => {
     const handleTriggerJob = async (clientId: string, jobId: string) => {
         if (!token) return;
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}/jobs/${jobId}/run`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('Failed to trigger job');
+            const res = await fetch(
+                `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
+                {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            if (!res.ok) throw new Error("Failed to trigger job");
         } catch (e: any) {
             alert(e.message);
         }
@@ -50,11 +54,14 @@ export const ManagedJobs = () => {
     const handleDeleteJob = async (clientId: string, jobId: string) => {
         if (!token) return;
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}/jobs/${jobId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error('Failed to delete job');
+            const res = await fetch(
+                `/api/v1/clients/${clientId}/jobs/${jobId}`,
+                {
+                    method: "DELETE",
+                    headers: { Authorization: `Bearer ${token}` },
+                },
+            );
+            if (!res.ok) throw new Error("Failed to delete job");
             handleRefresh();
         } catch (e: any) {
             alert(e.message);
@@ -62,12 +69,12 @@ export const ManagedJobs = () => {
     };
 
     const getClientStatus = (clientId: string) => {
-        const client = clients.find(c => c.id === clientId);
-        return client?.status || 'offline';
+        const client = clients.find((c) => c.id === clientId);
+        return client?.status || "offline";
     };
 
     const getClientName = (clientId: string) => {
-        const client = clients.find(c => c.id === clientId);
+        const client = clients.find((c) => c.id === clientId);
         return client?.displayName || client?.hostname || clientId;
     };
 
@@ -79,26 +86,36 @@ export const ManagedJobs = () => {
     };
 
     if (isLoading && globalJobs.length === 0) {
-        return <div className="p-8 text-center text-gray-500">Loading jobs...</div>;
+        return (
+            <div className="p-8 text-center text-gray-500">Loading jobs...</div>
+        );
     }
 
     if (error) {
-        return <div className="p-8 text-center text-red-500">Error: {error}</div>;
+        return (
+            <div className="p-8 text-center text-red-500">Error: {error}</div>
+        );
     }
 
     if (isEditing && editingJob) {
         // Render a dedicated JobEditor per selected job so the hook gets the right clientId on mount
-        return <JobsEditorWrapper job={editingJob} onCancel={() => setIsEditing(false)} onSaveSuccess={() => {
-            setIsEditing(false);
-            setEditingJob(null);
-            handleRefresh();
-        }} />;
+        return (
+            <JobsEditorWrapper
+                job={editingJob}
+                onCancel={() => setIsEditing(false)}
+                onSaveSuccess={() => {
+                    setIsEditing(false);
+                    setEditingJob(null);
+                    handleRefresh();
+                }}
+            />
+        );
     }
 
     return (
         <div className="space-y-6 flex flex-col">
             <div>
-                <GlobalJobList
+                <JobList
                     jobs={globalJobs}
                     onEditJob={handleEditJob}
                     onTriggerJob={handleTriggerJob}
@@ -120,17 +137,24 @@ export const ManagedJobs = () => {
     );
 };
 
-
 // Wrapper component to isolate the useJobForm hook with the specific clientId
-const JobsEditorWrapper = ({ job, onCancel, onSaveSuccess }: { job: GlobalJob, onCancel: () => void, onSaveSuccess: () => void }) => {
-
+const JobsEditorWrapper = ({
+    job,
+    onCancel,
+    onSaveSuccess,
+}: {
+    job: GlobalJob;
+    onCancel: () => void;
+    onSaveSuccess: () => void;
+}) => {
     const { token } = useAuth();
     const { repositories } = useRepositoryStore();
-    const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
+    const { fileList, isLoadingFiles, fetchFileList } =
+        useClientFileSystemStore();
 
     const jobForm = useJobForm({
         clientId: job.clientId,
-        onSaveSuccess: onSaveSuccess
+        onSaveSuccess: onSaveSuccess,
     });
 
     useEffect(() => {
@@ -143,9 +167,11 @@ const JobsEditorWrapper = ({ job, onCancel, onSaveSuccess }: { job: GlobalJob, o
         }
     }, [jobForm.fileBrowserPath, token]);
 
-
-    const customSetIsCreatingJob = (val: boolean | ((prevState: boolean) => boolean)) => {
-        const newValue = typeof val === 'function' ? val(jobForm.isCreatingJob) : val;
+    const customSetIsCreatingJob = (
+        val: boolean | ((prevState: boolean) => boolean),
+    ) => {
+        const newValue =
+            typeof val === "function" ? val(jobForm.isCreatingJob) : val;
         jobForm.setIsCreatingJob(newValue);
         if (!newValue) onCancel();
     };
@@ -159,5 +185,4 @@ const JobsEditorWrapper = ({ job, onCancel, onSaveSuccess }: { job: GlobalJob, o
             isLoadingFiles={isLoadingFiles}
         />
     );
-}
-
+};
