@@ -1,24 +1,28 @@
-import { FastifyInstance } from 'fastify';
-import { WS_EVENTS, WsMessage, ProtocolMap } from '@pbcm/shared';
-import db from '../core/Database.js';
-import { ProxyService } from '../services/ProxyService.js';
-import { appConfig } from '../config/AppConfig.js';
-import { isIpInNetworks } from '../utils/NetworkUtils.js';
+import { FastifyInstance } from "fastify";
+import { WS_EVENTS, WsMessage, ProtocolMap } from "@pbcm/shared";
+import db from "../core/Database.js";
+import { ProxyService } from "../services/ProxyService.js";
+import { appConfig } from "../config/AppConfig.js";
+import { isIpInNetworks } from "../utils/NetworkUtils.js";
 
 export class WebSocketController {
-    static async handleDashboardConnection(connection: any, req: any, fastify: FastifyInstance) {
+    static async handleDashboardConnection(
+        connection: any,
+        req: any,
+        fastify: FastifyInstance,
+    ) {
         const socket = connection.socket || connection;
 
         const token = (req.query as any).token;
         if (!token) {
-            socket.close(4001, 'Unauthorized');
+            socket.close(4001, "Unauthorized");
             return;
         }
 
         try {
             fastify.jwt.verify(token);
         } catch (e) {
-            socket.close(4001, 'Invalid Token');
+            socket.close(4001, "Invalid Token");
             return;
         }
 
@@ -26,17 +30,23 @@ export class WebSocketController {
 
         // Send initial state
         const clients = ProxyService.getClientsWithStatus();
-        socket.send(JSON.stringify({ type: 'CLIENTS_UPDATE', payload: clients }));
+        socket.send(
+            JSON.stringify({ type: "CLIENTS_UPDATE", payload: clients }),
+        );
 
-        socket.on('close', () => {
+        socket.on("close", () => {
             ProxyService.removeDashboardClient(socket);
         });
     }
 
-    static async handleAgentConnection(connection: any, req: any, fastify: FastifyInstance) {
+    static async handleAgentConnection(
+        connection: any,
+        req: any,
+        fastify: FastifyInstance,
+    ) {
         // Correctly handle IP address with trustProxy (configured in Fastify)
         const clientIp = req.ip;
-        fastify.log.info({ msg: 'Client connected', ip: clientIp });
+        fastify.log.info({ msg: "Client connected", ip: clientIp });
 
         const socket = connection.socket || connection;
         let isAuthenticated = false;
@@ -47,32 +57,40 @@ export class WebSocketController {
         // 1. Extract Token: Check query params first, then Authorization header.
         // WebSocket connections from browser usually use query params?token=..., agents might use Headers.
         let token = (req.query as any).token;
-        if (!token && req.headers['authorization']) {
-            const parts = req.headers['authorization'].split(' ');
-            if (parts.length === 2 && parts[0] === 'Bearer') {
+        if (!token && req.headers["authorization"]) {
+            const parts = req.headers["authorization"].split(" ");
+            if (parts.length === 2 && parts[0] === "Bearer") {
                 token = parts[1];
             }
         }
 
         if (!token) {
-            fastify.log.warn({ msg: 'Client connected without token', ip: clientIp });
-            socket.close(4001, 'Authentication required');
+            fastify.log.warn({
+                msg: "Client connected without token",
+                ip: clientIp,
+            });
+            socket.close(4001, "Authentication required");
             return;
         }
 
-        const client = db.prepare('SELECT id, allowed_ip FROM clients WHERE auth_token = ?').get(token) as any;
+        const client = db
+            .prepare("SELECT id, allowed_ip FROM clients WHERE auth_token = ?")
+            .get(token) as any;
 
         if (!client) {
-            fastify.log.warn({ msg: 'Invalid token used', ip: clientIp });
-            socket.close(4003, 'Invalid credentials');
+            fastify.log.warn({ msg: "Invalid token used", ip: clientIp });
+            socket.close(4003, "Invalid credentials");
             return;
         }
 
         // Global Security Check: Allowed Networks
         const allowedNetworks = appConfig.security?.allowed_networks || [];
         if (!isIpInNetworks(clientIp, allowedNetworks, true)) {
-            fastify.log.warn({ msg: 'Connection denied: IP not in allowed networks', ip: clientIp });
-            socket.close(4003, 'Access denied');
+            fastify.log.warn({
+                msg: "Connection denied: IP not in allowed networks",
+                ip: clientIp,
+            });
+            socket.close(4003, "Access denied");
             return;
         }
 
@@ -81,8 +99,13 @@ export class WebSocketController {
         const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
 
         if (!isTrusted && client.allowed_ip !== clientIp) {
-            fastify.log.warn({ msg: 'IP mismatch for client', expected: client.allowed_ip, actual: clientIp, clientId: client.id });
-            socket.close(4003, 'IP address mismatch');
+            fastify.log.warn({
+                msg: "IP mismatch for client",
+                expected: client.allowed_ip,
+                actual: clientIp,
+                clientId: client.id,
+            });
+            socket.close(4003, "IP address mismatch");
             return;
         }
 
@@ -92,12 +115,15 @@ export class WebSocketController {
 
         authTimeout = setTimeout(() => {
             if (!isAuthenticated && socket.readyState === socket.OPEN) {
-                fastify.log.warn({ msg: 'Client authentication timed out', ip: clientIp });
-                socket.close(4001, 'Authentication timed out');
+                fastify.log.warn({
+                    msg: "Client authentication timed out",
+                    ip: clientIp,
+                });
+                socket.close(4001, "Authentication timed out");
             }
         }, 5000);
 
-        socket.on('message', (message: Buffer) => {
+        socket.on("message", (message: Buffer) => {
             try {
                 const data = JSON.parse(message.toString()) as WsMessage;
 
@@ -108,40 +134,107 @@ export class WebSocketController {
                         clearTimeout(authTimeout);
 
                         const now = new Date().toISOString();
-                        db.prepare(`UPDATE clients SET last_seen=?, updated_at=?, ip_address=? WHERE id=?`).run(now, now, clientIp, clientId);
+                        db.prepare(
+                            `UPDATE clients SET last_seen=?, updated_at=?, ip_address=? WHERE id=?`,
+                        ).run(now, now, clientIp, clientId);
 
-                        fastify.log.info({ msg: 'Client authenticated', clientId });
+                        fastify.log.info({
+                            msg: "Client authenticated",
+                            clientId,
+                        });
                         ProxyService.registerClient(clientId!, socket);
 
-                        socket.send(JSON.stringify({ type: WS_EVENTS.AUTH_SUCCESS, payload: undefined }));
+                        // Find the latest sync time for this client
+                        const lastSyncRecord = db
+                            .prepare(
+                                "SELECT end_time FROM job_history WHERE client_id = ? ORDER BY end_time DESC LIMIT 1",
+                            )
+                            .get(clientId) as
+                            | { end_time: string | null }
+                            | undefined;
+                        const lastSyncTime = lastSyncRecord?.end_time || null;
+
+                        socket.send(
+                            JSON.stringify({
+                                type: WS_EVENTS.AUTH_SUCCESS,
+                                payload: { lastSyncTime },
+                            }),
+                        );
                         ProxyService.broadcastClientUpdate();
 
-                        socket.on('close', () => {
+                        socket.on("close", () => {
                             if (clientId) {
                                 const now = new Date().toISOString();
-                                db.prepare("UPDATE clients SET updated_at=? WHERE id = ?").run(now, clientId);
+                                db.prepare(
+                                    "UPDATE clients SET updated_at=? WHERE id = ?",
+                                ).run(now, clientId);
                                 ProxyService.unregisterClient(clientId);
-                                fastify.log.info({ msg: 'Client disconnected', clientId });
+                                fastify.log.info({
+                                    msg: "Client disconnected",
+                                    clientId,
+                                });
                                 ProxyService.broadcastClientUpdate();
                             }
                         });
                     } else {
-                        socket.send(JSON.stringify({ type: WS_EVENTS.AUTH_FAILURE, payload: {} }));
-                        socket.close(4003, 'Forbidden');
+                        socket.send(
+                            JSON.stringify({
+                                type: WS_EVENTS.AUTH_FAILURE,
+                                payload: {},
+                            }),
+                        );
+                        socket.close(4003, "Forbidden");
                     }
                     return;
                 }
 
                 // Handle Messages from Agent
-                // 1. Status Updates (Forward to Dashboard)
+                // 1. Status Updates (Forward to Dashboard + Save to DB if final)
                 if (data.type === WS_EVENTS.STATUS_UPDATE) {
-                    const statusPayload = data.payload as ProtocolMap['STATUS_UPDATE']['req'];
+                    const statusPayload =
+                        data.payload as ProtocolMap["STATUS_UPDATE"]["req"];
+
+                    // If job has ended, save to history
+                    if (
+                        ["success", "failed", "abort"].includes(
+                            statusPayload.status,
+                        )
+                    ) {
+                        try {
+                            db.prepare(
+                                `
+                                INSERT OR REPLACE INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            `,
+                            ).run(
+                                statusPayload.id,
+                                clientId,
+                                statusPayload.id, // Using runId as job_id fallback, or extract actual jobId if possible. client sends runId as id. It might not pass jobId directly in STATUS_UPDATE. For now, leave it as id.
+                                statusPayload.name || null,
+                                statusPayload.type,
+                                statusPayload.status,
+                                statusPayload.startTime ||
+                                    new Date().toISOString(),
+                                statusPayload.endTime ||
+                                    new Date().toISOString(),
+                                statusPayload.exitCode ?? null,
+                                statusPayload.stdout || null,
+                                statusPayload.stderr || null,
+                            );
+                        } catch (err) {
+                            fastify.log.error({
+                                msg: "Failed to save job history",
+                                err,
+                            });
+                        }
+                    }
+
                     const updateMsg = {
-                        type: 'JOB_UPDATE',
+                        type: "JOB_UPDATE",
                         payload: {
                             clientId: clientId,
-                            job: statusPayload
-                        }
+                            job: statusPayload,
+                        },
                     };
                     // We need to implement this method in ProxyService or expose dashboardClients
                     // I'll assume I update ProxyService or access it if I change it to public.
@@ -152,19 +245,69 @@ export class WebSocketController {
                 // 2. Log Updates
                 // Stream stdout/stderr from client jobs to the dashboard for real-time monitoring.
                 if (data.type === WS_EVENTS.LOG_UPDATE) {
-                    const logPayload = data.payload as ProtocolMap['LOG_UPDATE']['req'];
+                    const logPayload =
+                        data.payload as ProtocolMap["LOG_UPDATE"]["req"];
                     const updateMsg = {
-                        type: 'LOG_UPDATE',
+                        type: "LOG_UPDATE",
                         payload: {
                             clientId: clientId,
-                            ...logPayload
-                        }
+                            ...logPayload,
+                        },
                     };
                     ProxyService.broadcastToDashboard(updateMsg);
                 }
 
+                // 3. Sync History (Delta load from client)
+                if (data.type === WS_EVENTS.SYNC_HISTORY) {
+                    const syncPayload =
+                        data.payload as ProtocolMap["SYNC_HISTORY"]["req"];
+                    if (
+                        syncPayload.history &&
+                        Array.isArray(syncPayload.history)
+                    ) {
+                        const insertStmt = db.prepare(`
+                            INSERT OR REPLACE INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `);
+
+                        const transaction = db.transaction((entries) => {
+                            for (const entry of entries) {
+                                insertStmt.run(
+                                    entry.id,
+                                    clientId,
+                                    entry.jobConfigId || null,
+                                    entry.name || null,
+                                    entry.type,
+                                    entry.status,
+                                    entry.startTime,
+                                    entry.endTime,
+                                    entry.exitCode,
+                                    entry.stdout || null,
+                                    entry.stderr || null,
+                                );
+                            }
+                        });
+
+                        try {
+                            transaction(syncPayload.history);
+                            fastify.log.info({
+                                msg: "Processed history sync from client",
+                                clientId,
+                                count: syncPayload.history.length,
+                            });
+                        } catch (err) {
+                            fastify.log.error({
+                                msg: "Failed to process history sync",
+                                err,
+                            });
+                        }
+                    }
+                }
             } catch (err) {
-                fastify.log.error({ msg: 'Error processing WebSocket message', err });
+                fastify.log.error({
+                    msg: "Error processing WebSocket message",
+                    err,
+                });
             }
         });
 

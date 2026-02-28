@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { BackupJob, HistoryEntry } from '@pbcm/shared';
+import { create } from "zustand";
+import { BackupJob, HistoryEntry } from "@pbcm/shared";
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -24,13 +24,14 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     fetchAllJobs: async (token) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await fetch('/api/v1/jobs', {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const res = await fetch("/api/v1/jobs", {
+                headers: { Authorization: `Bearer ${token}` },
             });
 
-            if (!res.ok) throw new Error('Failed to fetch jobs');
+            if (!res.ok) throw new Error("Failed to fetch jobs");
 
-            const data: { clientId: string, jobs: BackupJob[] }[] = await res.json();
+            const data: { clientId: string; jobs: BackupJob[] }[] =
+                await res.json();
 
             // Flatten the array of { clientId, jobs[] } into GlobalJob[]
             const flattenedJobs: GlobalJob[] = [];
@@ -38,7 +39,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 for (const job of clientJobs.jobs) {
                     flattenedJobs.push({
                         ...job,
-                        clientId: clientJobs.clientId
+                        clientId: clientJobs.clientId,
                     });
                 }
             }
@@ -49,12 +50,17 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
         }
     },
 
-    updateSession: (job: HistoryEntry) => set((state) => {
-        const exists = state.sessionHistory.find((j) => j.id === job.id);
-        if (exists) {
-            return { sessionHistory: state.sessionHistory.map((j) => j.id === job.id ? { ...j, ...job } : j) };
-        } else {
-            return { sessionHistory: [job, ...state.sessionHistory] };
-        }
-    })
+    updateSession: (job: HistoryEntry) =>
+        set((state) => {
+            const exists = state.sessionHistory.find((j) => j.id === job.id);
+            if (exists) {
+                return {
+                    sessionHistory: state.sessionHistory.map((j) =>
+                        j.id === job.id ? { ...j, ...job } : j,
+                    ),
+                };
+            } else {
+                return { sessionHistory: [job, ...state.sessionHistory] };
+            }
+        }),
 }));
