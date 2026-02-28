@@ -1,19 +1,25 @@
 import { WebSocket } from 'ws';
 import db from '../core/Database.js';
 import crypto, { randomUUID } from 'crypto';
-import { WS_EVENTS, WsMessage, ProtocolMap } from '@pbcm/shared';
+import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from '@pbcm/shared';
 import { logger } from '../core/Logger.js';
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
+    private static jobCache = new Map<string, BackupJob[]>();
 
     static registerClient(clientId: string, socket: WebSocket) {
         this.connectedClients.set(clientId, socket);
+        // Refresh job cache asynchronously when client connects
+        this.refreshJobCache(clientId).catch(e => {
+            logger.error({ err: e, clientId }, 'Failed to fetch initial job list on connect');
+        });
     }
 
     static unregisterClient(clientId: string) {
         this.connectedClients.delete(clientId);
+        // We INTENTIONALLY do not delete the cache here so offline clients show their last known jobs
     }
 
     static addDashboardClient(socket: WebSocket) {
@@ -22,6 +28,24 @@ export class ProxyService {
 
     static removeDashboardClient(socket: WebSocket) {
         this.dashboardClients.delete(socket);
+    }
+
+    static async refreshJobCache(clientId: string) {
+        try {
+            const payload = await this.sendRequest(clientId, WS_EVENTS.JOB_LIST_CONFIG, { requestId: randomUUID() });
+            this.jobCache.set(clientId, payload.jobs);
+            // Optional: Broadcast a separate JOB cache update if frontend listens for it
+        } catch (e: any) {
+            logger.warn({ clientId, err: e.message }, 'Failed to refresh job cache for client');
+        }
+    }
+
+    static getAllCachedJobs(): { clientId: string, jobs: BackupJob[] }[] {
+        const result: { clientId: string, jobs: BackupJob[] }[] = [];
+        for (const [clientId, jobs] of this.jobCache.entries()) {
+            result.push({ clientId, jobs });
+        }
+        return result;
     }
 
     static getClientSocket(clientId: string): WebSocket | undefined {

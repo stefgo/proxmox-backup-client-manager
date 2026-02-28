@@ -1,4 +1,4 @@
-import { Monitor, Key, Users, Settings as SettingsIcon, Server as ServerIcon } from 'lucide-react';
+import { Monitor, HardDrive, Key, Users, Settings as SettingsIcon, Server as ServerIcon } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 
 interface NavItemProps {
@@ -33,12 +33,13 @@ const NavItem = ({ icon, label, active, onClick, badge }: NavItemProps) => (
 );
 
 interface SidebarProps {
-    view: 'clients' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail';
-    setView: (view: 'clients' | 'repositories' | 'tokens' | 'users' | 'settings') => void;
+    view: 'clients' | 'jobs' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail';
+    setView: (view: 'clients' | 'jobs' | 'repositories' | 'tokens' | 'users' | 'settings') => void;
     selectedClient: Client | null;
     stats: {
         clients: { active: number; total: number };
         repositories: { active: number; total: number };
+        jobs: { active: number; total: number };
     };
 }
 
@@ -54,6 +55,13 @@ export const Sidebar = ({ view, setView, selectedClient, stats }: SidebarProps) 
                         active={view === 'clients' && !selectedClient}
                         onClick={() => setView('clients')}
                         badge={`${stats.clients.active} / ${stats.clients.total}`}
+                    />
+                    <NavItem
+                        icon={<HardDrive size={18} />}
+                        label="Jobs"
+                        active={view === 'jobs'}
+                        onClick={() => setView('jobs')}
+                        badge={`${stats.jobs.active} / ${stats.jobs.total}`}
                     />
                     <NavItem
                         icon={<ServerIcon size={18} />} // Renamed from Archive to ArchiveIcon to avoid conflict if any, but import needs check

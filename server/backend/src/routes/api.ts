@@ -63,6 +63,9 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             protectedRoutes.post('/clients/:clientId/jobs', JobController.save);
             protectedRoutes.delete('/clients/:clientId/jobs/:jobId', JobController.delete);
 
+            // Global Jobs
+            protectedRoutes.get('/jobs', JobController.listAll);
+
             // Client Keys
             protectedRoutes.post('/clients/:clientId/key', JobController.generateKey);
 

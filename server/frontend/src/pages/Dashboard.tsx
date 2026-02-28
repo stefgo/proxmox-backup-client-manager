@@ -9,6 +9,7 @@ import { TokenOverview } from './TokenOverview';
 // Managed Components
 import { ManagedClients } from '../features/clients/components/ManagedClients';
 import { ManagedRepositories } from '../features/repositories/components/ManagedRepositories';
+import { ManagedJobs } from '../features/jobs/components/ManagedJobs';
 
 // Pages
 import { ClientOverview } from '../features/clients/components/ClientOverview';
@@ -20,6 +21,7 @@ import Settings from './Settings';
 import { useAuth } from '../features/auth/AuthContext';
 import { useClientStore } from '../stores/useClientStore';
 import { useRepositoryStore } from '../stores/useRepositoryStore';
+import { useGlobalJobsStore } from '../stores/useGlobalJobsStore';
 
 export default function Dashboard() {
     const { token } = useAuth();
@@ -39,6 +41,7 @@ export default function Dashboard() {
         if (path === '/settings') return 'settings';
         if (path === '/clients') return 'clients';
         if (path === '/repositories') return 'repositories';
+        if (path === '/jobs') return 'jobs';
         return 'clients'; // Default view
     }, [location.pathname, searchParams]);
 
@@ -54,16 +57,20 @@ export default function Dashboard() {
     const selectedRepo = selectedRepoId ? (repos.find(r => String(r.id) === selectedRepoId) || null) : null;
 
     // Initial Fetch
+    const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
+
     useEffect(() => {
         if (token) {
             fetchClients(token);
             refreshRepos(token);
+            fetchAllJobs(token);
         }
     }, [token]);
 
-    const handleSetView = (v: 'clients' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail') => {
+    const handleSetView = (v: 'clients' | 'jobs' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail') => {
         if (v === 'clients') navigate('/clients');
         else if (v === 'repositories') navigate('/repositories');
+        else if (v === 'jobs') navigate('/jobs');
         else if (v === 'tokens') navigate('/tokens');
         else if (v === 'users') navigate('/users');
         else if (v === 'settings') navigate('/settings');
@@ -78,8 +85,15 @@ export default function Dashboard() {
         repositories: {
             active: repos.filter(r => r.status === 'online').length,
             total: repos.length
+        },
+        jobs: {
+            active: globalJobs.filter(j => {
+                const client = clients.find(c => c.id === j.clientId);
+                return client?.status === 'online';
+            }).length,
+            total: globalJobs.length
         }
-    }), [clients, repos]);
+    }), [clients, repos, globalJobs]);
 
     return (
         <DashboardLayout
@@ -107,6 +121,10 @@ export default function Dashboard() {
                     onUpdate={(id, r) => token ? updateRepository(id, r, token) : Promise.reject()}
                     onDelete={(id) => token ? deleteRepository(id, token) : Promise.reject()}
                 />
+            )}
+
+            {view === 'jobs' && (
+                <ManagedJobs />
             )}
 
             {view === 'tokens' && (

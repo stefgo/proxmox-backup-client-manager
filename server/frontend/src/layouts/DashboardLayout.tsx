@@ -7,12 +7,13 @@ import { Client } from '@pbcm/shared';
 
 interface DashboardLayoutProps {
     children: ReactNode;
-    view: 'clients' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail';
-    setView: (view: 'clients' | 'repositories' | 'tokens' | 'users' | 'settings') => void;
+    view: 'clients' | 'jobs' | 'repositories' | 'tokens' | 'users' | 'settings' | 'client-detail' | 'repository-detail';
+    setView: (view: 'clients' | 'jobs' | 'repositories' | 'tokens' | 'users' | 'settings') => void;
     selectedClient: Client | null;
     stats: {
         clients: { active: number; total: number };
         repositories: { active: number; total: number };
+        jobs: { active: number; total: number };
     };
 }
 

@@ -36,7 +36,13 @@ export class JobController {
             const jobData = parsed.data;
             const result = await ProxyService.sendRequest(clientId, WS_EVENTS.JOB_SAVE_CONFIG, { requestId: request.id, job: jobData });
 
-            if (result.success) return { status: 'saved' };
+            if (result.success) {
+                // Refresh backend cache since the job was successfully saved on client
+                ProxyService.refreshJobCache(clientId).catch(e => {
+                    import('../core/Logger.js').then(m => m.logger.error({ err: e, clientId }, 'Failed to refresh cache after job save'));
+                });
+                return { status: 'saved' };
+            }
             throw new Error(result.error);
         } catch (e: any) {
             return reply.code(500).send({ error: e.message });
@@ -47,7 +53,13 @@ export class JobController {
 
         try {
             const result = await ProxyService.sendRequest(clientId, WS_EVENTS.JOB_DELETE_CONFIG, { requestId: request.id, jobId });
-            if (result.success) return { status: 'deleted' };
+            if (result.success) {
+                // Refresh backend cache
+                ProxyService.refreshJobCache(clientId).catch(e => {
+                    import('../core/Logger.js').then(m => m.logger.error({ err: e, clientId }, 'Failed to refresh cache after job delete'));
+                });
+                return { status: 'deleted' };
+            }
             throw new Error(result.error);
         } catch (e: any) {
             return reply.code(500).send({ error: e.message });
@@ -95,5 +107,15 @@ export class JobController {
         } catch (e: any) {
             return reply.code(500).send({ error: e.message });
         }
+    }
+
+    /**
+     * Retrieves all cached jobs from the ProxyService.
+     * Used by the Global Jobs dashboard view.
+     * @param request - Fastify request
+     * @param reply - Fastify reply
+     */
+    static async listAll(request: FastifyRequest, reply: FastifyReply) {
+        return ProxyService.getAllCachedJobs();
     }
 }
