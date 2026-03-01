@@ -10,9 +10,6 @@ export interface ColumnDef<T> {
 }
 
 export interface DataTableProps<T> {
-    title?: ReactNode;
-    icon?: ReactNode;
-    actions?: ReactNode;
     data: T[];
     columns: ColumnDef<T>[];
     keyField: keyof T | ((item: T) => string | number);
@@ -33,9 +30,6 @@ export interface DataTableProps<T> {
 }
 
 export const DataTable = <T,>({
-    title,
-    icon,
-    actions,
     data,
     columns,
     keyField,
@@ -55,20 +49,8 @@ export const DataTable = <T,>({
         return item[keyField] as unknown as string | number;
     };
 
-    const hasHeader = !!(title || icon || actions);
-
     return (
         <div className={`bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg flex flex-col h-full ${containerClassName}`}>
-            {hasHeader && (
-                <div className={`px-5 py-4 border-b border-gray-200 dark:border-[#333] bg-gray-50 dark:bg-[#252525] flex justify-between items-center shrink-0`}>
-                    <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        {icon && <span className="text-gray-500 dark:text-[#888]">{icon}</span>}
-                        {title}
-                    </h3>
-                    {actions && <div className="flex items-center gap-3">{actions}</div>}
-                </div>
-            )}
-
             <div className="overflow-x-auto flex-1 h-full min-h-0">
                 <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-gray-50 dark:bg-[#252525] z-10">

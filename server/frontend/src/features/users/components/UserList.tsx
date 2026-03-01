@@ -2,6 +2,7 @@ import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
 import { DataTable, ColumnDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
+import { Card } from '../../../components/Card';
 
 export interface UserData {
     id: number;
@@ -83,16 +84,9 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
     ];
 
     return (
-        <DataTable
-            title="Users"
-            icon={<User size={18} />}
-            data={users}
-            columns={columns}
-            keyField="id"
-            isLoading={isLoading}
-            loadingMessage="Loading users..."
-            emptyMessage="No users found"
-            actions={
+        <Card
+            title={<><User size={18} className="text-gray-500 dark:text-[#888]" /> Users</>}
+            action={
                 <button
                     onClick={onCreateUser}
                     className="px-3 py-1 text-white text-xs rounded transition-colors bg-[#E54D0D] hover:bg-[#ff5f1f]"
@@ -100,6 +94,17 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                     <Plus size={12} className="inline mr-1" /> New User
                 </button>
             }
-        />
+            noPadding
+        >
+            <DataTable
+                data={users}
+                columns={columns}
+                keyField="id"
+                isLoading={isLoading}
+                loadingMessage="Loading users..."
+                emptyMessage="No users found"
+                containerClassName="rounded-none border-0 shadow-none"
+            />
+        </Card>
     );
 };

@@ -315,7 +315,6 @@ export const BaseJobList = <T extends BaseJobItem>({
             {/* ── Table View via DataTable ─────────────────────────────────── */}
             {viewMode === "table" ? (
                 <DataTable
-                    title=""
                     data={currentJobs}
                     columns={columns}
                     keyField={(job) =>

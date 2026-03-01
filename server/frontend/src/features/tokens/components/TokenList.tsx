@@ -4,6 +4,7 @@ import { formatDate } from '../../../utils';
 import { usePagination } from '../../../hooks/usePagination';
 import { DataTable, ColumnDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
+import { Card } from '../../../components/Card';
 
 interface TokenListProps {
     tokens: Token[];
@@ -63,14 +64,9 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
     ];
 
     return (
-        <DataTable
-            title="Client Tokens"
-            icon={<Key size={18} />}
-            data={currentTokens}
-            columns={columns}
-            keyField="token"
-            emptyMessage="No tokens generated"
-            actions={
+        <Card
+            title={<><Key size={18} className="text-gray-500 dark:text-[#888]" /> Client Tokens</>}
+            action={
                 <button
                     onClick={generateToken}
                     className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
@@ -78,6 +74,15 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>
             }
-        />
+            noPadding
+        >
+            <DataTable
+                data={currentTokens}
+                columns={columns}
+                keyField="token"
+                emptyMessage="No tokens generated"
+                containerClassName="rounded-none border-0 shadow-none"
+            />
+        </Card>
     );
 };

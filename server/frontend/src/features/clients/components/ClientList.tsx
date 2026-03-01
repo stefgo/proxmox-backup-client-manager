@@ -4,6 +4,7 @@ import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
 import { DataTable, ColumnDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
+import { Card } from '../../../components/Card';
 
 interface ClientListProps {
     clients: Client[];
@@ -87,15 +88,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
     return (
         <div className={`transition-all duration-300 w-full flex flex-col gap-6 h-full min-h-0`}>
-            <DataTable
-                title="Clients"
-                icon={<Monitor size={18} />}
-                data={currentClients}
-                columns={columns}
-                keyField="id"
-                emptyMessage="No clients connected"
-                onRowClick={setSelectedClient}
-                actions={
+            <Card
+                title={<><Monitor size={18} className="text-gray-500 dark:text-[#888]" /> Clients</>}
+                action={
                     <button
                         onClick={generateToken}
                         className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
@@ -103,15 +98,26 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                         <Plus size={12} className="inline mr-1" />Generate New Token
                     </button>
                 }
-                pagination={{
-                    currentPage,
-                    totalPages,
-                    itemsPerPage,
-                    totalItems,
-                    onPageChange: goToPage,
-                    onItemsPerPageChange: setItemsPerPage
-                }}
-            />
+                noPadding
+                className="h-full flex flex-col overflow-hidden"
+            >
+                <DataTable
+                    data={currentClients}
+                    columns={columns}
+                    keyField="id"
+                    emptyMessage="No clients connected"
+                    onRowClick={setSelectedClient}
+                    pagination={{
+                        currentPage,
+                        totalPages,
+                        itemsPerPage,
+                        totalItems,
+                        onPageChange: goToPage,
+                        onItemsPerPageChange: setItemsPerPage
+                    }}
+                    containerClassName="rounded-none border-0 shadow-none flex-1"
+                />
+            </Card>
         </div>
     );
 };
