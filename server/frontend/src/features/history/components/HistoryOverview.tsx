@@ -51,19 +51,5 @@ export const HistoryOverview = () => {
         );
     }
 
-    return (
-        <div className="p-6 max-w-7xl mx-auto h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        History
-                    </h1>
-                </div>
-            </div>
-
-            <div className="flex-1 min-h-0">
-                <BaseHistoryList items={history} showClientName={true} />
-            </div>
-        </div>
-    );
+    return <BaseHistoryList items={history} showClientName={true} />;
 };

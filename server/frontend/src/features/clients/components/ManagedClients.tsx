@@ -48,15 +48,9 @@ export const ManagedClients = ({
         }
     };
 
-    const handleDeleteClient = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleDeleteClient = async (client: Client) => {
         if (!confirm("Delete this client?")) return;
-        onDelete(id);
-    };
-
-    const handleEditClient = (client: Client, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setEditingClient(client);
+        onDelete(client.id);
     };
 
     const handleSaveClient = async (
@@ -78,11 +72,10 @@ export const ManagedClients = ({
             ) : (
                 <ClientList
                     clients={clients}
-                    selectedClient={null}
                     setSelectedClient={onSelect}
                     deleteClient={handleDeleteClient}
                     generateToken={handleGenerateToken}
-                    onEdit={handleEditClient}
+                    editClient={setEditingClient}
                 />
             )}
 

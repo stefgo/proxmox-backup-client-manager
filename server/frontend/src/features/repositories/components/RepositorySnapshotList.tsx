@@ -4,6 +4,7 @@ import { Snapshot } from '@pbcm/shared';
 import { Client } from '@pbcm/shared';
 import { PaginationControls } from '../../../components/PaginationControls';
 import { formatDate } from '../../../utils';
+import { ActionButton } from '../../../components/ActionButton';
 
 interface RepositorySnapshotListProps {
     snapshots: Snapshot[];
@@ -79,13 +80,12 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button
+                                        <ActionButton
+                                            icon={ArchiveRestore}
                                             onClick={() => onRestore(snap)}
-                                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:text-[#666] dark:hover:text-blue-400 transition-all rounded-full hover:bg-gray-100 dark:hover:bg-[#333]"
-                                            title="Restore Snapshot"
-                                        >
-                                            <ArchiveRestore size={16} />
-                                        </button>
+                                            color="blue"
+                                            tooltip="Restore Snapshot"
+                                        />
                                     </td>
                                 </tr>
                             );

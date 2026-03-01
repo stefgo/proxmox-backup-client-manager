@@ -13,6 +13,7 @@ import {
 import { usePagination } from "../../../hooks/usePagination";
 import { PaginationControls } from "../../../components/PaginationControls";
 import { formatDate } from "../../../utils";
+import { ActionButton } from "../../../components/ActionButton";
 
 export interface BaseJobItem {
     id: string;
@@ -161,49 +162,25 @@ export const BaseJobList = <T extends BaseJobItem>({
             </div>
             <div className="flex-1 overflow-x-auto min-h-0">
                 {viewMode === "table" ? (
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-[#333]">
-                        <thead className="bg-gray-50 dark:bg-[#252525]">
-                            <tr>
+                    <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-gray-50 dark:bg-[#252525] z-10">
+                            <tr className="border-b border-gray-200 dark:border-[#333]">
                                 {showClientColumn && (
-                                    <th
-                                        scope="col"
-                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                    >
+                                    <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">
                                         Client
                                     </th>
                                 )}
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                >
-                                    Job Name
+                                <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">
+                                    Job
                                 </th>
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                >
-                                    Job ID
-                                </th>
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                >
+                                <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">
                                     Archives
                                 </th>
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                >
+                                <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">
                                     Schedule
                                 </th>
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                ></th>
-                                <th
-                                    scope="col"
-                                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                                >
+                                <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider"></th>
+                                <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">
                                     Actions
                                 </th>
                             </tr>
@@ -221,11 +198,9 @@ export const BaseJobList = <T extends BaseJobItem>({
                                         className={`transition-colors group ${rowClass}`}
                                     >
                                         {showClientColumn && (
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-6 py-4 whitespace-nowrap align-top">
                                                 <div className="flex items-center gap-2">
-                                                    <div
-                                                        className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
-                                                    />
+                                                    <div className={`w-2 h-2 rounded-full shrink-0 ${getStatus(job) === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
                                                     <div
                                                         className={`text-sm font-medium ${isOnline ? "text-gray-900 dark:text-white" : "text-inherit"} max-w-[150px] truncate`}
                                                         title={
@@ -241,28 +216,24 @@ export const BaseJobList = <T extends BaseJobItem>({
                                                 </div>
                                             </td>
                                         )}
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-6 py-4 whitespace-nowrap align-top">
                                             <div
                                                 className={`text-sm ${isOnline ? "font-medium text-gray-900 dark:text-white" : "text-inherit"}`}
                                             >
                                                 {job.name}
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div
-                                                className={`text-sm ${isOnline ? "text-gray-500 dark:text-[#ccc]" : "text-inherit"}`}
-                                            >
+                                            <div className="text-xs font-mono text-gray-500 dark:text-[#666] truncate opacity-70 mt-0.5">
                                                 {job.id}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-6 py-4 whitespace-nowrap align-top">
                                             <div
-                                                className={`text-sm ${isOnline ? "text-gray-500 dark:text-[#ccc]" : "text-inherit"}`}
+                                                className={`text-sm ${isOnline ? "text-gray-900 dark:text-white" : "text-inherit"}`}
                                             >
                                                 {job.archives?.length || 0}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-6 py-4 whitespace-nowrap align-top">
                                             <div
                                                 className={`text-sm ${isOnline ? "text-gray-500 dark:text-[#ccc]" : "text-inherit"}`}
                                             >
@@ -284,7 +255,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-6 py-4 whitespace-nowrap align-top">
                                             <div
                                                 className={`text-sm ${isOnline ? "text-gray-500 dark:text-[#ccc]" : "text-inherit"}`}
                                             >
@@ -302,44 +273,30 @@ export const BaseJobList = <T extends BaseJobItem>({
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-3">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (isOnline)
-                                                            onTriggerJob(job);
-                                                    }}
+                                                <ActionButton
+                                                    icon={Play}
+                                                    onClick={() => onTriggerJob(job)}
                                                     disabled={!isOnline}
-                                                    className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-500 hover:text-green-600 dark:text-[#888] dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"}`}
-                                                    title={
-                                                        isOnline
-                                                            ? "Run Now"
-                                                            : "Client Offline"
-                                                    }
-                                                >
-                                                    <Play size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (isOnline)
-                                                            onEditJob(job);
+                                                    color="green"
+                                                    tooltip={{
+                                                        enabled: "Run Now",
+                                                        disabled: "Client Offline"
                                                     }}
+                                                />
+                                                <ActionButton
+                                                    icon={Pencil}
+                                                    onClick={() => onEditJob(job)}
                                                     disabled={!isOnline}
-                                                    className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-400 hover:text-blue-600 dark:text-[#666] dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"}`}
-                                                    title={
-                                                        isOnline
-                                                            ? "Edit Job"
-                                                            : "Client Offline"
-                                                    }
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
+                                                    color="blue"
+                                                    tooltip={{
+                                                        enabled: "Edit Job",
+                                                        disabled: "Client Offline"
+                                                    }}
+                                                />
                                                 <div className="relative">
-                                                    <button
+                                                    <ActionButton
+                                                        icon={MoreVertical}
                                                         onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!isOnline)
-                                                                return;
                                                             const rect =
                                                                 e.currentTarget.getBoundingClientRect();
                                                             setJobMenuState(
@@ -354,12 +311,9 @@ export const BaseJobList = <T extends BaseJobItem>({
                                                             );
                                                         }}
                                                         disabled={!isOnline}
-                                                        className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-400 hover:text-gray-600 dark:text-[#666] dark:hover:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"} ${jobMenuState?.id === job.id && jobMenuState?.clientId === job.clientId ? "opacity-100" : ""}`}
-                                                    >
-                                                        <MoreVertical
-                                                            size={16}
-                                                        />
-                                                    </button>
+                                                        color="gray"
+                                                        className={jobMenuState?.id === job.id && jobMenuState?.clientId === job.clientId ? "opacity-100 bg-gray-100 dark:bg-[#333]" : ""}
+                                                    />
 
                                                     {jobMenuState?.id === job.id && jobMenuState?.clientId === job.clientId &&
                                                         isOnline && (
@@ -548,43 +502,30 @@ export const BaseJobList = <T extends BaseJobItem>({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3 ml-4">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (isOnline)
-                                                        onTriggerJob(job);
-                                                }}
+                                            <ActionButton
+                                                icon={Play}
+                                                onClick={() => onTriggerJob(job)}
                                                 disabled={!isOnline}
-                                                className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-500 hover:text-green-600 dark:text-[#888] dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"}`}
-                                                title={
-                                                    isOnline
-                                                        ? "Run Now"
-                                                        : "Client Offline"
-                                                }
-                                            >
-                                                <Play size={16} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (isOnline)
-                                                        onEditJob(job);
+                                                color="green"
+                                                tooltip={{
+                                                    enabled: "Run Now",
+                                                    disabled: "Client Offline"
                                                 }}
+                                            />
+                                            <ActionButton
+                                                icon={Pencil}
+                                                onClick={() => onEditJob(job)}
                                                 disabled={!isOnline}
-                                                className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-400 hover:text-blue-600 dark:text-[#666] dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"}`}
-                                                title={
-                                                    isOnline
-                                                        ? "Edit Job"
-                                                        : "Client Offline"
-                                                }
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
+                                                color="blue"
+                                                tooltip={{
+                                                    enabled: "Edit Job",
+                                                    disabled: "Client Offline"
+                                                }}
+                                            />
                                             <div className="relative">
-                                                <button
+                                                <ActionButton
+                                                    icon={MoreVertical}
                                                     onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (!isOnline) return;
                                                         const rect =
                                                             e.currentTarget.getBoundingClientRect();
                                                         setJobMenuState(
@@ -599,10 +540,9 @@ export const BaseJobList = <T extends BaseJobItem>({
                                                         );
                                                     }}
                                                     disabled={!isOnline}
-                                                    className={`p-1.5 transition-all rounded-full ${isOnline ? "text-gray-400 hover:text-gray-600 dark:text-[#666] dark:hover:text-[#ccc] hover:bg-gray-100 dark:hover:bg-[#333]" : "text-inherit cursor-not-allowed"} ${jobMenuState?.id === job.id && jobMenuState?.clientId === job.clientId ? "opacity-100" : ""}`}
-                                                >
-                                                    <MoreVertical size={16} />
-                                                </button>
+                                                    color="gray"
+                                                    className={jobMenuState?.id === job.id && jobMenuState?.clientId === job.clientId ? "opacity-100 bg-gray-100 dark:bg-[#333]" : ""}
+                                                />
 
                                                 {jobMenuState?.id === job.id &&
                                                     jobMenuState?.clientId === job.clientId &&

@@ -4,6 +4,7 @@ import { Plus, Server, Trash2, Pencil, MoreVertical } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { PaginationControls } from '../../../components/PaginationControls';
+import { ActionButton } from '../../../components/ActionButton';
 
 interface RepositoryListProps {
     repositories: Repository[];
@@ -61,12 +62,12 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                         </div>
 
                         <div className="relative">
-                            <button
+                            <ActionButton
+                                icon={MoreVertical}
                                 onClick={(e) => openMenu(e, repo.id as string)}
-                                className="p-1 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#333] transition-colors"
-                            >
-                                <MoreVertical size={16} />
-                            </button>
+                                color="gray"
+                                className={menuState?.id === repo.id ? 'opacity-100' : ''}
+                            />
 
                             <ActionMenu
                                 isOpen={menuState?.id === repo.id}
