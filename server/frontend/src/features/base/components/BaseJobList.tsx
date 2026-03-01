@@ -16,6 +16,7 @@ import { formatDate } from "../../../utils";
 import { ActionButton } from "../../../components/ActionButton";
 import { DataTable, ColumnDef } from "../../../components/DataTable";
 import { DataTableAction } from "../../../components/DataTableAction";
+import { Card } from "../../../components/Card";
 
 export interface BaseJobItem {
     id: string;
@@ -46,7 +47,7 @@ export interface BaseJobListProps<T extends BaseJobItem> {
 
 export const BaseJobList = <T extends BaseJobItem>({
     jobs,
-    title = "Classified Jobs",
+    title = "Jobs",
     showClientColumn = false,
     showNewJobButton = false,
     onEditJob,
@@ -302,16 +303,12 @@ export const BaseJobList = <T extends BaseJobItem>({
     const columns = buildColumns();
 
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg h-full flex flex-col">
-            {/* ── Shared Header ───────────────────────────────────────────── */}
-            <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525] shrink-0">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <HardDrive size={18} className="text-gray-500 dark:text-[#888]" />
-                    {title}
-                </h3>
-                <div className="flex items-center gap-3">{headerActions}</div>
-            </div>
-
+        <Card
+            className="overflow-hidden h-full flex flex-col"
+            noPadding
+            title={<><HardDrive size={18} className="text-gray-500 dark:text-[#888]" />{title}</>}
+            action={<div className="flex items-center gap-3">{headerActions}</div>}
+        >
             {/* ── Table View via DataTable ─────────────────────────────────── */}
             {viewMode === "table" ? (
                 <DataTable
@@ -323,17 +320,9 @@ export const BaseJobList = <T extends BaseJobItem>({
                     emptyMessage="No jobs configured"
                     rowClassName={(job) =>
                         getStatus(job) === "online"
-                            ? "hover:bg-gray-50 align-top dark:hover:bg-[#252525]"
+                            ? "align-top"
                             : "text-gray-400 align-top dark:text-[#666]"
                     }
-                    pagination={{
-                        currentPage,
-                        totalPages,
-                        itemsPerPage,
-                        totalItems,
-                        onPageChange: goToPage,
-                        onItemsPerPageChange: setItemsPerPage,
-                    }}
                     containerClassName="rounded-none border-0 shadow-none flex-1"
                 />
             ) : (
@@ -576,6 +565,6 @@ export const BaseJobList = <T extends BaseJobItem>({
                     />
                 </div>
             )}
-        </div>
+        </Card>
     );
 };
