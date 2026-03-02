@@ -32,7 +32,7 @@ interface DataTableActionProps<TId extends string | number> {
     menuEntries?: DataTableActionMenuEntry[];
 }
 
-export const DataTableAction = <TId extends string | number>({
+export const DataAction = <TId extends string | number>({
     rowId,
     actions = [],
     menuEntries = [],

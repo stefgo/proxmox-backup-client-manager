@@ -3,7 +3,7 @@ import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
 import { DataTable, DataTableDef } from '../../../components/DataTable';
-import { DataTableAction } from '../../../components/DataTableAction';
+import { DataAction } from '../../../components/DataAction';
 import { DataCard } from '../../../components/DataCard';
 
 interface ClientListProps {
@@ -60,7 +60,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
-                    <DataTableAction
+                    <DataAction
                         rowId={client.id}
                         menuEntries={[
                             {

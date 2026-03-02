@@ -8,10 +8,9 @@ import {
 } from "lucide-react";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
-import { ActionButton } from "../../../components/ActionButton";
 import { DataTableDef } from "../../../components/DataTable";
 import { DataListDef, DataListColumnDef } from "../../../components/DataList";
-import { DataTableAction } from "../../../components/DataTableAction";
+import { DataAction } from "../../../components/DataAction";
 import { DataMultiView } from "../../../components/DataMultiView";
 
 export interface BaseJobItem {
@@ -205,7 +204,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 const online = getStatus(job) === "online";
                 const rowId = job.clientId ? `${job.clientId}-${job.id}` : job.id;
                 return (
-                    <DataTableAction
+                    <DataAction
                         rowId={rowId}
                         actions={[
                             {
@@ -334,22 +333,24 @@ export const BaseJobList = <T extends BaseJobItem>({
                 const isOnline = getStatus(job) === "online";
                 return (
                     <div className="flex items-center gap-3 mt-3">
-                        <ActionButton
-                            icon={Play}
-                            onClick={() => onTriggerJob(job)}
-                            disabled={!isOnline}
-                            color="green"
-                            tooltip={{ enabled: "Run Now", disabled: "Client Offline" }}
-                        />
-                        <ActionButton
-                            icon={Pencil}
-                            onClick={() => onEditJob(job)}
-                            disabled={!isOnline}
-                            color="blue"
-                            tooltip={{ enabled: "Edit Job", disabled: "Client Offline" }}
-                        />
-                        <DataTableAction
+                        <DataAction
                             rowId={job.clientId ? `${job.clientId}-${job.id}` : job.id}
+                            actions={[
+                                {
+                                    icon: Play,
+                                    onClick: () => onTriggerJob(job),
+                                    disabled: !isOnline,
+                                    color: "green",
+                                    tooltip: { enabled: "Run Now", disabled: "Client Offline" },
+                                },
+                                {
+                                    icon: Pencil,
+                                    onClick: () => onEditJob(job),
+                                    disabled: !isOnline,
+                                    color: "blue",
+                                    tooltip: { enabled: "Edit Job", disabled: "Client Offline" },
+                                },
+                            ]}
                             menuEntries={[
                                 {
                                     label: "Delete Job",

@@ -3,7 +3,7 @@ import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { usePagination } from '../../../hooks/usePagination';
 import { DataTable, DataTableDef } from '../../../components/DataTable';
-import { DataTableAction } from '../../../components/DataTableAction';
+import { DataAction } from '../../../components/DataAction';
 import { DataCard } from '../../../components/DataCard';
 
 interface TokenListProps {
@@ -48,7 +48,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             tableHeaderClassName: "text-right",
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (t) => (
-                <DataTableAction
+                <DataAction
                     rowId={t.token}
                     menuEntries={[
                         {

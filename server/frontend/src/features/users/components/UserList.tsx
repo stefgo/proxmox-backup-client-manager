@@ -1,7 +1,7 @@
 import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
 import { DataTable, DataTableDef } from '../../../components/DataTable';
-import { DataTableAction } from '../../../components/DataTableAction';
+import { DataAction } from '../../../components/DataAction';
 import { DataCard } from '../../../components/DataCard';
 
 export interface UserData {
@@ -58,7 +58,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
             tableHeaderClassName: "text-center",
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (user) => (
-                <DataTableAction
+                <DataAction
                     rowId={user.id}
                     actions={[
                         {
