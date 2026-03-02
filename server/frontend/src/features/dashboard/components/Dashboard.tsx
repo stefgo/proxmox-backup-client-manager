@@ -9,25 +9,25 @@ import {
 // Components
 // Layout & Components
 import { DashboardLayout } from "../layouts/DashboardLayout";
-import { TokenOverview } from "./TokenOverview";
+import { TokenOverview } from "../../../pages/TokenOverview";
 
 // Managed Components
-import { ManagedClients } from "../features/clients/components/ManagedClients";
-import { ManagedRepositories } from "../features/repositories/components/ManagedRepositories";
-import { ManagedJobs } from "../features/jobs/components/ManagedJobs";
-import { HistoryOverview } from "../features/history/components/HistoryOverview";
+import { ManagedClients } from "../../clients/components/ManagedClients";
+import { ManagedRepositories } from "../../repositories/components/ManagedRepositories";
+import { ManagedJobs } from "../../jobs/components/ManagedJobs";
+import { HistoryOverview } from "../../history/components/HistoryOverview";
 
 // Pages
-import { ClientOverview } from "../features/clients/components/ClientOverview";
-import { RepositoryOverview } from "../features/repositories/components/RepositoryOverview";
-import { UserOverview } from "./UserOverview";
-import Settings from "./Settings";
+import { ClientOverview } from "../../clients/components/ClientOverview";
+import { RepositoryOverview } from "../../repositories/components/RepositoryOverview";
+import { UserOverview } from "../../../pages/UserOverview";
+import Settings from "../../../pages/Settings";
 
 // Hooks
-import { useAuth } from "../features/auth/AuthContext";
-import { useClientStore } from "../stores/useClientStore";
-import { useRepositoryStore } from "../stores/useRepositoryStore";
-import { useGlobalJobsStore } from "../stores/useGlobalJobsStore";
+import { useAuth } from "../../auth/AuthContext";
+import { useClientStore } from "../../../stores/useClientStore";
+import { useRepositoryStore } from "../../../stores/useRepositoryStore";
+import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 
 export default function Dashboard() {
     const { token } = useAuth();

@@ -1,8 +1,9 @@
 import { ReactNode } from "react";
-import { DashboardHeader } from "../features/dashboard/components/DashboardHeader";
-import { Sidebar } from "../features/dashboard/components/Sidebar";
-import { useTheme } from "../features/dashboard/context/ThemeContext";
-import { useAuth } from "../features/auth/AuthContext";
+import { DashboardHeader } from "../components/DashboardHeader";
+import { Sidebar } from "../components/Sidebar";
+import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../../auth/AuthContext";
+import { useUIStore } from "../../../stores/useUIStore";
 import { Client } from "@pbcm/shared";
 
 interface DashboardLayoutProps {
@@ -44,6 +45,7 @@ export const DashboardLayout = ({
 }: DashboardLayoutProps) => {
     const { theme, toggleTheme } = useTheme();
     const { logout, token } = useAuth();
+    const { isSidebarCollapsed } = useUIStore();
 
     let username = "User";
     try {
@@ -70,10 +72,11 @@ export const DashboardLayout = ({
                     setView={setView}
                     selectedClient={selectedClient}
                     stats={stats}
+                    isCollapsed={isSidebarCollapsed}
                 />
 
                 {/* Content */}
-                <main className="flex-1 overflow-y-auto p-6 bg-gray-100 dark:bg-[#111]">
+                <main className="flex-1 overflow-y-auto p-4 bg-gray-100 dark:bg-[#111]">
                     <div className="max-w-7xl mx-auto space-y-6">
                         {children}
                     </div>

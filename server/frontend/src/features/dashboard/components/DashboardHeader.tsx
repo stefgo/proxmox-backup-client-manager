@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sun, Moon, LogOut, User, ChevronDown } from 'lucide-react';
+import { Sun, Moon, LogOut, User, ChevronDown, Menu } from 'lucide-react';
+import { useUIStore } from '../../../stores/useUIStore';
 
 interface DashboardHeaderProps {
     theme: string;
@@ -11,6 +12,7 @@ interface DashboardHeaderProps {
 export const DashboardHeader = ({ theme, toggleTheme, logout, username }: DashboardHeaderProps) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+    const { toggleSidebarCollapsed } = useUIStore();
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -27,9 +29,16 @@ export const DashboardHeader = ({ theme, toggleTheme, logout, username }: Dashbo
     }, []);
 
     return (
-        <header className="px-8 py-5 border-b border-gray-200 dark:border-[#333] bg-white dark:bg-[#1e1e1e] sticky top-0 z-40 shadow-sm flex items-center justify-between">
+        <header className="px-5 py-3 border-b border-gray-200 dark:border-[#333] bg-white dark:bg-[#1e1e1e] sticky top-0 z-40 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E54D0D] to-[#ff7e47] flex items-center justify-center shadow-lg shadow-orange-900/20 text-white">
+                <button
+                    onClick={toggleSidebarCollapsed}
+                    className="p-2 -ml-2 mr-2 text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white transition-colors md:flex hidden"
+                    title="Toggle Sidebar"
+                >
+                    <Menu size={20} />
+                </button>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E54D0D] to-[#ff7e47] flex items-center justify-center shadow-lg shadow-orange-900/20 text-white leading-none">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
                         <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                         <line x1="8" y1="21" x2="16" y2="21" />
@@ -40,8 +49,7 @@ export const DashboardHeader = ({ theme, toggleTheme, logout, username }: Dashbo
                     </svg>
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">Proxmox <span className="text-[#E54D0D]">Backup Client</span> Manager</h1>
-                    <p className="text-xs text-gray-500 dark:text-[#666] font-medium tracking-wide">ENTERPRISE DASHBOARD</p>
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">P<span className="text-[#E54D0D]">BC</span>M</h1>
                 </div>
             </div>
 
