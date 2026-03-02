@@ -1,5 +1,5 @@
 import { BackupJob } from '@pbcm/shared';
-import { BaseJobList } from '../../base/components/BaseJobList';
+import { BaseJobList } from '../../jobs/components/BaseJobList';
 
 interface ClientJobListProps {
     jobs: BackupJob[];

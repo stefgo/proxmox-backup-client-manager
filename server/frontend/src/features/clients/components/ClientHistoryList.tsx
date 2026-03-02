@@ -1,5 +1,5 @@
 import { HistoryEntry } from '@pbcm/shared';
-import { BaseHistoryList } from '../../base/components/BaseHistoryList';
+import { BaseHistoryList } from '../../history/components/BaseHistoryList';
 
 // Extend HistoryEntry to include 'error' which is used in frontend but missing in shared type
 type HistoryItem = HistoryEntry & { error?: string };

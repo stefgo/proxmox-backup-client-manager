@@ -1,5 +1,5 @@
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
-import { BaseJobList } from "../../base/components/BaseJobList";
+import { BaseJobList } from "./BaseJobList";
 
 interface JobListProps {
     jobs: GlobalJob[];

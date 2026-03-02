@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { BaseHistoryList, BaseHistoryItem } from "../../base/components/BaseHistoryList";
+import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
 
 export const HistoryOverview = () => {
     const { token } = useAuth();
