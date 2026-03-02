@@ -37,10 +37,7 @@ export class DataTable<T> extends AbstractDataView<T, DataTableProps<T>> {
                     <tbody className="divide-y divide-gray-200 dark:divide-[#333]">
                         {placeholder ? (
                             <tr>
-                                <td
-                                    colSpan={itemDef.length}
-                                    className="px-6 py-8 text-center text-gray-500 dark:text-[#666]"
-                                >
+                                <td colSpan={itemDef.length} className="px-6 py-8 text-center text-gray-500 dark:text-[#666]">
                                     {placeholder}
                                 </td>
                             </tr>

@@ -3,7 +3,7 @@ import { LayoutList, Table as TableIcon } from 'lucide-react';
 import { Card } from './Card';
 import { CardHeader } from './CardHeader';
 import { DataTable, DataTableDef } from './DataTable';
-import { DataList, DataListDef } from './DataList';
+import { DataList, DataListDef, DataListColumnDef } from './DataList';
 
 export interface DataMultiViewProps<T> {
     title?: ReactNode;
@@ -12,7 +12,8 @@ export interface DataMultiViewProps<T> {
     viewModeStorageKey?: string;
     data: T[];
     tableDef: DataTableDef<T>[];
-    listDef: DataListDef<T>[];
+    listDef?: DataListDef<T>[];
+    listColumns?: DataListColumnDef<T>[];
     keyField: keyof T | ((item: T) => string | number);
     isLoading?: boolean;
     emptyMessage?: ReactNode;
@@ -29,15 +30,18 @@ export interface DataMultiViewProps<T> {
     };
 }
 
-export const DataMultiView = <T,>({
-    title,
-    extraActions,
-    className = '',
-    viewModeStorageKey = 'dataViewMode',
-    tableDef,
-    listDef,
-    ...sharedProps
-}: DataMultiViewProps<T>) => {
+export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
+    const {
+        title,
+        extraActions,
+        className = '',
+        viewModeStorageKey = 'dataViewMode',
+        tableDef,
+        listDef,
+        listColumns,
+        ...sharedProps
+    } = props;
+
     const [viewMode, setViewMode] = useState<'table' | 'list'>(() => {
         return (localStorage.getItem(viewModeStorageKey) as 'table' | 'list') || 'table';
     });
@@ -91,6 +95,7 @@ export const DataMultiView = <T,>({
                 <DataList
                     {...containerProps}
                     itemDef={listDef}
+                    columns={listColumns}
                 />
             ) : (
                 <DataTable
