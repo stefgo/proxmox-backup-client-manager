@@ -1,107 +1,69 @@
 import { ReactNode } from 'react';
-import { PaginationControls } from './PaginationControls';
+import { AbstractDataView, BaseDataViewProps } from './AbstractDataView';
 
-export interface ColumnDef<T> {
-    header: ReactNode;
-    headerClassName?: string;
+export interface DataTableDef<T> {
     accessorKey?: keyof T;
-    accessorFn?: (item: T) => ReactNode;
-    cellClassName?: string | ((item: T) => string);
+    tableHeader: ReactNode;
+    tableHeaderClassName?: string;
+    tableCellClassName?: string | ((item: T) => string);
+    tableItemRender?: (item: T) => ReactNode;
 }
 
-export interface DataTableProps<T> {
-    data: T[];
-    columns: ColumnDef<T>[];
-    keyField: keyof T | ((item: T) => string | number);
-    emptyMessage?: ReactNode;
-    isLoading?: boolean;
-    loadingMessage?: ReactNode;
-    onRowClick?: (item: T) => void;
-    rowClassName?: string | ((item: T) => string);
-    pagination?: {
-        currentPage: number;
-        totalPages: number;
-        itemsPerPage: number;
-        totalItems: number;
-        onPageChange: (page: number) => void;
-        onItemsPerPageChange: (limit: number) => void;
-    };
-    containerClassName?: string;
+export interface DataTableProps<T> extends BaseDataViewProps<T> {
+    itemDef: DataTableDef<T>[];
 }
 
-export const DataTable = <T,>({
-    data,
-    columns,
-    keyField,
-    emptyMessage = "No items found",
-    isLoading = false,
-    loadingMessage = "Loading...",
-    onRowClick,
-    rowClassName,
-    pagination,
-    containerClassName = ""
-}: DataTableProps<T>) => {
+export class DataTable<T> extends AbstractDataView<T, DataTableProps<T>> {
+    protected renderContent(): ReactNode {
+        const { data, itemDef, onRowClick } = this.props;
+        const placeholder = this.getPlaceholder();
+        const interactionClasses = this.getInteractionClasses();
 
-    const getRowKey = (item: T) => {
-        if (typeof keyField === 'function') {
-            return keyField(item);
-        }
-        return item[keyField] as unknown as string | number;
-    };
-
-    return (
-        <div className={`bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg flex flex-col h-full ${containerClassName}`}>
-            <div className="overflow-x-auto flex-1 h-full min-h-0">
+        return (
+            <div className="overflow-x-auto h-full w-full">
                 <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-gray-50 dark:bg-[#252525] z-10">
                         <tr className="border-b border-gray-200 dark:border-[#333]">
-                            {columns.map((col, idx) => (
-                                <th key={idx} className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider ${col.headerClassName || ''}`}>
-                                    {col.header}
+                            {itemDef.map((col, idx) => (
+                                <th
+                                    key={idx}
+                                    className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider ${col.tableHeaderClassName ?? ''}`}
+                                >
+                                    {col.tableHeader}
                                 </th>
                             ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-[#333] overflow-y-auto">
-                        {isLoading ? (
+                    <tbody className="divide-y divide-gray-200 dark:divide-[#333]">
+                        {placeholder ? (
                             <tr>
-                                <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500 dark:text-[#666]">
-                                    {loadingMessage}
-                                </td>
-                            </tr>
-                        ) : data.length === 0 ? (
-                            <tr>
-                                <td colSpan={columns.length} className="px-6 py-8 text-center text-gray-500 dark:text-[#666]">
-                                    {emptyMessage}
+                                <td
+                                    colSpan={itemDef.length}
+                                    className="px-6 py-8 text-center text-gray-500 dark:text-[#666]"
+                                >
+                                    {placeholder}
                                 </td>
                             </tr>
                         ) : (
-                            data.map(item => {
-                                const customRowClass = typeof rowClassName === 'function' ? rowClassName(item) : (rowClassName || '');
-                                const interactiveClass = onRowClick ? 'cursor-pointer' : '';
-                                const hoverClass = onRowClick ? 'hover:bg-gray-50 dark:hover:bg-[#252525]' : '';
+                            data.map((item) => {
+                                const cellContent = (col: DataTableDef<T>) => {
+                                    if (col.tableItemRender) return col.tableItemRender(item);
+                                    if (col.accessorKey) return item[col.accessorKey] as unknown as ReactNode;
+                                };
 
                                 return (
                                     <tr
-                                        key={getRowKey(item)}
-                                        onClick={() => {
-                                            if (onRowClick) {
-                                                onRowClick(item);
-                                            }
-                                        }}
-                                        className={`${hoverClass} transition-colors group ${interactiveClass} ${customRowClass}`}
+                                        key={this.getKey(item)}
+                                        onClick={() => onRowClick?.(item)}
+                                        className={`transition-colors group ${interactionClasses} ${this.getRowClass(item)}`}
                                     >
-                                        {columns.map((col, idx) => {
-                                            const cellClass = typeof col.cellClassName === 'function' ? col.cellClassName(item) : (col.cellClassName || '');
-                                            let content: ReactNode;
-                                            if (col.accessorFn) {
-                                                content = col.accessorFn(item);
-                                            } else if (col.accessorKey) {
-                                                content = item[col.accessorKey] as unknown as ReactNode;
-                                            }
+                                        {itemDef.map((col, idx) => {
+                                            const cellClass = typeof col.tableCellClassName === 'function'
+                                                ? col.tableCellClassName(item)
+                                                : (col.tableCellClassName ?? '');
                                             return (
                                                 <td key={idx} className={`px-6 py-4 whitespace-nowrap ${cellClass}`}>
-                                                    {content}
+                                                    {cellContent(col)}
                                                 </td>
                                             );
                                         })}
@@ -112,19 +74,7 @@ export const DataTable = <T,>({
                     </tbody>
                 </table>
             </div>
+        );
+    }
+}
 
-            {pagination && (
-                <div className="shrink-0 border-t border-gray-200 dark:border-[#333] bg-white dark:bg-[#1e1e1e]">
-                    <PaginationControls
-                        currentPage={pagination.currentPage}
-                        totalPages={pagination.totalPages}
-                        itemsPerPage={pagination.itemsPerPage}
-                        totalItems={pagination.totalItems}
-                        onPageChange={pagination.onPageChange}
-                        onItemsPerPageChange={pagination.onItemsPerPageChange}
-                    />
-                </div>
-            )}
-        </div>
-    );
-};

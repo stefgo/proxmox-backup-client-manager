@@ -2,9 +2,9 @@ import { Key, Trash2, Plus } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { usePagination } from '../../../hooks/usePagination';
-import { DataTable, ColumnDef } from '../../../components/DataTable';
+import { DataTable, DataTableDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
-import { Card } from '../../../components/Card';
+import { DataCard } from '../../../components/DataCard';
 
 interface TokenListProps {
     tokens: Token[];
@@ -17,37 +17,37 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         currentItems: currentTokens,
     } = usePagination(tokens, 10);
 
-    const columns: ColumnDef<Token>[] = [
+    const columns: DataTableDef<Token>[] = [
         {
-            header: "Token",
-            accessorFn: (t) => (
+            tableHeader: "Token",
+            tableItemRender: (t) => (
                 <span className={`font-mono text-sm text-gray-800 dark:text-[#ccc] ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
                     {t.token}
                 </span>
             ),
         },
         {
-            header: "Expires / Used",
-            cellClassName: "text-sm text-gray-500 dark:text-[#666]",
-            accessorFn: (t) => {
+            tableHeader: "Expires / Used",
+            tableCellClassName: "text-sm text-gray-500 dark:text-[#666]",
+            tableItemRender: (t) => {
                 if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
                 if (new Date(t.expiresAt) < new Date()) return <>Expired: {formatDate(t.expiresAt)}</>;
                 return <>Expires: {formatDate(t.expiresAt)}</>;
             }
         },
         {
-            header: "Status",
-            accessorFn: (t) => {
+            tableHeader: "Status",
+            tableItemRender: (t) => {
                 if (t.usedAt) return <span className="text-xs bg-gray-200 text-gray-600 dark:bg-[#333] dark:text-[#888] px-2 py-0.5 rounded">Used</span>;
                 if (new Date(t.expiresAt) < new Date()) return <span className="text-xs bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-500 px-2 py-0.5 rounded">Expired</span>;
                 return <span className="text-xs bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-2 py-0.5 rounded">Active</span>;
             }
         },
         {
-            header: "Actions",
-            headerClassName: "text-right",
-            cellClassName: "text-right text-sm font-medium",
-            accessorFn: (t) => (
+            tableHeader: "Actions",
+            tableHeaderClassName: "text-right",
+            tableCellClassName: "text-right text-sm font-medium",
+            tableItemRender: (t) => (
                 <DataTableAction
                     rowId={t.token}
                     menuEntries={[
@@ -64,7 +64,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
     ];
 
     return (
-        <Card
+        <DataCard
             title={<><Key size={18} className="text-gray-500 dark:text-[#888]" /> Client Tokens</>}
             action={
                 <button
@@ -78,11 +78,11 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         >
             <DataTable
                 data={currentTokens}
-                columns={columns}
+                itemDef={columns}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 containerClassName="rounded-none border-0 shadow-none"
             />
-        </Card>
+        </DataCard>
     );
 };

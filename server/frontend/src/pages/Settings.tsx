@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import { RefreshCw, Settings as SettingsIcon, Sliders } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
-import { Card } from '../components/Card';
+import { DataCard } from '../components/DataCard';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 
@@ -104,7 +104,7 @@ export default function Settings() {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <Card
+            <DataCard
                 title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-gray-500 dark:text-[#888]" /> System Settings</span>}
                 className="p-0 overflow-hidden overflow-visible"
                 noPadding={true}
@@ -205,7 +205,7 @@ export default function Settings() {
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
                 </div>
-            </Card>
+            </DataCard>
         </div>
     );
 }

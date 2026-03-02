@@ -2,9 +2,9 @@ import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
-import { DataTable, ColumnDef } from '../../../components/DataTable';
+import { DataTable, DataTableDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
-import { Card } from '../../../components/Card';
+import { DataCard } from '../../../components/DataCard';
 
 interface ClientListProps {
     clients: Client[];
@@ -25,10 +25,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         setItemsPerPage
     } = usePagination(clients, 10);
 
-    const columns: ColumnDef<Client>[] = [
+    const columns: DataTableDef<Client>[] = [
         {
-            header: "Client",
-            accessorFn: (client) => (
+            tableHeader: "Client",
+            tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
@@ -44,9 +44,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             )
         },
         {
-            header: null,
-            cellClassName: "align-top text-sm text-gray-900 dark:text-white",
-            accessorFn: (client) => (
+            tableHeader: null,
+            tableCellClassName: "align-top text-sm text-gray-900 dark:text-white",
+            tableItemRender: (client) => (
                 client.status !== 'online' ? (
                     <div className="whitespace-nowrap opacity-70">
                         Last seen: {formatDate(client.lastSeen)}
@@ -55,10 +55,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             )
         },
         {
-            header: "Action",
-            headerClassName: "text-right",
-            cellClassName: "text-right text-sm font-medium",
-            accessorFn: (client) => (
+            tableHeader: "Action",
+            tableHeaderClassName: "text-right",
+            tableCellClassName: "text-right text-sm font-medium",
+            tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataTableAction
                         rowId={client.id}
@@ -88,7 +88,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
     return (
         <div className={`transition-all duration-300 w-full flex flex-col gap-6 h-full min-h-0`}>
-            <Card
+            <DataCard
                 title={<><Monitor size={18} className="text-gray-500 dark:text-[#888]" /> Clients</>}
                 action={
                     <button
@@ -103,7 +103,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             >
                 <DataTable
                     data={currentClients}
-                    columns={columns}
+                    itemDef={columns}
                     keyField="id"
                     emptyMessage="No clients connected"
                     onRowClick={setSelectedClient}
@@ -117,7 +117,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     }}
                     containerClassName="rounded-none border-0 shadow-none flex-1"
                 />
-            </Card>
+            </DataCard>
         </div>
     );
 };

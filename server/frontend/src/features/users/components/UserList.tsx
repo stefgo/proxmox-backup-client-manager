@@ -1,8 +1,8 @@
 import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
-import { DataTable, ColumnDef } from '../../../components/DataTable';
+import { DataTable, DataTableDef } from '../../../components/DataTable';
 import { DataTableAction } from '../../../components/DataTableAction';
-import { Card } from '../../../components/Card';
+import { DataCard } from '../../../components/DataCard';
 
 export interface UserData {
     id: number;
@@ -38,26 +38,26 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         );
     };
 
-    const columns: ColumnDef<UserData>[] = [
+    const columns: DataTableDef<UserData>[] = [
         {
-            header: "User",
-            cellClassName: "font-medium text-gray-900 dark:text-white",
+            tableHeader: "User",
+            tableCellClassName: "font-medium text-gray-900 dark:text-white",
             accessorKey: "username"
         },
         {
-            header: "Auth",
-            accessorFn: (user) => renderAuthBadges(user.auth_methods)
+            tableHeader: "Auth",
+            tableItemRender: (user) => renderAuthBadges(user.auth_methods)
         },
         {
-            header: "Created At",
-            cellClassName: "text-sm text-gray-500 dark:text-[#666]",
-            accessorFn: (user) => formatDate(user.created_at)
+            tableHeader: "Created At",
+            tableCellClassName: "text-sm text-gray-500 dark:text-[#666]",
+            tableItemRender: (user) => formatDate(user.created_at)
         },
         {
-            header: "Actions",
-            headerClassName: "text-center",
-            cellClassName: "text-right text-sm font-medium",
-            accessorFn: (user) => (
+            tableHeader: "Actions",
+            tableHeaderClassName: "text-center",
+            tableCellClassName: "text-right text-sm font-medium",
+            tableItemRender: (user) => (
                 <DataTableAction
                     rowId={user.id}
                     actions={[
@@ -84,7 +84,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
     ];
 
     return (
-        <Card
+        <DataCard
             title={<><User size={18} className="text-gray-500 dark:text-[#888]" /> Users</>}
             action={
                 <button
@@ -98,13 +98,13 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         >
             <DataTable
                 data={users}
-                columns={columns}
+                itemDef={columns}
                 keyField="id"
                 isLoading={isLoading}
                 loadingMessage="Loading users..."
                 emptyMessage="No users found"
                 containerClassName="rounded-none border-0 shadow-none"
             />
-        </Card>
+        </DataCard>
     );
 };
