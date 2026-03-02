@@ -73,7 +73,7 @@ export abstract class AbstractDataView<T, P extends BaseDataViewProps<T>> extend
 
     render() {
         const { containerClassName = '' } = this.props;
-        const containerClass = `bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200
+        const containerClass = `bg-white dark:bg-[#1e1e1e] border border-gray-200
             dark:border-[#333] overflow-hidden shadow-lg flex flex-col h-full ${containerClassName}`;
 
         return (
