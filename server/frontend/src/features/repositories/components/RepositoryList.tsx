@@ -46,7 +46,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         },
         {
             tableHeader: "Action",
-            tableHeaderClassName: "text-right",
+            tableHeaderClassName: "text-center",
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (repo) => (
                 <div onClick={(e) => e.stopPropagation()}>

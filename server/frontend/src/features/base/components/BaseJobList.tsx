@@ -198,8 +198,8 @@ export const BaseJobList = <T extends BaseJobItem>({
         // Actions
         cols.push({
             tableHeader: "Actions",
-            tableHeaderClassName: "text-right",
-            tableCellClassName: "align-middle text-right",
+            tableHeaderClassName: "text-center",
+            tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 const rowId = job.clientId ? `${job.clientId}-${job.id}` : job.id;

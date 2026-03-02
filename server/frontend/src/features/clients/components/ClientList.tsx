@@ -56,7 +56,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         },
         {
             tableHeader: "Action",
-            tableHeaderClassName: "text-right",
+            tableHeaderClassName: "text-center",
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
