@@ -1,8 +1,10 @@
 import { Activity, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePagination } from "../../../hooks/usePagination";
-import { PaginationControls } from "../../../components/PaginationControls";
 import { formatDate } from "../../../utils";
+import { Card } from "../../../components/Card";
+import { CardHeader } from "../../../components/CardHeader";
+import { DataList, DataListDef } from "../../../components/DataList";
 
 export interface BaseHistoryItem {
     id: string;
@@ -66,8 +68,7 @@ export const BaseHistoryList = ({
             window.removeEventListener("pbcm:log_update", handleLogUpdate);
     }, []);
 
-    const toggleExpand = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const toggleExpand = (id: string) => {
         const newSet = new Set(expandedIds);
         if (newSet.has(id)) {
             newSet.delete(id);
@@ -77,26 +78,17 @@ export const BaseHistoryList = ({
         setExpandedIds(newSet);
     };
 
-    return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg h-full flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525]">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Activity size={18} className="text-gray-500 dark:text-[#888]" />{" "}
-                    {title}
-                </h3>
-            </div>
-            <div className="divide-y divide-gray-200 dark:divide-[#333] flex-1 overflow-y-auto min-h-0">
-                {currentItems.map((item) => (
-                    <div
-                        key={item.id}
-                        onClick={(e) => toggleExpand(item.id, e)}
-                        className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-[#252525] transition-colors cursor-pointer"
-                    >
+    const itemDef: DataListDef<BaseHistoryItem>[] = [
+        {
+            listItemRender: (item) => {
+                const isExpanded = expandedIds.has(item.id);
+                return (
+                    <div className="w-full">
                         <div className="group">
                             <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2">
                                     <span
-                                        className={`transition-all duration-200 ${expandedIds.has(item.id) ? "rotate-90" : ""
+                                        className={`transition-all duration-200 ${isExpanded ? "rotate-90" : ""
                                             }`}
                                     >
                                         <ChevronRight size={14} className="text-gray-400" />
@@ -112,14 +104,14 @@ export const BaseHistoryList = ({
                                 </div>
                                 <span
                                     className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.status === "running"
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                        : item.status === "success"
-                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                            : item.status === "failed"
-                                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                : item.status === "abort"
-                                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                            : item.status === "success"
+                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                                : item.status === "failed"
+                                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                    : item.status === "abort"
+                                                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                                         }`}
                                 >
                                     {item.status}
@@ -130,31 +122,28 @@ export const BaseHistoryList = ({
                                 <span>{formatDate(item.startTime)}</span>
                             </div>
                         </div>
-                        {expandedIds.has(item.id) && (
-                            <>
+                        {isExpanded && (
+                            <div onClick={(e) => e.stopPropagation()}>
                                 {item.status === "running" &&
                                     liveLogs[item.id] &&
                                     liveLogs[item.id].length > 0 ? (
                                     <div
                                         className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-blue-50 dark:bg-blue-900/10 text-blue-800 dark:text-blue-300"
-                                        onClick={(e) => e.stopPropagation()}
                                     >
                                         {liveLogs[item.id].join("")}
                                     </div>
                                 ) : item.error || item.stderr ? (
                                     <div
                                         className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === "failed"
-                                            ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
-                                            : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                                                ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
+                                                : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                                             }`}
-                                        onClick={(e) => e.stopPropagation()}
                                     >
                                         {item.error || item.stderr}
                                     </div>
                                 ) : item.stdout ? (
                                     <div
                                         className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                                        onClick={(e) => e.stopPropagation()}
                                     >
                                         {item.stdout}
                                     </div>
@@ -163,24 +152,42 @@ export const BaseHistoryList = ({
                                         No output available
                                     </div>
                                 )}
-                            </>
+                            </div>
                         )}
                     </div>
-                ))}
-                {items.length === 0 && (
-                    <div className="p-8 text-center text-[#555]">
-                        No history available
+                );
+            },
+        },
+    ];
+
+    return (
+        <Card className="h-full flex flex-col">
+            <CardHeader
+                title={
+                    <div className="flex items-center gap-2">
+                        <Activity size={18} className="text-gray-500 dark:text-[#888]" />
+                        {title}
                     </div>
-                )}
-            </div>
-            <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalItems}
-                onPageChange={goToPage}
-                onItemsPerPageChange={setItemsPerPage}
+                }
             />
-        </div>
+            <DataList
+                data={currentItems}
+                keyField="id"
+                itemDef={itemDef}
+                onRowClick={(item) => toggleExpand(item.id)}
+                containerClassName="border-0 shadow-none rounded-none flex-1"
+                emptyMessage="No history available"
+                rowClassName="!px-5 !py-3"
+                pagination={{
+                    currentPage,
+                    totalPages,
+                    itemsPerPage,
+                    totalItems,
+                    onPageChange: goToPage,
+                    onItemsPerPageChange: setItemsPerPage,
+                }}
+            />
+        </Card>
     );
 };
+
