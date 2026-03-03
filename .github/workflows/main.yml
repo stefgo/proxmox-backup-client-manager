@@ -40,12 +40,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
-          # Hier definieren wir die Logik für die Tags:
           tags: |
+            # Bei einem Push auf main: Nutzt den Branch-Namen (main) und den SHA
             type=ref,event=branch
+            type=sha,prefix=sha-
+            
+            # Bei einem Git-Tag (v1.0.0): Erstellt Versionstags UND das latest-Tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
