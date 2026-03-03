@@ -1,8 +1,9 @@
-name: Build Client and Server Images
+name: Build and Version Client and Server
 
 on:
   push:
     branches: [ "main" ]
+    tags: [ 'v*.*.*' ] # Reagiert auf Tags wie v1.0.2
 
 env:
   REGISTRY: ghcr.io
@@ -15,6 +16,7 @@ jobs:
       packages: write
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - id: client
@@ -33,12 +35,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+          # Hier definieren wir die Logik für die Tags:
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./docker/Dockerfile.${{ matrix.id }}
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:latest
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:${{ github.sha }}
+          # Nutzt die automatisch generierten Tags von oben
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
