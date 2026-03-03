@@ -8,8 +8,9 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 
 ```
 client/src/
-├── core/          # Core utilities: SQLite DB, Websocket Connection, Logger, Config
+├── core/          # Base services: SQLite DB, WebSocket Connection, Logger, Config
 ├── features/      # Business logic: Job Scheduling, Command Execution, WS Handlers
+├── web/           # Internal Web Server: Status and Registration pages
 └── index.ts       # Application entry point
 ```
 
@@ -22,13 +23,20 @@ The `Connection` class manages the persistent WebSocket connection to the centra
 - **Features**: Automatic reconnection with exponential backoff, ping/pong health checks, and secure transmission of all payload data.
 - **Registration Flow**: If the client is unauthenticated, the user must provide a temporary registration `token`. The client POSTs this to the server, exchanges it for a permanent client configuration, and saves it locally.
 
-### 2. Job Executor (`src/features/Executor.ts`)
+### 2. Job Executor & History Sync (`src/features/Executor.ts`)
 
 The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI binaries.
 
-- It translates abstract JSON job configurations from the server into CLI arguments (e.g., `--include-dev`, `--repository`).
-- It spawns a child process (`child_process.spawn`) for the backup run.
-- It captures `stdout` and `stderr` streams, forwarding them in real-time to the server via the WebSocket connection so users can view live logs in the dashboard.
+- It translates abstract JSON job configurations from the server into CLI arguments.
+- It spawns a child process for the backup run and captures real-time `stdout`/`stderr` streams.
+- **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then attempts to synchronize this history with the central server to ensure a persistent, global record.
+
+### 3. Local Web Server (`src/web/server.ts`)
+
+The client includes a micro-server for local management and initial setup.
+
+- **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
+- **Registration**: Allows manual registration via the web interface if automatic provisioning is not used.
 
 ### 3. Scheduler (`src/features/Scheduler.ts`)
 

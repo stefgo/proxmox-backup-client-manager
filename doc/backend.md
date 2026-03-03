@@ -29,21 +29,24 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 
 Services contain the heavy business logic of the application. They are designed as singletons or static classes that multiple controllers can rely on.
 
-- **Example**: `ProxyService.ts` handles proxying requests to the actual Proxmox Backup Server. `CleanupService.ts` ensures old history logs or inactive tokens are pruned.
+- **`ProxyService.ts`**: The central communication hub. It manages active agent and dashboard connections, handles request/response correlation for agent commands, and maintains an in-memory job configuration cache.
+- **`AuthService.ts`**: Handles user authentication, OIDC flows, and JWT generation.
+- **`SettingsService.ts`**: Manages global application settings and persistence.
+- **`CleanupService.ts`**: Periodic tasks to prune old history logs or inactive tokens.
 
 ### 3. Routes (`src/routes/`)
 
 Routes are Fastify plugins. They map HTTP verbs (GET, POST, PUT, DELETE) to specific methods in the Controllers and handle generic middleware (e.g., verifying JWT tokens).
 
-### 4. WebSocket Manager
+### 4. WebSocket Controller & ProxyService
 
-Real-time communication with the client agents is handled via WebSockets (using `@fastify/websocket`).
-The `WebSocketController` is responsible for:
+Real-time communication is handled via WebSockets (using `@fastify/websocket`).
+The `WebSocketController` acts as the entry point, while `ProxyService` manages the lifecycle of these connections.
 
-- Authenticating incoming WebSocket connections from clients using short-lived registration tokens or connection tokens.
-- Keeping track of connected clients in memory.
-- Forwarding job trigger events from the REST API to the active WebSocket connection.
-- Receiving live log streams or status updates from clients and saving them to the database.
+- **Authentication**: Incoming agent connections are validated against tokens and IP restrictions.
+- **Connection Management**: `ProxyService` tracks online agents and active dashboard sessions.
+- **Job Caching**: When an agent connects, `ProxyService` automatically refreshes its local job cache to ensure high-speed retrieval of job configurations.
+- **Broadcasting**: `ProxyService` multicasts events (like job progress or log updates) from agents to all connected dashboards.
 
 ## 🗄 Database Management
 

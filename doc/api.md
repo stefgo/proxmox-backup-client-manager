@@ -7,43 +7,43 @@
 ## 📖 Table of Contents
 
 - [Authentication](#-authentication)
-  - [Login](#login)
-  - [OIDC Configuration](#oidc-configuration)
-  - [OIDC Login](#oidc-login)
-  - [OIDC Callback](#oidc-callback)
+    - [Login](#login)
+    - [OIDC Configuration](#oidc-configuration)
+    - [OIDC Login](#oidc-login)
+    - [OIDC Callback](#oidc-callback)
 - [Users](#-users)
-  - [List Users](#list-users)
-  - [Create User](#create-user)
-  - [Update User](#update-user)
-  - [Delete User](#delete-user)
+    - [List Users](#list-users)
+    - [Create User](#create-user)
+    - [Update User](#update-user)
+    - [Delete User](#delete-user)
 - [Clients](#-clients)
-  - [List Clients](#list-clients)
-  - [Get Client History](#get-client-history)
-  - [Get Client File System](#get-client-file-system)
-  - [Get Client Version](#get-client-version)
-  - [Delete Client](#delete-client)
+    - [List Clients](#list-clients)
+    - [Get Client History](#get-client-history)
+    - [Get Client File System](#get-client-file-system)
+    - [Get Client Version](#get-client-version)
+    - [Delete Client](#delete-client)
 - [Jobs](#-jobs)
-  - [List Client Jobs](#list-client-jobs)
-  - [Save Job](#save-job)
-  - [Delete Job](#delete-job)
-  - [Run Backup](#run-backup)
-  - [Trigger Restore](#trigger-restore)
+    - [List Client Jobs](#list-client-jobs)
+    - [Save Job](#save-job)
+    - [Delete Job](#delete-job)
+    - [Run Backup](#run-backup)
+    - [Trigger Restore](#trigger-restore)
 - [Repositories](#-repositories)
-  - [List Repositories](#list-repositories)
-  - [Create Repository](#create-repository)
-  - [Update Repository](#update-repository)
-  - [Delete Repository](#delete-repository)
-  - [List Snapshots](#list-snapshots)
+    - [List Repositories](#list-repositories)
+    - [Create Repository](#create-repository)
+    - [Update Repository](#update-repository)
+    - [Delete Repository](#delete-repository)
+    - [List Snapshots](#list-snapshots)
 - [Registration Tokens](#-registration-tokens)
-  - [List Tokens](#list-tokens)
-  - [Create Token](#create-token)
-  - [Delete Token](#delete-token)
-  - [Register Client (Public)](#register-client-public)
+    - [List Tokens](#list-tokens)
+    - [Create Token](#create-token)
+    - [Delete Token](#delete-token)
+    - [Register Client (Public)](#register-client-public)
 - [WebSockets](#-websockets)
-  - [Dashboard Connection](#dashboard-connection)
-  - [Agent Connection](#agent-connection)
-    - [Client -> Server Events](#client---server-events)
-    - [Server -> Client Events](#server---client-events)
+    - [Dashboard Connection](#dashboard-connection)
+    - [Agent Connection](#agent-connection)
+        - [Client -> Server Events](#client---server-events)
+        - [Server -> Client Events](#server---client-events)
 
 ---
 
@@ -66,8 +66,8 @@
 
 ```json
 {
-  "username": "admin",
-  "password": "secretpassword"
+    "username": "admin",
+    "password": "secretpassword"
 }
 ```
 
@@ -81,7 +81,7 @@
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
@@ -150,13 +150,13 @@
 
 ```json
 [
-  {
-    "id": 1,
-    "username": "admin",
-    "auth_methods": "local",
-    "created_at": "2023-10-27T10:00:00.000Z",
-    "updated_at": "2023-10-27T10:00:00.000Z"
-  }
+    {
+        "id": 1,
+        "username": "admin",
+        "auth_methods": "local",
+        "created_at": "2023-10-27T10:00:00.000Z",
+        "updated_at": "2023-10-27T10:00:00.000Z"
+    }
 ]
 ```
 
@@ -178,9 +178,9 @@
 
 ```json
 {
-  "username": "jdoe",
-  "password": "password123",
-  "auth_methods": "local,oidc"
+    "username": "jdoe",
+    "password": "password123",
+    "auth_methods": "local,oidc"
 }
 ```
 
@@ -190,7 +190,7 @@
 
 ```json
 {
-  "status": "created"
+    "status": "created"
 }
 ```
 
@@ -219,7 +219,7 @@
 
 ```json
 {
-  "status": "updated"
+    "status": "updated"
 }
 ```
 
@@ -241,7 +241,7 @@
 
 ```json
 {
-  "status": "deleted"
+    "status": "deleted"
 }
 ```
 
@@ -261,12 +261,12 @@
 
 ```json
 [
-  {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "hostname": "backup-client-01",
-    "status": "online",
-    "lastSeen": "2023-10-27T12:30:00.000Z"
-  }
+    {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "hostname": "backup-client-01",
+        "status": "online",
+        "lastSeen": "2023-10-27T12:30:00.000Z"
+    }
 ]
 ```
 
@@ -288,17 +288,17 @@
 
 ```json
 [
-  {
-    "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-    "name": "Daily System Backup",
-    "type": "backup",
-    "status": "success",
-    "start_time": "2023-10-26T02:00:00.000Z",
-    "end_time": "2023-10-26T02:15:30.000Z",
-    "exit_code": 0,
-    "stdout": "Backup finished successfully...",
-    "stderr": null
-  }
+    {
+        "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        "name": "Daily System Backup",
+        "type": "backup",
+        "status": "success",
+        "start_time": "2023-10-26T02:00:00.000Z",
+        "end_time": "2023-10-26T02:15:30.000Z",
+        "exit_code": 0,
+        "stdout": "Backup finished successfully...",
+        "stderr": null
+    }
 ]
 ```
 
@@ -329,18 +329,18 @@
 
 ```json
 [
-  {
-    "name": "passwd",
-    "isDirectory": false,
-    "path": "/etc/passwd",
-    "size": 1892
-  },
-  {
-    "name": "nginx",
-    "isDirectory": true,
-    "path": "/etc/nginx",
-    "size": 4096
-  }
+    {
+        "name": "passwd",
+        "isDirectory": false,
+        "path": "/etc/passwd",
+        "size": 1892
+    },
+    {
+        "name": "nginx",
+        "isDirectory": true,
+        "path": "/etc/nginx",
+        "size": 4096
+    }
 ]
 ```
 
@@ -362,8 +362,8 @@
 
 ```json
 {
-  "requestId": "req-uuid-123",
-  "version": "1.0.0"
+    "requestId": "req-uuid-123",
+    "version": "1.0.0"
 }
 ```
 
@@ -385,7 +385,7 @@
 
 ```json
 {
-  "status": "deleted"
+    "status": "deleted"
 }
 ```
 
@@ -411,24 +411,24 @@
 
 ```json
 [
-  {
-    "id": "job-123",
-    "name": "Daily ETC Backup",
-    "schedule": {
-      "interval": 1,
-      "unit": "days",
-      "weekdays": []
-    },
-    "scheduleEnabled": true,
-    "archives": [{ "path": "/etc", "name": "etc.pxar" }],
-    "repository": {
-      "id": "repo-abc",
-      "baseUrl": "https://pbs.local:8007",
-      "datastore": "backups",
-      "username": "client@pbs",
-      "status": "online"
+    {
+        "id": "job-123",
+        "name": "Daily ETC Backup",
+        "schedule": {
+            "interval": 1,
+            "unit": "days",
+            "weekdays": []
+        },
+        "scheduleEnabled": true,
+        "archives": [{ "path": "/etc", "name": "etc.pxar" }],
+        "repository": {
+            "id": "repo-abc",
+            "baseUrl": "https://pbs.local:8007",
+            "datastore": "backups",
+            "username": "client@pbs",
+            "status": "online"
+        }
     }
-  }
 ]
 ```
 
@@ -459,12 +459,12 @@
 
 ```json
 {
-  "id": "job-123",
-  "name": "Daily ETC Backup",
-  "archives": ["/etc"],
-  "schedule": "0 2 * * *",
-  "scheduleEnabled": true,
-  "repository": "repo-abc"
+    "id": "job-123",
+    "name": "Daily ETC Backup",
+    "archives": ["/etc"],
+    "schedule": "0 2 * * *",
+    "scheduleEnabled": true,
+    "repository": "repo-abc"
 }
 ```
 
@@ -474,7 +474,7 @@
 
 ```json
 {
-  "status": "saved"
+    "status": "saved"
 }
 ```
 
@@ -497,7 +497,7 @@
 
 ```json
 {
-  "status": "deleted"
+    "status": "deleted"
 }
 ```
 
@@ -520,8 +520,8 @@
 
 ```json
 {
-  "status": "triggered",
-  "runId": "run-xyz-789"
+    "status": "triggered",
+    "runId": "run-xyz-789"
 }
 ```
 
@@ -550,10 +550,10 @@
 
 ```json
 {
-  "snapshot": "host/backup-client-01/2023-10-26T02:00:00Z",
-  "targetPath": "/tmp/restore",
-  "repository": "repo-abc",
-  "archives": "root.pxar"
+    "snapshot": "host/backup-client-01/2023-10-26T02:00:00Z",
+    "targetPath": "/tmp/restore",
+    "repository": "repo-abc",
+    "archives": "root.pxar"
 }
 ```
 
@@ -563,8 +563,8 @@
 
 ```json
 {
-  "status": "triggered",
-  "runId": "restore-run-456"
+    "status": "triggered",
+    "runId": "restore-run-456"
 }
 ```
 
@@ -584,13 +584,13 @@
 
 ```json
 [
-  {
-    "id": "repo-abc",
-    "baseUrl": "https://pbs.local:8007",
-    "datastore": "backups",
-    "username": "client@pbs",
-    "status": "online"
-  }
+    {
+        "id": "repo-abc",
+        "baseUrl": "https://pbs.local:8007",
+        "datastore": "backups",
+        "username": "client@pbs",
+        "status": "online"
+    }
 ]
 ```
 
@@ -615,11 +615,11 @@
 
 ```json
 {
-  "baseUrl": "https://pbs.local:8007",
-  "datastore": "backups",
-  "username": "client@pbs",
-  "secret": "mySecretToken",
-  "fingerprint": "a9:b8:c7..."
+    "baseUrl": "https://pbs.local:8007",
+    "datastore": "backups",
+    "username": "client@pbs",
+    "secret": "mySecretToken",
+    "fingerprint": "a9:b8:c7..."
 }
 ```
 
@@ -629,8 +629,8 @@
 
 ```json
 {
-  "id": "repo-abc",
-  "status": "created"
+    "id": "repo-abc",
+    "status": "created"
 }
 ```
 
@@ -656,7 +656,7 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "status": "updated"
+    "status": "updated"
 }
 ```
 
@@ -678,7 +678,7 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "status": "deleted"
+    "status": "deleted"
 }
 ```
 
@@ -700,13 +700,13 @@ _Same fields as Create Repository._
 
 ```json
 [
-  {
-    "backup_type": "host",
-    "backup_id": "hostname",
-    "backup_time": 1672574400,
-    "files": [{ "filename": "root.pxar" }],
-    "fingerprint": "a1b2..."
-  }
+    {
+        "backup_type": "host",
+        "backup_id": "hostname",
+        "backup_time": 1672574400,
+        "files": [{ "filename": "root.pxar" }],
+        "fingerprint": "a1b2..."
+    }
 ]
 ```
 
@@ -726,12 +726,12 @@ _Same fields as Create Repository._
 
 ```json
 [
-  {
-    "token": "token-123",
-    "created_at": "2023-10-27T10:00:00Z",
-    "expires_at": "2023-10-27T14:00:00Z",
-    "used_at": null
-  }
+    {
+        "token": "token-123",
+        "created_at": "2023-10-27T10:00:00Z",
+        "expires_at": "2023-10-27T14:00:00Z",
+        "used_at": null
+    }
 ]
 ```
 
@@ -747,8 +747,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "token": "a1b2c3d4e5...",
-  "expiresAt": "2023-10-27T14:45:00.000Z"
+    "token": "a1b2c3d4e5...",
+    "expiresAt": "2023-10-27T14:45:00.000Z"
 }
 ```
 
@@ -770,7 +770,7 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "status": "deleted"
+    "status": "deleted"
 }
 ```
 
@@ -792,9 +792,9 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "token": "a1b2c3d4e5...",
-  "clientId": "550e8400-...",
-  "hostname": "backup-client-01"
+    "token": "a1b2c3d4e5...",
+    "clientId": "550e8400-...",
+    "hostname": "backup-client-01"
 }
 ```
 
@@ -804,8 +804,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "token": "f8a9b2...",
-  "clientId": "550e8400-..."
+    "token": "f8a9b2...",
+    "clientId": "550e8400-..."
 }
 ```
 
@@ -847,7 +847,31 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "hostname": "client-hostname"
+    "hostname": "client-hostname",
+    "version": "1.0.0"
+}
+```
+
+**`SYNC_HISTORY`**
+**Description:** Delta-load of job history from agent to server.
+**Payload:**
+
+```json
+{
+    "history": [
+        {
+            "id": "run-uuid",
+            "jobConfigId": "job-uuid",
+            "name": "job-name",
+            "type": "backup",
+            "status": "success",
+            "startTime": "ISO-TIMESTAMP",
+            "endTime": "ISO-TIMESTAMP",
+            "exitCode": 0,
+            "stdout": "...",
+            "stderr": "..."
+        }
+    ]
 }
 ```
 
@@ -857,15 +881,15 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "id": "run-uuid",
-  "name": "job-name",
-  "status": "running", // or "success", "failed"
-  "type": "backup", // or "restore"
-  "start_time": "ISO-TIMESTAMP",
-  "end_time": "ISO-TIMESTAMP", // optional
-  "exit_code": 0, // optional
-  "stdout": "output...", // optional
-  "stderr": "errors..." // optional
+    "id": "run-uuid",
+    "name": "job-name",
+    "status": "running", // or "success", "failed"
+    "type": "backup", // or "restore"
+    "start_time": "ISO-TIMESTAMP",
+    "end_time": "ISO-TIMESTAMP", // optional
+    "exit_code": 0, // optional
+    "stdout": "output...", // optional
+    "stderr": "errors..." // optional
 }
 ```
 
@@ -875,23 +899,29 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "jobId": "run-uuid",
-  "output": "log line content\n",
-  "stream": "stdout" // or "stderr"
+    "jobId": "run-uuid",
+    "output": "log line content\n",
+    "stream": "stdout" // or "stderr"
 }
 ```
 
 #### Server -> Client Events
 
 **`AUTH_SUCCESS`**
-**Payload:** `void` (undefined)
+**Payload:**
+
+```json
+{
+    "lastSyncTime": "ISO-TIMESTAMP"
+}
+```
 
 **`AUTH_FAILURE`**
 **Payload:**
 
 ```json
 {
-  "error": "Reason for failure"
+    "error": "Reason for failure"
 }
 ```
 
@@ -901,8 +931,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "runId": "new-run-uuid",
-  "jobId": "configured-job-uuid"
+    "runId": "new-run-uuid",
+    "jobId": "configured-job-uuid"
 }
 ```
 
@@ -926,7 +956,7 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid"
+    "requestId": "req-uuid"
 }
 ```
 
@@ -947,8 +977,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid",
-  "jobId": "job-uuid"
+    "requestId": "req-uuid",
+    "jobId": "job-uuid"
 }
 ```
 
@@ -958,7 +988,7 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid"
+    "requestId": "req-uuid"
 }
 ```
 
@@ -968,8 +998,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid",
-  "path": "/path/to/list"
+    "requestId": "req-uuid",
+    "path": "/path/to/list"
 }
 ```
 
@@ -979,6 +1009,6 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid"
+    "requestId": "req-uuid"
 }
 ```
