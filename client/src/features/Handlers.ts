@@ -76,9 +76,9 @@ export class Handlers {
                         v && r
                             ? `${v}.${r}`
                             : v ||
-                            (typeof data === "string"
-                                ? data
-                                : JSON.stringify(data));
+                              (typeof data === "string"
+                                  ? data
+                                  : JSON.stringify(data));
 
                     Connection.send(WS_EVENTS.GET_VERSION, {
                         requestId,
@@ -127,14 +127,14 @@ export class Handlers {
                 let config: any = {};
                 try {
                     config = row.config ? JSON.parse(row.config) : {};
-                } catch (e) { }
+                } catch (e) {}
 
                 const archives: any[] = config.archives || [];
 
                 let schedule: ScheduleConfig | null = null;
                 try {
                     if (row.schedule) schedule = JSON.parse(row.schedule);
-                } catch (e) { }
+                } catch (e) {}
 
                 return {
                     id: row.id,
@@ -184,37 +184,47 @@ export class Handlers {
             const enabledInt = scheduleEnabled ? 1 : 0;
 
             if (id) {
-                db.prepare(`
+                db.prepare(
+                    `
                     UPDATE job 
                     SET name = ?, config = ?, schedule = ?, schedule_enabled = ?, updated_at = datetime('now') 
                     WHERE id = ?
-                `).run(name, configStr, scheduleStr, enabledInt, id);
+                `,
+                ).run(name, configStr, scheduleStr, enabledInt, id);
             } else {
-                db.prepare(`
+                db.prepare(
+                    `
                     INSERT INTO job (id, name, config, schedule, schedule_enabled) 
                     VALUES (?, ?, ?, ?, ?)
-                `).run(jobId, name, configStr, scheduleStr, enabledInt);
+                `,
+                ).run(jobId, name, configStr, scheduleStr, enabledInt);
             }
 
             if (scheduleEnabled && nextRunAt) {
                 const existingState = db
-                    .prepare(`
+                    .prepare(
+                        `
                         SELECT id 
                         FROM job_schedule_state 
-                        WHERE id = ?`)
+                        WHERE id = ?`,
+                    )
                     .get(jobId);
                 if (existingState) {
-                    db.prepare(`
+                    db.prepare(
+                        `
                         UPDATE job_schedule_state 
                         SET next_run = ? 
                         WHERE id = ?
-                    `).run(nextRunAt, jobId);
+                    `,
+                    ).run(nextRunAt, jobId);
                 } else {
-                    db.prepare(`
+                    db.prepare(
+                        `
                         INSERT INTO job_schedule_state 
                         (id, next_run, last_run) 
                         VALUES (?, ?, ?)
-                    `).run(jobId, nextRunAt, null);
+                    `,
+                    ).run(jobId, nextRunAt, null);
                 }
             }
 
@@ -235,7 +245,9 @@ export class Handlers {
     static handleJobDelete(payload: ProtocolMap["JOB_DELETE_CONFIG"]["req"]) {
         try {
             db.prepare(`DELETE FROM job WHERE id = ?`).run(payload.jobId);
-            db.prepare(`DELETE FROM job_schedule_state WHERE id = ?`).run(payload.jobId);
+            db.prepare(`DELETE FROM job_schedule_state WHERE id = ?`).run(
+                payload.jobId,
+            );
             Connection.send(WS_EVENTS.JOB_DELETE_CONFIG, {
                 requestId: payload.requestId,
                 success: true,
@@ -251,10 +263,15 @@ export class Handlers {
      * The job database is NOT modified here — the caller is responsible for
      * including keyContent in the job config when saving.
      */
-    static handleGenerateKey(payload: ProtocolMap["GENERATE_KEY_CONFIG"]["req"]) {
+    static handleGenerateKey(
+        payload: ProtocolMap["GENERATE_KEY_CONFIG"]["req"],
+    ) {
         const { requestId } = payload;
         const command = config.executable || "proxmox-backup-client";
-        const tempFilePath = path.join(os.tmpdir(), `pbcm_keygen_${randomUUID()}.json`);
+        const tempFilePath = path.join(
+            os.tmpdir(),
+            `pbcm_keygen_${randomUUID()}.json`,
+        );
         const args = ["key", "create", tempFilePath, "--kdf", "none"];
 
         const child = spawn(command, args, {
@@ -264,10 +281,10 @@ export class Handlers {
         });
 
         let stderr = "";
-        child.stderr?.on('data', (d: Buffer) => stderr += d.toString());
+        child.stderr?.on("data", (d: Buffer) => (stderr += d.toString()));
 
         let hasErrored = false;
-        child.on('error', (err: Error) => {
+        child.on("error", (err: Error) => {
             hasErrored = true;
             Logger.error("Generate Key Error", err);
             Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
@@ -277,7 +294,7 @@ export class Handlers {
             } as any);
         });
 
-        child.on('close', (code: number | null) => {
+        child.on("close", (code: number | null) => {
             if (hasErrored) return;
 
             if (code !== 0) {
@@ -290,7 +307,7 @@ export class Handlers {
             }
 
             try {
-                const keyContent = fs.readFileSync(tempFilePath, 'utf-8');
+                const keyContent = fs.readFileSync(tempFilePath, "utf-8");
                 fs.unlinkSync(tempFilePath);
                 Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
                     requestId,
@@ -310,10 +327,13 @@ export class Handlers {
     static handleHistory(payload: ProtocolMap["HISTORY"]["req"]) {
         try {
             const rawHistory = db
-                .prepare(`
+                .prepare(
+                    `
                     SELECT * 
-                    FROM history 
-                    ORDER BY start_time DESC LIMIT 50`)
+                    FROM job_history 
+                    ORDER BY start_time DESC LIMIT 50
+                    `,
+                )
                 .all() as any[];
             const history = rawHistory.map((h) => ({
                 ...h,
