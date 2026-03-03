@@ -42,10 +42,7 @@ The easiest way to get the server running is using Docker Compose. A production-
 services:
     pbcm-server:
         container_name: pbcm-server
-        build:
-            context: .
-            dockerfile: docker/Dockerfile.server.prod
-        image: pbcm-server:latest
+        image: ghcr.io/stefgo/pbcm-server:latest
         ports:
             - "3000:3000"
         volumes:
@@ -68,10 +65,7 @@ For the client agent, you also need to pass the host's files that you wish to ba
 services:
     pbcm-client:
         container_name: pbcm-client
-        build:
-            context: .
-            dockerfile: docker/Dockerfile.client.prod
-        image: pbcm-client:latest
+        image: ghcr.io/stefgo/pbcm-client:latest
         volumes:
             - ./client-config.yaml:/app/client/config.yaml
             - ./client-data:/app/client/data
