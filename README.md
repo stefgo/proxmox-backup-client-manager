@@ -9,18 +9,20 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 
 - **Centralized Management:** View and manage all your backup clients from a single web dashboard.
 - **Job Scheduling & Execution:** Configure remote backup jobs, define schedules (cron-like), and trigger immediate backups or restores.
+- **Global History & Sync:** Centralized job execution history synchronized from all clients for a unified overview.
+- **Real-time Monitoring:** View live log streams and status updates of ongoing backup and restore runs via WebSockets.
 - **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
-- **Secure Communication:** Uses secure websocket connections between the clients and the server. Registration works via short-lived tokens.
+- **Secure Communication:** Use secure WebSocket connections between clients and the server, authenticated via short-lived registration tokens.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
-- **Live Logs & History:** View detailed job execution history and live statuses of ongoing backup runs.
 
 ## 🏗 Architecture
 
-The project is structured as a monorepo containing three main components:
+The project is structured as a monorepo containing four main components:
 
 1.  **Server Backend (`server/backend`):** A Fastify API server acting as the control plane. It holds the SQLite database for configurations and job histories.
 2.  **Server Frontend (`server/frontend`):** A modern React SPA (Single Page Application) built with Vite and Tailwind CSS.
 3.  **Client Agent (`client`):** A lightweight Node.js daemon that wraps the `proxmox-backup-client` CLI, listens for commands, executes scheduled jobs, and reports back via WebSockets.
+4.  **Shared Library (`shared`):** Single source of truth for TypeScript types, Zod validation schemas, and constants used by all components.
 
 ## 📚 Documentation
 
@@ -38,20 +40,20 @@ The easiest way to get the server running is using Docker Compose. A production-
 
 ```yaml
 services:
-  pbcm-server:
-    container_name: pbcm-server
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.server.prod
-    image: pbcm-server:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./server-data:/app/server/backend/data
-      - ./server-config.yaml:/app/server/config.yaml
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
+    pbcm-server:
+        container_name: pbcm-server
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.server.prod
+        image: pbcm-server:latest
+        ports:
+            - "3000:3000"
+        volumes:
+            - ./server-data:/app/server/backend/data
+            - ./server-config.yaml:/app/server/config.yaml
+        restart: unless-stopped
+        environment:
+            - NODE_ENV=production
 ```
 
 1. Copy `server/config.example.yaml` to `server-config.yaml` and configure your settings (like OIDC).
@@ -64,20 +66,20 @@ For the client agent, you also need to pass the host's files that you wish to ba
 
 ```yaml
 services:
-  pbcm-client:
-    container_name: pbcm-client
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.client.prod
-    image: pbcm-client:latest
-    volumes:
-      - ./client-config.yaml:/app/client/config.yaml
-      - ./client-data:/app/client/data
-      # Mount the host root to allow backing up host files
-      - /:/mnt/host:ro
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
+    pbcm-client:
+        container_name: pbcm-client
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.client.prod
+        image: pbcm-client:latest
+        volumes:
+            - ./client-config.yaml:/app/client/config.yaml
+            - ./client-data:/app/client/data
+            # Mount the host root to allow backing up host files
+            - /:/mnt/host:ro
+        restart: unless-stopped
+        environment:
+            - NODE_ENV=production
 ```
 
 1. Copy `client/config example.yaml` to `client-config.yaml`.

@@ -17,6 +17,12 @@ src/
 ├── layouts/          # Page layouts (e.g., DashboardLayout)
 ├── pages/            # Main pages (Entry points for routes)
 ├── stores/           # Global State Management (Zustand)
+│   ├── useUIStore.ts               # UI state (sidebar, modals, filters)
+│   ├── useClientStore.ts           # Client list & connectivity status
+│   ├── useClientDetailStore.ts     # Data unique to a selected client
+│   ├── useGlobalJobsStore.ts       # Centralized backup job configurations
+│   ├── useRepositoryStore.ts       # PBS repository configurations
+│   └── useRepositorySnapshotStore.ts # PBS snapshot management
 ├── hooks/            # Global Custom Hooks
 └── utils.ts          # General utility functions
 ```
@@ -45,48 +51,21 @@ Authentication is managed via the `AuthContext` (`src/features/auth/AuthContext.
 - **Token Storage**: The JWT token is stored in `localStorage`.
 - **Provider**: The `AuthProvider` wraps the app and provides `token`, `login(token)`, and `logout()`.
 - **Login Flow**:
-  1. **Local**: POST to `/api/login` -> Token is received -> `login(token)`.
-  2. **OIDC**: Redirect to provider -> Callback with code -> Backend exchanges code for token -> Token is passed to frontend via URL parameter -> `login(token)`.
+    1. **Local**: POST to `/api/login` -> Token is received -> `login(token)`.
+    2. **OIDC**: Redirect to provider -> Callback with code -> Backend exchanges code for token -> Token is passed to frontend via URL parameter -> `login(token)`.
 
 ---
 
-## 📦 State Management (Zustand)
+### Modular State Management
 
-We use **Zustand** for global state management to avoid "Prop Drilling".
+We use **Zustand** split into specialized stores to maintain a clean, reactive state.
 
-### `useClientStore`
-
-Manages all data related to clients, jobs, and history.
-
-**State:**
-
-- `clients`: List of all clients (incl. online status).
-- `selectedClientId`: Currently selected client.
-- `history`: Job history of the selected client.
-- `configuredJobs`: Backup jobs of the selected client.
-- `fileList`: Cached file list for the file browser.
-- `isLoading`: Loading indicator for global operations.
-
-**Actions:**
-
-- `fetchClients(token)`: Loads the list of all clients.
-- `fetchClientData(id, token)`: Concurrently loads history and jobs for a client.
-- `triggerBackupJob(...)`: Manually triggers a backup job.
-- `fetchFileList(...)`: Loads file system contents (Lazy Loading).
-
-### `useRepositoryStore`
-
-Manages Proxmox Backup Server (PBS) repositories.
-
-**State:**
-
-- `repositories`: List of configured PBS.
-- `snapshots`: List of snapshots of a selected repository.
-
-**Actions:**
-
-- `fetchRepositories(token)`: Loads repositories from the backend.
-- `fetchSnapshots(repo, token)`: Loads snapshots from the PBS via backend proxy.
+- **`useUIStore`**: Manages global UI state like sidebar visibility, active notifications, and global search/filter parameters.
+- **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status.
+- **`useClientDetailStore`**: Focuses on the currently selected client, managing its local history, job configurations, and activity logs.
+- **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
+- **`useRepositoryStore`**: Manages Proxmox Backup Server (PBS) integration settings.
+- **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 
 ---
 
@@ -94,34 +73,20 @@ Manages Proxmox Backup Server (PBS) repositories.
 
 These components (`src/components/`) are generic and do not contain business logic.
 
-### `Button`
+### Data Views (`AbstractDataView` Hierarchy)
 
-Standard button with variants.
+Most data-driven lists utilize a common base to provide consistent loading, error, and empty states.
 
-- **Props**:
-  - `variant`: `'primary'` (Orange), `'secondary'` (Gray/Dark), `'danger'` (Red), `'ghost'` (Transparent).
-  - `size`: `'sm'`, `'md'`, `'lg'`.
-  - `isLoading`: Shows a spinner and disables the button.
-  - `icon`: ReactNode for icons.
+- **`DataMultiView`**: The standard container that allows switching between `DataTable` and `DataCard` layouts.
+- **`DataTable`**: A generic, column-based tabular view for structured data.
+- **`DataList`**: A simpler, row-based list view.
+- **`PaginationControls`**: Integrated pagination logic for larger datasets.
 
-### `Input` & `Select`
+### Actions & Buttons
 
-Form elements with consistent styling.
-
-- **Props**: `label` (Heading), `error` (Error message, red), `fullWidth` (100% width), `icon` (Input icon on the left).
-- **Ref**: Both components forward refs (`forwardRef`) for use with `react-hook-form` or similar.
-
-### `Card`
-
-Container with header and body.
-
-- **Props**: `title` (Left header), `action` (Right header, e.g., buttons).
-
-### `ActionMenu`
-
-"Kebab" menu (Three dots) for context-sensitive actions.
-
-- **Props**: `actions`: Array of objects `{ label, onClick, icon, variant }`.
+- **`ActionButton`**: Reusable button for common actions (Run, Edit, Delete) with built-in color variants and tooltips.
+- **`ActionMenu`**: "Kebab" menu (Three dots) for context-sensitive actions.
+- **`DataAction`**: Wrapper to group multiple actions for a specific data item.
 
 ---
 
@@ -132,10 +97,10 @@ Container with header and body.
 This is the "Controller" for the client overview. It connects the UI (`ClientList`) with the logic (`useClientStore`, API calls).
 
 - **Functionality**:
-  - Displays list of clients.
-  - Generates registration tokens (calls `POST /api/v1/tokens`).
-  - Displays the token modal.
-  - Deletes clients.
+    - Displays list of clients.
+    - Generates registration tokens (calls `POST /api/v1/tokens`).
+    - Displays the token modal.
+    - Deletes clients.
 
 ### ClientOverview (`features/clients`)
 
@@ -152,8 +117,8 @@ The restore process is complex and distributed across:
 
 1. `useRepositoryStore`: Loads available snapshots from the PBS.
 2. `RepositorySnapshotRestore` (in `features/repositories`):
-   - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
-   - Target path input on the client.
+    - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
+    - Target path input on the client.
 3. `POST /api/v1/clients/:id/restore`: Triggers the restore command on the client.
 
 ---

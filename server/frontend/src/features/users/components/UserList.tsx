@@ -1,7 +1,8 @@
-import { Plus, Trash2, Edit2, User, MoreVertical, Key, Globe } from 'lucide-react';
-import { ActionMenu } from '../../../components/ActionMenu';
-import { useActionMenu } from '../../../hooks/useActionMenu';
+import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
+import { DataTable, DataTableDef } from '../../../components/DataTable';
+import { DataAction } from '../../../components/DataAction';
+import { DataCard } from '../../../components/DataCard';
 
 export interface UserData {
     id: number;
@@ -19,8 +20,6 @@ interface UserListProps {
 }
 
 export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateUser }: UserListProps) => {
-    const { menuState, openMenu, closeMenu } = useActionMenu<number>();
-
     const renderAuthBadges = (methodsStr?: string) => {
         const methods = methodsStr ? methodsStr.split(',') : ['local'];
         return (
@@ -39,98 +38,73 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         );
     };
 
+    const columns: DataTableDef<UserData>[] = [
+        {
+            tableHeader: "User",
+            tableCellClassName: "font-medium text-gray-900 dark:text-white",
+            accessorKey: "username"
+        },
+        {
+            tableHeader: "Auth",
+            tableItemRender: (user) => renderAuthBadges(user.auth_methods)
+        },
+        {
+            tableHeader: "Created At",
+            tableCellClassName: "text-sm text-gray-500 dark:text-[#666]",
+            tableItemRender: (user) => formatDate(user.created_at)
+        },
+        {
+            tableHeader: "Actions",
+            tableHeaderClassName: "text-center",
+            tableCellClassName: "text-right text-sm font-medium",
+            tableItemRender: (user) => (
+                <DataAction
+                    rowId={user.id}
+                    actions={[
+                        {
+                            icon: Edit2,
+                            onClick: () => onEditUser(user),
+                            color: 'blue',
+                            tooltip: 'Edit User',
+                        },
+                    ]}
+                    menuEntries={[
+                        {
+                            label: 'Delete User',
+                            icon: Trash2,
+                            onClick: () => onDeleteUser(user),
+                            variant: 'danger',
+                            disabled: users.length <= 1,
+                            disabledTitle: 'Cannot delete the last user',
+                        },
+                    ]}
+                />
+            )
+        }
+    ];
+
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525]">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><User size={18} className="text-gray-500 dark:text-[#888]" /> Users</h3>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={onCreateUser}
-                        className="px-3 py-1 text-white text-xs rounded transition-colors bg-[#E54D0D] hover:bg-[#ff5f1f]"
-                    >
-                        <Plus size={12} className="inline mr-1" /> New User
-                    </button>
-                </div>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-gray-50 dark:bg-[#252525] border-b border-gray-200 dark:border-[#333]">
-                            <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">User</th>
-                            <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">Auth</th>
-                            <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider">Created At</th>
-                            <th className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-[#333]">
-                        {isLoading ? (
-                            <tr>
-                                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-[#666]">
-                                    Loading users...
-                                </td>
-                            </tr>
-                        ) : users.length === 0 ? (
-                            <tr>
-                                <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-[#666]">
-                                    No users found
-                                </td>
-                            </tr>
-                        ) : (
-                            users.map(user => (
-                                <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-[#252525] transition-colors group">
-                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 dark:text-white">
-                                        {user.username}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {renderAuthBadges(user.auth_methods)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-[#666]">
-                                        {formatDate(user.created_at)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex justify-end gap-2 items-center">
-                                            <button
-                                                onClick={() => onEditUser(user)}
-                                                className="p-1.5 text-gray-400 hover:text-blue-600 dark:text-[#666] dark:hover:text-blue-400 transition-all rounded-full hover:bg-gray-100 dark:hover:bg-[#333]"
-                                                title="Edit User"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-
-                                            <div className="relative">
-                                                <button
-                                                    onClick={(e) => openMenu(e, user.id)}
-                                                    className={`p-1.5 text-gray-400 hover:text-gray-600 dark:text-[#666] dark:hover:text-[#ccc] transition-all rounded-full hover:bg-gray-100 dark:hover:bg-[#333] ${menuState?.id === user.id ? 'opacity-100' : ''}`}
-                                                >
-                                                    <MoreVertical size={16} />
-                                                </button>
-
-                                                <ActionMenu
-                                                    isOpen={menuState?.id === user.id}
-                                                    onClose={closeMenu}
-                                                    position={menuState || { x: 0, y: 0 }}
-                                                >
-                                                    <button
-                                                        onClick={() => {
-                                                            onDeleteUser(user);
-                                                            closeMenu();
-                                                        }}
-                                                        disabled={users.length <= 1}
-                                                        className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${users.length <= 1 ? 'text-gray-300 dark:text-[#333] cursor-not-allowed' : 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10'} `}
-                                                        title={users.length <= 1 ? "Cannot delete the last user" : "Delete User"}
-                                                    >
-                                                        <Trash2 size={14} /> Delete User
-                                                    </button>
-                                                </ActionMenu>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <DataCard
+            title={<><User size={18} className="text-gray-500 dark:text-[#888]" /> Users</>}
+            action={
+                <button
+                    onClick={onCreateUser}
+                    className="px-3 py-1 text-white text-xs rounded transition-colors bg-[#E54D0D] hover:bg-[#ff5f1f]"
+                >
+                    <Plus size={12} className="inline mr-1" /> New User
+                </button>
+            }
+            noPadding
+        >
+            <DataTable
+                data={users}
+                itemDef={columns}
+                keyField="id"
+                isLoading={isLoading}
+                loadingMessage="Loading users..."
+                emptyMessage="No users found"
+                containerClassName="rounded-none border-0 shadow-none"
+            />
+        </DataCard>
     );
 };

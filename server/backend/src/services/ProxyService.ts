@@ -1,19 +1,28 @@
-import { WebSocket } from 'ws';
-import db from '../core/Database.js';
-import crypto, { randomUUID } from 'crypto';
-import { WS_EVENTS, WsMessage, ProtocolMap } from '@pbcm/shared';
-import { logger } from '../core/Logger.js';
+import { WebSocket } from "ws";
+import db from "../core/Database.js";
+import crypto, { randomUUID } from "crypto";
+import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
+import { logger } from "../core/Logger.js";
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
+    private static jobCache = new Map<string, BackupJob[]>();
 
     static registerClient(clientId: string, socket: WebSocket) {
         this.connectedClients.set(clientId, socket);
+        // Refresh job cache asynchronously when client connects
+        this.refreshJobCache(clientId).catch((e) => {
+            logger.error(
+                { err: e, clientId },
+                "Failed to fetch initial job list on connect",
+            );
+        });
     }
 
     static unregisterClient(clientId: string) {
         this.connectedClients.delete(clientId);
+        // We INTENTIONALLY do not delete the cache here so offline clients show their last known jobs
     }
 
     static addDashboardClient(socket: WebSocket) {
@@ -24,28 +33,55 @@ export class ProxyService {
         this.dashboardClients.delete(socket);
     }
 
+    static async refreshJobCache(clientId: string) {
+        try {
+            const payload = await this.sendRequest(
+                clientId,
+                WS_EVENTS.JOB_LIST_CONFIG,
+                { requestId: randomUUID() },
+            );
+            this.jobCache.set(clientId, payload.jobs);
+            // Optional: Broadcast a separate JOB cache update if frontend listens for it
+        } catch (e: any) {
+            logger.warn(
+                { clientId, err: e.message },
+                "Failed to refresh job cache for client",
+            );
+        }
+    }
+
+    static getAllCachedJobs(): { clientId: string; jobs: BackupJob[] }[] {
+        const result: { clientId: string; jobs: BackupJob[] }[] = [];
+        for (const [clientId, jobs] of this.jobCache.entries()) {
+            result.push({ clientId, jobs });
+        }
+        return result;
+    }
+
     static getClientSocket(clientId: string): WebSocket | undefined {
         return this.connectedClients.get(clientId);
     }
 
     static getClientsWithStatus() {
-        const clients = db.prepare('SELECT * FROM clients').all() as any[];
-        return clients.map(client => ({
+        const clients = db.prepare("SELECT * FROM clients").all() as any[];
+        return clients.map((client) => ({
             id: client.id,
             hostname: client.hostname,
             displayName: client.display_name,
-            status: this.connectedClients.has(client.id) ? 'online' : 'offline',
+            status: this.connectedClients.has(client.id) ? "online" : "offline",
             lastSeen: client.last_seen,
             ipAddress: client.ip_address,
             publicKey: client.publickey,
             createdAt: client.created_at,
-            updatedAt: client.updated_at
+            updatedAt: client.updated_at,
         }));
     }
 
     static updateClient(id: string, data: { displayName?: string }) {
         if (data.displayName !== undefined) {
-            const info = db.prepare('UPDATE clients SET display_name = ? WHERE id = ?').run(data.displayName, id);
+            const info = db
+                .prepare("UPDATE clients SET display_name = ? WHERE id = ?")
+                .run(data.displayName, id);
             if (info.changes > 0) {
                 this.broadcastClientUpdate();
                 return true;
@@ -61,15 +97,19 @@ export class ProxyService {
     static broadcastClientUpdate() {
         try {
             const clients = this.getClientsWithStatus();
-            const message = JSON.stringify({ type: 'CLIENTS_UPDATE', payload: clients });
+            const message = JSON.stringify({
+                type: "CLIENTS_UPDATE",
+                payload: clients,
+            });
             this.broadcastToDashboard(JSON.parse(message));
         } catch (e) {
-            logger.error({ err: e }, 'Broadcast error');
+            logger.error({ err: e }, "Broadcast error");
         }
     }
 
     static broadcastToDashboard(message: any) {
-        const msgStr = typeof message === 'string' ? message : JSON.stringify(message);
+        const msgStr =
+            typeof message === "string" ? message : JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
         for (const client of this.dashboardClients) {
             if (client.readyState === client.OPEN) {
@@ -82,15 +122,19 @@ export class ProxyService {
      * Sends an asynchronous, typed request to a specific client agent via WebSocket.
      * Automatically generates a unique requestId and waits for the correlating response.
      * Times out if the client does not respond within 5 seconds.
-     * 
+     *
      * @param clientId - The target agent's UUID
      * @param type - The exact event type from WS_EVENTS
      * @param payload - The payload matching the specific event protocol
      */
-    static async sendRequest<K extends keyof ProtocolMap>(clientId: string, type: K, payload: ProtocolMap[K]['req']): Promise<ProtocolMap[K]['res']> {
+    static async sendRequest<K extends keyof ProtocolMap>(
+        clientId: string,
+        type: K,
+        payload: ProtocolMap[K]["req"],
+    ): Promise<ProtocolMap[K]["res"]> {
         const socket = this.connectedClients.get(clientId);
         if (!socket) {
-            throw new Error('Client not connected');
+            throw new Error("Client not connected");
         }
 
         // Generate a unique Request ID to correlate the async response from the client.
@@ -99,25 +143,31 @@ export class ProxyService {
         const finalPayload = { ...payload, requestId };
 
         return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Timeout')), 5000);
+            const timeout = setTimeout(
+                () => reject(new Error("Timeout")),
+                5000,
+            );
 
             const listener = (msg: Buffer) => {
                 try {
                     const data = JSON.parse(msg.toString()) as WsMessage<any>;
 
                     // Check if message matches the expected type and requestId
-                    if (data.type === type && data.payload.requestId === requestId) {
+                    if (
+                        data.type === type &&
+                        data.payload.requestId === requestId
+                    ) {
                         clearTimeout(timeout);
-                        socket.off('message', listener);
+                        socket.off("message", listener);
                         if (data.payload.error) {
                             reject(new Error(data.payload.error));
                         } else {
-                            resolve(data.payload as ProtocolMap[K]['res']);
+                            resolve(data.payload as ProtocolMap[K]["res"]);
                         }
                     }
-                } catch (e) { }
+                } catch (e) {}
             };
-            socket.on('message', listener);
+            socket.on("message", listener);
             socket.send(JSON.stringify({ type, payload: finalPayload }));
         });
     }
@@ -128,7 +178,7 @@ export class ProxyService {
      */
     static sendFireAndForget(clientId: string, type: string, payload: any) {
         const socket = this.connectedClients.get(clientId);
-        if (!socket) throw new Error('Client not connected');
+        if (!socket) throw new Error("Client not connected");
         socket.send(JSON.stringify({ type, payload }));
     }
 }

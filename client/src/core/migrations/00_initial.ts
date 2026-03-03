@@ -38,5 +38,5 @@ export const migration00 = {
             DROP TABLE IF EXISTS history;
             DROP TABLE IF EXISTS job_schedule_state;
         `);
-    }
+    },
 };
