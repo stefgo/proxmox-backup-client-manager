@@ -1,7 +1,21 @@
-strategy:
+name: Build Client and Server Images
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
       matrix:
-        # Wir definieren hier ein Mapping: 
-        # 'id' ist das Kürzel für den Dateinamen, 'image_name' für das Package
         include:
           - id: client
             image_name: pbcm-client
@@ -23,10 +37,8 @@ strategy:
         uses: docker/build-push-action@v5
         with:
           context: .
-          # Greift auf docker/Dockerfile.client oder docker/Dockerfile.server zu
           file: ./docker/Dockerfile.${{ matrix.id }}
           push: true
-          # Hier nutzen wir den neuen Namen 'pbcm-client' bzw. 'pbcm-server'
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:latest
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:${{ github.sha }}
