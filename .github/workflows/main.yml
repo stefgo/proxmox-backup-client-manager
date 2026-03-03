@@ -1,23 +1,12 @@
-name: Build Client and Server Images
-
-on:
-  push:
-    branches: [ "main" ]
-
-env:
-  REGISTRY: ghcr.io
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      # Die Matrix sorgt dafür, dass zwei Jobs parallel laufen
+strategy:
       matrix:
-        component: [client, server]
+        # Wir definieren hier ein Mapping: 
+        # 'id' ist das Kürzel für den Dateinamen, 'image_name' für das Package
+        include:
+          - id: client
+            image_name: pbcm-client
+          - id: server
+            image_name: pbcm-server
 
     steps:
       - name: Checkout repository
@@ -33,11 +22,11 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          # Hier sagen wir Docker, wo die jeweilige Datei liegt
           context: .
-          file: ./docker/Dockerfile.${{ matrix.component }}
+          # Greift auf docker/Dockerfile.client oder docker/Dockerfile.server zu
+          file: ./docker/Dockerfile.${{ matrix.id }}
           push: true
-          # Das Image bekommt den Namen deines Repos + "-client" oder "-server"
+          # Hier nutzen wir den neuen Namen 'pbcm-client' bzw. 'pbcm-server'
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.component }}:latest
-            ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.component }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}:${{ github.sha }}
