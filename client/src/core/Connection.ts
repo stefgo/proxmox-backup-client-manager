@@ -7,6 +7,7 @@ import { Handlers } from "../features/Handlers.js";
 import db from "./Database.js";
 
 import { Logger } from "./Logger.js";
+import { VERSION } from "./Version.js";
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
@@ -92,6 +93,7 @@ export class Connection {
                 Logger.info("Connected to server");
                 Connection.send(WS_EVENTS.AUTH, {
                     hostname: os.hostname(),
+                    version: VERSION,
                 });
             });
 

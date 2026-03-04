@@ -57,6 +57,7 @@ export interface Snapshot {
 
 export interface AuthPayload {
     hostname: string;
+    version?: string;
 }
 
 export interface RunJobPayload {

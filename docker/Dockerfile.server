@@ -14,6 +14,7 @@ COPY server/frontend/package.json server/frontend/
 RUN npm ci
 
 # Copy source code
+COPY .git ./.git
 COPY shared ./shared
 COPY server ./server
 

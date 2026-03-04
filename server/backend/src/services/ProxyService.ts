@@ -95,6 +95,7 @@ export class ProxyService {
             status: this.connectedClients.has(client.id) ? "online" : "offline",
             lastSeen: client.last_seen,
             ipAddress: client.ip_address,
+            version: client.version,
             publicKey: client.publickey,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
