@@ -5,6 +5,10 @@ export const useGlobalSubscription = () => {
     const { updateSession, updateJobNextRunAt } = useGlobalJobsStore();
 
     useEffect(() => {
+        const handleJobUpdate = (e: CustomEvent) => {
+            const { job } = e.detail;
+            updateSession(job);
+        };
         const handleNextRunUpdate = (e: CustomEvent) => {
             const { clientId, jobId, nextRunAt } = e.detail;
             updateJobNextRunAt(clientId, jobId, nextRunAt);

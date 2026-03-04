@@ -66,10 +66,11 @@ export interface RunJobPayload {
 
 export interface StatusUpdatePayload {
     id: string;
-    name?: string;
+    jobId?: string;
+    name: string;
     status: string;
     type: string;
-    startTime?: string;
+    startTime: string;
     endTime?: string;
     exitCode?: number;
     stdout?: string;

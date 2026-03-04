@@ -49,6 +49,7 @@ export class Executor {
         let args: string[] = [];
         let env: any = { ...process.env };
 
+        const startTime = new Date().toISOString();
         try {
             const jobConfig = db
                 .prepare("SELECT * FROM job WHERE id = ?")
@@ -146,6 +147,9 @@ export class Executor {
             Logger.error("Job Config Resolution Error:", e);
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: "failed",
                 error: "Config resolution failed: " + e.message,
                 stderr: e.message,
@@ -158,7 +162,6 @@ export class Executor {
         Logger.info(`Starting job ${runId}: ${command} ${args.join(" ")}`);
 
         const jobType = "backup";
-        const startTime = new Date().toISOString();
 
         try {
             db.prepare(
@@ -173,10 +176,11 @@ export class Executor {
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
             id: runId,
+            jobId: jobId,
+            name: jobName || "Unknown Backup",
+            startTime: startTime,
             status: "running",
             type: jobType,
-            startTime: startTime,
-            name: jobName,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
@@ -243,14 +247,15 @@ export class Executor {
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: status,
                 exitCode: code ?? undefined,
-                startTime: startTime,
                 endTime: endTime,
                 stdout: stdoutBuffer,
                 stderr: stderrBuffer,
                 type: jobType,
-                name: jobName,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
         });
@@ -261,7 +266,10 @@ export class Executor {
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: jobId,
+                id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: "failed",
                 error: errorMsg,
                 stderr: stderrBuffer,
@@ -300,6 +308,7 @@ export class Executor {
         let env = { ...process.env };
         let jobName = `Restore: ${snapshot}`;
 
+        const startTime = new Date().toISOString();
         try {
             if (encryption?.keyContent) {
                 try {
@@ -367,6 +376,8 @@ export class Executor {
             Logger.error("Restore Config Error:", e);
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: "failed",
                 error: "Config resolution failed: " + e.message,
                 stderr: e.message,
@@ -379,7 +390,6 @@ export class Executor {
         Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         const jobType = "restore";
-        const startTime = new Date().toISOString();
 
         try {
             // We use runId as the ID for history. restore jobs might not have a persistent 'job_id' configuration, so we set job_id to null or a placeholder.
@@ -395,10 +405,10 @@ export class Executor {
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
             id: runId,
+            name: jobName,
+            startTime: startTime,
             status: "running",
             type: jobType,
-            startTime: startTime,
-            name: jobName,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
@@ -471,14 +481,14 @@ export class Executor {
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: status,
                 exitCode: code ?? undefined,
-                startTime: startTime,
                 endTime: endTime,
                 stdout: stdoutBuffer,
                 stderr: stderrBuffer,
                 type: jobType,
-                name: jobName,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
             cleanup();
@@ -489,6 +499,8 @@ export class Executor {
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: "failed",
                 error: errorMsg,
                 stderr: stderrBuffer,
