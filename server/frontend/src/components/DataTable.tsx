@@ -27,7 +27,7 @@ export class DataTable<T> extends AbstractDataView<T, DataTableProps<T>> {
                             {itemDef.map((col, idx) => (
                                 <th
                                     key={idx}
-                                    className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider ${col.tableHeaderClassName ?? ''}`}
+                                    className={`px-6 py-2 text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wider ${col.tableHeaderClassName ?? ''}`}
                                 >
                                     {col.tableHeader}
                                 </th>
@@ -59,7 +59,7 @@ export class DataTable<T> extends AbstractDataView<T, DataTableProps<T>> {
                                                 ? col.tableCellClassName(item)
                                                 : (col.tableCellClassName ?? '');
                                             return (
-                                                <td key={idx} className={`px-6 py-4 whitespace-nowrap ${cellClass}`}>
+                                                <td key={idx} className={`px-6 py-2 whitespace-nowrap ${cellClass}`}>
                                                     {cellContent(col)}
                                                 </td>
                                             );

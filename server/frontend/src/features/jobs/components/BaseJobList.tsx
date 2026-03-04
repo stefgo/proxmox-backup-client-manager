@@ -199,7 +199,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         cols.push({
             tableHeader: "Actions",
             tableHeaderClassName: "text-center",
-            tableCellClassName: "text-right text-sm font-medium",
+            tableCellClassName: "content-center",
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 const rowId = job.clientId ? `${job.clientId}-${job.id}` : job.id;
@@ -250,7 +250,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 listItemRender: (job) => {
                     const isOnline = getStatus(job) === "online";
                     return (
-                        <div className="flex items-center gap-2 pb-2">
+                        <div className="flex items-center gap-2 py-1">
                             <span
                                 className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
                             />
