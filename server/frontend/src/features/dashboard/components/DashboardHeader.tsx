@@ -48,8 +48,11 @@ export const DashboardHeader = ({ theme, toggleTheme, logout, username }: Dashbo
                         <path d="M12 12l-2-2" />
                     </svg>
                 </div>
-                <div>
+                <div className="flex flex-col">
                     <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">P<span className="text-[#E54D0D]">BC</span>M</h1>
+                    <span className="pt-1 text-[10px] font-mono text-gray-400 dark:text-[#666] -mt-1 leading-none">
+                        {__APP_VERSION__}
+                    </span>
                 </div>
             </div>
 
