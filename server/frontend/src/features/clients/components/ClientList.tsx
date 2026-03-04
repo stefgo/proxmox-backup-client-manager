@@ -44,6 +44,16 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             )
         },
         {
+            tableHeader: "Version",
+            tableItemRender: (client) => (
+                client.version ? (
+                    <div className="text-sm font-normal text-gray-900 dark:text-white">
+                        {client.version}
+                    </div>
+                ) : null
+            )
+        },
+        {
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-gray-900 dark:text-white",
             tableItemRender: (client) => (
@@ -57,7 +67,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         {
             tableHeader: "Action",
             tableHeaderClassName: "text-center",
-            tableCellClassName: "text-right text-sm font-medium",
+            tableCellClassName: "content-center",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
@@ -106,6 +116,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     itemDef={columns}
                     keyField="id"
                     emptyMessage="No clients connected"
+                    rowClassName="align-top"
                     onRowClick={setSelectedClient}
                     pagination={{
                         currentPage,

@@ -14,12 +14,16 @@ COPY server/frontend/package.json server/frontend/
 RUN npm ci
 
 # Copy source code
+COPY .git ./.git
 COPY shared ./shared
 COPY client ./client
 
 # Build shared and client
 RUN npm run build -w shared
 RUN npm run build -w client
+
+# Generate Version file for production
+RUN git describe --tags --always --dirty > ./client/dist/VERSION
 
 # Prune dev dependencies
 RUN npm ci --omit=dev

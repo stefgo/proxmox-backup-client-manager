@@ -15,6 +15,7 @@ export const ClientSchema = z.object({
     displayName: z.string().optional(),
     status: z.enum(["online", "offline"]),
     lastSeen: z.string(),
+    version: z.string().optional(),
 });
 
 export const ScheduleConfigSchema = z.object({

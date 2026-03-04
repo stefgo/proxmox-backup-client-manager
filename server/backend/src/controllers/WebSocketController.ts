@@ -134,9 +134,17 @@ export class WebSocketController {
                         clearTimeout(authTimeout);
 
                         const now = new Date().toISOString();
+                        const authPayload =
+                            data.payload as ProtocolMap["AUTH"]["req"];
                         db.prepare(
-                            `UPDATE clients SET last_seen=?, updated_at=?, ip_address=? WHERE id=?`,
-                        ).run(now, now, clientIp, clientId);
+                            `UPDATE clients SET last_seen=?, updated_at=?, ip_address=?, version=? WHERE id=?`,
+                        ).run(
+                            now,
+                            now,
+                            clientIp,
+                            authPayload.version || null,
+                            clientId,
+                        );
 
                         fastify.log.info({
                             msg: "Client authenticated",
