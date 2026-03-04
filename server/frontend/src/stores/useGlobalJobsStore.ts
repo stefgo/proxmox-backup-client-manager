@@ -13,6 +13,11 @@ interface GlobalJobsState {
 
     fetchAllJobs: (token: string) => Promise<void>;
     updateSession: (job: HistoryEntry) => void;
+    updateJobNextRunAt: (
+        clientId: string,
+        jobId: string,
+        nextRunAt: string | null,
+    ) => void;
 }
 
 export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
@@ -63,4 +68,12 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 return { sessionHistory: [job, ...state.sessionHistory] };
             }
         }),
+    updateJobNextRunAt: (clientId, jobId, nextRunAt) =>
+        set((state) => ({
+            globalJobs: state.globalJobs.map((j) =>
+                j.clientId === clientId && j.id === jobId
+                    ? { ...j, nextRunAt: nextRunAt ?? undefined }
+                    : j,
+            ),
+        })),
 }));

@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { LayoutList, Table as TableIcon } from 'lucide-react';
 import { Card } from './Card';
 import { CardHeader } from './CardHeader';
@@ -42,8 +42,18 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
         ...sharedProps
     } = props;
 
+    // Mobile detection
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const [viewMode, setViewMode] = useState<'table' | 'list'>(() => {
-        return (localStorage.getItem(viewModeStorageKey) as 'table' | 'list') || 'table';
+        const savedMode = localStorage.getItem(viewModeStorageKey) as 'table' | 'list';
+        return savedMode || 'table';
     });
 
     const changeViewMode = (mode: 'table' | 'list') => {
@@ -51,11 +61,14 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
         localStorage.setItem(viewModeStorageKey, mode);
     };
 
-    const viewToggle = (
+    // Effective view mode is forced to 'list' on mobile
+    const effectiveViewMode = isMobile ? 'list' : viewMode;
+
+    const viewToggle = !isMobile ? (
         <div className="bg-gray-200 dark:bg-[#333] rounded-lg p-1 flex items-center gap-1">
             <button
                 onClick={() => changeViewMode('table')}
-                className={`p-1 rounded transition-all ${viewMode === 'table'
+                className={`p-1 rounded transition-all ${effectiveViewMode === 'table'
                     ? 'bg-white dark:bg-[#444] shadow text-gray-900 dark:text-white'
                     : 'text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white'
                     }`}
@@ -65,7 +78,7 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
             </button>
             <button
                 onClick={() => changeViewMode('list')}
-                className={`p-1 rounded transition-all ${viewMode === 'list'
+                className={`p-1 rounded transition-all ${effectiveViewMode === 'list'
                     ? 'bg-white dark:bg-[#444] shadow text-gray-900 dark:text-white'
                     : 'text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white'
                     }`}
@@ -74,7 +87,7 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
                 <LayoutList size={14} />
             </button>
         </div>
-    );
+    ) : null;
 
     const headerAction = (
         <div className="flex items-center gap-3">
@@ -91,7 +104,7 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
     return (
         <Card className={`overflow-hidden flex flex-col h-full ${className}`}>
             <CardHeader title={title} action={headerAction} />
-            {viewMode === 'list' ? (
+            {effectiveViewMode === 'list' ? (
                 <DataList
                     {...containerProps}
                     itemDef={listDef}
@@ -106,3 +119,4 @@ export const DataMultiView = <T,>(props: DataMultiViewProps<T>) => {
         </Card>
     );
 };
+

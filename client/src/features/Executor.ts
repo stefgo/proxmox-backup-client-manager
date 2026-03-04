@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { randomUUID } from "crypto";
 import db from "../core/Database.js";
 import { config } from "../core/Config.js";
 import { WS_EVENTS, ProtocolMap } from "@pbcm/shared";
@@ -9,6 +10,9 @@ import { Logger } from "../core/Logger.js";
 import { Connection } from "../core/Connection.js";
 
 export class Executor {
+    private static runningJobs = new Set<string>();
+    private static pendingJobs = new Set<string>();
+
     /**
      * Cleans up stale jobs from the history table that are still marked as 'running'
      * by setting their status to 'abort'. This usually runs on client agent startup
@@ -49,6 +53,44 @@ export class Executor {
         let args: string[] = [];
         let env: any = { ...process.env };
 
+        if (this.runningJobs.has(jobId)) {
+            if (this.pendingJobs.has(jobId)) {
+                Logger.warn(
+                    `Job ${jobId} is already running and already has a pending trigger. Skipping additional request.`,
+                );
+                // Create a history entry for the skipped job
+                try {
+                    db.prepare(
+                        `
+                        INSERT INTO job_history (id, job_id, type, status, start_time, end_time, name, stderr)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `,
+                    ).run(
+                        runId,
+                        jobId,
+                        "backup",
+                        "skipped",
+                        new Date().toISOString(),
+                        new Date().toISOString(),
+                        "Skipped (Parallel)",
+                        "Job already running and another one is already queued.",
+                    );
+                } catch (e) {
+                    Logger.error("Failed to log skipped job", e);
+                }
+                return;
+            }
+
+            Logger.info(
+                `Job ${jobId} is already running. Queuing for restart.`,
+            );
+            this.pendingJobs.add(jobId);
+            return;
+        }
+
+        this.runningJobs.add(jobId);
+
+        const startTime = new Date().toISOString();
         try {
             const jobConfig = db
                 .prepare("SELECT * FROM job WHERE id = ?")
@@ -146,6 +188,9 @@ export class Executor {
             Logger.error("Job Config Resolution Error:", e);
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: "failed",
                 error: "Config resolution failed: " + e.message,
                 stderr: e.message,
@@ -158,7 +203,6 @@ export class Executor {
         Logger.info(`Starting job ${runId}: ${command} ${args.join(" ")}`);
 
         const jobType = "backup";
-        const startTime = new Date().toISOString();
 
         try {
             db.prepare(
@@ -173,10 +217,11 @@ export class Executor {
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
             id: runId,
+            jobId: jobId,
+            name: jobName || "Unknown Backup",
+            startTime: startTime,
             status: "running",
             type: jobType,
-            startTime: startTime,
-            name: jobName,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
@@ -243,25 +288,44 @@ export class Executor {
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: status,
                 exitCode: code ?? undefined,
-                startTime: startTime,
                 endTime: endTime,
                 stdout: stdoutBuffer,
                 stderr: stderrBuffer,
                 type: jobType,
-                name: jobName,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
+
+            this.runningJobs.delete(jobId);
+
+            if (this.pendingJobs.has(jobId)) {
+                this.pendingJobs.delete(jobId);
+                const delayMs = (config.queueDelaySeconds || 5) * 1000;
+                Logger.info(
+                    `Restarting queued job ${jobId} in ${delayMs / 1000}s...`,
+                );
+                setTimeout(() => {
+                    const nextRunId = randomUUID();
+                    Executor.executeBackup(nextRunId, jobId);
+                }, delayMs);
+            }
         });
 
         child.on("error", (err: Error) => {
+            this.runningJobs.delete(jobId);
             Logger.error("Spawn Error", err);
 
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: jobId,
+                id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: startTime,
                 status: "failed",
                 error: errorMsg,
                 stderr: stderrBuffer,
@@ -300,6 +364,7 @@ export class Executor {
         let env = { ...process.env };
         let jobName = `Restore: ${snapshot}`;
 
+        const startTime = new Date().toISOString();
         try {
             if (encryption?.keyContent) {
                 try {
@@ -367,6 +432,8 @@ export class Executor {
             Logger.error("Restore Config Error:", e);
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: "failed",
                 error: "Config resolution failed: " + e.message,
                 stderr: e.message,
@@ -379,7 +446,6 @@ export class Executor {
         Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         const jobType = "restore";
-        const startTime = new Date().toISOString();
 
         try {
             // We use runId as the ID for history. restore jobs might not have a persistent 'job_id' configuration, so we set job_id to null or a placeholder.
@@ -395,10 +461,10 @@ export class Executor {
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
             id: runId,
+            name: jobName,
+            startTime: startTime,
             status: "running",
             type: jobType,
-            startTime: startTime,
-            name: jobName,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
@@ -471,14 +537,14 @@ export class Executor {
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: status,
                 exitCode: code ?? undefined,
-                startTime: startTime,
                 endTime: endTime,
                 stdout: stdoutBuffer,
                 stderr: stderrBuffer,
                 type: jobType,
-                name: jobName,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
             cleanup();
@@ -489,6 +555,8 @@ export class Executor {
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
+                name: jobName,
+                startTime: startTime,
                 status: "failed",
                 error: errorMsg,
                 stderr: stderrBuffer,

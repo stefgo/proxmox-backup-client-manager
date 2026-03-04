@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { DashboardHeader } from "../components/DashboardHeader";
 import { Sidebar } from "../components/Sidebar";
+import { TabBar } from "../components/TabBar";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../../auth/AuthContext";
 import { useUIStore } from "../../../stores/useUIStore";
@@ -76,12 +77,15 @@ export const DashboardLayout = ({
                 />
 
                 {/* Content */}
-                <main className="flex-1 overflow-y-auto p-4 bg-gray-100 dark:bg-[#111]">
+                <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-4 bg-gray-100 dark:bg-[#111]">
                     <div className="max-w-7xl mx-auto space-y-6">
                         {children}
                     </div>
                 </main>
             </div>
+
+            <TabBar view={view} setView={setView} />
         </div>
     );
 };
+

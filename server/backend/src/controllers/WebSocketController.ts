@@ -209,14 +209,12 @@ export class WebSocketController {
                             ).run(
                                 statusPayload.id,
                                 clientId,
-                                statusPayload.id, // Using runId as job_id fallback, or extract actual jobId if possible. client sends runId as id. It might not pass jobId directly in STATUS_UPDATE. For now, leave it as id.
-                                statusPayload.name || null,
+                                statusPayload.jobId,
+                                statusPayload.name,
                                 statusPayload.type,
                                 statusPayload.status,
-                                statusPayload.startTime ||
-                                    new Date().toISOString(),
-                                statusPayload.endTime ||
-                                    new Date().toISOString(),
+                                statusPayload.startTime || null,
+                                statusPayload.endTime || null,
                                 statusPayload.exitCode ?? null,
                                 statusPayload.stdout || null,
                                 statusPayload.stderr || null,
@@ -302,6 +300,17 @@ export class WebSocketController {
                             });
                         }
                     }
+                }
+
+                // 4. Job Next Run Update
+                if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
+                    const nextRunPayload =
+                        data.payload as ProtocolMap["JOB_NEXT_RUN_UPDATE"]["req"];
+                    ProxyService.updateJobNextRun(
+                        clientId!,
+                        nextRunPayload.jobId,
+                        nextRunPayload.nextRunAt,
+                    );
                 }
             } catch (err) {
                 fastify.log.error({

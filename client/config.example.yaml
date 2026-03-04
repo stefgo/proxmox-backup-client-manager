@@ -19,8 +19,11 @@ authToken:
 # Optional: Static parameters to always append to backup jobs
 # For example, to include all file systems:
 backupParams:
-  - "--all-file-systems"
-  - "true"
+    - "--all-file-systems"
+    - "true"
 
 # Optional: Static parameters to always append to restore jobs
 restoreParams: []
+
+# Delay in seconds to wait before restarting a queued job
+queueDelaySeconds: 5

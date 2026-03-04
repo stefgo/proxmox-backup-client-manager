@@ -66,10 +66,11 @@ export interface RunJobPayload {
 
 export interface StatusUpdatePayload {
     id: string;
-    name?: string;
+    jobId?: string;
+    name: string;
     status: string;
     type: string;
-    startTime?: string;
+    startTime: string;
     endTime?: string;
     exitCode?: number;
     stdout?: string;
@@ -188,6 +189,11 @@ export interface SyncHistoryPayload {
     history: HistoryEntry[];
 }
 
+export interface JobNextRunUpdatePayload {
+    jobId: string;
+    nextRunAt: string | null;
+}
+
 export interface WsMessage<T = any> {
     type: string;
     payload: T;
@@ -252,6 +258,10 @@ export interface ProtocolMap {
     };
     SYNC_HISTORY: {
         req: SyncHistoryPayload;
+        res: void;
+    };
+    JOB_NEXT_RUN_UPDATE: {
+        req: JobNextRunUpdatePayload;
         res: void;
     };
 }

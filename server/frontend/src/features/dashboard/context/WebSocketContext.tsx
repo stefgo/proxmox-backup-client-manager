@@ -61,6 +61,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         window.dispatchEvent(new CustomEvent('pbcm:log_update', { detail: data.payload }));
                     }
 
+                    if (data.type === 'JOB_NEXT_RUN_UPDATE') {
+                        window.dispatchEvent(new CustomEvent('pbcm:job_next_run_update', { detail: data.payload }));
+                    }
+
                 } catch (e) {
                     console.error('Failed to parse WS message', e);
                 }
