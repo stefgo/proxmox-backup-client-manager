@@ -2,15 +2,16 @@ import WebSocket from "ws";
 import db from "../core/Database.js";
 import { randomUUID } from "crypto";
 import { Executor } from "./Executor.js";
-import { ScheduleConfig } from "@pbcm/shared";
+import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
 import { Logger } from "../core/Logger.js";
+import { Connection } from "../core/Connection.js";
 
 export class Scheduler {
     private static interval: NodeJS.Timeout | null = null;
 
     /**
-     * Starts the client-side scheduling loop. Checks the database every minute 
-     * for any jobs that have reached their scheduled 'next_run' time. If a job 
+     * Starts the client-side scheduling loop. Checks the database every minute
+     * for any jobs that have reached their scheduled 'next_run' time. If a job
      * should run, it spawns the Executor.
      */
     static start() {
@@ -91,6 +92,10 @@ export class Scheduler {
                         Logger.info(
                             `Initialized next_run for job ${job.name} to ${initNext.toISOString()}`,
                         );
+                        Connection.send(WS_EVENTS.JOB_NEXT_RUN_UPDATE, {
+                            jobId: job.id,
+                            nextRunAt: initNext.toISOString(),
+                        });
                     } catch (e) {
                         Logger.error("Init State Error", e);
                     }
@@ -120,6 +125,10 @@ export class Scheduler {
                         Logger.info(
                             `Scheduled next run for ${job.name} at ${newNextRun.toISOString()}`,
                         );
+                        Connection.send(WS_EVENTS.JOB_NEXT_RUN_UPDATE, {
+                            jobId: job.id,
+                            nextRunAt: newNextRun.toISOString(),
+                        });
                     } catch (e) {
                         Logger.error("Update State Error", e);
                     }

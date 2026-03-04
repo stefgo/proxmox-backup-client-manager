@@ -22,7 +22,7 @@ export class ProxyService {
 
     static unregisterClient(clientId: string) {
         this.connectedClients.delete(clientId);
-        // We INTENTIONALLY do not delete the cache here so offline clients show their last known jobs
+        this.jobCache.delete(clientId);
     }
 
     static addDashboardClient(socket: WebSocket) {
@@ -48,6 +48,30 @@ export class ProxyService {
                 "Failed to refresh job cache for client",
             );
         }
+    }
+
+    static updateJobNextRun(
+        clientId: string,
+        jobId: string,
+        nextRunAt: string | null,
+    ) {
+        const jobs = this.jobCache.get(clientId);
+        if (jobs) {
+            const index = jobs.findIndex((j) => j.id === jobId);
+            if (index !== -1) {
+                jobs[index] = {
+                    ...jobs[index],
+                    nextRunAt: nextRunAt || undefined,
+                };
+                this.jobCache.set(clientId, jobs);
+            }
+        }
+
+        // Broadcast to dashboard
+        this.broadcastToDashboard({
+            type: "JOB_NEXT_RUN_UPDATE",
+            payload: { clientId, jobId, nextRunAt },
+        });
     }
 
     static getAllCachedJobs(): { clientId: string; jobs: BackupJob[] }[] {

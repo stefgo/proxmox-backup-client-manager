@@ -303,6 +303,17 @@ export class WebSocketController {
                         }
                     }
                 }
+
+                // 4. Job Next Run Update
+                if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
+                    const nextRunPayload =
+                        data.payload as ProtocolMap["JOB_NEXT_RUN_UPDATE"]["req"];
+                    ProxyService.updateJobNextRun(
+                        clientId!,
+                        nextRunPayload.jobId,
+                        nextRunPayload.nextRunAt,
+                    );
+                }
             } catch (err) {
                 fastify.log.error({
                     msg: "Error processing WebSocket message",
