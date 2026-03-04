@@ -2,9 +2,10 @@ import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef } from '../../../components/DataTable';
+import { DataTableDef } from '../../../components/DataTable';
 import { DataAction } from '../../../components/DataAction';
-import { DataCard } from '../../../components/DataCard';
+import { DataListDef, DataListColumnDef } from '../../../components/DataList';
+import { DataMultiView } from '../../../components/DataMultiView';
 
 interface ClientListProps {
     clients: Client[];
@@ -25,8 +26,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         setItemsPerPage
     } = usePagination(clients, 10);
 
-    const columns: DataTableDef<Client>[] = [
-        {
+    const buildTableDefinitions = (): DataTableDef<Client>[] => {
+        const cols: DataTableDef<Client>[] = [];
+
+        cols.push({
             tableHeader: "Client",
             tableItemRender: (client) => (
                 <>
@@ -42,18 +45,20 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     </div>
                 </>
             )
-        },
-        {
+        });
+
+        cols.push({
             tableHeader: "Version",
             tableItemRender: (client) => (
                 client.version ? (
-                    <div className="text-sm font-normal text-gray-900 dark:text-white">
+                    <div className="text-sm text-gray-900 dark:text-white">
                         {client.version}
                     </div>
                 ) : null
             )
-        },
-        {
+        });
+
+        cols.push({
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-gray-900 dark:text-white",
             tableItemRender: (client) => (
@@ -63,8 +68,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     </div >
                 ) : null
             )
-        },
-        {
+        });
+
+        cols.push({
             tableHeader: "Action",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
@@ -93,42 +99,119 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     />
                 </div>
             )
-        }
-    ];
+        });
+
+        return cols;
+    };
+
+    const buildListDefinitions = (): DataListColumnDef<Client>[] => {
+        const contentFields: DataListDef<Client>[] = [];
+        const actionFields: DataListDef<Client>[] = [];
+
+        contentFields.push({
+            listItemRender: (client) => (
+                <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
+                    <div className={`text-sm font-medium text-gray-900 dark:text-white ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        {client.displayName || client.hostname}
+                        {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">({client.hostname})</span>}
+                    </div>
+                </div>
+            ),
+            listLabel: null,
+        });
+
+        contentFields.push({
+            accessorKey: 'id',
+            listLabel: 'ID',
+            listLabelClassName: 'font-mono text-xs',
+        });
+
+        contentFields.push({
+            listItemRender: (client) => (
+                <span className="text-sm text-gray-700 dark:text-[#ccc]">
+                    {client.version}
+                </span>
+            ),
+            listLabel: 'Version',
+        });
+
+        contentFields.push({
+            listItemRender: (client) => (
+                client.status !== 'online' ? (
+                    <span className="text-sm text-gray-500 dark:text-[#888]">
+                        {formatDate(client.lastSeen)}
+                    </span>
+                ) : <span className="text-green-600 dark:text-green-500 text-sm font-medium">Online</span>
+            ),
+            listLabel: 'Status',
+        });
+
+        actionFields.push({
+            listItemRender: (client) => (
+                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0">
+                    <DataAction
+                        rowId={client.id}
+                        menuEntries={[
+                            {
+                                label: 'Edit Client',
+                                icon: Edit,
+                                onClick: () => {
+                                    editClient(client);
+                                },
+                                variant: 'default',
+                            },
+                            {
+                                label: 'Delete Client',
+                                icon: Trash2,
+                                onClick: () => {
+                                    deleteClient(client);
+                                },
+                                variant: 'danger',
+                            },
+                        ]}
+                    />
+                </div>
+            ),
+            listLabel: null,
+        });
+
+        return [
+            { fields: contentFields, columnClassName: "flex-1" },
+            { fields: actionFields, columnClassName: "md:text-right" }
+        ];
+    };
+
+    const tableColumns = buildTableDefinitions();
+    const listColumns = buildListDefinitions();
 
     return (
-        <div className={`transition-all duration-300 w-full flex flex-col gap-6 h-full min-h-0`}>
-            <DataCard
-                title={<><Monitor size={18} className="text-gray-500 dark:text-[#888]" /> Clients</>}
-                action={
-                    <button
-                        onClick={generateToken}
-                        className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
-                    >
-                        <Plus size={12} className="inline mr-1" />Generate New Token
-                    </button>
-                }
-                noPadding
-                className="h-full flex flex-col overflow-hidden"
-            >
-                <DataTable
-                    data={currentClients}
-                    itemDef={columns}
-                    keyField="id"
-                    emptyMessage="No clients connected"
-                    rowClassName="align-top"
-                    onRowClick={setSelectedClient}
-                    pagination={{
-                        currentPage,
-                        totalPages,
-                        itemsPerPage,
-                        totalItems,
-                        onPageChange: goToPage,
-                        onItemsPerPageChange: setItemsPerPage
-                    }}
-                    containerClassName="rounded-none border-0 shadow-none flex-1"
-                />
-            </DataCard>
-        </div>
+        <DataMultiView
+            title={<><Monitor size={18} className="text-gray-500 dark:text-[#888]" /> Clients</>}
+            extraActions={
+                <button
+                    onClick={generateToken}
+                    className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
+                >
+                    <Plus size={12} className="inline mr-1" />Generate New Token
+                </button>
+            }
+            viewModeStorageKey="clientViewMode"
+            data={currentClients}
+            tableDef={tableColumns}
+            listColumns={listColumns}
+            keyField="id"
+            emptyMessage="No clients connected"
+            rowClassName="align-top"
+            onRowClick={setSelectedClient}
+            pagination={{
+                currentPage,
+                totalPages,
+                itemsPerPage,
+                totalItems,
+                onPageChange: goToPage,
+                onItemsPerPageChange: setItemsPerPage
+            }}
+        />
     );
 };
