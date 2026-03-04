@@ -20,6 +20,7 @@ export interface ClientConfig {
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
+    queueDelaySeconds?: number;
 }
 
 // Global Document state to preserve comments
@@ -32,6 +33,7 @@ export const config: ClientConfig = {
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
+    queueDelaySeconds: 5,
 };
 
 /**
@@ -41,7 +43,7 @@ export const config: ClientConfig = {
 function syncDoc() {
     const configToSync = { ...config };
     delete configToSync.websocketURL; // Don't save dynamic prop
-    
+
     for (const [key, value] of Object.entries(configToSync)) {
         configDoc.set(key, value);
     }
@@ -103,7 +105,7 @@ if (fs.existsSync(CONFIG_PATH)) {
             setServerUrl(loadedConfig.serverUrl);
             Logger.info("Using Server URL from config: " + config.serverUrl);
         }
-        
+
         if (loadedConfig.logLevel) {
             config.logLevel = loadedConfig.logLevel;
         }
@@ -114,6 +116,10 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (Array.isArray(loadedConfig.restoreParams)) {
             config.restoreParams = loadedConfig.restoreParams;
+        }
+
+        if (typeof loadedConfig.queueDelaySeconds === "number") {
+            config.queueDelaySeconds = loadedConfig.queueDelaySeconds;
         }
     } catch (e) {
         Logger.error("Failed to load config.yaml", e);
