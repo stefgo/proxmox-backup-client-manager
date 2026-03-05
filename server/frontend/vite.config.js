@@ -2,8 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'child_process'
 
-// Get version from git
+// Get version from environment or git
 const getVersion = () => {
+  if (process.env.VITE_APP_VERSION) {
+    return process.env.VITE_APP_VERSION;
+  }
   try {
     return execSync('git describe --tags --always --dirty').toString().trim()
   } catch (e) {
