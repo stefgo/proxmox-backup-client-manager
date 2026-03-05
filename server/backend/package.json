@@ -6,7 +6,7 @@
     "scripts": {
         "start": "tsx src/index.ts",
         "dev": "tsx watch src/index.ts",
-        "build": "tsc"
+        "build": "tsc && bash ../../scripts/generate-version.sh dist/VERSION"
     },
     "dependencies": {
         "@fastify/cors": "^10.0.0",

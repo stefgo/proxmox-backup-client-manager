@@ -14,16 +14,17 @@ COPY server/frontend/package.json server/frontend/
 RUN npm ci
 
 # Copy source code
-COPY .git ./.git
 COPY shared ./shared
 COPY client ./client
+COPY scripts ./scripts
 
 # Build shared and client
 RUN npm run build -w shared
 RUN npm run build -w client
 
 # Generate Version file for production
-RUN git describe --tags --always --dirty > ./client/dist/VERSION
+ARG APP_VERSION=unknown
+RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/VERSION
 
 # Prune dev dependencies
 RUN npm ci --omit=dev

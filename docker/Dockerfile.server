@@ -14,14 +14,18 @@ COPY server/frontend/package.json server/frontend/
 RUN npm ci
 
 # Copy source code
-COPY .git ./.git
 COPY shared ./shared
 COPY server ./server
+COPY scripts ./scripts
 
 # Build
+ARG APP_VERSION=unknown
 RUN npm run build -w shared
 RUN npm run build -w server/backend
-RUN npm run build -w server/frontend
+# Generate Version file for backend
+RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./server/backend/dist/VERSION
+# Pass the version to the frontend build
+RUN VITE_APP_VERSION=${APP_VERSION} npm run build -w server/frontend
 
 # Prune dev dependencies
 RUN npm ci --omit=dev
