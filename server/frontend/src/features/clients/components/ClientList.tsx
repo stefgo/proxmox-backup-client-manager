@@ -48,17 +48,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         });
 
         cols.push({
-            tableHeader: "Version",
-            tableItemRender: (client) => (
-                client.version ? (
-                    <div className="text-sm text-gray-900 dark:text-white">
-                        {client.version}
-                    </div>
-                ) : null
-            )
-        });
-
-        cols.push({
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-gray-900 dark:text-white",
             tableItemRender: (client) => (
