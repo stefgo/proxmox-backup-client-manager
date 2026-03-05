@@ -4,6 +4,7 @@ on:
     push:
         branches: ["main"]
         tags: ["v*.*.*"] # Reagiert auf Tags wie v1.0.2
+    workflow_dispatch: # Ermöglicht manuelles Starten im Actions-Tab
 
 env:
     REGISTRY: ghcr.io
