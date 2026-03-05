@@ -15,16 +15,25 @@ get_version() {
         return
     fi
 
-    # 2. Try to get exact tag match
-    if VERSION=$(git describe --tags --exact-match --dirty 2>/dev/null); then
-        echo "$VERSION"
-        return
+    # 2. Try to get exact tag match from git if available
+    if [ -d ".git" ]; then
+        if VERSION=$(git describe --tags --exact-match --dirty 2>/dev/null); then
+            echo "$VERSION"
+            return
+        fi
     fi
 
     # 3. Fallback: Branch + Short Hash + Dirty
-    BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-    DIRTY=$(git status --porcelain 2>/dev/null | grep -q . && echo "-dirty" || echo "")
+    # Try environment variables first (useful for CI)
+    BRANCH=${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")}
+    
+    if [ -n "$GITHUB_SHA" ]; then
+        HASH=$(echo "$GITHUB_SHA" | cut -c1-7)
+    else
+        HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    fi
+    
+    DIRTY=$( [ -d ".git" ] && git status --porcelain 2>/dev/null | grep -q . && echo "-dirty" || echo "" )
     
     echo "${BRANCH}-${HASH}${DIRTY}"
 }
