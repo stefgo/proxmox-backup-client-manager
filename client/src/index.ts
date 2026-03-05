@@ -7,6 +7,7 @@ import { Executor } from "./features/Executor.js";
 
 // Perform cleanup of stale running jobs on startup
 await Executor.cleanupRunningJobs();
+await Executor.resumeQueuedJobs();
 
 // Start Client Web Server (can be disabled via DISABLE_WEB_UI=true)
 if (process.env.DISABLE_WEB_UI !== "true") {
