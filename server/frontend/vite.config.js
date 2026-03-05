@@ -8,7 +8,16 @@ const getVersion = () => {
     return process.env.VITE_APP_VERSION;
   }
   try {
-    return execSync('git describe --tags --always --dirty').toString().trim()
+    // Try to get exact tag
+    try {
+      return execSync('git describe --tags --exact-match --dirty').toString().trim();
+    } catch {
+      // Not a tag, use branch + hash
+      const branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
+      const hash = execSync('git rev-parse --short HEAD').toString().trim();
+      const dirty = execSync('git status --porcelain').toString().trim() ? '-dirty' : '';
+      return `${branch}-${hash}${dirty}`;
+    }
   } catch (e) {
     return 'unknown'
   }

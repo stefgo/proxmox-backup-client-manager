@@ -21,6 +21,8 @@ COPY server ./server
 ARG APP_VERSION=unknown
 RUN npm run build -w shared
 RUN npm run build -w server/backend
+# Generate Version file for backend
+RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./server/backend/dist/VERSION
 # Pass the version to the frontend build
 RUN VITE_APP_VERSION=${APP_VERSION} npm run build -w server/frontend
 

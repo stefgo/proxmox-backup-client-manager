@@ -23,7 +23,7 @@ RUN npm run build -w client
 
 # Generate Version file for production
 ARG APP_VERSION=unknown
-RUN echo "${APP_VERSION}" > ./client/dist/VERSION
+RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/VERSION
 
 # Prune dev dependencies
 RUN npm ci --omit=dev

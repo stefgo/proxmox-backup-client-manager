@@ -7,7 +7,7 @@
         "start": "tsx src/index.ts",
         "register": "tsx src/setup.ts",
         "dev": "tsx watch src/index.ts",
-        "build": "tsc && cp -r src/web/public dist/web/"
+        "build": "tsc && cp -r src/web/public dist/web/ && bash ../scripts/generate-version.sh dist/VERSION"
     },
     "dependencies": {
         "@fastify/static": "^9.0.0",
