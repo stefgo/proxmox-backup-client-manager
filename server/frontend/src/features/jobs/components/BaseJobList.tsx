@@ -272,6 +272,11 @@ export const BaseJobList = <T extends BaseJobItem>({
         }
 
         contentFields.push({
+            accessorKey: 'id',
+            listLabel: 'ID'
+        });
+
+        contentFields.push({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
