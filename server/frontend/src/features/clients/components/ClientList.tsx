@@ -110,9 +110,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         contentFields.push({
             listItemRender: (client) => (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 py-1">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
-                    <div className={`text-sm font-medium text-gray-900 dark:text-white ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`font-inherit text-gray-900 dark:text-white ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">({client.hostname})</span>}
                     </div>
@@ -123,8 +123,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         contentFields.push({
             accessorKey: 'id',
-            listLabel: 'ID',
-            listLabelClassName: 'font-mono text-xs',
+            listLabel: 'ID'
         });
 
         contentFields.push({
@@ -142,7 +141,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     <span className="text-sm text-gray-500 dark:text-[#888]">
                         {formatDate(client.lastSeen)}
                     </span>
-                ) : <span className="text-green-600 dark:text-green-500 text-sm font-medium">Online</span>
+                ) : <span className="text-green-600 dark:text-green-500 text-sm">Online</span>
             ),
             listLabel: 'Status',
         });

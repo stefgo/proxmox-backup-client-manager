@@ -94,24 +94,20 @@ export const BaseHistoryList = ({
                                         <ChevronRight size={14} className="text-gray-400" />
                                     </span>
                                     <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                        {showClientName && `${item.displayName || item.hostname || "Unknown Client"} : `}
                                         {item.name || item.jobId || "Unknown Job"}
                                     </span>
-                                    {showClientName && (
-                                        <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600 dark:bg-[#333] dark:text-[#ccc]">
-                                            {item.displayName || item.hostname || "Unknown Client"}
-                                        </span>
-                                    )}
                                 </div>
                                 <span
                                     className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.status === "running"
-                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                            : item.status === "success"
-                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                                : item.status === "failed"
-                                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                    : item.status === "abort"
-                                                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                        : item.status === "success"
+                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                            : item.status === "failed"
+                                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                : item.status === "abort"
+                                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                                         }`}
                                 >
                                     {item.status}
@@ -135,8 +131,8 @@ export const BaseHistoryList = ({
                                 ) : item.error || item.stderr ? (
                                     <div
                                         className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === "failed"
-                                                ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
-                                                : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                                            ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
+                                            : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                                             }`}
                                     >
                                         {item.error || item.stderr}

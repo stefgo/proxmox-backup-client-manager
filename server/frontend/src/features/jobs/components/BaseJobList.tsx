@@ -287,7 +287,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-gray-700 dark:text-[#ccc]" : "text-inherit"}>
+                    <span className={isOnline ? "text-gray-900 dark:text-white" : "text-inherit"}>
                         {job.archives?.length || 0}
                     </span>
                 );
