@@ -16,6 +16,7 @@ RUN npm ci
 # Copy source code
 COPY shared ./shared
 COPY server ./server
+COPY scripts ./scripts
 
 # Build
 ARG APP_VERSION=unknown

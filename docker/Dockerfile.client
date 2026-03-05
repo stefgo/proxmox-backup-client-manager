@@ -16,6 +16,7 @@ RUN npm ci
 # Copy source code
 COPY shared ./shared
 COPY client ./client
+COPY scripts ./scripts
 
 # Build shared and client
 RUN npm run build -w shared
