@@ -48,7 +48,7 @@ export class DataList<T> extends AbstractDataView<T, DataListProps<T>> {
                             onClick={() => onRowClick?.(item)}
                             className={`px-5 py-2 transition-colors group ${interactionClasses} ${this.getRowClass(item)}`}
                         >
-                            <div className={`flex flex-col ${isMultiColumn ? 'md:flex-row md:items-center gap-6' : ''}`}>
+                            <div className={`flex flex-col ${isMultiColumn ? 'md:flex-row md:items-center' : ''}`}>
                                 {columns.map((colGroup, colIdx) => (
                                     <div key={colIdx} className={colGroup.columnClassName ?? ''}>
                                         {colGroup.fields
