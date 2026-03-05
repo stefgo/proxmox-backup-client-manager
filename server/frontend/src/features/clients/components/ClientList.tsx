@@ -137,7 +137,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         actionFields.push({
             listItemRender: (client) => (
-                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0">
+                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
                     <DataAction
                         rowId={client.id}
                         menuEntries={[

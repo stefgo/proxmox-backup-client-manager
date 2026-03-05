@@ -126,7 +126,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
 
         actionFields.push({
             listItemRender: (repo) => (
-                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0">
+                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
                     <DataAction
                         rowId={repo.id as string}
                         menuEntries={[

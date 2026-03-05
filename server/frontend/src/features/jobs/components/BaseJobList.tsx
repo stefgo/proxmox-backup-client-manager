@@ -337,7 +337,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <div className="flex items-center gap-3 mt-3">
+                    <div className="flex items-center justify-center gap-3 mt-3">
                         <DataAction
                             rowId={job.clientId ? `${job.clientId}-${job.id}` : job.id}
                             actions={[
