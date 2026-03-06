@@ -6,6 +6,7 @@ import { Logger } from "./Logger.js";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_rename_history.js";
+import { migration02 } from "./migrations/02_job_history_timestamps.js";
 
 // Robust path resolution relative to this file
 // client/src/core -> client/
@@ -29,6 +30,11 @@ const migrator = new Umzug({
             name: "01_rename_history",
             up: migration01.up,
             down: migration01.down,
+        },
+        {
+            name: "02_job_history_timestamps",
+            up: migration02.up,
+            down: migration02.down,
         },
     ],
     context: db,
