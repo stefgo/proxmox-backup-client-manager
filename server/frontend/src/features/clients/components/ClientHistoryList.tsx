@@ -8,13 +8,14 @@ interface ClientHistoryListProps {
     history: HistoryItem[];
     type?: 'backup' | 'restore';
     title?: string;
+    emptyMessage?: string;
 }
 
-export const ClientHistoryList = ({ history, type, title = 'Recent Activity' }: ClientHistoryListProps) => {
+export const ClientHistoryList = ({ history, type, title = 'Recent Activity', emptyMessage }: ClientHistoryListProps) => {
     // Filter history based on type if provided
     const filteredHistory = type
         ? history.filter(item => item.type === type)
         : history;
 
-    return <BaseHistoryList items={filteredHistory} title={title} />;
+    return <BaseHistoryList items={filteredHistory} title={title} emptyMessage={emptyMessage} />;
 };

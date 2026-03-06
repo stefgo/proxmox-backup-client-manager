@@ -45,7 +45,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const {
         configuredJobs,
         history: backupJobs,
-        sessionHistory,
+        lastHistory,
         clientSnapshots,
         fetchClientData,
         deleteBackupJob: storeDeleteJob,
@@ -257,14 +257,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                             onDeleteJob={handleDeleteJob}
                                             onCreateJob={jobForm.startCreateJob}
                                         />
-                                        {sessionHistory.length > 0 && (
-                                            <div className="mt-6">
-                                                <ClientHistoryList
-                                                    title="Running Jobs (Session)"
-                                                    history={sessionHistory}
-                                                />
-                                            </div>
-                                        )}
+                                        <div className="mt-6">
+                                            <ClientHistoryList
+                                                title="Last History"
+                                                history={lastHistory}
+                                                emptyMessage="No data available in the observation period."
+                                            />
+                                        </div>
                                     </>
                                 )}
 

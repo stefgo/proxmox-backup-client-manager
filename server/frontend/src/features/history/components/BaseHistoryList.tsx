@@ -27,12 +27,14 @@ export interface BaseHistoryListProps {
     items: BaseHistoryItem[];
     title?: string;
     showClientName?: boolean;
+    emptyMessage?: string;
 }
 
 export const BaseHistoryList = ({
     items,
     title = "Recent Activity",
     showClientName = false,
+    emptyMessage = "No history available",
 }: BaseHistoryListProps) => {
     const {
         currentItems,
@@ -172,7 +174,7 @@ export const BaseHistoryList = ({
                 itemDef={itemDef}
                 onRowClick={(item) => toggleExpand(item.id)}
                 containerClassName="border-0 shadow-none rounded-none flex-1"
-                emptyMessage="No history available"
+                emptyMessage={emptyMessage}
                 rowClassName="!px-5 !py-3"
                 pagination={{
                     currentPage,
