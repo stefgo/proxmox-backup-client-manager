@@ -5,6 +5,10 @@ import { Logger } from "./core/Logger.js";
 import { Scheduler } from "./features/Scheduler.js";
 import { Executor } from "./features/Executor.js";
 import { Cleanup } from "./features/Cleanup.js";
+import { initDatabase } from "./core/Database.js";
+
+// Initialize Database
+await initDatabase();
 
 // Perform cleanup of stale running jobs on startup
 await Executor.cleanupRunningJobs();

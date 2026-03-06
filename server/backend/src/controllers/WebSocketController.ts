@@ -155,12 +155,12 @@ export class WebSocketController {
                         // Find the latest sync time for this client
                         const lastSyncRecord = db
                             .prepare(
-                                "SELECT update_at FROM job_history WHERE client_id = ? ORDER BY update_at DESC LIMIT 1",
+                                "SELECT updated_at FROM job_history WHERE client_id = ? ORDER BY updated_at DESC LIMIT 1",
                             )
                             .get(clientId) as
-                            | { update_at: string | null }
+                            | { updated_at: string | null }
                             | undefined;
-                        const lastSyncTime = lastSyncRecord?.update_at || null;
+                        const lastSyncTime = lastSyncRecord?.updated_at || null;
 
                         socket.send(
                             JSON.stringify({

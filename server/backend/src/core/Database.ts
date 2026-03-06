@@ -12,6 +12,7 @@ import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_history.js";
 import { migration02 } from "./migrations/02_client_version.js";
+import { migration03 } from "./migrations/03_job_history_timestamps.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -37,6 +38,11 @@ const migrator = new Umzug({
             name: "02_client_version",
             up: migration02.up,
             down: migration02.down,
+        },
+        {
+            name: "03_job_history_timestamps",
+            up: migration03.up,
+            down: migration03.down,
         },
     ],
     context: db,
@@ -64,13 +70,14 @@ const migrator = new Umzug({
     logger: console,
 });
 
-migrator
-    .up()
-    .then(() => {
+export async function initDatabase() {
+    try {
+        await migrator.up();
         logger.info("Database migrations executed successfully.");
-    })
-    .catch((e) => {
-        logger.error("Failed to run database migrations", e);
-    });
+    } catch (e) {
+        logger.error({ err: e }, "Failed to run database migrations");
+        throw e; // Rethrow to allow app to fail fast
+    }
+}
 
 export default db;

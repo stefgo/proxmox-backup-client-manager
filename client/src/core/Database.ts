@@ -62,13 +62,14 @@ const migrator = new Umzug({
     logger: console,
 });
 
-migrator
-    .up()
-    .then(() => {
+export async function initDatabase() {
+    try {
+        await migrator.up();
         Logger.info("Database migrations executed successfully.");
-    })
-    .catch((e) => {
-        Logger.error("Failed to run database migrations", e);
-    });
+    } catch (e) {
+        Logger.error({ err: e }, "Failed to run database migrations");
+        throw e;
+    }
+}
 
 export default db;
