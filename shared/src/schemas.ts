@@ -35,10 +35,10 @@ export const EncryptionConfigSchema = z.object({
 });
 
 export const JobSchema = z.object({
-    id: z.uuid(),
+    id: z.uuid().nullable(),
     name: z.string().min(1),
     schedule: ScheduleConfigSchema.nullable(),
-    scheduleEnabled: z.boolean(),
+    scheduleEnabled: z.coerce.boolean(),
     createdAt: z.string().optional(),
     nextRunAt: z.string().optional(),
     lastRunAt: z.string().optional(),
