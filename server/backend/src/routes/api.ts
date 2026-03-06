@@ -155,7 +155,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 );
                 protectedRoutes.post(
                     "/settings/cleanup",
-                    SettingsController.cleanupTokens,
+                    SettingsController.runMaintenance,
                 );
             });
 

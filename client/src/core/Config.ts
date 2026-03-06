@@ -22,6 +22,8 @@ export interface ClientConfig {
     restoreParams?: string[];
     queueDelaySeconds?: number;
     retentionTime: number;
+    preScript?: string;
+    postScript?: string;
 }
 
 // Global Document state to preserve comments
@@ -36,6 +38,8 @@ export const config: ClientConfig = {
     restoreParams: [],
     queueDelaySeconds: 5,
     retentionTime: 90,
+    preScript: undefined,
+    postScript: undefined,
 };
 
 /**
@@ -126,6 +130,14 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (typeof loadedConfig.retentionTime === "number") {
             config.retentionTime = loadedConfig.retentionTime;
+        }
+
+        if (typeof loadedConfig.preScript === "string") {
+            config.preScript = loadedConfig.preScript;
+        }
+
+        if (typeof loadedConfig.postScript === "string") {
+            config.postScript = loadedConfig.postScript;
         }
     } catch (e) {
         Logger.error("Failed to load config.yaml", e);

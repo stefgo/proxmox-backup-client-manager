@@ -64,6 +64,101 @@ export class Executor {
     }
 
     /**
+     * Runs a pre- or post-execution script if configured.
+     * The script is executed with two arguments: the operation type (backup/restore) and the job name.
+     * Script output (stdout/stderr) is streamed to the server via WebSocket.
+     *
+     * @param scriptPath - The path to the script to execute.
+     * @param type - The operation type ('backup' or 'restore').
+     * @param jobName - The name of the job.
+     * @param runId - The unique identifier for this job execution.
+     * @returns A promise that resolves to true if the script finished successfully (exit code 0), false otherwise.
+     */
+    private static async runScript(
+        scriptPath: string,
+        type: string,
+        jobName: string,
+        runId: string,
+    ): Promise<boolean> {
+        Logger.info(`Running script: ${scriptPath} ${type} "${jobName}"`);
+
+        // Inform server about script start
+        Connection.send(WS_EVENTS.LOG_UPDATE, {
+            jobId: runId,
+            output: `[Script Start] Running ${scriptPath} (Op: ${type}, Job: ${jobName})\n`,
+            stream: "stdout",
+        });
+
+        return new Promise((resolve) => {
+            try {
+                const child = spawn(scriptPath, [type, jobName], {
+                    shell: true,
+                    env: { ...process.env },
+                });
+
+                child.stdout.on("data", (data: Buffer) => {
+                    const chunk = data.toString();
+                    process.stdout.write(chunk);
+                    Connection.send(WS_EVENTS.LOG_UPDATE, {
+                        jobId: runId,
+                        output: `[Script Stdout] ${chunk}`,
+                        stream: "stdout",
+                    });
+                });
+
+                child.stderr.on("data", (data: Buffer) => {
+                    const chunk = data.toString();
+                    process.stderr.write(chunk);
+                    Connection.send(WS_EVENTS.LOG_UPDATE, {
+                        jobId: runId,
+                        output: `[Script Stderr] ${chunk}`,
+                        stream: "stderr",
+                    });
+                });
+
+                child.on("close", (code) => {
+                    const success = code === 0;
+                    const resultMsg = success
+                        ? "successfully"
+                        : `with error code ${code}`;
+
+                    // Inform server about script end
+                    Connection.send(WS_EVENTS.LOG_UPDATE, {
+                        jobId: runId,
+                        output: `[Script End] ${scriptPath} finished ${resultMsg}.\n`,
+                        stream: success ? "stdout" : "stderr",
+                    });
+
+                    if (success) {
+                        Logger.info(
+                            `Script ${scriptPath} finished successfully.`,
+                        );
+                        resolve(true);
+                    } else {
+                        Logger.error(
+                            `Script ${scriptPath} failed with code ${code}.`,
+                        );
+                        resolve(false);
+                    }
+                });
+
+                child.on("error", (err) => {
+                    Logger.error(`Failed to start script ${scriptPath}:`, err);
+                    Connection.send(WS_EVENTS.LOG_UPDATE, {
+                        jobId: runId,
+                        output: `[Script Error] Failed to start: ${err.message}\n`,
+                        stream: "stderr",
+                    });
+                    resolve(false);
+                });
+            } catch (e: any) {
+                Logger.error(`Exception during script execution:`, e);
+                resolve(false);
+            }
+        });
+    }
+
+    /**
      * Executes a backup job by spawning the proxmox-backup-client CLI tool.
      * Resolves the job configuration from the local database, mounts repository
      * credentials, processes encryption keys, and pipes live log streams back
@@ -281,9 +376,34 @@ export class Executor {
             return;
         }
 
-        Logger.info(`Starting job ${runId}: ${command} ${args.join(" ")}`);
-
         const jobType = "backup";
+
+        // Pre-Execution Script
+        if (config.preScript) {
+            const success = await this.runScript(
+                config.preScript,
+                jobType,
+                jobName || "Unknown",
+                runId,
+            );
+            if (!success) {
+                Logger.error("Aborting backup due to pre-script failure.");
+                const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+                    id: runId,
+                    jobId: jobId,
+                    name: jobName || "Unknown Backup",
+                    startTime: startTime,
+                    status: "failed",
+                    error: "Pre-execution script failed. Operation aborted.",
+                    stderr: "Pre-execution script failed. Operation aborted.",
+                    type: jobType,
+                };
+                Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+                return;
+            }
+        }
+
+        Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         try {
             const existing = db
@@ -398,6 +518,53 @@ export class Executor {
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
 
             this.runningJobs.delete(jobId);
+
+            // Post-Execution Script
+            if (config.postScript) {
+                this.runScript(
+                    config.postScript,
+                    jobType,
+                    jobName || "Unknown",
+                    runId,
+                ).then((success) => {
+                    if (!success && status === "success") {
+                        // If backup succeeded but post-script failed, we still mark it as failed (as per requirement: "bei einem Fehler wird der gesamte Vorgang abgebrochen")
+                        // Well, it's already "finished", but we can update the status.
+                        Logger.error("Post-execution script failed.");
+                        const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
+                            {
+                                id: runId,
+                                jobId: jobId,
+                                name: jobName || "Unknown Backup",
+                                startTime: startTime,
+                                status: "failed",
+                                exitCode: code ?? undefined,
+                                endTime: endTime,
+                                stdout: stdoutBuffer,
+                                stderr:
+                                    (stderrBuffer || "") +
+                                    "\nPost-execution script failed.",
+                                type: jobType,
+                            };
+                        Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
+
+                        try {
+                            db.prepare(
+                                "UPDATE job_history SET status = 'failed', stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            ).run(
+                                (stderrBuffer || "") +
+                                    "\nPost-execution script failed.",
+                                runId,
+                            );
+                        } catch (e) {
+                            Logger.error(
+                                "DB Update Error (Post-Script Failure)",
+                                e,
+                            );
+                        }
+                    }
+                });
+            }
 
             if (this.pendingJobs.has(jobId)) {
                 const queuedRunId = this.pendingJobs.get(jobId)!;
@@ -644,6 +811,51 @@ export class Executor {
                 type: jobType,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
+
+            // Post-Execution Script
+            if (config.postScript) {
+                this.runScript(
+                    config.postScript,
+                    jobType,
+                    jobName || "Unknown",
+                    runId,
+                ).then((success) => {
+                    if (!success && status === "success") {
+                        Logger.error("Post-execution script failed.");
+                        const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
+                            {
+                                id: runId,
+                                name: jobName,
+                                startTime: startTime,
+                                status: "failed",
+                                exitCode: code ?? undefined,
+                                endTime: endTime,
+                                stdout: stdoutBuffer,
+                                stderr:
+                                    (stderrBuffer || "") +
+                                    "\nPost-execution script failed.",
+                                type: jobType,
+                            };
+                        Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
+
+                        try {
+                            db.prepare(
+                                "UPDATE job_history SET status = 'failed', stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            ).run(
+                                (stderrBuffer || "") +
+                                    "\nPost-execution script failed.",
+                                runId,
+                            );
+                        } catch (e) {
+                            Logger.error(
+                                "DB Update Error (Post-Script Failure)",
+                                e,
+                            );
+                        }
+                    }
+                });
+            }
+
             cleanup();
         });
 

@@ -30,3 +30,9 @@ queueDelaySeconds: 5
 
 # Retention time in days for job history and schedule state
 retentionTime: 90
+
+# Optional: Scripts to run before and after a job execution.
+# Arguments passed: $1 = operation (backup/restore), $2 = job name
+# If the script exits with a non-zero code, the operation will be aborted.
+# preScript: "/path/to/pre-script.sh"
+# postScript: "/path/to/post-script.sh"

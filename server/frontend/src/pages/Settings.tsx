@@ -10,7 +10,9 @@ export default function Settings() {
     const { token } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: '30',
-        retention_invalid_tokens_count: '10'
+        retention_invalid_tokens_count: '10',
+        retention_job_history_days: '90',
+        retention_job_history_count: '50'
     });
     const [isSaving, setIsSaving] = useState(false);
     const [isCleaning, setIsCleaning] = useState(false);
@@ -169,8 +171,8 @@ export default function Settings() {
 
                                         <div className="mt-8 p-4 bg-gray-50 dark:bg-[#161616] rounded-xl border border-gray-200 dark:border-[#333] flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Manual Cleanup</h4>
-                                                <p className="text-xs text-gray-500 dark:text-[#888]">Trigger the cleanup process immediately using the current retention settings.</p>
+                                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Manual Run</h4>
+                                                <p className="text-xs text-gray-500 dark:text-[#888]">Trigger the maintenance process immediately using the current retention settings.</p>
                                             </div>
                                             <Button
                                                 variant="secondary"
@@ -184,7 +186,78 @@ export default function Settings() {
                                                     <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
                                                 ) : (
                                                     <>
-                                                        <span>Cleanup Now</span>
+                                                        <span>Run Now</span>
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </section>
+
+                                    <hr className="border-gray-200 dark:border-[#333]" />
+
+                                    <section>
+                                        <div className="mb-6">
+                                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                Retention of global job history
+                                            </h3>
+                                            <p className="text-sm text-gray-500 dark:text-[#888]">
+                                                Define how long job execution history records are kept on the server.
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase mb-1">
+                                                    Retention Time (Days)
+                                                </label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={settings.retention_job_history_days}
+                                                    onChange={(e) => setSettings({ ...settings, retention_job_history_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
+                                                    placeholder="90"
+                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                />
+                                                <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
+                                                    Number of days job history entries remain in the database.
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase mb-1">
+                                                    Minimum Keep Count (per client)
+                                                </label>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    value={settings.retention_job_history_count}
+                                                    onChange={(e) => setSettings({ ...settings, retention_job_history_count: Math.max(1, parseInt(e.target.value) || 1).toString() })}
+                                                    placeholder="50"
+                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                />
+                                                <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
+                                                    Ensure at least this many entries are kept for each client.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-8 p-4 bg-gray-50 dark:bg-[#161616] rounded-xl border border-gray-200 dark:border-[#333] flex items-center justify-between gap-4">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Manual Run</h4>
+                                                <p className="text-xs text-gray-500 dark:text-[#888]">Trigger the maintenance process immediately using the current retention settings.</p>
+                                            </div>
+                                            <Button
+                                                variant="secondary"
+                                                onClick={handleCleanup}
+                                                disabled={isCleaning || !!cleanupResult}
+                                                className="w-[140px] px-4 py-2 rounded bg-gray-200 dark:bg-[#333] hover:bg-gray-300 dark:hover:bg-[#444] text-gray-800 dark:text-white font-semibold transition-colors flex items-center justify-center gap-2 shadow-none focus:ring-0 focus:ring-offset-0"
+                                            >
+                                                {isCleaning ? (
+                                                    <RefreshCw size={16} className="animate-spin" />
+                                                ) : cleanupResult ? (
+                                                    <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
+                                                ) : (
+                                                    <>
+                                                        <span>Run Now</span>
                                                     </>
                                                 )}
                                             </Button>
