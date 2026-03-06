@@ -35,7 +35,7 @@ interface ClientDataState {
 
     // Realtime Updates
     updateHistory: (job: any) => void;
-    updateSession: (job: any) => void;
+    updateLastHistory: (job: any) => void;
 }
 
 export const useClientDetailStore = create<ClientDataState>((set, get) => ({
@@ -185,7 +185,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             }
         }),
 
-    updateSession: (job: any) =>
+    updateLastHistory: (job: any) =>
         set((state) => {
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const isWithin24Hours = (j: any) => {
