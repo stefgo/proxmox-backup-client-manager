@@ -85,7 +85,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     }, [client, token, repositories]);
 
-    useClientSubscription(client.id);
+    useClientSubscription(client.id, (job) => {
+        if (job.status === 'success' && token) {
+            fetchClientSnapshots(client.id, repositories, token);
+        }
+    });
 
     // Form Hook
     const jobForm = useJobForm({

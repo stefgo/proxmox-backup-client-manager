@@ -129,6 +129,7 @@ export const ManagedJobs = () => {
                 <ClientHistoryList
                     title="Last History"
                     history={lastHistory}
+                    showClientName={true}
                     emptyMessage="No data available in the observation period."
                 />
             </div>
