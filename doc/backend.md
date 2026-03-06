@@ -32,7 +32,7 @@ Services contain the heavy business logic of the application. They are designed 
 - **`ProxyService.ts`**: The central communication hub. It manages active agent and dashboard connections, handles request/response correlation for agent commands, and maintains an in-memory job configuration cache.
 - **`AuthService.ts`**: Handles user authentication, OIDC flows, and JWT generation.
 - **`SettingsService.ts`**: Manages global application settings and persistence.
-- **`CleanupService.ts`**: Periodic tasks to prune old history logs or inactive tokens.
+- **`CleanupService.ts`**: Periodic tasks to prune old history logs (job history), inactive tokens, or old registration tokens. Supports retention by age and minimum count.
 
 ### 3. Routes (`src/routes/`)
 

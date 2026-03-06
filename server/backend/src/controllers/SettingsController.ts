@@ -1,5 +1,5 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { SettingsService } from '../services/SettingsService.js';
+import { FastifyRequest, FastifyReply } from "fastify";
+import { SettingsService } from "../services/SettingsService.js";
 
 export const SettingsController = {
     async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -8,15 +8,17 @@ export const SettingsController = {
             return reply.send(settings);
         } catch (e) {
             request.log.error(e);
-            return reply.status(500).send({ error: 'Failed to fetch settings' });
+            return reply
+                .status(500)
+                .send({ error: "Failed to fetch settings" });
         }
     },
 
     async updateSettings(request: FastifyRequest, reply: FastifyReply) {
         const body = request.body as Record<string, any>;
-        
-        if (!body || typeof body !== 'object') {
-            return reply.status(400).send({ error: 'Invalid settings data' });
+
+        if (!body || typeof body !== "object") {
+            return reply.status(400).send({ error: "Invalid settings data" });
         }
 
         try {
@@ -24,18 +26,24 @@ export const SettingsController = {
             return reply.send({ success: true });
         } catch (e) {
             request.log.error(e);
-            return reply.status(500).send({ error: 'Failed to update settings' });
+            return reply
+                .status(500)
+                .send({ error: "Failed to update settings" });
         }
     },
 
-    async cleanupTokens(request: FastifyRequest, reply: FastifyReply) {
+    async runMaintenance(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const { CleanupService } = await import('../services/CleanupService.js');
-            const count = CleanupService.cleanupTokens();
-            return reply.send({ success: true, count });
+            const { CleanupService } =
+                await import("../services/CleanupService.js");
+            const tokens = CleanupService.cleanupTokens();
+            const history = CleanupService.cleanupJobHistory();
+            return reply.send({ success: true, tokens, history });
         } catch (e) {
             request.log.error(e);
-            return reply.status(500).send({ error: 'Failed to cleanup tokens' });
+            return reply
+                .status(500)
+                .send({ error: "Failed to run maintenance" });
         }
-    }
+    },
 };
