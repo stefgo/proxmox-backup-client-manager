@@ -27,3 +27,6 @@ restoreParams: []
 
 # Delay in seconds to wait before restarting a queued job
 queueDelaySeconds: 5
+
+# Retention time in days for job history and schedule state
+retentionTime: 90

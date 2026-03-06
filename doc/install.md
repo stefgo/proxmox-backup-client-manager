@@ -97,11 +97,12 @@ In addition to environment variables, there are configuration files for specific
 
 This file is created automatically or can be created manually.
 
-| Key          | Description                                                                        |
-| :----------- | :--------------------------------------------------------------------------------- |
-| `serverUrl`  | URL to the management server (e.g., `wss://backup-server:3000/ws`).                |
-| `clientId`   | Unique ID of the client (generated automatically).                                 |
-| `executable` | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
+| Key             | Description                                                                        |
+| :-------------- | :--------------------------------------------------------------------------------- |
+| `serverUrl`     | URL to the management server (e.g., `wss://backup-server:3000/ws`).                |
+| `clientId`      | Unique ID of the client (generated automatically).                                 |
+| `executable`    | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
+| `retentionTime` | Number of days to keep job history and schedule states (default: `90`).            |
 
 #### Server Config (`server/config.yaml`)
 

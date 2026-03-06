@@ -38,15 +38,16 @@ The client includes a micro-server for local management and initial setup.
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface if automatic provisioning is not used.
 
-### 3. Scheduler (`src/features/Scheduler.ts`)
-
-To ensure backups run even if the server connection temporarily drops, the client maintains its own scheduling mechanism.
-
-- It evaluates cron strings associated with jobs.
-- It maintains the Next Run Time in a local SQLite database table (`job_schedule_state`).
 - Upon reaching the scheduled time, it triggers the `Executor` autonomously and attempts to upload the result to the server immediately (or buffers it if offline).
 
-### 4. Event Handlers (`src/features/Handlers.ts`)
+### 4. Cleanup (`src/features/Cleanup.ts`)
+
+To prevent the local SQLite database from growing indefinitely, the client performs daily maintenance tasks.
+
+- **Scheduling**: Uses `node-cron` to run a cleanup job every day at 00:00.
+- **Pruning**: Deletes old `job_history` entries and orphaned `job_schedule_state` records based on the configured `retentionTime`.
+
+### 5. Event Handlers (`src/features/Handlers.ts`)
 
 Incoming WebSocket messages from the server (e.g., manual trigger requests from the dashboard) are routed to these handlers.
 

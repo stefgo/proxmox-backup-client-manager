@@ -4,6 +4,7 @@ import { config } from "./core/Config.js";
 import { Logger } from "./core/Logger.js";
 import { Scheduler } from "./features/Scheduler.js";
 import { Executor } from "./features/Executor.js";
+import { Cleanup } from "./features/Cleanup.js";
 
 // Perform cleanup of stale running jobs on startup
 await Executor.cleanupRunningJobs();
@@ -17,6 +18,7 @@ if (process.env.DISABLE_WEB_UI !== "true") {
 }
 
 // Start Job Scheduler locally (independent of server connection)
+Cleanup.initialize();
 Scheduler.start();
 
 // Try to connect to server
