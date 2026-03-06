@@ -43,6 +43,7 @@ The easiest way to get the server running is using Docker Compose. A production-
 services:
     pbcm-server:
         container_name: pbcm-server
+        # The image is multi-platform and supports both x86_64 and ARM64
         image: ghcr.io/stefgo/pbcm-server:latest
         ports:
             - "3000:3000"

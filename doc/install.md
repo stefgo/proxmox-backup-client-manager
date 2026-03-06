@@ -73,7 +73,7 @@ For a complete development environment including isolation:
 docker compose -f compose.dev.yml up -d --build
 ```
 
-- **Server**: <http://localhost:3000>
+- **Server**: <http://localhost:3000> (Supports both x86_64 and ARM64)
 - View logs: `docker compose -f compose.dev.yml logs -f`
 
 ## Configuration
