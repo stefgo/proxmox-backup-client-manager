@@ -2,6 +2,13 @@
 
 This documentation details the architecture of the Node.js client agent (`client/`), which runs on the machines that are being backed up.
 
+## 💻 Platform Support
+
+The client agent supports multiple architectures:
+
+- **x86_64 (amd64)**: Standard Docker image `pbcm-client`.
+- **ARM64 (aarch64)**: Dedicated Docker image `pbcm-client-arm64`, optimized for devices like Raspberry Pi.
+
 ## 📂 Project Structure
 
 The client is a lightweight, headless Node.js process designed to run as a daemon (either via systemd or Docker).

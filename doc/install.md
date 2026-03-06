@@ -52,11 +52,18 @@ npm run dev:server
 
 _The server runs on <http://localhost:3000> by default._
 
-**Start Client:**
-
 ```bash
 npm run dev:client
 ```
+
+### Note on Platform Support (ARM64)
+
+If you are running the client on an ARM64 platform (e.g., Raspberry Pi), we provide a dedicated Docker image and Dockerfile:
+
+- **Docker Image**: `ghcr.io/stefgo/pbcm-client-arm64:latest`
+- **Dockerfile**: `docker/Dockerfile.client.arm64`
+
+The standard `pbcm-client` image is built for `linux/amd64`.
 
 ### Variant B: Docker Compose
 
