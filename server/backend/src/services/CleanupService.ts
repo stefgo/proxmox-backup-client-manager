@@ -4,7 +4,7 @@ import { SettingsService } from "./SettingsService.js";
 import { logger } from "../core/Logger.js";
 
 export class CleanupService {
-    static initialize() {
+    static async initialize() {
         logger.info("Initializing CleanupService...");
 
         // Run on startup
@@ -45,7 +45,7 @@ export class CleanupService {
                                ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn,
                                COALESCE(used_at, expires_at, created_at) as compare_date
                         FROM registration_tokens
-                        WHERE used_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at < datetime("now"))
+                        WHERE used_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at < datetime('now'))
                     ) 
                     WHERE rn > ? AND compare_date < ?
                 )
