@@ -1,7 +1,7 @@
 # Proxmox Backup Client Manager (PBCM)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-v22+-green.svg)](https://nodejs.org/)[![Build Workflow](https://github.com/stefgo/proxmox-backup-client-manager/actions/workflows/main.yml/badge.svg)]
+[![Node.js](https://img.shields.io/badge/Node.js-v22+-green.svg)](https://nodejs.org/)![Build Workflow](https://github.com/stefgo/proxmox-backup-client-manager/actions/workflows/main.yml/badge.svg)
 
 The **Proxmox Backup Client Manager** (PBCM) is a centralized management system for controlling multiple `proxmox-backup-client` instances across your infrastructure. It consists of a lightweight Node.js agent running on your clients and a central Fastify/React-based server providing a dashboard and API.
 
