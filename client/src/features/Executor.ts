@@ -22,7 +22,7 @@ export class Executor {
         Logger.info("Checking for stale 'running' jobs in history...");
         try {
             const stmt = db.prepare(
-                "UPDATE job_history SET status = 'abort', end_time = ? WHERE status = 'running'",
+                "UPDATE job_history SET status = 'abort', end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE status = 'running'",
             );
             const result = stmt.run(new Date().toISOString());
 
@@ -291,7 +291,7 @@ export class Executor {
                 .get(runId);
             if (existing) {
                 db.prepare(
-                    "UPDATE job_history SET status = 'running', start_time = ? WHERE id = ?",
+                    "UPDATE job_history SET status = 'running', start_time = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(startTime, runId);
             } else {
                 db.prepare(
@@ -370,7 +370,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     status,
                     endTime,
@@ -432,7 +432,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     "failed",
                     new Date().toISOString(),
@@ -619,7 +619,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     status,
                     endTime,
@@ -663,7 +663,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     "failed",
                     new Date().toISOString(),

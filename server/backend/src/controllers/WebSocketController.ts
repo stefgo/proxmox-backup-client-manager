@@ -155,12 +155,12 @@ export class WebSocketController {
                         // Find the latest sync time for this client
                         const lastSyncRecord = db
                             .prepare(
-                                "SELECT end_time FROM job_history WHERE client_id = ? ORDER BY end_time DESC LIMIT 1",
+                                "SELECT update_at FROM job_history WHERE client_id = ? ORDER BY update_at DESC LIMIT 1",
                             )
                             .get(clientId) as
-                            | { end_time: string | null }
+                            | { update_at: string | null }
                             | undefined;
-                        const lastSyncTime = lastSyncRecord?.end_time || null;
+                        const lastSyncTime = lastSyncRecord?.update_at || null;
 
                         socket.send(
                             JSON.stringify({
@@ -211,8 +211,15 @@ export class WebSocketController {
                         try {
                             db.prepare(
                                 `
-                                INSERT OR REPLACE INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
+                                INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                ON CONFLICT(id) DO UPDATE SET 
+                                    status=excluded.status, 
+                                    end_time=excluded.end_time, 
+                                    exit_code=excluded.exit_code, 
+                                    stdout=excluded.stdout, 
+                                    stderr=excluded.stderr,
+                                    updated_at=CURRENT_TIMESTAMP
                             `,
                             ).run(
                                 statusPayload.id,
@@ -272,8 +279,15 @@ export class WebSocketController {
                         Array.isArray(syncPayload.history)
                     ) {
                         const insertStmt = db.prepare(`
-                            INSERT OR REPLACE INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
+                            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET 
+                                status=excluded.status, 
+                                end_time=excluded.end_time, 
+                                exit_code=excluded.exit_code, 
+                                stdout=excluded.stdout, 
+                                stderr=excluded.stderr,
+                                updated_at=CURRENT_TIMESTAMP
                         `);
 
                         const transaction = db.transaction((entries) => {
