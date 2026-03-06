@@ -47,6 +47,15 @@ docker buildx build \
     --push \
     .
 
+# Build and push client ARM64
+echo ">>> Building pbcm-client-arm64..."
+docker buildx build \
+    --platform linux/arm64 \
+    --tag $REGISTRY/pbcm-client-arm64:$TAG \
+    --file docker/Dockerfile.client.arm64 \
+    --push \
+    .
+
 echo "========================================"
 echo " Done! Images have been pushed."
 echo "========================================"

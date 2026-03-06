@@ -66,6 +66,7 @@ For the client agent, you also need to pass the host's files that you wish to ba
 services:
     pbcm-client:
         container_name: pbcm-client
+        # Use pbcm-client:latest for x86_64 or pbcm-client-arm64:latest for ARM64 (e.g. Raspberry Pi)
         image: ghcr.io/stefgo/pbcm-client:latest
         volumes:
             - ./client-config.yaml:/app/client/config.yaml

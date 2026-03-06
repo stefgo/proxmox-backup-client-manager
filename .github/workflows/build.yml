@@ -22,8 +22,13 @@ jobs:
                 include:
                     - id: client
                       image_name: pbcm-client
+                      dockerfile: ./docker/Dockerfile.client
+                    - id: client-arm64
+                      image_name: pbcm-client-arm64
+                      dockerfile: ./docker/Dockerfile.client.arm64
                     - id: server
                       image_name: pbcm-server
+                      dockerfile: ./docker/Dockerfile.server
 
         steps:
             - name: Checkout repository
@@ -69,7 +74,7 @@ jobs:
               uses: docker/build-push-action@v5
               with:
                   context: .
-                  file: ./docker/Dockerfile.${{ matrix.id }}
+                  file: ${{ matrix.dockerfile }}
                   push: true
                   # Pass the calculated version as a build argument
                   build-args: |
