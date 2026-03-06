@@ -10,7 +10,7 @@ const getVersion = () => {
   try {
     // Try to get exact tag
     try {
-      return execSync('git describe --tags --exact-match --dirty').toString().trim();
+      return execSync('git describe --tags --exact-match --dirty', { stdio: 'pipe' }).toString().trim();
     } catch {
       // Not a tag, use branch + hash
       const branch = execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
