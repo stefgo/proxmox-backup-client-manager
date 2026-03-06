@@ -1,0 +1,25 @@
+name: Registry Cleanup
+
+on:
+    schedule:
+        - cron: "0 2 * * *" # Läuft jede Nacht um 02:00 Uhr
+    workflow_dispatch: # Ermöglicht manuelles Starten zum Testen
+
+jobs:
+    delete-old-packages:
+        runs-on: ubuntu-latest
+        permissions:
+            packages: write
+            contents: read
+
+        steps:
+            - name: Delete unwanted versions
+              uses: actions/delete-package-versions@v5
+              with:
+                  package-name: "DEIN_PAKET_NAME" # Hier den Namen deines Pakets eintragen
+                  package-type: "container" # 'container', 'npm', 'maven', etc.
+                  # Wir behalten Versionen, die NICHT gelöscht werden sollen:
+                  # Regulärer Ausdruck für: 'latest' ODER Versionsnummern (z.B. v1.0.1)
+                  # ODER Branch-Namen (hier beispielhaft 'main' und 'develop')
+                  ignore-versions: '^(latest|v?\d+\.\d+\.\d+|main)$'
+                  min-versions-to-keep: 0
