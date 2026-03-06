@@ -13,7 +13,7 @@ import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 
 export const ManagedJobs = () => {
     const { token } = useAuth();
-    const { globalJobs, sessionHistory, fetchAllJobs, isLoading, error } =
+    const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
     const { repositories, fetchRepositories } = useRepositoryStore();
@@ -125,14 +125,13 @@ export const ManagedJobs = () => {
                 />
             </div>
 
-            {sessionHistory.length > 0 && (
-                <div className="mt-6">
-                    <ClientHistoryList
-                        title="Running Jobs (Session)"
-                        history={sessionHistory}
-                    />
-                </div>
-            )}
+            <div className="mt-6">
+                <ClientHistoryList
+                    title="Last History"
+                    history={lastHistory}
+                    emptyMessage="No data available in the observation period."
+                />
+            </div>
         </div>
     );
 };

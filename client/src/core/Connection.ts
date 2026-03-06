@@ -118,13 +118,13 @@ export class Connection {
                                 if (lastSyncTime) {
                                     historyToSync = db
                                         .prepare(
-                                            "SELECT * FROM job_history WHERE end_time > ? AND status != 'running'",
+                                            "SELECT * FROM job_history WHERE update_at > ?",
                                         )
                                         .all(lastSyncTime) as any[];
                                 } else {
                                     historyToSync = db
                                         .prepare(
-                                            "SELECT * FROM job_history WHERE end_time IS NOT NULL AND status != 'running'",
+                                            "SELECT * FROM job_history WHERE update_at IS NOT NULL",
                                         )
                                         .all() as any[];
                                 }

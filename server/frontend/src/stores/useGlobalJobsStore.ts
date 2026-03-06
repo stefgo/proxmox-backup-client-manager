@@ -7,7 +7,7 @@ export interface GlobalJob extends BackupJob {
 
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
-    sessionHistory: HistoryEntry[];
+    lastHistory: HistoryEntry[];
     isLoading: boolean;
     error: string | null;
 
@@ -22,21 +22,30 @@ interface GlobalJobsState {
 
 export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     globalJobs: [],
-    sessionHistory: [],
+    lastHistory: [],
     isLoading: false,
     error: null,
 
     fetchAllJobs: async (token) => {
         set({ isLoading: true, error: null });
         try {
-            const res = await fetch("/api/v1/jobs", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const [jobsRes, historyRes] = await Promise.all([
+                fetch("/api/v1/jobs", {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+                fetch("/api/v1/history", {
+                    headers: { Authorization: `Bearer ${token}` },
+                }),
+            ]);
 
-            if (!res.ok) throw new Error("Failed to fetch jobs");
+            if (!jobsRes.ok) throw new Error("Failed to fetch jobs");
+            if (!historyRes.ok) throw new Error("Failed to fetch history");
 
             const data: { clientId: string; jobs: BackupJob[] }[] =
-                await res.json();
+                await jobsRes.json();
+
+            const historyData = await historyRes.json();
+            const allHistory = historyData.success ? historyData.data : [];
 
             // Flatten the array of { clientId, jobs[] } into GlobalJob[]
             const flattenedJobs: GlobalJob[] = [];
@@ -49,7 +58,21 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 }
             }
 
-            set({ globalJobs: flattenedJobs, isLoading: false });
+            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const initLastHistory = allHistory
+                .filter((j: any) => {
+                    const timeToCheck = j.endTime
+                        ? new Date(j.endTime).getTime()
+                        : new Date(j.startTime).getTime();
+                    return timeToCheck > twentyFourHoursAgo;
+                })
+                .slice(0, 10);
+
+            set({
+                globalJobs: flattenedJobs,
+                lastHistory: initLastHistory,
+                isLoading: false,
+            });
         } catch (e: any) {
             set({ error: e.message, isLoading: false });
         }
@@ -57,16 +80,28 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
 
     updateSession: (job: HistoryEntry) =>
         set((state) => {
-            const exists = state.sessionHistory.find((j) => j.id === job.id);
+            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const isWithin24Hours = (j: HistoryEntry) => {
+                const timeToCheck = j.endTime
+                    ? new Date(j.endTime).getTime()
+                    : new Date(j.startTime).getTime();
+                return timeToCheck > twentyFourHoursAgo;
+            };
+
+            let updatedHistory;
+            const exists = state.lastHistory.find((j) => j.id === job.id);
             if (exists) {
-                return {
-                    sessionHistory: state.sessionHistory.map((j) =>
-                        j.id === job.id ? { ...j, ...job } : j,
-                    ),
-                };
+                updatedHistory = state.lastHistory.map((j) =>
+                    j.id === job.id ? { ...j, ...job } : j,
+                );
             } else {
-                return { sessionHistory: [job, ...state.sessionHistory] };
+                updatedHistory = [job, ...state.lastHistory];
             }
+
+            updatedHistory = updatedHistory
+                .filter(isWithin24Hours)
+                .slice(0, 10);
+            return { lastHistory: updatedHistory };
         }),
     updateJobNextRunAt: (clientId, jobId, nextRunAt) =>
         set((state) => ({

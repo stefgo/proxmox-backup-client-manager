@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const RepositorySchema = z.object({
-    baseUrl: z.string().url(),
+    baseUrl: z.url(),
     datastore: z.string().min(1),
     fingerprint: z.string().optional(),
     username: z.string().min(1),
@@ -10,7 +10,7 @@ export const RepositorySchema = z.object({
 });
 
 export const ClientSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     hostname: z.string(),
     displayName: z.string().optional(),
     status: z.enum(["online", "offline"]),

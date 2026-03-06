@@ -48,17 +48,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         });
 
         cols.push({
-            tableHeader: "Version",
-            tableItemRender: (client) => (
-                client.version ? (
-                    <div className="text-sm text-gray-900 dark:text-white">
-                        {client.version}
-                    </div>
-                ) : null
-            )
-        });
-
-        cols.push({
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-gray-900 dark:text-white",
             tableItemRender: (client) => (
@@ -148,7 +137,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         actionFields.push({
             listItemRender: (client) => (
-                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0">
+                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
                     <DataAction
                         rowId={client.id}
                         menuEntries={[

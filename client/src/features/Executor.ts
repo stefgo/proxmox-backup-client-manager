@@ -11,7 +11,7 @@ import { Connection } from "../core/Connection.js";
 
 export class Executor {
     private static runningJobs = new Set<string>();
-    private static pendingJobs = new Set<string>();
+    private static pendingJobs = new Map<string, string>();
 
     /**
      * Cleans up stale jobs from the history table that are still marked as 'running'
@@ -22,7 +22,7 @@ export class Executor {
         Logger.info("Checking for stale 'running' jobs in history...");
         try {
             const stmt = db.prepare(
-                "UPDATE job_history SET status = 'abort', end_time = ? WHERE status = 'running'",
+                "UPDATE job_history SET status = 'abort', end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE status = 'running'",
             );
             const result = stmt.run(new Date().toISOString());
 
@@ -33,6 +33,33 @@ export class Executor {
             }
         } catch (e) {
             Logger.error("Failed to cleanup stale running jobs", e);
+        }
+    }
+
+    /**
+     * Resumes any jobs that were marked as 'queued' when the daemon was shut down or crashed.
+     */
+    static async resumeQueuedJobs() {
+        Logger.info("Checking for queued jobs to resume...");
+        try {
+            const queuedJobs = db
+                .prepare(
+                    "SELECT id, job_id, name FROM job_history WHERE status = 'queued'",
+                )
+                .all() as any[];
+
+            for (const job of queuedJobs) {
+                if (!job.job_id) continue;
+                Logger.info(
+                    `Resuming queued job ${job.job_id} (runId: ${job.id})...`,
+                );
+                const delayMs = (config.queueDelaySeconds || 5) * 1000;
+                setTimeout(() => {
+                    Executor.executeBackup(job.id, job.job_id);
+                }, delayMs);
+            }
+        } catch (e) {
+            Logger.error("Failed to resume queued jobs", e);
         }
     }
 
@@ -52,6 +79,35 @@ export class Executor {
         let command = config.executable || "proxmox-backup-client";
         let args: string[] = [];
         let env: any = { ...process.env };
+        let jobConfigData: any = {};
+
+        try {
+            const jobConfig = db
+                .prepare("SELECT * FROM job WHERE id = ?")
+                .get(jobId) as any;
+            if (jobConfig) {
+                jobName = jobConfig.name;
+                jobConfigData = jobConfig.config
+                    ? JSON.parse(jobConfig.config as string)
+                    : {};
+            } else {
+                throw new Error("Config not found locally for job " + jobId);
+            }
+        } catch (e: any) {
+            Logger.error("Job Config Resolution Error:", e);
+            const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+                id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: new Date().toISOString(),
+                status: "failed",
+                error: "Config resolution failed: " + e.message,
+                stderr: e.message,
+                type: "backup",
+            };
+            Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            return;
+        }
 
         if (this.runningJobs.has(jobId)) {
             if (this.pendingJobs.has(jobId)) {
@@ -72,19 +128,57 @@ export class Executor {
                         "skipped",
                         new Date().toISOString(),
                         new Date().toISOString(),
-                        "Skipped (Parallel)",
+                        jobName,
                         "Job already running and another one is already queued.",
                     );
                 } catch (e) {
                     Logger.error("Failed to log skipped job", e);
                 }
+
+                Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                    id: runId,
+                    jobId: jobId,
+                    name: jobName || "Unknown Backup",
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    status: "skipped",
+                    error: "Job already running and another one is already queued.",
+                    type: "backup",
+                });
                 return;
             }
 
             Logger.info(
                 `Job ${jobId} is already running. Queuing for restart.`,
             );
-            this.pendingJobs.add(jobId);
+            this.pendingJobs.set(jobId, runId);
+
+            try {
+                db.prepare(
+                    `
+                    INSERT INTO job_history (id, job_id, type, status, start_time, name)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `,
+                ).run(
+                    runId,
+                    jobId,
+                    "backup",
+                    "queued",
+                    new Date().toISOString(),
+                    jobName || null,
+                );
+            } catch (e) {
+                Logger.error("DB Log Error for queued job", e);
+            }
+
+            Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                id: runId,
+                jobId: jobId,
+                name: jobName || "Unknown Backup",
+                startTime: new Date().toISOString(),
+                status: "queued",
+                type: "backup",
+            });
             return;
         }
 
@@ -92,97 +186,84 @@ export class Executor {
 
         const startTime = new Date().toISOString();
         try {
-            const jobConfig = db
-                .prepare("SELECT * FROM job WHERE id = ?")
-                .get(jobId) as any;
-            if (jobConfig) {
-                jobName = jobConfig.name;
-
-                const jobConfigData = jobConfig.config
-                    ? JSON.parse(jobConfig.config as string)
-                    : {};
-
-                // Encryption: write keyContent to a temp file and configure --keyfile
-                if (jobConfigData.encryption?.keyContent) {
-                    try {
-                        tempKeyfilePath = path.join(
-                            os.tmpdir(),
-                            `pbcm_key_${runId}.json`,
-                        );
-                        fs.writeFileSync(
-                            tempKeyfilePath,
-                            jobConfigData.encryption.keyContent,
-                            { mode: 0o600 },
-                        );
-                        args.push(
-                            "--crypt-mode",
-                            "encrypt",
-                            "--keyfile",
-                            tempKeyfilePath,
-                        );
-                    } catch (e: any) {
-                        Logger.error("Failed to write encryption key file", e);
-                        throw new Error(
-                            "Failed to write encryption key file: " + e.message,
-                        );
-                    }
+            // Encryption: write keyContent to a temp file and configure --keyfile
+            if (jobConfigData.encryption?.keyContent) {
+                try {
+                    tempKeyfilePath = path.join(
+                        os.tmpdir(),
+                        `pbcm_key_${runId}.json`,
+                    );
+                    fs.writeFileSync(
+                        tempKeyfilePath,
+                        jobConfigData.encryption.keyContent,
+                        { mode: 0o600 },
+                    );
+                    args.push(
+                        "--crypt-mode",
+                        "encrypt",
+                        "--keyfile",
+                        tempKeyfilePath,
+                    );
+                } catch (e: any) {
+                    Logger.error("Failed to write encryption key file", e);
+                    throw new Error(
+                        "Failed to write encryption key file: " + e.message,
+                    );
                 }
+            }
 
-                if (jobConfigData.repository) {
+            if (jobConfigData.repository) {
+                try {
+                    const repo = jobConfigData.repository;
+                    const cred = repo;
+
+                    let hostStr = "";
                     try {
-                        const repo = jobConfigData.repository;
-                        const cred = repo;
-
-                        let hostStr = "";
-                        try {
-                            const u = new URL(repo.baseUrl);
-                            hostStr = u.hostname;
-                            if (u.port) hostStr += ":" + u.port;
-                        } catch (e) {
-                            hostStr = repo.baseUrl;
-                        }
-
-                        // Map repository credentials to environment variables for proxmox-backup-client
-                        // The format username!tokenname@host:datastore is required for PBS_REPOSITORY
-                        env.PBS_REPOSITORY = `${cred.username}!${cred.tokenname}@${hostStr}:${repo.datastore}`;
-
-                        // Pass password via file descriptor 3 to avoid exposing it in process arguments
-                        env.PBS_PASSWORD_FD = "3";
-                        pbsPassword = cred.secret;
-
-                        if (repo.fingerprint) {
-                            env.PBS_FINGERPRINT = repo.fingerprint;
-                        }
+                        const u = new URL(repo.baseUrl);
+                        hostStr = u.hostname;
+                        if (u.port) hostStr += ":" + u.port;
                     } catch (e) {
-                        Logger.error(
-                            `Error parsing PBS config for job ${jobConfig.name}`,
-                            e,
-                        );
+                        hostStr = repo.baseUrl;
                     }
+
+                    // Map repository credentials to environment variables for proxmox-backup-client
+                    // The format username!tokenname@host:datastore is required for PBS_REPOSITORY
+                    env.PBS_REPOSITORY = `${cred.username}!${cred.tokenname}@${hostStr}:${repo.datastore}`;
+
+                    // Pass password via file descriptor 3 to avoid exposing it in process arguments
+                    env.PBS_PASSWORD_FD = "3";
+                    pbsPassword = cred.secret;
+
+                    if (repo.fingerprint) {
+                        env.PBS_FINGERPRINT = repo.fingerprint;
+                    }
+                } catch (e) {
+                    Logger.error(
+                        `Error parsing PBS config for job ${jobName}`,
+                        e,
+                    );
                 }
+            }
 
-                args.push("backup");
+            args.push("backup");
 
-                let pathsRaw = jobConfigData.archives || [];
+            let pathsRaw = jobConfigData.archives || [];
 
-                if (Array.isArray(pathsRaw) && pathsRaw.length > 0) {
-                    pathsRaw.forEach((item: any) => {
-                        args.push(`${item.name}.pxar:${item.path}`);
-                    });
-                }
+            if (Array.isArray(pathsRaw) && pathsRaw.length > 0) {
+                pathsRaw.forEach((item: any) => {
+                    args.push(`${item.name}.pxar:${item.path}`);
+                });
+            }
 
-                if (config.clientId) {
-                    args.push("--backup-id", config.clientId);
-                }
+            if (config.clientId) {
+                args.push("--backup-id", config.clientId);
+            }
 
-                if (
-                    Array.isArray(config.backupParams) &&
-                    config.backupParams.length > 0
-                ) {
-                    config.backupParams.forEach((param) => args.push(param));
-                }
-            } else {
-                throw new Error("Config not found locally for job " + jobId);
+            if (
+                Array.isArray(config.backupParams) &&
+                config.backupParams.length > 0
+            ) {
+                config.backupParams.forEach((param) => args.push(param));
             }
         } catch (e: any) {
             Logger.error("Job Config Resolution Error:", e);
@@ -205,12 +286,28 @@ export class Executor {
         const jobType = "backup";
 
         try {
-            db.prepare(
-                `
-                INSERT INTO job_history (id, job_id, type, status, start_time, name)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `,
-            ).run(runId, jobId, jobType, "running", startTime, jobName || null);
+            const existing = db
+                .prepare("SELECT id FROM job_history WHERE id = ?")
+                .get(runId);
+            if (existing) {
+                db.prepare(
+                    "UPDATE job_history SET status = 'running', start_time = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                ).run(startTime, runId);
+            } else {
+                db.prepare(
+                    `
+                    INSERT INTO job_history (id, job_id, type, status, start_time, name)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `,
+                ).run(
+                    runId,
+                    jobId,
+                    jobType,
+                    "running",
+                    startTime,
+                    jobName || null,
+                );
+            }
         } catch (e) {
             Logger.error("DB Log Error", e);
         }
@@ -273,7 +370,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     status,
                     endTime,
@@ -303,14 +400,14 @@ export class Executor {
             this.runningJobs.delete(jobId);
 
             if (this.pendingJobs.has(jobId)) {
+                const queuedRunId = this.pendingJobs.get(jobId)!;
                 this.pendingJobs.delete(jobId);
                 const delayMs = (config.queueDelaySeconds || 5) * 1000;
                 Logger.info(
                     `Restarting queued job ${jobId} in ${delayMs / 1000}s...`,
                 );
                 setTimeout(() => {
-                    const nextRunId = randomUUID();
-                    Executor.executeBackup(nextRunId, jobId);
+                    Executor.executeBackup(queuedRunId, jobId);
                 }, delayMs);
             }
         });
@@ -335,7 +432,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     "failed",
                     new Date().toISOString(),
@@ -522,7 +619,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     status,
                     endTime,
@@ -566,7 +663,7 @@ export class Executor {
 
             try {
                 db.prepare(
-                    "UPDATE history SET status = ?, end_time = ?, stderr = ? WHERE id = ?",
+                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 ).run(
                     "failed",
                     new Date().toISOString(),
