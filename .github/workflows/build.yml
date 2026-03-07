@@ -91,7 +91,7 @@ jobs:
                       APP_VERSION=${{ steps.version.outputs.version }}
                   # Pass GitHub token as secret for npm authentication
                   secrets: |
-                      npm_token=${{ secrets.GITHUB_TOKEN }}
+                      npm_token=${{ secrets.NPM_TOKEN }}
                   # Nutzt die automatisch generierten Tags von oben
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
