@@ -4,6 +4,7 @@ export default {
     content: [
         "./index.html",
         "./src/**/*.{js,ts,jsx,tsx}",
+        "../../../react-ui-components/src/**/*.{js,ts,jsx,tsx}"
     ],
     theme: {
         extend: {

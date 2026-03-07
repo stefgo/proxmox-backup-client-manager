@@ -2,7 +2,7 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard } from '../../../components/StatCard';
+import { StatCard } from '@stefgo/react-ui-components';
 import { Client } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate } from '../../../utils';
@@ -19,8 +19,8 @@ import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { ClientEditor } from './ClientEditor';
 import { useClientStore } from '../../../stores/useClientStore';
-import { ActionMenu } from '../../../components/ActionMenu';
-import { useActionMenu } from '../../../hooks/useActionMenu';
+import { ActionMenu } from '@stefgo/react-ui-components';
+import { useActionMenu } from '@stefgo/react-ui-components';
 
 
 interface ClientOverviewProps {

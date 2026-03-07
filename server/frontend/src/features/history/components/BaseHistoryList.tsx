@@ -2,9 +2,9 @@ import { Activity, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
-import { Card } from "../../../components/Card";
-import { CardHeader } from "../../../components/CardHeader";
-import { DataList, DataListDef } from "../../../components/DataList";
+import { Card } from '@stefgo/react-ui-components';
+import { CardHeader } from '@stefgo/react-ui-components';
+import { DataList, DataListDef } from '@stefgo/react-ui-components';
 
 export interface BaseHistoryItem {
     id: string;

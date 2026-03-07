@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileBrowser } from '../../../../components/FileBrowser';
+import { FileBrowser } from '@stefgo/react-ui-components';
 import { useJobFormContext } from '../../context/JobFormContext';
 
 

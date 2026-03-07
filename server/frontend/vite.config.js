@@ -66,6 +66,9 @@ export default defineConfig({
     }
   },
   resolve: {
+    alias: {
+      '@stefgo/react-ui-components': '/Users/stefan/Entwicklung/react-ui-components/src/index.ts'
+    },
     dedupe: ['react', 'react-dom']
   }
 })

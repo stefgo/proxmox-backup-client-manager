@@ -2,10 +2,10 @@ import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
-import { DataTableDef } from '../../../components/DataTable';
-import { DataAction } from '../../../components/DataAction';
-import { DataListDef, DataListColumnDef } from '../../../components/DataList';
-import { DataMultiView } from '../../../components/DataMultiView';
+import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataAction } from '@stefgo/react-ui-components';
+import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
+import { DataMultiView } from '@stefgo/react-ui-components';
 
 interface ClientListProps {
     clients: Client[];

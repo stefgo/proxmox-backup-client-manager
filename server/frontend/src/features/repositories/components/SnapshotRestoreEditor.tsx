@@ -3,7 +3,7 @@ import { X, Folder, AlertCircle } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { FileBrowser } from '../../../components/FileBrowser';
+import { FileBrowser } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 
