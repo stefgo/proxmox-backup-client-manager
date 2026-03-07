@@ -31,7 +31,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
             if (!res.ok) throw new Error('Failed to fetch clients');
             const data = await res.json();
             set({ clients: data });
-        } catch (e: any) {
+        } catch (e: unknown) {
             set({ error: e.message });
         } finally {
             set({ isLoading: false });
@@ -59,7 +59,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
                 const data = await res.json();
                 throw new Error(data.error || 'Failed to delete client');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             // Revert on error
             set({ clients: oldClients, error: e.message });
             throw e;
@@ -87,7 +87,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
                 const err = await res.json();
                 throw new Error(err.error || 'Failed to update client');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             // Revert
             set({ clients: oldClients, error: e.message });
             throw e;

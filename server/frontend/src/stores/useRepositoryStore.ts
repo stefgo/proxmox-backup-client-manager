@@ -35,7 +35,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
             } else {
                  throw new Error('Failed to fetch repositories');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             set({ error: e.message });
         } finally {
             set({ isLoading: false });
@@ -96,7 +96,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
              // Refresh
              await get().fetchRepositories(token);
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             throw e;
         }
     },
@@ -120,7 +120,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
              // Refresh
              await get().fetchRepositories(token);
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             throw e;
         }
     },
@@ -142,7 +142,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
                  repositories: state.repositories.filter(r => r.id !== id)
              }));
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             throw e;
         }
     }

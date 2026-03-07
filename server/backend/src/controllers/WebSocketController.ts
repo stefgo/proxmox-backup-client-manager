@@ -1,9 +1,19 @@
 import { FastifyInstance } from "fastify";
-import { WS_EVENTS, WsMessage, ProtocolMap } from "@pbcm/shared";
-import db from "../core/Database.js";
+import {
+    WS_EVENTS,
+    WsMessage,
+    ProtocolMap,
+    AuthPayloadSchema,
+    StatusUpdatePayloadSchema,
+    LogUpdatePayloadSchema,
+    SyncHistoryPayloadSchema,
+    JobNextRunUpdatePayloadSchema,
+} from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/NetworkUtils.js";
+import { ClientRepository } from "../repositories/ClientRepository.js";
+import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -12,6 +22,20 @@ export class WebSocketController {
         fastify: FastifyInstance,
     ) {
         const socket = connection.socket || connection;
+        (socket as any).isAlive = true;
+
+        socket.on("pong", () => {
+            (socket as any).isAlive = true;
+        });
+
+        const pingInterval = setInterval(() => {
+            if ((socket as any).isAlive === false) {
+                socket.terminate();
+                return;
+            }
+            (socket as any).isAlive = false;
+            socket.ping();
+        }, 30000);
 
         const token = (req.query as any).token;
         if (!token) {
@@ -35,6 +59,7 @@ export class WebSocketController {
         );
 
         socket.on("close", () => {
+            clearInterval(pingInterval);
             ProxyService.removeDashboardClient(socket);
         });
     }
@@ -49,6 +74,29 @@ export class WebSocketController {
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
         const socket = connection.socket || connection;
+        (socket as any).isAlive = true;
+
+        socket.on("pong", () => {
+            (socket as any).isAlive = true;
+        });
+
+        const pingInterval = setInterval(() => {
+            if ((socket as any).isAlive === false) {
+                fastify.log.warn({
+                    msg: "Agent client connection timed out (no pong). Terminating.",
+                    ip: clientIp,
+                    clientId,
+                });
+                socket.terminate();
+                return;
+            }
+            (socket as any).isAlive = false;
+            socket.ping();
+        }, 30000);
+
+        socket.on("close", () => {
+            clearInterval(pingInterval);
+        });
         let isAuthenticated = false;
         let clientId: string | null = null;
         let authTimeout: NodeJS.Timeout;
@@ -73,9 +121,7 @@ export class WebSocketController {
             return;
         }
 
-        const client = db
-            .prepare("SELECT id, allowed_ip FROM clients WHERE auth_token = ?")
-            .get(token) as any;
+        const client = ClientRepository.findByToken(token);
 
         if (!client) {
             fastify.log.warn({ msg: "Invalid token used", ip: clientIp });
@@ -129,21 +175,23 @@ export class WebSocketController {
 
                 if (!isAuthenticated) {
                     if (data.type === WS_EVENTS.AUTH) {
+                        const parsed = AuthPayloadSchema.safeParse(
+                            data.payload,
+                        );
+                        if (!parsed.success) {
+                            socket.close(4000, "Invalid payload");
+                            return;
+                        }
+
                         isAuthenticated = true;
                         clientId = client.id;
                         clearTimeout(authTimeout);
 
-                        const now = new Date().toISOString();
-                        const authPayload =
-                            data.payload as ProtocolMap["AUTH"]["req"];
-                        db.prepare(
-                            `UPDATE clients SET last_seen=?, updated_at=?, ip_address=?, version=? WHERE id=?`,
-                        ).run(
-                            now,
-                            now,
+                        const authPayload = parsed.data;
+                        ClientRepository.updateAuthSuccess(
+                            clientId!,
                             clientIp,
                             authPayload.version || null,
-                            clientId,
                         );
 
                         fastify.log.info({
@@ -152,15 +200,8 @@ export class WebSocketController {
                         });
                         ProxyService.registerClient(clientId!, socket);
 
-                        // Find the latest sync time for this client
-                        const lastSyncRecord = db
-                            .prepare(
-                                "SELECT updated_at FROM job_history WHERE client_id = ? ORDER BY updated_at DESC LIMIT 1",
-                            )
-                            .get(clientId) as
-                            | { updated_at: string | null }
-                            | undefined;
-                        const lastSyncTime = lastSyncRecord?.updated_at || null;
+                        const lastSyncTime =
+                            JobHistoryRepository.findLatestSyncTime(clientId!);
 
                         socket.send(
                             JSON.stringify({
@@ -172,10 +213,7 @@ export class WebSocketController {
 
                         socket.on("close", () => {
                             if (clientId) {
-                                const now = new Date().toISOString();
-                                db.prepare(
-                                    "UPDATE clients SET updated_at=? WHERE id = ?",
-                                ).run(now, clientId);
+                                ClientRepository.updateLastSeen(clientId);
                                 ProxyService.unregisterClient(clientId);
                                 fastify.log.info({
                                     msg: "Client disconnected",
@@ -199,8 +237,17 @@ export class WebSocketController {
                 // Handle Messages from Agent
                 // 1. Status Updates (Forward to Dashboard + Save to DB if final)
                 if (data.type === WS_EVENTS.STATUS_UPDATE) {
-                    const statusPayload =
-                        data.payload as ProtocolMap["STATUS_UPDATE"]["req"];
+                    const parsed = StatusUpdatePayloadSchema.safeParse(
+                        data.payload,
+                    );
+                    if (!parsed.success) {
+                        fastify.log.warn({
+                            msg: "Invalid STATUS_UPDATE payload",
+                            errors: parsed.error,
+                        });
+                        return;
+                    }
+                    const statusPayload = parsed.data;
 
                     // If job has ended, save to history
                     if (
@@ -209,30 +256,9 @@ export class WebSocketController {
                         )
                     ) {
                         try {
-                            db.prepare(
-                                `
-                                INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                ON CONFLICT(id) DO UPDATE SET 
-                                    status=excluded.status, 
-                                    end_time=excluded.end_time, 
-                                    exit_code=excluded.exit_code, 
-                                    stdout=excluded.stdout, 
-                                    stderr=excluded.stderr,
-                                    updated_at=CURRENT_TIMESTAMP
-                            `,
-                            ).run(
-                                statusPayload.id,
-                                clientId,
-                                statusPayload.jobId,
-                                statusPayload.name,
-                                statusPayload.type,
-                                statusPayload.status,
-                                statusPayload.startTime || null,
-                                statusPayload.endTime || null,
-                                statusPayload.exitCode ?? null,
-                                statusPayload.stdout || null,
-                                statusPayload.stderr || null,
+                            JobHistoryRepository.upsertStatus(
+                                clientId!,
+                                statusPayload,
                             );
                         } catch (err) {
                             fastify.log.error({
@@ -258,8 +284,11 @@ export class WebSocketController {
                 // 2. Log Updates
                 // Stream stdout/stderr from client jobs to the dashboard for real-time monitoring.
                 if (data.type === WS_EVENTS.LOG_UPDATE) {
-                    const logPayload =
-                        data.payload as ProtocolMap["LOG_UPDATE"]["req"];
+                    const parsed = LogUpdatePayloadSchema.safeParse(
+                        data.payload,
+                    );
+                    if (!parsed.success) return;
+                    const logPayload = parsed.data;
                     const updateMsg = {
                         type: "LOG_UPDATE",
                         payload: {
@@ -272,44 +301,26 @@ export class WebSocketController {
 
                 // 3. Sync History (Delta load from client)
                 if (data.type === WS_EVENTS.SYNC_HISTORY) {
-                    const syncPayload =
-                        data.payload as ProtocolMap["SYNC_HISTORY"]["req"];
+                    const parsed = SyncHistoryPayloadSchema.safeParse(
+                        data.payload,
+                    );
+                    if (!parsed.success) {
+                        fastify.log.warn({
+                            msg: "Invalid SYNC_HISTORY payload",
+                            errors: parsed.error,
+                        });
+                        return;
+                    }
+                    const syncPayload = parsed.data;
                     if (
                         syncPayload.history &&
                         Array.isArray(syncPayload.history)
                     ) {
-                        const insertStmt = db.prepare(`
-                            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(id) DO UPDATE SET 
-                                status=excluded.status, 
-                                end_time=excluded.end_time, 
-                                exit_code=excluded.exit_code, 
-                                stdout=excluded.stdout, 
-                                stderr=excluded.stderr,
-                                updated_at=CURRENT_TIMESTAMP
-                        `);
-
-                        const transaction = db.transaction((entries) => {
-                            for (const entry of entries) {
-                                insertStmt.run(
-                                    entry.id,
-                                    clientId,
-                                    entry.jobConfigId || null,
-                                    entry.name || null,
-                                    entry.type,
-                                    entry.status,
-                                    entry.startTime,
-                                    entry.endTime,
-                                    entry.exitCode,
-                                    entry.stdout || null,
-                                    entry.stderr || null,
-                                );
-                            }
-                        });
-
                         try {
-                            transaction(syncPayload.history);
+                            JobHistoryRepository.upsertHistoryBatch(
+                                clientId!,
+                                syncPayload.history,
+                            );
                             fastify.log.info({
                                 msg: "Processed history sync from client",
                                 clientId,
@@ -326,8 +337,11 @@ export class WebSocketController {
 
                 // 4. Job Next Run Update
                 if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
-                    const nextRunPayload =
-                        data.payload as ProtocolMap["JOB_NEXT_RUN_UPDATE"]["req"];
+                    const parsed = JobNextRunUpdatePayloadSchema.safeParse(
+                        data.payload,
+                    );
+                    if (!parsed.success) return;
+                    const nextRunPayload = parsed.data;
                     ProxyService.updateJobNextRun(
                         clientId!,
                         nextRunPayload.jobId,

@@ -1,6 +1,9 @@
-import WebSocket from "ws";
-import db from "../core/Database.js";
 import { randomUUID } from "crypto";
+import { JobRepository, JobRow } from "../repositories/JobRepository.js";
+import {
+    JobScheduleStateRepository,
+    StateRow,
+} from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
 import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
 import { Logger } from "../core/Logger.js";
@@ -59,7 +62,7 @@ export class Scheduler {
 
     private static run() {
         try {
-            const jobs = db.prepare("SELECT * FROM job").all() as any[];
+            const jobs = JobRepository.findAll();
             const now = new Date();
 
             jobs.forEach((job) => {
@@ -73,21 +76,23 @@ export class Scheduler {
                     return;
                 }
 
-                let state = db
-                    .prepare("SELECT * FROM job_schedule_state WHERE id = ?")
-                    .get(job.id) as any;
+                let state = JobScheduleStateRepository.findById(job.id);
 
                 if (!state || !state.next_run) {
                     const initNext = new Date();
+                    const nextDateStr = initNext.toISOString();
                     try {
                         if (state) {
-                            db.prepare(
-                                "UPDATE job_schedule_state SET next_run = ? WHERE id = ?",
-                            ).run(initNext.toISOString(), job.id);
+                            JobScheduleStateRepository.updateNextRun(
+                                job.id,
+                                nextDateStr,
+                            );
                         } else {
-                            db.prepare(
-                                "INSERT INTO job_schedule_state (id, next_run, last_run) VALUES (?, ?, ?)",
-                            ).run(job.id, initNext.toISOString(), null);
+                            JobScheduleStateRepository.insert(
+                                job.id,
+                                nextDateStr,
+                                null,
+                            );
                         }
                         Logger.info(
                             `Initialized next_run for job ${job.name} to ${initNext.toISOString()}`,
@@ -97,7 +102,7 @@ export class Scheduler {
                             nextRunAt: initNext.toISOString(),
                         });
                     } catch (e) {
-                        Logger.error("Init State Error", e);
+                        Logger.error({ err: e }, "Init State Error");
                     }
                     return;
                 }
@@ -113,14 +118,13 @@ export class Scheduler {
 
                     const newNextRun = this.calculateNextRun(schedule, nextRun); // Base on intent time or actual time? Usually actual or intent.
                     // Legacy code used nextRun (intent).
+                    const nextDateStr = newNextRun.toISOString();
 
                     try {
-                        db.prepare(
-                            "UPDATE job_schedule_state SET last_run = ?, next_run = ? WHERE id = ?",
-                        ).run(
-                            now.toISOString(),
-                            newNextRun.toISOString(),
+                        JobScheduleStateRepository.updateBoth(
                             job.id,
+                            now.toISOString(),
+                            nextDateStr,
                         );
                         Logger.info(
                             `Scheduled next run for ${job.name} at ${newNextRun.toISOString()}`,
@@ -130,12 +134,12 @@ export class Scheduler {
                             nextRunAt: newNextRun.toISOString(),
                         });
                     } catch (e) {
-                        Logger.error("Update State Error", e);
+                        Logger.error({ err: e }, "Update State Error");
                     }
                 }
             });
         } catch (e) {
-            Logger.error("Scheduler Error", e);
+            Logger.error({ err: e }, "Scheduler Error");
         }
     }
 }

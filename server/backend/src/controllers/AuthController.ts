@@ -1,6 +1,6 @@
-import { FastifyReply, FastifyRequest } from 'fastify';
-import { AuthService } from '../services/AuthService.js';
-import { appConfig } from '../config/AppConfig.js';
+import { FastifyReply, FastifyRequest } from "fastify";
+import { AuthService } from "../services/AuthService.js";
+import { appConfig } from "../config/AppConfig.js";
 
 export class AuthController {
     static async login(request: FastifyRequest, reply: FastifyReply) {
@@ -23,8 +23,10 @@ export class AuthController {
         try {
             const url = await AuthService.generateOidcUrl();
             return reply.redirect(url);
-        } catch (e: any) {
-            return reply.code(400).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(404)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 
@@ -34,18 +36,26 @@ export class AuthController {
             // Fastify request.url only gives path. Need host.
             // But we know redirect_uri from config.
             if (!appConfig.oidc || !appConfig.oidc.enabled) {
-                throw new Error('OIDC is not configured or disabled');
+                throw new Error("OIDC is not configured or disabled");
             }
             const redirectUriObj = new URL(appConfig.oidc.redirect_uri);
             const currentUrl = new URL(request.url, redirectUriObj.origin);
 
             const user = await AuthService.handleOidcCallback(currentUrl);
-            const token = request.server.jwt.sign({ username: user.username, id: user.id });
+            const token = request.server.jwt.sign({
+                username: user.username,
+                id: user.id,
+            });
 
             return reply.redirect(`/login?token=${token}`);
-        } catch (e: any) {
-            request.log.error(e);
-            return reply.code(500).send({ error: 'Authentication failed: ' + e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(500)
+                .send({
+                    error:
+                        "Authentication failed: " +
+                        (e instanceof Error ? e.message : String(e)),
+                });
         }
     }
 }

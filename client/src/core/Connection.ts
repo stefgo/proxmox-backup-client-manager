@@ -82,6 +82,18 @@ export class Connection {
         this.wsInstance = ws;
 
         return new Promise((resolve) => {
+            let pingTimeout: NodeJS.Timeout;
+
+            function heartbeat() {
+                clearTimeout(pingTimeout);
+                pingTimeout = setTimeout(() => {
+                    Logger.warn(
+                        "WebSocket heartbeat timeout. Terminating connection.",
+                    );
+                    ws.terminate();
+                }, 35000); // 30s server interval + 5s buffer
+            }
+
             const timeout = setTimeout(() => {
                 resolve({
                     connected: false,
@@ -90,6 +102,7 @@ export class Connection {
             }, 5000);
 
             ws.on("open", () => {
+                heartbeat();
                 Logger.info("Connected to server");
                 Connection.send(WS_EVENTS.AUTH, {
                     hostname: os.hostname(),
@@ -97,7 +110,10 @@ export class Connection {
                 });
             });
 
+            ws.on("ping", heartbeat);
+
             ws.on("message", (data: WebSocket.RawData) => {
+                heartbeat();
                 try {
                     const message = JSON.parse(data.toString()) as WsMessage;
                     if (message.type !== WS_EVENTS.LOG_UPDATE) {
@@ -153,7 +169,7 @@ export class Connection {
                                     });
                                 }
                             } catch (e) {
-                                Logger.error("Failed to sync history", e);
+                                Logger.error({ err: e }, "Failed to sync history");
                             }
 
                             resolve({ connected: true });
@@ -187,11 +203,12 @@ export class Connection {
                             break;
                     }
                 } catch (err) {
-                    Logger.error("Failed to parse message", err);
+                    Logger.error({ err: err }, "Failed to parse message");
                 }
             });
 
             ws.on("close", (code: number, reason: Buffer) => {
+                clearTimeout(pingTimeout);
                 clearTimeout(timeout);
                 this.wsInstance = null;
                 const reasonStr = reason.toString() || "No reason provided";

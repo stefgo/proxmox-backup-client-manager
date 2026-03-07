@@ -8,10 +8,10 @@ import {
 } from "lucide-react";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
-import { DataTableDef } from "../../../components/DataTable";
-import { DataListDef, DataListColumnDef } from "../../../components/DataList";
-import { DataAction } from "../../../components/DataAction";
-import { DataMultiView } from "../../../components/DataMultiView";
+import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
+import { DataAction } from '@stefgo/react-ui-components';
+import { DataMultiView } from '@stefgo/react-ui-components';
 
 export interface BaseJobItem {
     id: string;

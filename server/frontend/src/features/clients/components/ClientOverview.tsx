@@ -2,7 +2,7 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard } from '../../../components/StatCard';
+import { StatCard } from '@stefgo/react-ui-components';
 import { Client } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate } from '../../../utils';
@@ -19,8 +19,8 @@ import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { ClientEditor } from './ClientEditor';
 import { useClientStore } from '../../../stores/useClientStore';
-import { ActionMenu } from '../../../components/ActionMenu';
-import { useActionMenu } from '../../../hooks/useActionMenu';
+import { ActionMenu } from '@stefgo/react-ui-components';
+import { useActionMenu } from '@stefgo/react-ui-components';
 
 
 interface ClientOverviewProps {
@@ -117,7 +117,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await triggerJob(client.id, jobId);
             // Optional: toast or feedback
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };
@@ -125,7 +125,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const handleDeleteJob = async (jobId: string) => {
         try {
             await deleteJob(client.id, jobId);
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };
@@ -135,7 +135,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await updateClient(id, data, token);
             setIsEditing(false);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to update client", e);
             alert(e.message);
         }

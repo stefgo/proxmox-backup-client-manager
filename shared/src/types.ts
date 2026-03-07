@@ -10,6 +10,31 @@ import {
     ArchiveSchema,
     EncryptionConfigSchema,
     ScheduleConfigSchema,
+    TokenSchema,
+    SnapshotSchema,
+    AuthPayloadSchema,
+    RunJobPayloadSchema,
+    StatusUpdatePayloadSchema,
+    LogUpdatePayloadSchema,
+    RestoreSnapshotPayloadSchema,
+    FsListRequestSchema,
+    FsFileSchema,
+    FsListResponseSchema,
+    JobListRequestSchema,
+    JobListResponseSchema,
+    JobSaveRequestSchema,
+    JobSaveResponseSchema,
+    JobDeleteRequestSchema,
+    JobDeleteResponseSchema,
+    GenerateKeyRequestSchema,
+    GenerateKeyResponseSchema,
+    GetVersionRequestSchema,
+    GetVersionResponseSchema,
+    HistoryRequestSchema,
+    HistoryEntrySchema,
+    HistoryResponseSchema,
+    SyncHistoryPayloadSchema,
+    JobNextRunUpdatePayloadSchema,
 } from "./schemas.js";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
@@ -24,12 +49,7 @@ export interface ManagedRepository extends Repository {
 
 export type Client = z.infer<typeof ClientSchema>;
 
-export interface Token {
-    token: string;
-    createdAt: string;
-    expiresAt: string;
-    usedAt?: string;
-}
+export type Token = z.infer<typeof TokenSchema>;
 
 export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type Archive = z.infer<typeof ArchiveSchema>;
@@ -38,162 +58,37 @@ export type EncryptionConfig = z.infer<typeof EncryptionConfigSchema>;
 export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
-export interface Snapshot {
-    backupType: string;
-    backupId: string;
-    backupTime: number; // Unix timestamp
-    files: { filename: string; cryptMode?: string; size?: number }[];
-    size?: number;
-    owner?: string;
-    comment?: string;
-    verification?: {
-        state: string;
-        lastVerify: number;
-    };
-    fingerprint?: string;
-}
+export type Snapshot = z.infer<typeof SnapshotSchema>;
 
 // WS Payloads
 
-export interface AuthPayload {
-    hostname: string;
-    version?: string;
-}
-
-export interface RunJobPayload {
-    runId: string;
-    jobId: string;
-}
-
-export interface StatusUpdatePayload {
-    id: string;
-    jobId?: string;
-    name: string;
-    status: string;
-    type: string;
-    startTime: string;
-    endTime?: string;
-    exitCode?: number;
-    stdout?: string;
-    stderr?: string;
-    error?: string;
-}
-
-export interface LogUpdatePayload {
-    jobId: string;
-    output: string;
-    stream: "stdout" | "stderr";
-}
-
-export interface RestoreSnapshotPayload {
-    runId: string;
-    snapshot: string;
-    targetPath: string;
-    repository: Repository;
-    archives: string[];
-    encryption?: EncryptionConfig;
-}
-
-export interface FsListRequest {
-    requestId: string;
-    path: string;
-}
-
-export interface FsFile {
-    name: string;
-    isDirectory: boolean;
-    path: string;
-    size: number;
-}
-
-export interface FsListResponse {
-    requestId: string;
-    files?: FsFile[];
-    error?: string;
-}
-
-export interface JobListRequest {
-    requestId: string;
-}
-
-export interface JobListResponse {
-    requestId: string;
-    jobs: BackupJob[];
-}
-
-export interface JobSaveRequest {
-    requestId: string;
-    job: Partial<BackupJob>;
-}
-
-export interface JobSaveResponse {
-    requestId: string;
-    success: boolean;
-    error?: string;
-}
-
-export interface JobDeleteRequest {
-    requestId: string;
-    jobId: string;
-}
-
-export interface JobDeleteResponse {
-    requestId: string;
-    success: boolean;
-    error?: string;
-}
-
-export interface GenerateKeyRequest {
-    requestId: string;
-}
-
-export interface GenerateKeyResponse {
-    requestId: string;
-    success: boolean;
-    keyContent?: string;
-    error?: string;
-}
-
-export interface GetVersionRequest {
-    requestId: string;
-}
-
-export interface GetVersionResponse {
-    requestId: string;
-    version: string;
-    error?: string;
-}
-
-export interface HistoryRequest {
-    requestId: string;
-}
-
-export interface HistoryEntry {
-    id: string;
-    name?: string;
-    jobConfigId: string | null;
-    type: string;
-    status: string;
-    startTime: string;
-    endTime: string | null;
-    exitCode: number | null;
-    stdout: string | null;
-    stderr: string | null;
-}
-
-export interface HistoryResponse {
-    requestId: string;
-    history: HistoryEntry[];
-}
-
-export interface SyncHistoryPayload {
-    history: HistoryEntry[];
-}
-
-export interface JobNextRunUpdatePayload {
-    jobId: string;
-    nextRunAt: string | null;
-}
+export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
+export type RunJobPayload = z.infer<typeof RunJobPayloadSchema>;
+export type StatusUpdatePayload = z.infer<typeof StatusUpdatePayloadSchema>;
+export type LogUpdatePayload = z.infer<typeof LogUpdatePayloadSchema>;
+export type RestoreSnapshotPayload = z.infer<
+    typeof RestoreSnapshotPayloadSchema
+>;
+export type FsListRequest = z.infer<typeof FsListRequestSchema>;
+export type FsFile = z.infer<typeof FsFileSchema>;
+export type FsListResponse = z.infer<typeof FsListResponseSchema>;
+export type JobListRequest = z.infer<typeof JobListRequestSchema>;
+export type JobListResponse = z.infer<typeof JobListResponseSchema>;
+export type JobSaveRequest = z.infer<typeof JobSaveRequestSchema>;
+export type JobSaveResponse = z.infer<typeof JobSaveResponseSchema>;
+export type JobDeleteRequest = z.infer<typeof JobDeleteRequestSchema>;
+export type JobDeleteResponse = z.infer<typeof JobDeleteResponseSchema>;
+export type GenerateKeyRequest = z.infer<typeof GenerateKeyRequestSchema>;
+export type GenerateKeyResponse = z.infer<typeof GenerateKeyResponseSchema>;
+export type GetVersionRequest = z.infer<typeof GetVersionRequestSchema>;
+export type GetVersionResponse = z.infer<typeof GetVersionResponseSchema>;
+export type HistoryRequest = z.infer<typeof HistoryRequestSchema>;
+export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
+export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
+export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
+export type JobNextRunUpdatePayload = z.infer<
+    typeof JobNextRunUpdatePayloadSchema
+>;
 
 export interface WsMessage<T = any> {
     type: string;

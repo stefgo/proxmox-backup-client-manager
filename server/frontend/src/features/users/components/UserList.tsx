@@ -1,8 +1,8 @@
 import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef } from '../../../components/DataTable';
-import { DataAction } from '../../../components/DataAction';
-import { DataCard } from '../../../components/DataCard';
+import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
+import { DataAction } from '@stefgo/react-ui-components';
+import { DataCard } from '@stefgo/react-ui-components';
 
 export interface UserData {
     id: number;

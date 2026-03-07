@@ -4,11 +4,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
-import {
-    config,
-    saveConfig,
-    setServerUrl
-} from "../core/Config.js";
+import { config, saveConfig, setServerUrl } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { Logger } from "../core/Logger.js";
 
@@ -60,151 +56,177 @@ export async function startWebServer() {
     });
 
     const sendFileSafe = async (reply: FastifyReply, file: string) => {
-        if (typeof (reply as any).sendFile === 'function') {
+        if (typeof (reply as any).sendFile === "function") {
             return (reply as any).sendFile(file);
         }
-        
-        Logger.error(`reply.sendFile is not a function. Frontend files might be missing. Attempted to send: ${file}`);
+
+        Logger.error(
+            `reply.sendFile is not a function. Frontend files might be missing. Attempted to send: ${file}`,
+        );
         return reply.status(500).send({
             error: "Internal Server Error",
-            message: "Static file serving is not initialized. The 'public' directory might be missing in the distribution.",
-            details: `Attempted to serve: ${file}`
+            message:
+                "Static file serving is not initialized. The 'public' directory might be missing in the distribution.",
+            details: `Attempted to serve: ${file}`,
         });
     };
 
     // Serve status page
-    fastify.get("/status", async (request: FastifyRequest, reply: FastifyReply) => {
-        return sendFileSafe(reply, "status.html");
-    });
+    fastify.get(
+        "/status",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            return sendFileSafe(reply, "status.html");
+        },
+    );
 
     // Serve registration page
-    fastify.get("/register", async (request: FastifyRequest, reply: FastifyReply) => {
-        return sendFileSafe(reply, "register.html");
-    });
+    fastify.get(
+        "/register",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            return sendFileSafe(reply, "register.html");
+        },
+    );
 
     // Check server reachability
-    fastify.get("/api/status/server", async (request: FastifyRequest, reply: FastifyReply) => {
-        const query = request.query as any;
-        const checkUrl = query.url || config.serverUrl;
-        let serverReachable = false;
+    fastify.get(
+        "/api/status/server",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            const query = request.query as any;
+            const checkUrl = query.url || config.serverUrl;
+            let serverReachable = false;
 
-        if (checkUrl) {
-            try {
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-                const checkRes = await fetch(
-                    `${checkUrl}/api/v1/ping`,
-                    {
+            if (checkUrl) {
+                try {
+                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+                    const checkRes = await fetch(`${checkUrl}/api/v1/ping`, {
                         method: "GET",
                         signal: AbortSignal.timeout(2000),
-                    },
-                );
-                if (checkRes.ok) {
-                    serverReachable = true;
+                    });
+                    if (checkRes.ok) {
+                        serverReachable = true;
+                    }
+                } catch (e) {
+                    // Server not reachable
                 }
-            } catch (e) {
-                // Server not reachable
             }
-        }
 
-        return {
-            serverUrl: checkUrl || null,
-            serverReachable,
-        };
-    });
+            return {
+                serverUrl: checkUrl || null,
+                serverReachable,
+            };
+        },
+    );
 
     // Check auth token existence
-    fastify.get("/api/status/auth", async (request: FastifyRequest, reply: FastifyReply) => {
-        return {
-            hasAuthToken: !!config.authToken && config.authToken.trim().length > 0,
-        };
-    });
+    fastify.get(
+        "/api/status/auth",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            return {
+                hasAuthToken:
+                    !!config.authToken && config.authToken.trim().length > 0,
+            };
+        },
+    );
 
     // Check current connection status
-    fastify.get("/api/status/connection", async (request: FastifyRequest, reply: FastifyReply) => {
-        return {
-            connected: Connection.isConnected(),
-        };
-    });
+    fastify.get(
+        "/api/status/connection",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            return {
+                connected: Connection.isConnected(),
+            };
+        },
+    );
 
     // Attempt to establish connection
-    fastify.post("/api/connect", async (request: FastifyRequest, reply: FastifyReply) => {
-        const result = await Connection.connect();
-        return {
-            connected: result.connected,
-            error: result.error,
-        };
-    });
+    fastify.post(
+        "/api/connect",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            const result = await Connection.connect();
+            return {
+                connected: result.connected,
+                error: result.error,
+            };
+        },
+    );
 
     // API to perform registration
-    fastify.post("/api/register", async (request: FastifyRequest, reply: FastifyReply) => {
-        const body = request.body as any;
-        const { token, url } = body;
+    fastify.post(
+        "/api/register",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            const body = request.body as any;
+            const { token, url } = body;
 
-        if (!token || !url) {
-            return reply.status(400).send({ error: "Missing token or url." });
-        }
-
-        Logger.info(`Web UI Registration requested with ${url}...`);
-
-        // Allow self-signed certificates
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-        try {
-            const response = await fetch(`${url}/api/v1/register`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    token,
-                    clientId: config.clientId,
-                    hostname: os.hostname(),
-                }),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                let errorMsg = errorText;
-                try {
-                    const errorJson = JSON.parse(errorText);
-                    if (errorJson.error) errorMsg = errorJson.error;
-                } catch {
-                    // Response is not JSON, use raw text
-                }
+            if (!token || !url) {
                 return reply
                     .status(400)
-                    .send({ error: errorMsg });
+                    .send({ error: "Missing token or url." });
             }
 
-            const data = await response.json();
+            Logger.info(`Web UI Registration requested with ${url}...`);
 
-            if (data.token) {
-                config.authToken = data.token;
-                setServerUrl(url);
-                saveConfig();
-                Logger.info(
-                    "Web Registration successful! Auth Token received.",
-                );
+            // Allow self-signed certificates
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-                return { success: true, message: "Registration successful" };
-            } else {
+            try {
+                const response = await fetch(`${url}/api/v1/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        token,
+                        clientId: config.clientId,
+                        hostname: os.hostname(),
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMsg = errorText;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson.error) errorMsg = errorJson.error;
+                    } catch {
+                        // Response is not JSON, use raw text
+                    }
+                    return reply.status(400).send({ error: errorMsg });
+                }
+
+                const data = await response.json();
+
+                if (data.token) {
+                    config.authToken = data.token;
+                    setServerUrl(url);
+                    saveConfig();
+                    Logger.info(
+                        "Web Registration successful! Auth Token received.",
+                    );
+
+                    return {
+                        success: true,
+                        message: "Registration successful",
+                    };
+                } else {
+                    return reply.status(500).send({
+                        error: "Registration failed: No token received from server.",
+                    });
+                }
+            } catch (e: unknown) {
+                Logger.error({ err: e }, "Web registration error:");
                 return reply.status(500).send({
-                    error: "Registration failed: No token received from server.",
+                    error:
+                        (e instanceof Error ? e.message : String(e)) ||
+                        "Unknown error occurred during registration",
                 });
             }
-        } catch (e: any) {
-            Logger.error("Web registration error:", e);
-            return reply.status(500).send({
-                error:
-                    e.message || "Unknown error occurred during registration",
-            });
-        }
-    });
+        },
+    );
 
     try {
         const port = 3001;
         await fastify.listen({ port, host: "0.0.0.0" });
         Logger.info(`Client Web UI listening on port ${port}`);
     } catch (err) {
-        Logger.error("Failed to start Client Web UI server", err);
+        Logger.error({ err: err }, "Failed to start Client Web UI server");
     }
 }
 
@@ -215,7 +237,7 @@ export async function stopWebServer() {
             await fastifyInstance.close();
             Logger.info("Client Web UI shut down gracefully.");
         } catch (err) {
-            Logger.error("Error shutting down Client Web UI", err);
+            Logger.error({ err: err }, "Error shutting down Client Web UI");
         }
     }
 }

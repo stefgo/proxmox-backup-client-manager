@@ -3,11 +3,33 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
-import db from "../core/Database.js";
+import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
+import { JobRepository } from "../repositories/JobRepository.js";
 import { config } from "../core/Config.js";
-import { WS_EVENTS, ProtocolMap } from "@pbcm/shared";
+import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
 import { Logger } from "../core/Logger.js";
 import { Connection } from "../core/Connection.js";
+
+export interface JobHistoryRow {
+    id: string;
+    job_id: string | null;
+    name: string | null;
+    type: string;
+    status: string;
+    start_time: string;
+    end_time: string | null;
+    exit_code: number | null;
+    stdout: string | null;
+    stderr: string | null;
+}
+
+export interface JobRow {
+    id: string;
+    name: string;
+    config: string;
+    schedule_enabled: number;
+    schedule: string;
+}
 
 export class Executor {
     private static runningJobs = new Set<string>();
@@ -21,18 +43,13 @@ export class Executor {
     static async cleanupRunningJobs() {
         Logger.info("Checking for stale 'running' jobs in history...");
         try {
-            const stmt = db.prepare(
-                "UPDATE job_history SET status = 'abort', end_time = ?, updated_at = CURRENT_TIMESTAMP WHERE status = 'running'",
-            );
-            const result = stmt.run(new Date().toISOString());
+            const changes = JobHistoryRepository.cleanUpRunningJobs();
 
-            if (result.changes > 0) {
-                Logger.info(
-                    `Updated ${result.changes} stale jobs to 'abort' status.`,
-                );
+            if (changes > 0) {
+                Logger.info(`Updated ${changes} stale jobs to 'abort' status.`);
             }
         } catch (e) {
-            Logger.error("Failed to cleanup stale running jobs", e);
+            Logger.error({ err: e }, "Failed to cleanup stale running jobs");
         }
     }
 
@@ -42,24 +59,21 @@ export class Executor {
     static async resumeQueuedJobs() {
         Logger.info("Checking for queued jobs to resume...");
         try {
-            const queuedJobs = db
-                .prepare(
-                    "SELECT id, job_id, name FROM job_history WHERE status = 'queued'",
-                )
-                .all() as any[];
+            const queuedJobs = JobHistoryRepository.findQueuedJobs();
 
             for (const job of queuedJobs) {
-                if (!job.job_id) continue;
+                const jobId = job.job_id;
+                if (!jobId) continue;
                 Logger.info(
-                    `Resuming queued job ${job.job_id} (runId: ${job.id})...`,
+                    `Resuming queued job ${jobId} (runId: ${job.id})...`,
                 );
                 const delayMs = (config.queueDelaySeconds || 5) * 1000;
                 setTimeout(() => {
-                    Executor.executeBackup(job.id, job.job_id);
+                    Executor.executeBackup(job.id, jobId);
                 }, delayMs);
             }
         } catch (e) {
-            Logger.error("Failed to resume queued jobs", e);
+            Logger.error({ err: e }, "Failed to resume queued jobs");
         }
     }
 
@@ -143,7 +157,10 @@ export class Executor {
                 });
 
                 child.on("error", (err) => {
-                    Logger.error(`Failed to start script ${scriptPath}:`, err);
+                    Logger.error(
+                        { err: err },
+                        `Failed to start script ${scriptPath}:`,
+                    );
                     Connection.send(WS_EVENTS.LOG_UPDATE, {
                         jobId: runId,
                         output: `[Script Error] Failed to start: ${err.message}\n`,
@@ -151,8 +168,8 @@ export class Executor {
                     });
                     resolve(false);
                 });
-            } catch (e: any) {
-                Logger.error(`Exception during script execution:`, e);
+            } catch (e: unknown) {
+                Logger.error({ err: e }, `Exception during script execution:`);
                 resolve(false);
             }
         });
@@ -177,9 +194,7 @@ export class Executor {
         let jobConfigData: any = {};
 
         try {
-            const jobConfig = db
-                .prepare("SELECT * FROM job WHERE id = ?")
-                .get(jobId) as any;
+            const jobConfig = JobRepository.findById(jobId);
             if (jobConfig) {
                 jobName = jobConfig.name;
                 jobConfigData = jobConfig.config
@@ -188,16 +203,18 @@ export class Executor {
             } else {
                 throw new Error("Config not found locally for job " + jobId);
             }
-        } catch (e: any) {
-            Logger.error("Job Config Resolution Error:", e);
+        } catch (e: unknown) {
+            Logger.error({ err: e }, "Job Config Resolution Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: new Date().toISOString(),
                 status: "failed",
-                error: "Config resolution failed: " + e.message,
-                stderr: e.message,
+                error:
+                    "Config resolution failed: " +
+                    (e instanceof Error ? e.message : String(e)),
+                stderr: e instanceof Error ? e.message : String(e),
                 type: "backup",
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
@@ -211,23 +228,14 @@ export class Executor {
                 );
                 // Create a history entry for the skipped job
                 try {
-                    db.prepare(
-                        `
-                        INSERT INTO job_history (id, job_id, type, status, start_time, end_time, name, stderr)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    `,
-                    ).run(
+                    JobHistoryRepository.insertSkippedJob(
                         runId,
                         jobId,
-                        "backup",
-                        "skipped",
-                        new Date().toISOString(),
-                        new Date().toISOString(),
                         jobName,
                         "Job already running and another one is already queued.",
                     );
                 } catch (e) {
-                    Logger.error("Failed to log skipped job", e);
+                    Logger.error({ err: e }, "Failed to log skipped job");
                 }
 
                 Connection.send(WS_EVENTS.STATUS_UPDATE, {
@@ -236,7 +244,7 @@ export class Executor {
                     name: jobName || "Unknown Backup",
                     startTime: new Date().toISOString(),
                     endTime: new Date().toISOString(),
-                    status: "skipped",
+                    status: JOB_STATUS.SKIPPED,
                     error: "Job already running and another one is already queued.",
                     type: "backup",
                 });
@@ -249,21 +257,16 @@ export class Executor {
             this.pendingJobs.set(jobId, runId);
 
             try {
-                db.prepare(
-                    `
-                    INSERT INTO job_history (id, job_id, type, status, start_time, name)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `,
-                ).run(
+                JobHistoryRepository.insertNewJob(
                     runId,
                     jobId,
                     "backup",
-                    "queued",
+                    JOB_STATUS.QUEUED,
                     new Date().toISOString(),
-                    jobName || null,
+                    jobName || "",
                 );
             } catch (e) {
-                Logger.error("DB Log Error for queued job", e);
+                Logger.error({ err: e }, "DB Log Error for queued job");
             }
 
             Connection.send(WS_EVENTS.STATUS_UPDATE, {
@@ -271,7 +274,7 @@ export class Executor {
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: new Date().toISOString(),
-                status: "queued",
+                status: JOB_STATUS.QUEUED,
                 type: "backup",
             });
             return;
@@ -299,10 +302,14 @@ export class Executor {
                         "--keyfile",
                         tempKeyfilePath,
                     );
-                } catch (e: any) {
-                    Logger.error("Failed to write encryption key file", e);
+                } catch (e: unknown) {
+                    Logger.error(
+                        { err: e },
+                        "Failed to write encryption key file",
+                    );
                     throw new Error(
-                        "Failed to write encryption key file: " + e.message,
+                        "Failed to write encryption key file: " +
+                            (e instanceof Error ? e.message : String(e)),
                     );
                 }
             }
@@ -334,8 +341,8 @@ export class Executor {
                     }
                 } catch (e) {
                     Logger.error(
+                        { err: e },
                         `Error parsing PBS config for job ${jobName}`,
-                        e,
                     );
                 }
             }
@@ -360,16 +367,18 @@ export class Executor {
             ) {
                 config.backupParams.forEach((param) => args.push(param));
             }
-        } catch (e: any) {
-            Logger.error("Job Config Resolution Error:", e);
+        } catch (e: unknown) {
+            Logger.error({ err: e }, "Job Config Resolution Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: startTime,
                 status: "failed",
-                error: "Config resolution failed: " + e.message,
-                stderr: e.message,
+                error:
+                    "Config resolution failed: " +
+                    (e instanceof Error ? e.message : String(e)),
+                stderr: e instanceof Error ? e.message : String(e),
                 type: "backup",
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
@@ -406,30 +415,15 @@ export class Executor {
         Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         try {
-            const existing = db
-                .prepare("SELECT id FROM job_history WHERE id = ?")
-                .get(runId);
-            if (existing) {
-                db.prepare(
-                    "UPDATE job_history SET status = 'running', start_time = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(startTime, runId);
-            } else {
-                db.prepare(
-                    `
-                    INSERT INTO job_history (id, job_id, type, status, start_time, name)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `,
-                ).run(
-                    runId,
-                    jobId,
-                    jobType,
-                    "running",
-                    startTime,
-                    jobName || null,
-                );
-            }
+            JobHistoryRepository.startRunningJob(
+                runId,
+                jobId,
+                jobType,
+                startTime,
+                jobName || null,
+            );
         } catch (e) {
-            Logger.error("DB Log Error", e);
+            Logger.error({ err: e }, "DB Log Error");
         }
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -463,7 +457,7 @@ export class Executor {
             const chunk = data.toString();
             process.stdout.write(chunk);
             stdoutBuffer += chunk;
-            Logger.debug("stdout", chunk);
+            Logger.debug({ err: chunk }, "stdout");
             Connection.send(WS_EVENTS.LOG_UPDATE, {
                 jobId: runId,
                 output: chunk,
@@ -475,7 +469,7 @@ export class Executor {
             const chunk = data.toString();
             process.stderr.write(chunk);
             stderrBuffer += chunk;
-            Logger.debug("stderr", chunk);
+            Logger.debug({ err: chunk }, "stderr");
             Connection.send(WS_EVENTS.LOG_UPDATE, {
                 jobId: runId,
                 output: chunk,
@@ -489,18 +483,16 @@ export class Executor {
             Logger.info(`Job ${jobId} finished with code ${code}`);
 
             try {
-                db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(
+                JobHistoryRepository.finishJob(
+                    runId,
                     status,
                     endTime,
                     code,
                     stdoutBuffer || null,
                     stderrBuffer || null,
-                    runId,
                 );
             } catch (e) {
-                Logger.error("DB Update Error", e);
+                Logger.error({ err: e }, "DB Update Error");
             }
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -549,17 +541,15 @@ export class Executor {
                         Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
 
                         try {
-                            db.prepare(
-                                "UPDATE job_history SET status = 'failed', stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                            ).run(
+                            JobHistoryRepository.failJob(
+                                runId,
                                 (stderrBuffer || "") +
                                     "\nPost-execution script failed.",
-                                runId,
                             );
                         } catch (e) {
                             Logger.error(
+                                { err: e },
                                 "DB Update Error (Post-Script Failure)",
-                                e,
                             );
                         }
                     }
@@ -581,7 +571,7 @@ export class Executor {
 
         child.on("error", (err: Error) => {
             this.runningJobs.delete(jobId);
-            Logger.error("Spawn Error", err);
+            Logger.error({ err: err }, "Spawn Error");
 
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
@@ -598,14 +588,7 @@ export class Executor {
             Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
 
             try {
-                db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(
-                    "failed",
-                    new Date().toISOString(),
-                    stderrBuffer || null,
-                    jobId,
-                );
+                JobHistoryRepository.failJob(runId, stderrBuffer || "");
             } catch (e) {}
         });
     }
@@ -640,14 +623,14 @@ export class Executor {
                         mode: 0o600,
                     });
                     args.push("--keyfile", tempKeyfilePath);
-                } catch (e: any) {
+                } catch (e: unknown) {
                     Logger.error(
+                        { err: e },
                         "Failed to write restore encryption key file",
-                        e,
                     );
                     throw new Error(
                         "Failed to write restore encryption key file: " +
-                            e.message,
+                            (e instanceof Error ? e.message : String(e)),
                     );
                 }
             }
@@ -672,7 +655,10 @@ export class Executor {
                         env.PBS_FINGERPRINT = repository.fingerprint;
                     }
                 } catch (e) {
-                    Logger.error(`Error parsing PBS config for restore`, e);
+                    Logger.error(
+                        { err: e },
+                        `Error parsing PBS config for restore`,
+                    );
                     throw new Error("Invalid repository configuration");
                 }
             }
@@ -692,15 +678,17 @@ export class Executor {
             ) {
                 config.restoreParams.forEach((param) => args.push(param));
             }
-        } catch (e: any) {
-            Logger.error("Restore Config Error:", e);
+        } catch (e: unknown) {
+            Logger.error({ err: e }, "Restore Config Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 name: jobName,
                 startTime: startTime,
                 status: "failed",
-                error: "Config resolution failed: " + e.message,
-                stderr: e.message,
+                error:
+                    "Config resolution failed: " +
+                    (e instanceof Error ? e.message : String(e)),
+                stderr: e instanceof Error ? e.message : String(e),
                 type: "restore",
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
@@ -712,15 +700,15 @@ export class Executor {
         const jobType = "restore";
 
         try {
-            // We use runId as the ID for history. restore jobs might not have a persistent 'job_id' configuration, so we set job_id to null or a placeholder.
-            db.prepare(
-                `
-                INSERT INTO job_history (id, job_id, type, status, start_time, name)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `,
-            ).run(runId, null, jobType, "running", startTime, jobName);
+            JobHistoryRepository.startRunningJob(
+                runId,
+                null,
+                jobType,
+                startTime,
+                jobName,
+            );
         } catch (e) {
-            Logger.error("DB Log Error", e);
+            Logger.error({ err: e }, "DB Log Error");
         }
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -774,7 +762,10 @@ export class Executor {
                 try {
                     fs.unlinkSync(tempKeyfilePath);
                 } catch (e) {
-                    Logger.error("Failed to delete temp restore keyfile", e);
+                    Logger.error(
+                        { err: e },
+                        "Failed to delete temp restore keyfile",
+                    );
                 }
             }
         };
@@ -785,18 +776,16 @@ export class Executor {
             Logger.info(`Restore ${runId} finished with code ${code}`);
 
             try {
-                db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, exit_code = ?, stdout = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(
+                JobHistoryRepository.finishJob(
+                    runId,
                     status,
                     endTime,
                     code,
                     stdoutBuffer || null,
                     stderrBuffer || null,
-                    runId,
                 );
             } catch (e) {
-                Logger.error("DB Update Error", e);
+                Logger.error({ err: e }, "DB Update Error");
             }
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -839,17 +828,15 @@ export class Executor {
                         Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
 
                         try {
-                            db.prepare(
-                                "UPDATE job_history SET status = 'failed', stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                            ).run(
+                            JobHistoryRepository.failJob(
+                                runId,
                                 (stderrBuffer || "") +
                                     "\nPost-execution script failed.",
-                                runId,
                             );
                         } catch (e) {
                             Logger.error(
+                                { err: e },
                                 "DB Update Error (Post-Script Failure)",
-                                e,
                             );
                         }
                     }
@@ -874,13 +861,13 @@ export class Executor {
             Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
 
             try {
-                db.prepare(
-                    "UPDATE job_history SET status = ?, end_time = ?, stderr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                ).run(
+                JobHistoryRepository.finishJob(
+                    runId,
                     "failed",
                     new Date().toISOString(),
+                    null,
+                    null,
                     stderrBuffer || null,
-                    runId,
                 );
             } catch (e) {}
 
