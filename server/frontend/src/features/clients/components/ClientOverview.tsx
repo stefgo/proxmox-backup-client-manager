@@ -117,7 +117,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await triggerJob(client.id, jobId);
             // Optional: toast or feedback
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };
@@ -125,7 +125,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const handleDeleteJob = async (jobId: string) => {
         try {
             await deleteJob(client.id, jobId);
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };
@@ -135,7 +135,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await updateClient(id, data, token);
             setIsEditing(false);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to update client", e);
             alert(e.message);
         }

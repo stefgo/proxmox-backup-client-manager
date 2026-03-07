@@ -16,6 +16,9 @@ import { config } from "../core/Config.js";
 import { Executor } from "./Executor.js";
 import { Logger } from "../core/Logger.js";
 import { Connection } from "../core/Connection.js";
+import { JobRepository } from "../repositories/JobRepository.js";
+import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
+import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 
 export class Handlers {
     static handleRunJob(payload: RunJobPayload) {
@@ -42,11 +45,11 @@ export class Handlers {
             }));
 
             Connection.send(WS_EVENTS.FS_LIST, { requestId, files } as any);
-        } catch (err: any) {
-            Logger.error("FS List Error", err);
+        } catch (err: unknown) {
+            Logger.error({ err: err }, "FS List Error");
             Connection.send(WS_EVENTS.FS_LIST, {
                 requestId,
-                error: err.message,
+                error: err instanceof Error ? err.message : String(err),
             } as any);
         }
     }
@@ -101,61 +104,26 @@ export class Handlers {
         });
 
         child.on("error", (err) => {
-            Logger.error("Version Check Error", err);
+            Logger.error({ err: err }, "Version Check Error");
             Connection.send(WS_EVENTS.GET_VERSION, {
                 requestId,
                 version: "",
-                error: err.message,
+                error: err instanceof Error ? err.message : String(err),
             } as any);
         });
     }
 
     static async handleJobList(payload: ProtocolMap["JOB_LIST_CONFIG"]["req"]) {
         try {
-            const rawJobs = db
-                .prepare(
-                    `
-                SELECT j.*, s.last_run, s.next_run 
-                FROM job j 
-                LEFT JOIN job_schedule_state s ON j.id = s.id 
-                ORDER BY j.created_at DESC
-            `,
-                )
-                .all() as any[];
-
-            const jobs: BackupJob[] = rawJobs.map((row) => {
-                let config: any = {};
-                try {
-                    config = row.config ? JSON.parse(row.config) : {};
-                } catch (e) {}
-
-                const archives: any[] = config.archives || [];
-
-                let schedule: ScheduleConfig | null = null;
-                try {
-                    if (row.schedule) schedule = JSON.parse(row.schedule);
-                } catch (e) {}
-
-                return {
-                    id: row.id,
-                    name: row.name,
-                    archives,
-                    schedule,
-                    scheduleEnabled: Boolean(row.schedule_enabled),
-                    createdAt: row.created_at,
-                    nextRunAt: row.next_run,
-                    lastRunAt: row.last_run,
-                    repository: config.repository,
-                    encryption: config.encryption,
-                };
-            });
+            const jobs: BackupJob[] =
+                await JobRepository.getAllWithScheduleState();
 
             Connection.send(WS_EVENTS.JOB_LIST_CONFIG, {
                 requestId: payload.requestId,
                 jobs,
             } as any);
-        } catch (err: any) {
-            Logger.error("Job List Error", err);
+        } catch (err: unknown) {
+            Logger.error({ err: err }, "Job List Error");
         }
     }
 
@@ -183,48 +151,21 @@ export class Handlers {
             const scheduleStr = schedule ? JSON.stringify(schedule) : null;
             const enabledInt = scheduleEnabled ? 1 : 0;
 
-            if (id) {
-                db.prepare(
-                    `
-                    UPDATE job 
-                    SET name = ?, config = ?, schedule = ?, schedule_enabled = ?, updated_at = datetime('now') 
-                    WHERE id = ?
-                `,
-                ).run(name, configStr, scheduleStr, enabledInt, id);
-            } else {
-                db.prepare(
-                    `
-                    INSERT INTO job (id, name, config, schedule, schedule_enabled) 
-                    VALUES (?, ?, ?, ?, ?)
-                `,
-                ).run(jobId, name, configStr, scheduleStr, enabledInt);
-            }
+            JobRepository.upsert(
+                jobId,
+                name || "Unknown Job",
+                configStr,
+                enabledInt,
+                scheduleStr,
+            );
 
             if (scheduleEnabled && nextRunAt) {
-                const existingState = db
-                    .prepare(
-                        `
-                        SELECT id 
-                        FROM job_schedule_state 
-                        WHERE id = ?`,
-                    )
-                    .get(jobId);
+                const existingState =
+                    JobScheduleStateRepository.findById(jobId);
                 if (existingState) {
-                    db.prepare(
-                        `
-                        UPDATE job_schedule_state 
-                        SET next_run = ? 
-                        WHERE id = ?
-                    `,
-                    ).run(nextRunAt, jobId);
+                    JobScheduleStateRepository.updateNextRun(jobId, nextRunAt);
                 } else {
-                    db.prepare(
-                        `
-                        INSERT INTO job_schedule_state 
-                        (id, next_run, last_run) 
-                        VALUES (?, ?, ?)
-                    `,
-                    ).run(jobId, nextRunAt, null);
+                    JobScheduleStateRepository.insert(jobId, nextRunAt, null);
                 }
             }
 
@@ -232,28 +173,26 @@ export class Handlers {
                 requestId: payload.requestId,
                 success: true,
             } as any);
-        } catch (err: any) {
-            Logger.error("Job Save Error", err);
+        } catch (err: unknown) {
+            Logger.error({ err: err }, "Job Save Error");
             Connection.send(WS_EVENTS.JOB_SAVE_CONFIG, {
                 requestId: payload.requestId,
                 success: false,
-                error: err.message,
+                error: err instanceof Error ? err.message : String(err),
             } as any);
         }
     }
 
     static handleJobDelete(payload: ProtocolMap["JOB_DELETE_CONFIG"]["req"]) {
         try {
-            db.prepare(`DELETE FROM job WHERE id = ?`).run(payload.jobId);
-            db.prepare(`DELETE FROM job_schedule_state WHERE id = ?`).run(
-                payload.jobId,
-            );
+            JobRepository.delete(payload.jobId);
+            JobScheduleStateRepository.delete(payload.jobId);
             Connection.send(WS_EVENTS.JOB_DELETE_CONFIG, {
                 requestId: payload.requestId,
                 success: true,
             } as any);
-        } catch (err: any) {
-            Logger.error("Job Delete Error", err);
+        } catch (err: unknown) {
+            Logger.error({ err: err }, "Job Delete Error");
         }
     }
 
@@ -286,7 +225,7 @@ export class Handlers {
         let hasErrored = false;
         child.on("error", (err: Error) => {
             hasErrored = true;
-            Logger.error("Generate Key Error", err);
+            Logger.error({ err: err }, "Generate Key Error");
             Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
                 requestId,
                 success: false,
@@ -314,11 +253,13 @@ export class Handlers {
                     success: true,
                     keyContent,
                 } as any);
-            } catch (e: any) {
+            } catch (e: unknown) {
                 Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
                     requestId,
                     success: false,
-                    error: "Failed to read generated key: " + e.message,
+                    error:
+                        "Failed to read generated key: " +
+                        (e instanceof Error ? e.message : String(e)),
                 } as any);
             }
         });
@@ -326,18 +267,10 @@ export class Handlers {
 
     static handleHistory(payload: ProtocolMap["HISTORY"]["req"]) {
         try {
-            const rawHistory = db
-                .prepare(
-                    `
-                    SELECT * 
-                    FROM job_history 
-                    ORDER BY start_time DESC LIMIT 50
-                    `,
-                )
-                .all() as any[];
+            const rawHistory = JobHistoryRepository.getRecentHistory(50);
             const history = rawHistory.map((h) => ({
                 ...h,
-                jobConfigId: h.job_config_id,
+                jobConfigId: h.job_id,
                 startTime: h.start_time,
                 endTime: h.end_time,
                 exitCode: h.exit_code,
@@ -346,8 +279,8 @@ export class Handlers {
                 requestId: payload.requestId,
                 history,
             } as any);
-        } catch (err: any) {
-            Logger.error("History Error", err);
+        } catch (err: unknown) {
+            Logger.error({ err: err }, "History Error");
         }
     }
 }

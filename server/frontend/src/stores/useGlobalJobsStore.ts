@@ -73,7 +73,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 lastHistory: initLastHistory,
                 isLoading: false,
             });
-        } catch (e: any) {
+        } catch (e: unknown) {
             set({ error: e.message, isLoading: false });
         }
     },

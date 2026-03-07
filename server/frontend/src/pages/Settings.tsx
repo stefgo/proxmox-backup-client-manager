@@ -65,7 +65,7 @@ export default function Settings() {
             if (!response.ok) {
                 throw new Error('Failed to save settings');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         } finally {
             setIsSaving(false);
@@ -86,7 +86,7 @@ export default function Settings() {
             } else {
                 throw new Error('Failed to trigger cleanup');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         } finally {
             setIsCleaning(false);

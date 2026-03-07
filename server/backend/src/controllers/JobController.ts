@@ -18,8 +18,10 @@ export class JobController {
                 { requestId: request.id },
             );
             return payload.jobs;
-        } catch (e: any) {
-            return reply.code(500).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(500)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 
@@ -59,8 +61,10 @@ export class JobController {
                 return { status: "saved" };
             }
             throw new Error(result.error);
-        } catch (e: any) {
-            return reply.code(500).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(500)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
     static async delete(request: FastifyRequest, reply: FastifyReply) {
@@ -88,8 +92,10 @@ export class JobController {
                 return { status: "deleted" };
             }
             throw new Error(result.error);
-        } catch (e: any) {
-            return reply.code(500).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(500)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 
@@ -106,8 +112,10 @@ export class JobController {
                 jobId,
             });
             return { status: "triggered", runId };
-        } catch (e: any) {
-            return reply.code(400).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(400)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 
@@ -139,8 +147,10 @@ export class JobController {
                 encryption,
             });
             return { status: "triggered", runId };
-        } catch (e: any) {
-            return reply.code(400).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(400)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 
@@ -159,8 +169,10 @@ export class JobController {
                     keyContent: result.keyContent,
                 };
             throw new Error(result.error);
-        } catch (e: any) {
-            return reply.code(500).send({ error: e.message });
+        } catch (e: unknown) {
+            return reply
+                .code(500)
+                .send({ error: e instanceof Error ? e.message : String(e) });
         }
     }
 

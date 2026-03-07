@@ -75,7 +75,7 @@ export class Cleanup {
                 `Cleanup completed. Deleted ${historyResult.changes} job history records and ${orphanResult.changes + stateResult.changes} schedule state entries.`,
             );
         } catch (e) {
-            Logger.error("Failed to run database cleanup", e);
+            Logger.error({ err: e }, "Failed to run database cleanup");
         }
     }
 }

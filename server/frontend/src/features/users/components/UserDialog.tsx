@@ -60,7 +60,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
                 auth_methods: authMethods.join(',')
             });
             onClose();
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError(err.message || 'Failed to save user');
         } finally {
             setIsLoading(false);

@@ -32,7 +32,7 @@ export const useClientFileSystemStore = create<ClientFileSystemState>((set) => (
                  const err = await res.json();
                  set({ error: err.error });
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
              set({ error: e.message });
         } finally {
             set({ isLoadingFiles: false });

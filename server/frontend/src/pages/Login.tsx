@@ -42,7 +42,7 @@ export default function Login() {
             if (!res.ok) throw new Error(data.error || 'Login failed');
 
             login(data.token);
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError(err.message || 'An error occurred');
         } finally {
             setIsLoading(false);

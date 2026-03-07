@@ -1,8 +1,8 @@
 import { WebSocket } from "ws";
-import db from "../core/Database.js";
 import crypto, { randomUUID } from "crypto";
 import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
 import { logger } from "../core/Logger.js";
+import { ClientRepository } from "../repositories/ClientRepository.js";
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
@@ -42,9 +42,9 @@ export class ProxyService {
             );
             this.jobCache.set(clientId, payload.jobs);
             // Optional: Broadcast a separate JOB cache update if frontend listens for it
-        } catch (e: any) {
-            logger.warn(
-                { clientId, err: e.message },
+        } catch (e: unknown) {
+            logger.error(
+                { clientId, err: e instanceof Error ? e.message : String(e) },
                 "Failed to refresh job cache for client",
             );
         }
@@ -87,7 +87,7 @@ export class ProxyService {
     }
 
     static getClientsWithStatus() {
-        const clients = db.prepare("SELECT * FROM clients").all() as any[];
+        const clients = ClientRepository.findAll();
         return clients.map((client) => ({
             id: client.id,
             hostname: client.hostname,
@@ -104,9 +104,10 @@ export class ProxyService {
 
     static updateClient(id: string, data: { displayName?: string }) {
         if (data.displayName !== undefined) {
-            const info = db
-                .prepare("UPDATE clients SET display_name = ? WHERE id = ?")
-                .run(data.displayName, id);
+            const info = ClientRepository.updateDisplayName(
+                id,
+                data.displayName,
+            );
             if (info.changes > 0) {
                 this.broadcastClientUpdate();
                 return true;

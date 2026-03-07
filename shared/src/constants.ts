@@ -30,6 +30,8 @@ export const JOB_STATUS = {
     SUCCESS: "success",
     FAILED: "failed",
     ABORTED: "abort",
+    SKIPPED: "skipped",
+    QUEUED: "queued",
 };
 
 export const CLIENT_STATUS = {

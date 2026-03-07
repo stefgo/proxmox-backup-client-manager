@@ -106,7 +106,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 const data = await res.json();
                 setError('Failed to start restore: ' + (data.error || 'Unknown error'));
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error(e);
             setError('Error triggering restore: ' + e.message);
         }
