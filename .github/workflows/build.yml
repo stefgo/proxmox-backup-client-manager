@@ -89,6 +89,9 @@ jobs:
                   # Pass the calculated version as a build argument
                   build-args: |
                       APP_VERSION=${{ steps.version.outputs.version }}
+                  # Pass GitHub token as secret for npm authentication
+                  secrets: |
+                      npm_token=${{ secrets.GITHUB_TOKEN }}
                   # Nutzt die automatisch generierten Tags von oben
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
