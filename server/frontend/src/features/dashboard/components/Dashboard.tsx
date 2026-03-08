@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, lazy, Suspense } from "react";
 import {
     useNavigate,
     useLocation,
@@ -9,19 +9,17 @@ import {
 // Components
 // Layout & Components
 import { DashboardLayout } from "../layouts/DashboardLayout";
-import { TokenOverview } from "../../tokens/components/TokenOverview";
 
-// Managed Components
-import { ManagedClients } from "../../clients/components/ManagedClients";
-import { ManagedRepositories } from "../../repositories/components/ManagedRepositories";
-import { ManagedJobs } from "../../jobs/components/ManagedJobs";
-import { HistoryOverview } from "../../history/components/HistoryOverview";
-
-// Pages
-import { ClientOverview } from "../../clients/components/ClientOverview";
-import { RepositoryOverview } from "../../repositories/components/RepositoryOverview";
-import { UserOverview } from "../../users/components/UserOverview";
-import Settings from "../../../pages/Settings";
+// Lazy Loaded Components
+const TokenOverview = lazy(() => import("../../tokens/components/TokenOverview").then(m => ({ default: m.TokenOverview })));
+const ManagedClients = lazy(() => import("../../clients/components/ManagedClients").then(m => ({ default: m.ManagedClients })));
+const ManagedRepositories = lazy(() => import("../../repositories/components/ManagedRepositories").then(m => ({ default: m.ManagedRepositories })));
+const ManagedJobs = lazy(() => import("../../jobs/components/ManagedJobs").then(m => ({ default: m.ManagedJobs })));
+const HistoryOverview = lazy(() => import("../../history/components/HistoryOverview").then(m => ({ default: m.HistoryOverview })));
+const ClientOverview = lazy(() => import("../../clients/components/ClientOverview").then(m => ({ default: m.ClientOverview })));
+const RepositoryOverview = lazy(() => import("../../repositories/components/RepositoryOverview").then(m => ({ default: m.RepositoryOverview })));
+const UserOverview = lazy(() => import("../../users/components/UserOverview").then(m => ({ default: m.UserOverview })));
+const Settings = lazy(() => import("../../../pages/Settings"));
 
 // Hooks
 import { useAuth } from "../../auth/AuthContext";
@@ -134,61 +132,63 @@ export default function Dashboard() {
             selectedClient={selectedClient}
             stats={stats}
         >
-            {view === "clients" && (
-                <ManagedClients
-                    clients={clients}
-                    onSelect={(c) =>
-                        c ? navigate(`/client/${c.id}`) : navigate("/")
-                    }
-                    onRefresh={() => {
-                        if (token) fetchClients(token);
-                    }}
-                    onDelete={(id) => {
-                        if (token) deleteClient(id, token);
-                    }}
-                    onUpdate={(id, data) =>
-                        token ? updateClient(id, data, token) : Promise.reject()
-                    }
-                />
-            )}
+            <Suspense fallback={<div className="flex h-full items-center justify-center p-8 text-muted-foreground">Loading component...</div>}>
+                {view === "clients" && (
+                    <ManagedClients
+                        clients={clients}
+                        onSelect={(c) =>
+                            c ? navigate(`/client/${c.id}`) : navigate("/")
+                        }
+                        onRefresh={() => {
+                            if (token) fetchClients(token);
+                        }}
+                        onDelete={(id) => {
+                            if (token) deleteClient(id, token);
+                        }}
+                        onUpdate={(id, data) =>
+                            token ? updateClient(id, data, token) : Promise.reject()
+                        }
+                    />
+                )}
 
-            {view === "repositories" && (
-                <ManagedRepositories
-                    repositories={repos}
-                    onSelect={(r) =>
-                        r ? navigate(`/repository/${r.id}`) : navigate("/")
-                    }
-                    onAdd={(r) =>
-                        token ? addRepository(r, token) : Promise.reject()
-                    }
-                    onUpdate={(id, r) =>
-                        token
-                            ? updateRepository(id, r, token)
-                            : Promise.reject()
-                    }
-                    onDelete={(id) =>
-                        token ? deleteRepository(id, token) : Promise.reject()
-                    }
-                />
-            )}
+                {view === "repositories" && (
+                    <ManagedRepositories
+                        repositories={repos}
+                        onSelect={(r) =>
+                            r ? navigate(`/repository/${r.id}`) : navigate("/")
+                        }
+                        onAdd={(r) =>
+                            token ? addRepository(r, token) : Promise.reject()
+                        }
+                        onUpdate={(id, r) =>
+                            token
+                                ? updateRepository(id, r, token)
+                                : Promise.reject()
+                        }
+                        onDelete={(id) =>
+                            token ? deleteRepository(id, token) : Promise.reject()
+                        }
+                    />
+                )}
 
-            {view === "jobs" && <ManagedJobs />}
+                {view === "jobs" && <ManagedJobs />}
 
-            {view === "history" && <HistoryOverview />}
+                {view === "history" && <HistoryOverview />}
 
-            {view === "tokens" && <TokenOverview />}
+                {view === "tokens" && <TokenOverview />}
 
-            {view === "users" && <UserOverview />}
+                {view === "users" && <UserOverview />}
 
-            {view === "settings" && <Settings />}
+                {view === "settings" && <Settings />}
 
-            {view === "client-detail" && selectedClient && (
-                <ClientOverview client={selectedClient} />
-            )}
+                {view === "client-detail" && selectedClient && (
+                    <ClientOverview client={selectedClient} />
+                )}
 
-            {view === "repository-detail" && selectedRepo && (
-                <RepositoryOverview repo={selectedRepo} />
-            )}
+                {view === "repository-detail" && selectedRepo && (
+                    <RepositoryOverview repo={selectedRepo} />
+                )}
+            </Suspense>
         </DashboardLayout>
     );
 }

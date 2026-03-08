@@ -7,25 +7,10 @@ import { RepositoryController } from "../controllers/RepositoryController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { HistoryController } from "../controllers/HistoryController.js";
-import db from "../core/Database.js";
-import crypto from "crypto";
-
-import { ProxyService } from "../services/ProxyService.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
-    // Auth (No prefix for logic reasons or global? Usually mapped to /api/login in frontend?
-    // Wait, original file had `fastify.post('/login'...)`. If I wrap everything in /api/v1, then login becomes /api/v1/login.
-    // The frontend calls `/api/login` (implied by `vite.config.ts` proxy usually mapping `/api` -> `server`).
-    // If I add `/v1`, I should likely keep the base path relative to where `apiRoutes` is registered.
-    // The user imports this in `server.ts` or `app.ts`?
-    // Assuming `apiRoutes` is registered under `/api`.
-    // If I add `prefix: '/v1'`, then it becomes `/api/v1/...`.
-    // Let's check how `apiRoutes` is used. But I don't see `server.ts`.
-    // I will assume `apiRoutes` is the main plugin.
-    // I will explicitly set prefix on the register call.
-
     // Auth
-    fastify.post("/login", AuthController.login); // Keeping this top level relative to plugin
+    fastify.post("/login", AuthController.login);
     fastify.get("/auth/config", AuthController.getConfig);
     fastify.get("/auth/login", AuthController.oidcLogin);
     fastify.get("/auth/callback", AuthController.oidcCallback);
