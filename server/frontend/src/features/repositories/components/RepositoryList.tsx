@@ -1,7 +1,7 @@
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
-import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataTableDef, Badge } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
@@ -33,10 +33,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             tableItemRender: (repo) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
-                            : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                                : 'bg-gray-400 dark:bg-[#444]'
-                            }`} />
+                        <Badge variant={repo.status === 'online' ? 'success' : repo.status === 'loading' ? 'warning' : 'gray'} size="sm">
+                            {repo.status}
+                        </Badge>
                         <div className={`text-sm text-gray-900 dark:text-white ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {repo.baseUrl}:{repo.datastore}
                         </div>
@@ -87,10 +86,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
-                        : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                            : 'bg-gray-400 dark:bg-[#444]'
-                        }`} />
+                    <Badge variant={repo.status === 'online' ? 'success' : repo.status === 'loading' ? 'warning' : 'gray'} size="sm">
+                        {repo.status}
+                    </Badge>
                     <div className={`font-inherit text-gray-900 dark:text-white ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>

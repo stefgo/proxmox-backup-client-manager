@@ -77,8 +77,9 @@ export default defineConfig(({ command }) => ({
     },
     resolve: {
         alias: {
-            // Only alias to local source during development (vite dev) AND if VITE_USE_LOCAL_UI is not 'false'
-            ...(command === "serve" && process.env.VITE_USE_LOCAL_UI !== "false"
+            // Always alias to local source during development (vite dev) AND build
+            // OR if VITE_USE_LOCAL_UI is not 'false'
+            ...(process.env.VITE_USE_LOCAL_UI !== "false"
                 ? {
                       "@stefgo/react-ui-components":
                           "/Users/stefan/Entwicklung/react-ui-components/src/index.ts",
@@ -86,5 +87,18 @@ export default defineConfig(({ command }) => ({
                 : {}),
         },
         dedupe: ["react", "react-dom"],
+    },
+    build: {
+        outDir: "../dist/public",
+        emptyOutDir: true,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    "vendor-react": ["react", "react-dom", "react-router-dom"],
+                    "vendor-icons": ["lucide-react"],
+                    "vendor-utils": ["date-fns", "zustand"],
+                },
+            },
+        },
     },
 }));

@@ -26,4 +26,4 @@ export const loggerOptions = {
         : undefined,
 };
 
-export const Logger = pino(loggerOptions);
+export const logger = pino(loggerOptions);

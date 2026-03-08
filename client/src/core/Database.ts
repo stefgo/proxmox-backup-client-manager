@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { Logger } from "./Logger.js";
+import { logger } from "./logger.js";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_rename_history.js";
@@ -20,7 +20,7 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const dbPath = path.join(DATA_DIR, "client.db");
 const db = new Database(dbPath);
-Logger.info(`Database opened: ${dbPath}`);
+logger.info(`Database opened: ${dbPath}`);
 
 // Run umzug migrations
 const migrator = new Umzug({
@@ -65,9 +65,9 @@ const migrator = new Umzug({
 export async function initDatabase() {
     try {
         await migrator.up();
-        Logger.info("Database migrations executed successfully.");
+        logger.info("Database migrations executed successfully.");
     } catch (e) {
-        Logger.error({ err: e }, "Failed to run database migrations");
+        logger.error({ err: e }, "Failed to run database migrations");
         throw e;
     }
 }

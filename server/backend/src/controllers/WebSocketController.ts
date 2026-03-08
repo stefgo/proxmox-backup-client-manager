@@ -11,7 +11,7 @@ import {
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { isIpInNetworks } from "../utils/NetworkUtils.js";
+import { isIpInNetworks } from "../utils/networkUtils.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 

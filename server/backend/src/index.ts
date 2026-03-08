@@ -23,7 +23,7 @@ await initOIDC();
 await AuthService.initializeAdmin(); // Ensure admin user
 await CleanupService.initialize();
 
-import { loggerOptions } from "./core/Logger.js";
+import { loggerOptions } from "./core/logger.js";
 
 const server = Fastify({
     // Trust Proxy is required for correct IP detection behind Traefik

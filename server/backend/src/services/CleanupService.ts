@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import db from "../core/Database.js";
 import { SettingsService } from "./SettingsService.js";
-import { logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 
 export class CleanupService {
     static async initialize() {

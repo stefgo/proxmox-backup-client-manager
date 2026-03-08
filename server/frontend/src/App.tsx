@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Dashboard from './features/dashboard/components/Dashboard';
+
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./features/dashboard/components/Dashboard'));
 import { ThemeProvider } from './features/dashboard/context/ThemeContext';
 import { AuthProvider, useAuth } from './features/auth/AuthContext';
 import { WebSocketProvider } from './features/dashboard/context/WebSocketContext';
@@ -34,17 +35,19 @@ function AppRoutes() {
   const { token } = useAuth();
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={token ? <Navigate to="/" /> : <Login />} />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
+        <Routes>
+          <Route path="/login" element={token ? <Navigate to="/" /> : <Login />} />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

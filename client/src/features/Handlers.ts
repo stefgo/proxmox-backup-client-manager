@@ -14,7 +14,7 @@ import {
 } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Executor } from "./Executor.js";
-import { Logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
@@ -31,7 +31,7 @@ export class Handlers {
 
     static handleFsList(payload: ProtocolMap["FS_LIST"]["req"]) {
         const { path: reqPath, requestId } = payload;
-        Logger.info(`Listing directory: ${reqPath}`);
+        logger.info(`Listing directory: ${reqPath}`);
 
         try {
             const safePath = path.resolve(reqPath);
@@ -46,7 +46,7 @@ export class Handlers {
 
             Connection.send(WS_EVENTS.FS_LIST, { requestId, files } as any);
         } catch (err: unknown) {
-            Logger.error({ err: err }, "FS List Error");
+            logger.error({ err: err }, "FS List Error");
             Connection.send(WS_EVENTS.FS_LIST, {
                 requestId,
                 error: err instanceof Error ? err.message : String(err),
@@ -60,7 +60,7 @@ export class Handlers {
         const args: string[] = ["version", "--output-format", "json"];
         const env = { ...process.env };
 
-        Logger.info(`Checking version: ${command} ${args.join(" ")}`);
+        logger.info(`Checking version: ${command} ${args.join(" ")}`);
 
         const child = spawn(command, args, { env });
         let stdout = "";
@@ -104,7 +104,7 @@ export class Handlers {
         });
 
         child.on("error", (err) => {
-            Logger.error({ err: err }, "Version Check Error");
+            logger.error({ err: err }, "Version Check Error");
             Connection.send(WS_EVENTS.GET_VERSION, {
                 requestId,
                 version: "",
@@ -123,7 +123,7 @@ export class Handlers {
                 jobs,
             } as any);
         } catch (err: unknown) {
-            Logger.error({ err: err }, "Job List Error");
+            logger.error({ err: err }, "Job List Error");
         }
     }
 
@@ -174,7 +174,7 @@ export class Handlers {
                 success: true,
             } as any);
         } catch (err: unknown) {
-            Logger.error({ err: err }, "Job Save Error");
+            logger.error({ err: err }, "Job Save Error");
             Connection.send(WS_EVENTS.JOB_SAVE_CONFIG, {
                 requestId: payload.requestId,
                 success: false,
@@ -192,7 +192,7 @@ export class Handlers {
                 success: true,
             } as any);
         } catch (err: unknown) {
-            Logger.error({ err: err }, "Job Delete Error");
+            logger.error({ err: err }, "Job Delete Error");
         }
     }
 
@@ -225,7 +225,7 @@ export class Handlers {
         let hasErrored = false;
         child.on("error", (err: Error) => {
             hasErrored = true;
-            Logger.error({ err: err }, "Generate Key Error");
+            logger.error({ err: err }, "Generate Key Error");
             Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
                 requestId,
                 success: false,
@@ -280,7 +280,7 @@ export class Handlers {
                 history,
             } as any);
         } catch (err: unknown) {
-            Logger.error({ err: err }, "History Error");
+            logger.error({ err: err }, "History Error");
         }
     }
 }
