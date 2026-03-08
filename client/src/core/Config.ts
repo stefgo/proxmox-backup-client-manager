@@ -3,7 +3,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
-import { Logger } from "./Logger.js";
+import { logger } from "./logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");
@@ -59,9 +59,9 @@ export function saveConfig(): void {
     try {
         syncDoc();
         fs.writeFileSync(CONFIG_PATH, configDoc.toString());
-        Logger.info("Configuration saved securely with preserved comments.");
+        logger.info("Configuration saved securely with preserved comments.");
     } catch (e) {
-        Logger.error({ err: e }, "Failed to save config.yaml");
+        logger.error({ err: e }, "Failed to save config.yaml");
     }
 }
 
@@ -80,7 +80,7 @@ export function setServerUrl(url: string) {
         }
         config.websocketURL = urlObj.toString();
     } catch (e) {
-        Logger.error("Failed to parse server URL for websocket: " + url);
+        logger.error("Failed to parse server URL for websocket: " + url);
     }
 }
 
@@ -109,7 +109,7 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (loadedConfig.serverUrl) {
             setServerUrl(loadedConfig.serverUrl);
-            Logger.info("Using Server URL from config: " + config.serverUrl);
+            logger.info("Using Server URL from config: " + config.serverUrl);
         }
 
         if (loadedConfig.logLevel) {
@@ -140,11 +140,11 @@ if (fs.existsSync(CONFIG_PATH)) {
             config.postScript = loadedConfig.postScript;
         }
     } catch (e) {
-        Logger.error({ err: e }, "Failed to load config.yaml");
+        logger.error({ err: e }, "Failed to load config.yaml");
     }
 } else {
     // If config file doesn't exist, use defaults
-    Logger.info("No config.yaml found. Using defaults.");
+    logger.info("No config.yaml found. Using defaults.");
 }
 
-Logger.level = config.logLevel;
+logger.level = config.logLevel;

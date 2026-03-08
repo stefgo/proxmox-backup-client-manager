@@ -6,7 +6,7 @@ import { WS_EVENTS, WsMessage, ProtocolMap } from "@pbcm/shared";
 import { Handlers } from "../features/Handlers.js";
 import db from "./Database.js";
 
-import { Logger } from "./Logger.js";
+import { logger } from "./logger.js";
 import { VERSION } from "./Version.js";
 
 export class Connection {
@@ -50,7 +50,7 @@ export class Connection {
         }
 
         if (!config.websocketURL) {
-            Logger.warn("No Websocket URL configured. Connection skipped.");
+            logger.warn("No Websocket URL configured. Connection skipped.");
             return Promise.resolve({
                 connected: false,
                 error: "No Websocket URL configured.",
@@ -58,7 +58,7 @@ export class Connection {
         }
 
         if (!config.authToken) {
-            Logger.warn("No Token. Please register first. Connection skipped.");
+            logger.warn("No Token. Please register first. Connection skipped.");
             return Promise.resolve({
                 connected: false,
                 error: "No Token. Register first.",
@@ -76,7 +76,7 @@ export class Connection {
         const wsUrl = new URL(config.websocketURL);
         wsUrl.searchParams.set("token", config.authToken);
 
-        Logger.info(`Connecting to ${wsUrl.toString()}...`);
+        logger.info(`Connecting to ${wsUrl.toString()}...`);
 
         const ws = new WebSocket(wsUrl.toString());
         this.wsInstance = ws;
@@ -87,7 +87,7 @@ export class Connection {
             function heartbeat() {
                 clearTimeout(pingTimeout);
                 pingTimeout = setTimeout(() => {
-                    Logger.warn(
+                    logger.warn(
                         "WebSocket heartbeat timeout. Terminating connection.",
                     );
                     ws.terminate();
@@ -103,7 +103,7 @@ export class Connection {
 
             ws.on("open", () => {
                 heartbeat();
-                Logger.info("Connected to server");
+                logger.info("Connected to server");
                 Connection.send(WS_EVENTS.AUTH, {
                     hostname: os.hostname(),
                     version: VERSION,
@@ -117,14 +117,14 @@ export class Connection {
                 try {
                     const message = JSON.parse(data.toString()) as WsMessage;
                     if (message.type !== WS_EVENTS.LOG_UPDATE) {
-                        Logger.debug("Received: " + message.type);
+                        logger.debug("Received: " + message.type);
                     }
 
                     // Route messages to appropriate handlers based on event type
                     switch (message.type) {
                         case WS_EVENTS.AUTH_SUCCESS:
                             clearTimeout(timeout);
-                            Logger.info("Authenticated successfully");
+                            logger.info("Authenticated successfully");
 
                             // Delta Sync History
                             try {
@@ -161,7 +161,7 @@ export class Connection {
                                         }),
                                     );
 
-                                    Logger.info(
+                                    logger.info(
                                         `Syncing ${formattedHistory.length} history records to server...`,
                                     );
                                     Connection.send(WS_EVENTS.SYNC_HISTORY, {
@@ -169,7 +169,7 @@ export class Connection {
                                     });
                                 }
                             } catch (e) {
-                                Logger.error({ err: e }, "Failed to sync history");
+                                logger.error({ err: e }, "Failed to sync history");
                             }
 
                             resolve({ connected: true });
@@ -203,7 +203,7 @@ export class Connection {
                             break;
                     }
                 } catch (err) {
-                    Logger.error({ err: err }, "Failed to parse message");
+                    logger.error({ err: err }, "Failed to parse message");
                 }
             });
 
@@ -212,7 +212,7 @@ export class Connection {
                 clearTimeout(timeout);
                 this.wsInstance = null;
                 const reasonStr = reason.toString() || "No reason provided";
-                Logger.warn(
+                logger.warn(
                     `Disconnected (Code: ${code}, Reason: ${reasonStr}). Reconnecting in 5s...`,
                 );
                 resolve({
@@ -223,7 +223,7 @@ export class Connection {
             });
 
             ws.on("error", (err: Error) => {
-                Logger.error("Connection error: " + err.message);
+                logger.error("Connection error: " + err.message);
                 ws.close();
             });
         });
