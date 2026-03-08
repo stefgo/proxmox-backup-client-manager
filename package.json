@@ -1,30 +1,30 @@
 {
-  "name": "proxmox-backup-client-manager",
-  "version": "1.0.0",
-  "license": "MIT",
-  "private": true,
-  "workspaces": [
-    "shared",
-    "client",
-    "server/backend",
-    "server/frontend"
-  ],
-  "scripts": {
-    "start:server": "npm run start -w server/backend",
-    "start:frontend": "npm run start -w server/frontend",
-    "start:client": "npm run start -w client",
-    "dev:server": "npm run dev -w server/backend",
-    "dev:frontend": "npm run dev -w server/frontend",
-    "register:client": "npm run register -w client --",
-    "build": "npm run build -w shared && npm run build --workspaces",
-    "clean": "rm -rf shared/dist client/dist server/backend/dist server/frontend/dist"
-  },
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "openid-client": "^6.8.2"
-  },
-  "devDependencies": {
-    "@fastify/static": "^9.0.0",
-    "@types/bcryptjs": "^2.4.6"
-  }
+    "name": "proxmox-backup-client-manager",
+    "version": "1.0.0",
+    "license": "MIT",
+    "private": true,
+    "workspaces": [
+        "shared",
+        "client",
+        "server/backend",
+        "server/frontend"
+    ],
+    "scripts": {
+        "start:server": "npm run start -w server/backend",
+        "start:frontend": "npm run start -w server/frontend",
+        "start:client": "npm run start -w client",
+        "dev:server": "npm run dev -w server/backend",
+        "dev:frontend": "npm run dev -w server/frontend",
+        "build": "npm run build -w shared && npm run build --workspaces",
+        "clean": "rimraf shared/dist client/dist server/backend/dist server/frontend/dist"
+    },
+    "dependencies": {
+        "bcryptjs": "^3.0.3",
+        "openid-client": "^6.8.2"
+    },
+    "devDependencies": {
+        "@fastify/static": "^9.0.0",
+        "@types/bcryptjs": "^2.4.6",
+        "rimraf": "^6.1.3"
+    }
 }

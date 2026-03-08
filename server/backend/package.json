@@ -4,6 +4,7 @@
     "type": "module",
     "main": "dist/index.js",
     "scripts": {
+        "prebuild": "rimraf dist",
         "start": "tsx src/index.ts",
         "dev": "tsx watch src/index.ts",
         "build": "tsc && bash ../../scripts/generate-version.sh dist/VERSION"
@@ -34,6 +35,7 @@
         "@types/node": "^25.0.9",
         "@types/node-cron": "^3.0.11",
         "@types/ws": "^8.18.1",
+        "rimraf": "^6.1.3",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3"
     }
