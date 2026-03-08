@@ -9,7 +9,7 @@ import {
 // Components
 // Layout & Components
 import { DashboardLayout } from "../layouts/DashboardLayout";
-import { TokenOverview } from "../../../pages/TokenOverview";
+import { TokenOverview } from "../../tokens/components/TokenOverview";
 
 // Managed Components
 import { ManagedClients } from "../../clients/components/ManagedClients";
@@ -20,7 +20,7 @@ import { HistoryOverview } from "../../history/components/HistoryOverview";
 // Pages
 import { ClientOverview } from "../../clients/components/ClientOverview";
 import { RepositoryOverview } from "../../repositories/components/RepositoryOverview";
-import { UserOverview } from "../../../pages/UserOverview";
+import { UserOverview } from "../../users/components/UserOverview";
 import Settings from "../../../pages/Settings";
 
 // Hooks
