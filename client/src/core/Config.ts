@@ -61,7 +61,7 @@ export function saveConfig(): void {
         fs.writeFileSync(CONFIG_PATH, configDoc.toString());
         Logger.info("Configuration saved securely with preserved comments.");
     } catch (e) {
-        Logger.error("Failed to save config.yaml", e);
+        Logger.error({ err: e }, "Failed to save config.yaml");
     }
 }
 
@@ -140,11 +140,11 @@ if (fs.existsSync(CONFIG_PATH)) {
             config.postScript = loadedConfig.postScript;
         }
     } catch (e) {
-        Logger.error("Failed to load config.yaml", e);
+        Logger.error({ err: e }, "Failed to load config.yaml");
     }
 } else {
     // If config file doesn't exist, use defaults
     Logger.info("No config.yaml found. Using defaults.");
 }
 
-Logger.setLevel(config.logLevel);
+Logger.level = config.logLevel;

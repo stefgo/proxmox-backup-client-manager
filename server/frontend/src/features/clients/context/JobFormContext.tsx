@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
-import { Archive, FsFile, Repository as JobRepository } from '@pbcm/shared';
+import { Archive, Repository as JobRepository } from '@pbcm/shared';
+import { FsFile } from '@stefgo/react-ui-components';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 
 // Define the shape of the context based on ClientJobEditor props (which come from useJobForm + extras)

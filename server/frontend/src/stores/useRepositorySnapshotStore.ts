@@ -34,7 +34,7 @@ export const useRepositorySnapshotStore = create<RepositorySnapshotsState>((set)
                 const err = await res.json();
                 set({ error: err.error || 'Failed to fetch snapshots' });
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             set({ error: e.message });
         } finally {
             set({ isLoading: false });

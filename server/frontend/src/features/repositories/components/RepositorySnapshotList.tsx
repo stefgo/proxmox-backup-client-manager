@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
 import { Client } from '@pbcm/shared';
-import { PaginationControls } from '../../../components/PaginationControls';
+import { PaginationControls } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { ActionButton } from '../../../components/ActionButton';
+import { ActionButton } from '@stefgo/react-ui-components';
 
 interface RepositorySnapshotListProps {
     snapshots: Snapshot[];

@@ -46,7 +46,7 @@ export const ManagedJobs = () => {
                 },
             );
             if (!res.ok) throw new Error("Failed to trigger job");
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };
@@ -63,7 +63,7 @@ export const ManagedJobs = () => {
             );
             if (!res.ok) throw new Error("Failed to delete job");
             handleRefresh();
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         }
     };

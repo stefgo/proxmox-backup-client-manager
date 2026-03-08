@@ -3,15 +3,16 @@ FROM node:22-bookworm AS builder
 
 WORKDIR /app
 
-# Copy manifest files
-COPY package.json package-lock.json ./
+# Copy manifest files and registry config
+COPY package.json package-lock.json .npmrc ./
 COPY client/package.json client/
 COPY shared/package.json shared/
 COPY server/backend/package.json server/backend/
 COPY server/frontend/package.json server/frontend/
 
-# Install all dependencies (including dev for building)
-RUN npm ci
+# Install all dependencies (including dev for building, with GitHub Packages auth)
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci
 
 # Copy source code
 COPY shared ./shared
@@ -27,7 +28,8 @@ ARG APP_VERSION=unknown
 RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/VERSION
 
 # Prune dev dependencies
-RUN npm ci --omit=dev
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci --omit=dev
 
 # Runner Stage
 FROM debian:bookworm-slim AS runner

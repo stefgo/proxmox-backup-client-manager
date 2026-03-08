@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import { RefreshCw, Settings as SettingsIcon, Sliders } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
-import { DataCard } from '../components/DataCard';
-import { Input } from '../components/Input';
-import { Button } from '../components/Button';
+import { DataCard } from '@stefgo/react-ui-components';
+import { Input } from '@stefgo/react-ui-components';
+import { Button } from '@stefgo/react-ui-components';
 
 export default function Settings() {
     const { token } = useAuth();
@@ -65,7 +65,7 @@ export default function Settings() {
             if (!response.ok) {
                 throw new Error('Failed to save settings');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         } finally {
             setIsSaving(false);
@@ -86,7 +86,7 @@ export default function Settings() {
             } else {
                 throw new Error('Failed to trigger cleanup');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             alert(e.message);
         } finally {
             setIsCleaning(false);

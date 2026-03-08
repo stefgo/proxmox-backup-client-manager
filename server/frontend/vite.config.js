@@ -26,7 +26,7 @@ const getVersion = () => {
 const APP_VERSION = getVersion()
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
@@ -66,7 +66,14 @@ export default defineConfig({
     }
   },
   resolve: {
+    alias: {
+      // Only alias to local source during development (vite dev),
+      // in production builds resolve from node_modules
+      ...(command === 'serve' ? {
+        '@stefgo/react-ui-components': '/Users/stefan/Entwicklung/react-ui-components/src/index.ts'
+      } : {})
+    },
     dedupe: ['react', 'react-dom']
   }
-})
+}))
 

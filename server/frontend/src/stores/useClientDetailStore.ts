@@ -78,7 +78,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                 configuredJobs: backupJobs,
                 lastHistory: initLastHistory,
             });
-        } catch (e: any) {
+        } catch (e: unknown) {
             set({ error: e.message });
         } finally {
             set({ isLoading: false });
@@ -127,7 +127,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                 const data = await res.json();
                 throw new Error(data.error || "Failed to delete job");
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error(e);
             throw e;
         }
@@ -150,7 +150,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                 const data = await res.json();
                 throw new Error(data.error || "Failed to trigger job");
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error(e);
             throw e;
         }

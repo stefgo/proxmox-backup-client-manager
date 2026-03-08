@@ -2,9 +2,9 @@ import { Key, Trash2, Plus } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { usePagination } from '../../../hooks/usePagination';
-import { DataTable, DataTableDef } from '../../../components/DataTable';
-import { DataAction } from '../../../components/DataAction';
-import { DataCard } from '../../../components/DataCard';
+import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
+import { DataAction } from '@stefgo/react-ui-components';
+import { DataCard } from '@stefgo/react-ui-components';
 
 interface TokenListProps {
     tokens: Token[];

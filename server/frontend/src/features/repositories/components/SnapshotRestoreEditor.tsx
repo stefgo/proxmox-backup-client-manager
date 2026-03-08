@@ -3,7 +3,7 @@ import { X, Folder, AlertCircle } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { FileBrowser } from '../../../components/FileBrowser';
+import { FileBrowser } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 
@@ -106,7 +106,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 const data = await res.json();
                 setError('Failed to start restore: ' + (data.error || 'Unknown error'));
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error(e);
             setError('Error triggering restore: ' + e.message);
         }
