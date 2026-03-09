@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.server.dev
+      secrets:
+        - npm_token
     image: pbcm-server-dev
     container_name: pbcm-server-dev
     hostname: pbcm-server-dev
@@ -44,6 +46,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.client.dev
+      secrets:
+        - npm_token
     image: pbcm-client-dev
     platform: linux/amd64
     container_name: pbcm-client-dev
@@ -86,3 +90,7 @@ services:
       - LOG_LEVEL=debug
       - NODE_ENV=development
       - VITE_UI_COMPONENTS_PATH=/app/react-ui-components
+
+secrets:
+  npm_token:
+    environment: NPM_TOKEN

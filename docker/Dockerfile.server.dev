@@ -33,7 +33,7 @@ WORKDIR /app
 
 # Workspace-Struktur vorbereiten
 # Wir kopieren zuerst die package.json Dateien, damit npm install gecached werden kann
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 
 # Verzeichnisse erstellen
 RUN mkdir -p client shared server/frontend server/backend
@@ -44,8 +44,9 @@ COPY shared/package.json shared/
 COPY server/backend/package.json server/backend/
 COPY server/frontend/package.json server/frontend/
 
-# Abhängigkeiten installieren
-RUN npm install
+# Abhängigkeiten installieren (mit GitHub Packages Auth)
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm install
 
 # Quellcode von shared kopieren (vom Server benötigt)
 COPY shared ./shared
