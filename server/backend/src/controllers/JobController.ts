@@ -51,7 +51,7 @@ export class JobController {
             if (result.success) {
                 // Refresh backend cache since the job was successfully saved on client
                 ProxyService.refreshJobCache(clientId).catch((e) => {
-                    import("../core/Logger.js").then((m) =>
+                    import("../core/logger.js").then((m) =>
                         m.logger.error(
                             { err: e, clientId },
                             "Failed to refresh cache after job save",
@@ -82,7 +82,7 @@ export class JobController {
             if (result.success) {
                 // Refresh backend cache
                 ProxyService.refreshJobCache(clientId).catch((e) => {
-                    import("../core/Logger.js").then((m) =>
+                    import("../core/logger.js").then((m) =>
                         m.logger.error(
                             { err: e, clientId },
                             "Failed to refresh cache after job delete",

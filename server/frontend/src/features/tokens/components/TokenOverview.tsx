@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Token } from '@pbcm/shared';
-import { TokenList } from '../features/tokens/components/TokenList';
-import { useAuth } from '../features/auth/AuthContext';
-import { TokenModal } from '../features/tokens/components/TokenModal';
+import { TokenList } from './TokenList';
+import { useAuth } from '../../auth/AuthContext';
+import { TokenModal } from './TokenModal';
 
 export const TokenOverview = () => {
     const { token } = useAuth();

@@ -14,7 +14,7 @@ import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 
 export interface BaseJobItem {
-    id: string;
+    id: string | null;
     clientId?: string;
     name: string;
     archives?: any[];
@@ -202,7 +202,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableCellClassName: "content-center",
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
-                const rowId = job.clientId ? `${job.clientId}-${job.id}` : job.id;
+                const rowId = job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new');
                 return (
                     <DataAction
                         rowId={rowId}
@@ -339,7 +339,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 return (
                     <div className="flex items-center justify-center gap-3 mt-3">
                         <DataAction
-                            rowId={job.clientId ? `${job.clientId}-${job.id}` : job.id}
+                            rowId={job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new')}
                             actions={[
                                 {
                                     icon: Play,
@@ -400,7 +400,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableDef={tableItems}
             listColumns={listItems}
             keyField={(job) =>
-                job.clientId ? `${job.clientId}-${job.id}` : job.id
+                job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new')
             }
             emptyMessage="No jobs configured"
             rowClassName={(job) =>

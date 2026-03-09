@@ -6,7 +6,7 @@ import os from "os";
 import { fileURLToPath } from "url";
 import { config, saveConfig, setServerUrl } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
-import { Logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,15 +35,15 @@ export async function startWebServer() {
     }
 
     if (publicPath) {
-        Logger.info(`Serving static files from ${publicPath}`);
+        logger.info(`Serving static files from ${publicPath}`);
         await fastify.register(fastifyStatic, {
             root: publicPath,
             prefix: "/",
             serve: true,
         });
     } else {
-        Logger.error("Could not find public directory for Client Web UI!");
-        Logger.debug("Tried paths: " + possiblePaths.join(", "));
+        logger.error("Could not find public directory for Client Web UI!");
+        logger.debug("Tried paths: " + possiblePaths.join(", "));
     }
 
     // Redirect / based on auth token status
@@ -60,7 +60,7 @@ export async function startWebServer() {
             return (reply as any).sendFile(file);
         }
 
-        Logger.error(
+        logger.error(
             `reply.sendFile is not a function. Frontend files might be missing. Attempted to send: ${file}`,
         );
         return reply.status(500).send({
@@ -163,7 +163,7 @@ export async function startWebServer() {
                     .send({ error: "Missing token or url." });
             }
 
-            Logger.info(`Web UI Registration requested with ${url}...`);
+            logger.info(`Web UI Registration requested with ${url}...`);
 
             // Allow self-signed certificates
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -197,7 +197,7 @@ export async function startWebServer() {
                     config.authToken = data.token;
                     setServerUrl(url);
                     saveConfig();
-                    Logger.info(
+                    logger.info(
                         "Web Registration successful! Auth Token received.",
                     );
 
@@ -211,7 +211,7 @@ export async function startWebServer() {
                     });
                 }
             } catch (e: unknown) {
-                Logger.error({ err: e }, "Web registration error:");
+                logger.error({ err: e }, "Web registration error:");
                 return reply.status(500).send({
                     error:
                         (e instanceof Error ? e.message : String(e)) ||
@@ -224,20 +224,20 @@ export async function startWebServer() {
     try {
         const port = 3001;
         await fastify.listen({ port, host: "0.0.0.0" });
-        Logger.info(`Client Web UI listening on port ${port}`);
+        logger.info(`Client Web UI listening on port ${port}`);
     } catch (err) {
-        Logger.error({ err: err }, "Failed to start Client Web UI server");
+        logger.error({ err: err }, "Failed to start Client Web UI server");
     }
 }
 
 export async function stopWebServer() {
     if (fastifyInstance) {
-        Logger.info("Shutting down Client Web UI...");
+        logger.info("Shutting down Client Web UI...");
         try {
             await fastifyInstance.close();
-            Logger.info("Client Web UI shut down gracefully.");
+            logger.info("Client Web UI shut down gracefully.");
         } catch (err) {
-            Logger.error({ err: err }, "Error shutting down Client Web UI");
+            logger.error({ err: err }, "Error shutting down Client Web UI");
         }
     }
 }

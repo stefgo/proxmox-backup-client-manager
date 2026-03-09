@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { BackupJob, HistoryEntry } from "@pbcm/shared";
+import { getErrorMessage } from "../utils";
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -74,7 +75,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 isLoading: false,
             });
         } catch (e: unknown) {
-            set({ error: e.message, isLoading: false });
+            set({ error: getErrorMessage(e), isLoading: false });
         }
     },
 

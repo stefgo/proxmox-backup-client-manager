@@ -2,10 +2,10 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard } from '@stefgo/react-ui-components';
+import { StatCard, Badge } from '@stefgo/react-ui-components';
 import { Client } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
-import { formatDate } from '../../../utils';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore } from '../../../stores/useClientDetailStore';
@@ -118,7 +118,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             await triggerJob(client.id, jobId);
             // Optional: toast or feedback
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -126,7 +126,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await deleteJob(client.id, jobId);
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -137,7 +137,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             setIsEditing(false);
         } catch (e: unknown) {
             console.error("Failed to update client", e);
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -158,7 +158,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
+                            <Badge variant={client.status === 'online' ? 'success' : 'gray'} size="sm">
+                                {client.status}
+                            </Badge>
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                                     {client.displayName || client.hostname}

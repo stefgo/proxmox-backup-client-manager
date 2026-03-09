@@ -6,7 +6,7 @@ import {
 } from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
 import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
-import { Logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
 export class Scheduler {
@@ -19,7 +19,7 @@ export class Scheduler {
      */
     static start() {
         if (this.interval) clearInterval(this.interval);
-        Logger.info("Starting Scheduler Loop...");
+        logger.info("Starting Scheduler Loop...");
 
         this.interval = setInterval(() => {
             this.run();
@@ -94,7 +94,7 @@ export class Scheduler {
                                 null,
                             );
                         }
-                        Logger.info(
+                        logger.info(
                             `Initialized next_run for job ${job.name} to ${initNext.toISOString()}`,
                         );
                         Connection.send(WS_EVENTS.JOB_NEXT_RUN_UPDATE, {
@@ -102,14 +102,14 @@ export class Scheduler {
                             nextRunAt: initNext.toISOString(),
                         });
                     } catch (e) {
-                        Logger.error({ err: e }, "Init State Error");
+                        logger.error({ err: e }, "Init State Error");
                     }
                     return;
                 }
 
                 const nextRun = new Date(state.next_run);
                 if (now >= nextRun) {
-                    Logger.info(
+                    logger.info(
                         `Scheduler triggering Job ${job.name} (${job.id})`,
                     );
 
@@ -126,7 +126,7 @@ export class Scheduler {
                             now.toISOString(),
                             nextDateStr,
                         );
-                        Logger.info(
+                        logger.info(
                             `Scheduled next run for ${job.name} at ${newNextRun.toISOString()}`,
                         );
                         Connection.send(WS_EVENTS.JOB_NEXT_RUN_UPDATE, {
@@ -134,12 +134,12 @@ export class Scheduler {
                             nextRunAt: newNextRun.toISOString(),
                         });
                     } catch (e) {
-                        Logger.error({ err: e }, "Update State Error");
+                        logger.error({ err: e }, "Update State Error");
                     }
                 }
             });
         } catch (e) {
-            Logger.error({ err: e }, "Scheduler Error");
+            logger.error({ err: e }, "Scheduler Error");
         }
     }
 }

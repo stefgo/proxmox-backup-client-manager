@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../features/auth/AuthContext';
-import { UserDialog } from '../features/users/components/UserDialog';
-import { UserList, UserData } from '../features/users/components/UserList';
+import { useAuth } from '../../auth/AuthContext';
+import { UserDialog } from './UserDialog';
+import { UserList, UserData } from './UserList';
 
 export const UserOverview = () => {
     const { token } = useAuth();

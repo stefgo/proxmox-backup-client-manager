@@ -5,6 +5,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { DataCard } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
+import { getErrorMessage } from '../utils';
 
 export default function Settings() {
     const { token } = useAuth();
@@ -66,7 +67,7 @@ export default function Settings() {
                 throw new Error('Failed to save settings');
             }
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         } finally {
             setIsSaving(false);
         }
@@ -87,7 +88,7 @@ export default function Settings() {
                 throw new Error('Failed to trigger cleanup');
             }
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         } finally {
             setIsCleaning(false);
         }

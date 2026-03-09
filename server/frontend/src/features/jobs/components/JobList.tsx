@@ -26,10 +26,10 @@ export const JobList = ({
             showNewJobButton={false}
             onEditJob={onEditJob}
             onTriggerJob={(job) => {
-                if (job.clientId) onTriggerJob(job.clientId, job.id);
+                if (job.clientId && job.id) onTriggerJob(job.clientId, job.id);
             }}
             onDeleteJob={(job) => {
-                if (job.clientId) onDeleteJob(job.clientId, job.id);
+                if (job.clientId && job.id) onDeleteJob(job.clientId, job.id);
             }}
             getClientStatus={getClientStatus}
             getClientName={getClientName}

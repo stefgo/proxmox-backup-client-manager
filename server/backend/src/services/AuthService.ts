@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import * as client from "openid-client";
 import { appConfig, getOidcConfig } from "../config/AppConfig.js";
-import { logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 import { UserRepository } from "../repositories/UserRepository.js";
 
 // State store for PKCE

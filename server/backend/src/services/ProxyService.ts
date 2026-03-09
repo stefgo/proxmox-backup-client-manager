@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import crypto, { randomUUID } from "crypto";
 import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
-import { logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 
 export class ProxyService {

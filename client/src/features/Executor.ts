@@ -7,7 +7,7 @@ import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { config } from "../core/Config.js";
 import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
-import { Logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
 export interface JobHistoryRow {
@@ -41,15 +41,15 @@ export class Executor {
      * to ensure no ghost jobs remain.
      */
     static async cleanupRunningJobs() {
-        Logger.info("Checking for stale 'running' jobs in history...");
+        logger.info("Checking for stale 'running' jobs in history...");
         try {
             const changes = JobHistoryRepository.cleanUpRunningJobs();
 
             if (changes > 0) {
-                Logger.info(`Updated ${changes} stale jobs to 'abort' status.`);
+                logger.info(`Updated ${changes} stale jobs to 'abort' status.`);
             }
         } catch (e) {
-            Logger.error({ err: e }, "Failed to cleanup stale running jobs");
+            logger.error({ err: e }, "Failed to cleanup stale running jobs");
         }
     }
 
@@ -57,14 +57,14 @@ export class Executor {
      * Resumes any jobs that were marked as 'queued' when the daemon was shut down or crashed.
      */
     static async resumeQueuedJobs() {
-        Logger.info("Checking for queued jobs to resume...");
+        logger.info("Checking for queued jobs to resume...");
         try {
             const queuedJobs = JobHistoryRepository.findQueuedJobs();
 
             for (const job of queuedJobs) {
                 const jobId = job.job_id;
                 if (!jobId) continue;
-                Logger.info(
+                logger.info(
                     `Resuming queued job ${jobId} (runId: ${job.id})...`,
                 );
                 const delayMs = (config.queueDelaySeconds || 5) * 1000;
@@ -73,7 +73,7 @@ export class Executor {
                 }, delayMs);
             }
         } catch (e) {
-            Logger.error({ err: e }, "Failed to resume queued jobs");
+            logger.error({ err: e }, "Failed to resume queued jobs");
         }
     }
 
@@ -94,7 +94,7 @@ export class Executor {
         jobName: string,
         runId: string,
     ): Promise<boolean> {
-        Logger.info(`Running script: ${scriptPath} ${type} "${jobName}"`);
+        logger.info(`Running script: ${scriptPath} ${type} "${jobName}"`);
 
         // Inform server about script start
         Connection.send(WS_EVENTS.LOG_UPDATE, {
@@ -144,12 +144,12 @@ export class Executor {
                     });
 
                     if (success) {
-                        Logger.info(
+                        logger.info(
                             `Script ${scriptPath} finished successfully.`,
                         );
                         resolve(true);
                     } else {
-                        Logger.error(
+                        logger.error(
                             `Script ${scriptPath} failed with code ${code}.`,
                         );
                         resolve(false);
@@ -157,7 +157,7 @@ export class Executor {
                 });
 
                 child.on("error", (err) => {
-                    Logger.error(
+                    logger.error(
                         { err: err },
                         `Failed to start script ${scriptPath}:`,
                     );
@@ -169,7 +169,7 @@ export class Executor {
                     resolve(false);
                 });
             } catch (e: unknown) {
-                Logger.error({ err: e }, `Exception during script execution:`);
+                logger.error({ err: e }, `Exception during script execution:`);
                 resolve(false);
             }
         });
@@ -204,7 +204,7 @@ export class Executor {
                 throw new Error("Config not found locally for job " + jobId);
             }
         } catch (e: unknown) {
-            Logger.error({ err: e }, "Job Config Resolution Error:");
+            logger.error({ err: e }, "Job Config Resolution Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 jobId: jobId,
@@ -223,7 +223,7 @@ export class Executor {
 
         if (this.runningJobs.has(jobId)) {
             if (this.pendingJobs.has(jobId)) {
-                Logger.warn(
+                logger.warn(
                     `Job ${jobId} is already running and already has a pending trigger. Skipping additional request.`,
                 );
                 // Create a history entry for the skipped job
@@ -235,7 +235,7 @@ export class Executor {
                         "Job already running and another one is already queued.",
                     );
                 } catch (e) {
-                    Logger.error({ err: e }, "Failed to log skipped job");
+                    logger.error({ err: e }, "Failed to log skipped job");
                 }
 
                 Connection.send(WS_EVENTS.STATUS_UPDATE, {
@@ -251,7 +251,7 @@ export class Executor {
                 return;
             }
 
-            Logger.info(
+            logger.info(
                 `Job ${jobId} is already running. Queuing for restart.`,
             );
             this.pendingJobs.set(jobId, runId);
@@ -266,7 +266,7 @@ export class Executor {
                     jobName || "",
                 );
             } catch (e) {
-                Logger.error({ err: e }, "DB Log Error for queued job");
+                logger.error({ err: e }, "DB Log Error for queued job");
             }
 
             Connection.send(WS_EVENTS.STATUS_UPDATE, {
@@ -303,7 +303,7 @@ export class Executor {
                         tempKeyfilePath,
                     );
                 } catch (e: unknown) {
-                    Logger.error(
+                    logger.error(
                         { err: e },
                         "Failed to write encryption key file",
                     );
@@ -340,7 +340,7 @@ export class Executor {
                         env.PBS_FINGERPRINT = repo.fingerprint;
                     }
                 } catch (e) {
-                    Logger.error(
+                    logger.error(
                         { err: e },
                         `Error parsing PBS config for job ${jobName}`,
                     );
@@ -368,7 +368,7 @@ export class Executor {
                 config.backupParams.forEach((param) => args.push(param));
             }
         } catch (e: unknown) {
-            Logger.error({ err: e }, "Job Config Resolution Error:");
+            logger.error({ err: e }, "Job Config Resolution Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 jobId: jobId,
@@ -396,7 +396,7 @@ export class Executor {
                 runId,
             );
             if (!success) {
-                Logger.error("Aborting backup due to pre-script failure.");
+                logger.error("Aborting backup due to pre-script failure.");
                 const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                     id: runId,
                     jobId: jobId,
@@ -412,7 +412,7 @@ export class Executor {
             }
         }
 
-        Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
+        logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         try {
             JobHistoryRepository.startRunningJob(
@@ -423,7 +423,7 @@ export class Executor {
                 jobName || null,
             );
         } catch (e) {
-            Logger.error({ err: e }, "DB Log Error");
+            logger.error({ err: e }, "DB Log Error");
         }
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -457,7 +457,7 @@ export class Executor {
             const chunk = data.toString();
             process.stdout.write(chunk);
             stdoutBuffer += chunk;
-            Logger.debug({ err: chunk }, "stdout");
+            logger.debug({ err: chunk }, "stdout");
             Connection.send(WS_EVENTS.LOG_UPDATE, {
                 jobId: runId,
                 output: chunk,
@@ -469,7 +469,7 @@ export class Executor {
             const chunk = data.toString();
             process.stderr.write(chunk);
             stderrBuffer += chunk;
-            Logger.debug({ err: chunk }, "stderr");
+            logger.debug({ err: chunk }, "stderr");
             Connection.send(WS_EVENTS.LOG_UPDATE, {
                 jobId: runId,
                 output: chunk,
@@ -480,7 +480,7 @@ export class Executor {
         child.on("close", (code: number | null) => {
             const status = code === 0 ? "success" : "failed";
             const endTime = new Date().toISOString();
-            Logger.info(`Job ${jobId} finished with code ${code}`);
+            logger.info(`Job ${jobId} finished with code ${code}`);
 
             try {
                 JobHistoryRepository.finishJob(
@@ -492,7 +492,7 @@ export class Executor {
                     stderrBuffer || null,
                 );
             } catch (e) {
-                Logger.error({ err: e }, "DB Update Error");
+                logger.error({ err: e }, "DB Update Error");
             }
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -522,7 +522,7 @@ export class Executor {
                     if (!success && status === "success") {
                         // If backup succeeded but post-script failed, we still mark it as failed (as per requirement: "bei einem Fehler wird der gesamte Vorgang abgebrochen")
                         // Well, it's already "finished", but we can update the status.
-                        Logger.error("Post-execution script failed.");
+                        logger.error("Post-execution script failed.");
                         const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
                             {
                                 id: runId,
@@ -547,7 +547,7 @@ export class Executor {
                                     "\nPost-execution script failed.",
                             );
                         } catch (e) {
-                            Logger.error(
+                            logger.error(
                                 { err: e },
                                 "DB Update Error (Post-Script Failure)",
                             );
@@ -560,7 +560,7 @@ export class Executor {
                 const queuedRunId = this.pendingJobs.get(jobId)!;
                 this.pendingJobs.delete(jobId);
                 const delayMs = (config.queueDelaySeconds || 5) * 1000;
-                Logger.info(
+                logger.info(
                     `Restarting queued job ${jobId} in ${delayMs / 1000}s...`,
                 );
                 setTimeout(() => {
@@ -571,7 +571,7 @@ export class Executor {
 
         child.on("error", (err: Error) => {
             this.runningJobs.delete(jobId);
-            Logger.error({ err: err }, "Spawn Error");
+            logger.error({ err: err }, "Spawn Error");
 
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
@@ -624,7 +624,7 @@ export class Executor {
                     });
                     args.push("--keyfile", tempKeyfilePath);
                 } catch (e: unknown) {
-                    Logger.error(
+                    logger.error(
                         { err: e },
                         "Failed to write restore encryption key file",
                     );
@@ -655,7 +655,7 @@ export class Executor {
                         env.PBS_FINGERPRINT = repository.fingerprint;
                     }
                 } catch (e) {
-                    Logger.error(
+                    logger.error(
                         { err: e },
                         `Error parsing PBS config for restore`,
                     );
@@ -679,7 +679,7 @@ export class Executor {
                 config.restoreParams.forEach((param) => args.push(param));
             }
         } catch (e: unknown) {
-            Logger.error({ err: e }, "Restore Config Error:");
+            logger.error({ err: e }, "Restore Config Error:");
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 name: jobName,
@@ -695,7 +695,7 @@ export class Executor {
             return;
         }
 
-        Logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
+        logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
 
         const jobType = "restore";
 
@@ -708,7 +708,7 @@ export class Executor {
                 jobName,
             );
         } catch (e) {
-            Logger.error({ err: e }, "DB Log Error");
+            logger.error({ err: e }, "DB Log Error");
         }
 
         const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -762,7 +762,7 @@ export class Executor {
                 try {
                     fs.unlinkSync(tempKeyfilePath);
                 } catch (e) {
-                    Logger.error(
+                    logger.error(
                         { err: e },
                         "Failed to delete temp restore keyfile",
                     );
@@ -773,7 +773,7 @@ export class Executor {
         child.on("close", (code: number | null) => {
             const status = code === 0 ? "success" : "failed";
             const endTime = new Date().toISOString();
-            Logger.info(`Restore ${runId} finished with code ${code}`);
+            logger.info(`Restore ${runId} finished with code ${code}`);
 
             try {
                 JobHistoryRepository.finishJob(
@@ -785,7 +785,7 @@ export class Executor {
                     stderrBuffer || null,
                 );
             } catch (e) {
-                Logger.error({ err: e }, "DB Update Error");
+                logger.error({ err: e }, "DB Update Error");
             }
 
             const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
@@ -810,7 +810,7 @@ export class Executor {
                     runId,
                 ).then((success) => {
                     if (!success && status === "success") {
-                        Logger.error("Post-execution script failed.");
+                        logger.error("Post-execution script failed.");
                         const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
                             {
                                 id: runId,
@@ -834,7 +834,7 @@ export class Executor {
                                     "\nPost-execution script failed.",
                             );
                         } catch (e) {
-                            Logger.error(
+                            logger.error(
                                 { err: e },
                                 "DB Update Error (Post-Script Failure)",
                             );

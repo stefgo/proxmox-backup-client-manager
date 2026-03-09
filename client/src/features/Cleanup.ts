@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import db from "../core/Database.js";
 import { config } from "../core/Config.js";
-import { Logger } from "../core/Logger.js";
+import { logger } from "../core/logger.js";
 
 export class Cleanup {
     static initialize() {
@@ -9,7 +9,7 @@ export class Cleanup {
         cron.schedule("0 0 * * *", () => {
             this.run();
         });
-        Logger.info("CleanupService initialized (Daily at 00:00)");
+        logger.info("CleanupService initialized (Daily at 00:00)");
     }
 
     /**
@@ -17,7 +17,7 @@ export class Cleanup {
      * and job_schedule_state based on the configured retentionTime.
      */
     static run() {
-        Logger.info(
+        logger.info(
             `Running scheduled database cleanup (retention: ${config.retentionTime} days)...`,
         );
 
@@ -71,11 +71,11 @@ export class Cleanup {
                 )
                 .run(retentionDays);
 
-            Logger.info(
+            logger.info(
                 `Cleanup completed. Deleted ${historyResult.changes} job history records and ${orphanResult.changes + stateResult.changes} schedule state entries.`,
             );
         } catch (e) {
-            Logger.error({ err: e }, "Failed to run database cleanup");
+            logger.error({ err: e }, "Failed to run database cleanup");
         }
     }
 }
