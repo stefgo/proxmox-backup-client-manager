@@ -72,6 +72,11 @@ export default defineConfig(() => ({
         alias: {
             ...(process.env.VITE_USE_LOCAL_UI !== "false"
                 ? {
+                      "@stefgo/react-ui-components/styles.css": path.resolve(
+                          process.env.VITE_UI_COMPONENTS_PATH ||
+                              "../../../react-ui-components",
+                          "dist/styles.css",
+                      ),
                       "@stefgo/react-ui-components": path.resolve(
                           process.env.VITE_UI_COMPONENTS_PATH ||
                               "../../../react-ui-components",
