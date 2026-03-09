@@ -26,7 +26,7 @@ RUN npm run build -w server/backend
 # Generate Version file for backend
 RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./server/backend/dist/VERSION
 # Pass the version to the frontend build
-RUN VITE_APP_VERSION=${APP_VERSION} npm run build -w server/frontend
+RUN VITE_APP_VERSION=${APP_VERSION} VITE_USE_LOCAL_UI=false npm run build -w server/frontend
 
 # Prune dev dependencies
 RUN --mount=type=secret,id=npm_token \
