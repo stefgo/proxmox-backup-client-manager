@@ -48,7 +48,7 @@ COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/server/backend/package.json ./server/backend/
 COPY --from=builder /app/server/backend/dist ./server/backend/dist
 # Copy Frontend (Static Files)
-COPY --from=builder /app/server/frontend/dist ./server/frontend/dist
+COPY --from=builder /app/server/dist/public ./server/dist/public
 
 # Switch to backend directory
 WORKDIR /app/server/backend

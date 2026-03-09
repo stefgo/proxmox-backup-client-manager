@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { BackupJob, HistoryEntry, Snapshot } from "@pbcm/shared";
+import { getErrorMessage } from "../utils";
 
 interface ClientDataState {
     history: HistoryEntry[];
@@ -19,7 +20,7 @@ interface ClientDataState {
     // Configured Job Actions
     addBackupJob: (job: BackupJob) => void;
     updateBackupJob: (job: BackupJob) => void;
-    removeBackupJob: (jobId: string) => void;
+    removeBackupJob: (jobId: string | null) => void;
 
     // Async Job Actions
     deleteBackupJob: (
@@ -46,7 +47,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchClientData: async (clientId, token) => {
+    fetchClientData: async (clientId: string, token: string) => {
         set({ isLoading: true, error: null, lastHistory: [] });
         try {
             const [historyRes, backupJobsRes] = await Promise.all([
@@ -79,13 +80,17 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                 lastHistory: initLastHistory,
             });
         } catch (e: unknown) {
-            set({ error: e.message });
+            set({ error: getErrorMessage(e) });
         } finally {
             set({ isLoading: false });
         }
     },
 
-    fetchClientSnapshots: async (clientId, repositories, token) => {
+    fetchClientSnapshots: async (
+        clientId: string,
+        repositories: any[],
+        token: string,
+    ) => {
         try {
             const promises = repositories.map((repo) =>
                 fetch(`/api/v1/repositories/${repo.id}/snapshots`, {
@@ -112,7 +117,11 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         }
     },
 
-    deleteBackupJob: async (clientId, jobId, token) => {
+    deleteBackupJob: async (
+        clientId: string,
+        jobId: string | null,
+        token: string,
+    ) => {
         try {
             const res = await fetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,
@@ -133,7 +142,11 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         }
     },
 
-    triggerBackupJob: async (clientId, jobId, token) => {
+    triggerBackupJob: async (
+        clientId: string,
+        jobId: string | null,
+        token: string,
+    ) => {
         try {
             const res = await fetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
@@ -156,23 +169,25 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         }
     },
 
-    addBackupJob: (job) =>
-        set((state) => ({ configuredJobs: [...state.configuredJobs, job] })),
+    addBackupJob: (job: BackupJob) =>
+        set((state: ClientDataState) => ({
+            configuredJobs: [...state.configuredJobs, job],
+        })),
 
-    updateBackupJob: (job) =>
-        set((state) => ({
+    updateBackupJob: (job: BackupJob) =>
+        set((state: ClientDataState) => ({
             configuredJobs: state.configuredJobs.map((j) =>
                 j.id === job.id ? job : j,
             ),
         })),
 
-    removeBackupJob: (jobId) =>
-        set((state) => ({
+    removeBackupJob: (jobId: string | null) =>
+        set((state: ClientDataState) => ({
             configuredJobs: state.configuredJobs.filter((j) => j.id !== jobId),
         })),
 
     updateHistory: (job: any) =>
-        set((state) => {
+        set((state: ClientDataState) => {
             const exists = state.history.find((j: any) => j.id === job.id);
             if (exists) {
                 return {
@@ -186,7 +201,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         }),
 
     updateLastHistory: (job: any) =>
-        set((state) => {
+        set((state: ClientDataState) => {
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const isWithin24Hours = (j: any) => {
                 const timeToCheck = j.endTime

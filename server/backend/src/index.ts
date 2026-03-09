@@ -63,7 +63,7 @@ await server.register(jwt, {
 });
 
 await server.register(staticFiles, {
-    root: path.join(__dirname, "../../frontend/dist"),
+    root: path.join(__dirname, "../../dist/public"),
     prefix: "/",
 });
 

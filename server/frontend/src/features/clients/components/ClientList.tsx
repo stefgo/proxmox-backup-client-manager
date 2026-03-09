@@ -2,7 +2,7 @@ import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
 import { formatDate } from '../../../utils';
-import { DataTableDef, Badge } from '@stefgo/react-ui-components';
+import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
@@ -34,9 +34,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <Badge variant={client.status === 'online' ? 'success' : 'gray'} size="sm">
-                            {client.status}
-                        </Badge>
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
                         <div className={`text-sm text-gray-900 dark:text-white ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
                             {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">({client.hostname})</span>}
@@ -102,9 +100,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <Badge variant={client.status === 'online' ? 'success' : 'gray'} size="sm">
-                        {client.status}
-                    </Badge>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />
                     <div className={`font-inherit text-gray-900 dark:text-white ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2">({client.hostname})</span>}
