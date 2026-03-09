@@ -22,6 +22,9 @@ services:
       # Note: server might need client's types depending on shared, so we keep the structure
       - /app/client/node_modules
 
+      # Mount local UI components for development
+      - ../react-ui-components:/app/react-ui-components
+
     working_dir: /app
 
     # Start server in watch mode
@@ -34,6 +37,8 @@ services:
     environment:
       - LOG_LEVEL=debug
       - NODE_ENV=development
+      - VITE_USE_LOCAL_UI=true
+      - VITE_UI_COMPONENTS_PATH=/app/react-ui-components
 
   client-dev:
     build:
@@ -59,6 +64,9 @@ services:
       - /app/shared/node_modules
       - /app/server/backend/node_modules
 
+      # Mount local UI components for development
+      - ../react-ui-components:/app/react-ui-components
+
       # Mount host filesystem
       - /:/mnt
 
@@ -77,3 +85,4 @@ services:
     environment:
       - LOG_LEVEL=debug
       - NODE_ENV=development
+      - VITE_UI_COMPONENTS_PATH=/app/react-ui-components

@@ -10,6 +10,7 @@ import { useRepositoryStore } from "../../../stores/useRepositoryStore";
 import { useClientFileSystemStore } from "../../../stores/useClientFileSystemStore";
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
+import { getErrorMessage } from "../../../utils";
 
 export const ManagedJobs = () => {
     const { token } = useAuth();
@@ -47,7 +48,7 @@ export const ManagedJobs = () => {
             );
             if (!res.ok) throw new Error("Failed to trigger job");
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -64,7 +65,7 @@ export const ManagedJobs = () => {
             if (!res.ok) throw new Error("Failed to delete job");
             handleRefresh();
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 

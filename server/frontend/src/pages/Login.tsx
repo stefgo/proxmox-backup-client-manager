@@ -2,6 +2,7 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { Lock, User, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { getErrorMessage } from '../utils';
 
 export default function Login() {
     const [username, setUsername] = useState('');
@@ -43,7 +44,7 @@ export default function Login() {
 
             login(data.token);
         } catch (err: unknown) {
-            setError(err.message || 'An error occurred');
+            setError(getErrorMessage(err));
         } finally {
             setIsLoading(false);
         }

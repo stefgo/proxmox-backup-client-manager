@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { getErrorMessage } from '../../../utils';
 
 interface UserDialogProps {
     isOpen: boolean;
@@ -61,7 +62,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
             });
             onClose();
         } catch (err: unknown) {
-            setError(err.message || 'Failed to save user');
+            setError(getErrorMessage(err));
         } finally {
             setIsLoading(false);
         }

@@ -1,14 +1,20 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { execSync } from "child_process";
+import path from "path";
 
-// Get version from environment or git
+// --- Ignore EPIPE globally (safe for dev) ---
+process.on("uncaughtException", (err) => {
+    if (err.code === "EPIPE") return;
+    console.error(err);
+});
+
+// --- Version helper ---
 const getVersion = () => {
     if (process.env.VITE_APP_VERSION) {
         return process.env.VITE_APP_VERSION;
     }
     try {
-        // Try to get exact tag
         try {
             return execSync("git describe --tags --exact-match --dirty", {
                 stdio: "pipe",
@@ -16,7 +22,6 @@ const getVersion = () => {
                 .toString()
                 .trim();
         } catch {
-            // Not a tag, use branch + hash
             const branch = execSync("git rev-parse --abbrev-ref HEAD")
                 .toString()
                 .trim();
@@ -28,66 +33,56 @@ const getVersion = () => {
                 : "";
             return `${branch}-${hash}${dirty}`;
         }
-    } catch (e) {
+    } catch {
         return "unknown";
     }
 };
 
 const APP_VERSION = getVersion();
 
-// https://vite.dev/config/
-export default defineConfig(({ command }) => ({
+export default defineConfig(() => ({
     plugins: [react()],
+
     define: {
         __APP_VERSION__: JSON.stringify(APP_VERSION),
     },
+
     server: {
         proxy: {
             "/api": {
                 target: "http://localhost:3000",
                 changeOrigin: true,
-                secure: false,
-                ws: true,
-                configure: (proxy, options) => {
-                    proxy.on("error", (err, req, res) => {
-                        if (err.code === "EPIPE") {
-                            // Ignore EPIPE
-                            return;
-                        }
-                        console.log("proxy error", err);
-                    });
-                },
+                ws: false, // kein WebSocket nötig
             },
             "/ws": {
                 target: "ws://localhost:3000",
                 changeOrigin: true,
-                secure: false,
                 ws: true,
-                configure: (proxy, options) => {
-                    proxy.on("error", (err, req, res) => {
-                        if (err.code === "EPIPE") {
-                            // Ignore EPIPE
-                            return;
-                        }
-                        console.log("proxy error", err);
+                configure: (proxy) => {
+                    proxy.on("error", (err) => {
+                        if (err.code === "EPIPE") return;
+                        console.log("proxy ws error", err);
                     });
                 },
             },
         },
     },
+
     resolve: {
         alias: {
-            // Always alias to local source during development (vite dev) AND build
-            // OR if VITE_USE_LOCAL_UI is not 'false'
             ...(process.env.VITE_USE_LOCAL_UI !== "false"
                 ? {
-                      "@stefgo/react-ui-components":
-                          "/Users/stefan/Entwicklung/react-ui-components/src/index.ts",
+                      "@stefgo/react-ui-components": path.resolve(
+                          process.env.VITE_UI_COMPONENTS_PATH ||
+                              "../../../react-ui-components",
+                          "src/index.ts",
+                      ),
                   }
                 : {}),
         },
-        dedupe: ["react", "react-dom"],
+        dedupe: ["react", "react-dom", "lucide-react"],
     },
+
     build: {
         outDir: "../dist/public",
         emptyOutDir: true,

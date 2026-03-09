@@ -17,8 +17,8 @@ export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCr
             showClientColumn={false}
             showNewJobButton={true}
             onEditJob={onEditJob}
-            onTriggerJob={(job) => onTriggerJob(job.id)}
-            onDeleteJob={(job) => onDeleteJob(job.id)}
+            onTriggerJob={(job) => { if (job.id) onTriggerJob(job.id); }}
+            onDeleteJob={(job) => { if (job.id) onDeleteJob(job.id); }}
             onCreateJob={onCreateJob}
             viewModeStorageKey="jobViewMode"
         />

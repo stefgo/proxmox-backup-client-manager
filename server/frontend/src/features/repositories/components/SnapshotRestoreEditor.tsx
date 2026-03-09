@@ -6,6 +6,7 @@ import { useClientFileSystemStore } from '../../../stores/useClientFileSystemSto
 import { FileBrowser } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
+import { getErrorMessage } from '../../../utils';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -108,7 +109,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             }
         } catch (e: unknown) {
             console.error(e);
-            setError('Error triggering restore: ' + e.message);
+            setError('Error triggering restore: ' + getErrorMessage(e));
         }
     };
 

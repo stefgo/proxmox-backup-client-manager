@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { FsFile } from "@stefgo/react-ui-components";
+import { getErrorMessage } from "../utils";
 
 interface ClientFileSystemState {
     fileList: FsFile[];
@@ -42,7 +43,7 @@ export const useClientFileSystemStore = create<ClientFileSystemState>(
                     set({ error: err.error });
                 }
             } catch (e: unknown) {
-                set({ error: e.message });
+                set({ error: getErrorMessage(e) });
             } finally {
                 set({ isLoadingFiles: false });
             }

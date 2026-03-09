@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { StatCard, Badge } from '@stefgo/react-ui-components';
 import { Client } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
-import { formatDate } from '../../../utils';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore } from '../../../stores/useClientDetailStore';
@@ -118,7 +118,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             await triggerJob(client.id, jobId);
             // Optional: toast or feedback
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -126,7 +126,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         try {
             await deleteJob(client.id, jobId);
         } catch (e: unknown) {
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 
@@ -137,7 +137,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             setIsEditing(false);
         } catch (e: unknown) {
             console.error("Failed to update client", e);
-            alert(e.message);
+            alert(getErrorMessage(e));
         }
     };
 

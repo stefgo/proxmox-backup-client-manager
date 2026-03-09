@@ -44,6 +44,7 @@ RUN mkdir -p client shared server/frontend
 # Kopieren der package.json Dateien der Workspaces
 COPY client/package.json client/
 COPY shared/package.json shared/
+COPY scripts ./scripts
 COPY server/backend/package.json server/backend/
 # Client braucht eigentlich server/frontend nicht, aber npm workspaces meckern sonst ggf.
 COPY server/frontend/package.json server/frontend/
@@ -54,6 +55,7 @@ RUN npm install
 # Quellcode von shared und client kopieren
 COPY shared ./shared
 COPY client ./client
+COPY scripts ./scripts
 
 # Shared Library bauen (wird vom Client benötigt)
 RUN npm run build -w shared
