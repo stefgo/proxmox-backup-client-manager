@@ -2,6 +2,7 @@
 export default {
     darkMode: "class",
     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+    presets: [require("@stefgo/react-ui-components/tailwind-preset")],
     theme: {
         extend: {
             colors: {
@@ -14,5 +15,5 @@ export default {
             },
         },
     },
-    plugins: [require("@stefgo/react-ui-components/tailwind-preset")],
+    plugins: [],
 };
