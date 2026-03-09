@@ -1,12 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
     darkMode: "class",
-    content: [
-        "./index.html",
-        "./src/**/*.{js,ts,jsx,tsx}",
-        "../../../react-ui-components/src/**/*.{js,ts,jsx,tsx}",
-        "../../node_modules/@stefgo/react-ui-components/dist/**/*.{js,mjs}",
-    ],
+    content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
     theme: {
         extend: {
             colors: {
@@ -19,5 +14,5 @@ export default {
             },
         },
     },
-    plugins: [],
+    plugins: [require("@stefgo/react-ui-components/tailwind-plugin")],
 };
