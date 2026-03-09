@@ -14,5 +14,5 @@ export default {
             },
         },
     },
-    plugins: [require("@stefgo/react-ui-components/tailwind-plugin")],
+    plugins: [require("@stefgo/react-ui-components/tailwind-preset")],
 };
