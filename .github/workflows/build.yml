@@ -3,8 +3,8 @@ name: Build and Version Client and Server
 on:
     push:
         branches: ["main"]
-        tags: ["v*.*.*"] # Reagiert auf Tags wie v1.0.2
-    workflow_dispatch: # Ermöglicht manuelles Starten im Actions-Tab
+        tags: ["v*.*.*"] # Reacts to tags like v1.0.2
+    workflow_dispatch: # Allows manual trigger in the Actions tab
 
 env:
     REGISTRY: ghcr.io
@@ -58,11 +58,11 @@ jobs:
               with:
                   images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
                   tags: |
-                      # Bei einem Push auf main: Nutzt den Branch-Namen (main) und den SHA
+                      # For a push to main: Uses the branch name (main) and the SHA
                       type=ref,event=branch
                       type=sha,prefix=sha-
 
-                      # Bei einem Git-Tag (v1.0.0): Erstellt Versionstags UND das latest-Tag
+                      # For a git tag (v1.0.0): Creates version tags AND the latest tag
                       type=semver,pattern={{version}}
                       type=semver,pattern={{major}}.{{minor}}
                       type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -92,6 +92,6 @@ jobs:
                   # Pass GitHub token as secret for npm authentication
                   secrets: |
                       npm_token=${{ secrets.NPM_TOKEN }}
-                  # Nutzt die automatisch generierten Tags von oben
+                  # Uses the automatically generated tags from above
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
