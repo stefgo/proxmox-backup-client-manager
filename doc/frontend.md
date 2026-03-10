@@ -8,7 +8,7 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 
 ```
 src/
-├── components/       # Atomic, reusable UI components (Buttons, Inputs)
+├── components/       # Domain-specific UI components (generic ones come from @stefgo/react-ui-components)
 ├── features/         # Feature modules (Domain Logic)
 │   ├── auth/         # Authentication & Context
 │   ├── clients/      # Client management, lists, detail views
@@ -71,7 +71,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 ## 🧱 UI Component Reference
 
-These components (`src/components/`) are generic and do not contain business logic.
+Generic UI components (Buttons, Inputs, Cards, etc.) are primarily sourced from the external library **`@stefgo/react-ui-components`**. Components within `src/components/` in this project are reserved for domain-specific or complex composite views.
 
 ### Data Views (`AbstractDataView` Hierarchy)
 
@@ -126,6 +126,8 @@ The restore process is complex and distributed across:
 ## 🎨 Styling & Theming
 
 - **Tech Stack**: Tailwind CSS.
+- **UI Library**: Integrated via `@stefgo/react-ui-components`.
+- **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` uses dynamic path resolution via `require.resolve` to scan the library's `dist/` directory.
 - **Dark Mode**: Supported via `dark:` class. The `dark` class is set on the `<html>` tag (controlled by `ThemeContext`).
 - **Primary Color**: `#E54D0D` (Proxmox Orange).
 - **Design System**: Flat design, rounded corners (`rounded-lg`, `rounded-xl`), subtle shadows.
