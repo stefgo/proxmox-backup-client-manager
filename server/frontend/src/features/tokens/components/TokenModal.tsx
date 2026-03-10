@@ -19,8 +19,8 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-2xl max-w-lg w-full p-6">
-                <h3 className="text-xl font-bold dark:text-white text-gray-900 mb-4">New Registration Token</h3>
+            <div className="bg-app-card rounded-xl border border-app-border shadow-2xl max-w-lg w-full p-6">
+                <h3 className="text-xl font-bold dark:text-app-text-main text-gray-900 mb-4">New Registration Token</h3>
 
                 <div className="flex items-center gap-2 mb-4">
                     <input
@@ -28,13 +28,13 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                         readOnly
                         value={token}
                         onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className="flex-1 bg-gray-50 dark:bg-[#111] p-3 rounded-lg border border-gray-200 dark:border-[#333] font-mono text-sm text-[#E54D0D] outline-none"
+                        className="flex-1 bg-gray-50 dark:bg-app-bg p-3 rounded-lg border border-gray-200 dark:border-app-border font-mono text-sm text-app-accent outline-none"
                     />
                     <button
                         onClick={handleCopy}
                         className={`px-3 py-3 border rounded-lg text-sm transition-colors ${copied
                             ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400'
-                            : 'bg-gray-100 dark:bg-[#222] hover:bg-gray-200 dark:hover:bg-[#333] border-gray-200 dark:border-[#333] text-gray-600 dark:text-[#aaa]'
+                            : 'bg-gray-100 dark:bg-app-input hover:bg-gray-200 dark:hover:bg-app-input/80 border-gray-200 dark:border-app-border text-gray-600 dark:text-app-text-muted'
                             }`}
                         title={copied ? 'Copied!' : 'Copy to clipboard'}
                     >
@@ -42,8 +42,8 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                     </button>
                 </div>
 
-                <div className="text-xs text-gray-500 mb-6">Expires: {formatDate(expiresAt)}</div>
-                <button onClick={onClose} className="w-full py-2 bg-[#333] hover:bg-[#444] text-white rounded-lg">Close</button>
+                <div className="text-xs text-app-text-muted mb-6">Expires: {formatDate(expiresAt)}</div>
+                <button onClick={onClose} className="w-full py-2 bg-app-input hover:bg-app-input/80 text-app-text-main rounded-lg">Close</button>
             </div>
         </div>
     );

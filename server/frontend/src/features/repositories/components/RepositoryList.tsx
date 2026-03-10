@@ -33,15 +33,15 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             tableItemRender: (repo) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
                             : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                                : 'bg-gray-400 dark:bg-[#444]'
+                                : 'bg-gray-400 dark:bg-app-input'
                             }`} />
-                        <div className={`text-sm text-gray-900 dark:text-white ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`text-sm text-gray-900 dark:text-app-text-main ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {repo.baseUrl}:{repo.datastore}
                         </div>
                     </div>
-                    <div className="text-xs font-mono text-gray-500 dark:text-[#666] pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-gray-500 dark:text-app-text-muted pl-5 truncate opacity-70">
                         {repo.id}
                     </div>
                 </>
@@ -87,11 +87,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]'
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
                         : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                            : 'bg-gray-400 dark:bg-[#444]'
+                            : 'bg-gray-400 dark:bg-app-input'
                         }`} />
-                    <div className={`font-inherit text-gray-900 dark:text-white ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`font-inherit text-gray-900 dark:text-app-text-main ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
                 </div>
@@ -162,11 +162,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
 
     return (
         <DataMultiView
-            title={<><Server size={18} className="text-gray-500 dark:text-[#888]" /> Repositories</>}
+            title={<><Server size={18} className="text-app-text-muted" /> Repositories</>}
             extraActions={
                 <button
                     onClick={onAdd}
-                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-[#ff5f1f]"
+                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-app-accent-hover"
                 >
                     <Plus size={12} className="inline mr-1" /> Add Repository
                 </button>

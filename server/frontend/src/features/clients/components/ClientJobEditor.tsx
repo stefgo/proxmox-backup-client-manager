@@ -30,30 +30,30 @@ export const ClientJobEditor = (props: JobFormContextType) => {
 
     return (
         <JobFormProvider value={props}>
-            <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col">
-                <div className="p-6 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525] rounded-t-xl">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{editingJobId ? 'Edit Job' : 'New Backup Job'}</h3>
-                    <button onClick={() => setIsCreatingJob(false)} className="text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white"><X size={20} /></button>
+            <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border shadow-premium flex flex-col">
+                <div className="p-6 border-b border-gray-200 dark:border-app-border flex justify-between items-center bg-gray-50 dark:bg-app-input rounded-t-xl">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-app-text-main">{editingJobId ? 'Edit Job' : 'New Backup Job'}</h3>
+                    <button onClick={() => setIsCreatingJob(false)} className="text-gray-500 dark:text-app-text-muted hover:text-gray-900 dark:hover:text-app-text-main transition-colors"><X size={20} /></button>
                 </div>
 
                 <div className="p-6 flex-1 overflow-hidden flex flex-col gap-4">
                     {editingJobId && (
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase mb-1">ID</label>
-                            <div className="bg-gray-100 dark:bg-[#1a1a1a] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-500 dark:text-[#666] font-mono text-sm">
+                            <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">ID</label>
+                            <div className="bg-gray-100 dark:bg-app-input border border-gray-200 dark:border-app-border rounded px-3 py-2 text-gray-500 dark:text-app-text-footer font-mono text-sm">
                                 {editingJobId}
                             </div>
                         </div>
                     )}
 
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase mb-1">Name <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">Name <span className="text-red-500">*</span></label>
                         <input
                             type="text"
                             value={newJobName}
                             onChange={(e) => setNewJobName(e.target.value)}
                             placeholder="e.g. Production System"
-                            className="w-full bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white focus:border-[#E54D0D] outline-none"
+                            className="w-full bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded px-3 py-2 text-gray-900 dark:text-app-text-main focus:border-app-accent outline-none"
                         />
                     </div>
 
@@ -77,14 +77,14 @@ export const ClientJobEditor = (props: JobFormContextType) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 dark:border-[#333] flex justify-end gap-3 bg-gray-50 dark:bg-[#252525]">
-                    <button onClick={() => setIsCreatingJob(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-[#333] hover:bg-gray-300 dark:hover:bg-[#444] text-gray-800 dark:text-white font-medium">
+                <div className="p-4 border-t border-gray-200 dark:border-app-border flex justify-end gap-3 bg-gray-50 dark:bg-app-input">
+                    <button onClick={() => setIsCreatingJob(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-app-input hover:bg-gray-300 dark:hover:bg-app-card text-gray-800 dark:text-app-text-main font-medium transition-colors">
                         Cancel
                     </button>
                     <button
                         onClick={saveBackupJob}
                         disabled={!newJobName || !jobRepository || jobArchives.length === 0}
-                        className="px-4 py-2 rounded bg-app-accent hover:bg-[#ff5f1f] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2"
+                        className="px-4 py-2 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent"
                     >
                         Save Job
                     </button>

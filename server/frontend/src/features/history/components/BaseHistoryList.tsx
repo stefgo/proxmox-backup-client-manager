@@ -95,7 +95,7 @@ export const BaseHistoryList = ({
                                     >
                                         <ChevronRight size={14} className="text-gray-400" />
                                     </span>
-                                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-app-text-main">
                                         {showClientName && `${item.displayName || item.hostname || "Unknown Client"} : `}
                                         {item.name || item.jobId || "Unknown Job"}
                                     </span>
@@ -115,7 +115,7 @@ export const BaseHistoryList = ({
                                     {item.status}
                                 </span>
                             </div>
-                            <div className="flex justify-between text-xs text-gray-500 dark:text-[#666] font-mono mt-0.5 pl-6">
+                            <div className="flex justify-between text-xs text-gray-500 dark:text-app-text-muted font-mono mt-0.5 pl-6">
                                 <span>{item.id}</span>
                                 <span>{formatDate(item.startTime)}</span>
                             </div>
@@ -163,7 +163,7 @@ export const BaseHistoryList = ({
             <CardHeader
                 title={
                     <div className="flex items-center gap-2">
-                        <Activity size={18} className="text-gray-500 dark:text-[#888]" />
+                        <Activity size={18} className="text-app-text-muted" />
                         {title}
                     </div>
                 }

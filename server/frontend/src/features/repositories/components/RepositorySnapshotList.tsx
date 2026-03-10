@@ -32,16 +32,16 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
     };
 
     return (
-        <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg h-full flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525]">
-                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <FileBox size={18} className="text-gray-500 dark:text-[#888]" /> Snapshots
+        <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border overflow-hidden shadow-premium h-full flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-app-border flex justify-between items-center bg-gray-50 dark:bg-app-input">
+                <h3 className="font-semibold text-gray-900 dark:text-app-text-main flex items-center gap-2">
+                    <FileBox size={18} className="text-app-text-muted" /> Snapshots
                 </h3>
             </div>
 
             <div className="flex-1 overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-[#333]">
-                    <thead className="bg-gray-50 dark:bg-[#252525]">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-app-border">
+                    <thead className="bg-gray-50 dark:bg-app-input">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Snapshot</th>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Client</th>
@@ -50,32 +50,32 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
                             <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-app-light dark:bg-app-dark divide-y divide-gray-200 dark:divide-[#333]">
+                    <tbody className="bg-app-card divide-y divide-gray-200 dark:divide-app-border">
                         {paginatedSnapshots.map((snap) => {
                             const client = clients.find(c => c.id === snap.backupId);
                             return (
-                                <tr key={snap.backupTime} className="hover:bg-gray-50 dark:hover:bg-[#252525] transition-colors group">
+                                <tr key={snap.backupTime} className="hover:bg-gray-50 dark:hover:bg-app-input transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                                        <div className="text-sm font-medium text-gray-900 dark:text-app-text-main flex items-center gap-2">
                                             {snap.backupType} / {snap.backupId}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {client ? (
-                                            <div className="text-sm text-gray-500 dark:text-[#ccc] flex items-center gap-2">
+                                            <div className="text-sm text-gray-500 dark:text-app-text-main flex items-center gap-2">
                                                 {client.displayName || client.hostname}
                                             </div>
                                         ) : (
-                                            <span className="text-sm text-gray-400 dark:text-[#666]">-</span>
+                                            <span className="text-sm text-gray-400 dark:text-app-text-footer">-</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-500 dark:text-[#ccc] flex items-center gap-2">
+                                        <div className="text-sm text-gray-500 dark:text-app-text-muted flex items-center gap-2">
                                             {formatDate(snap.backupTime * 1000)}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-500 dark:text-[#ccc]">
+                                        <div className="text-sm text-gray-500 dark:text-app-text-muted">
                                             {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
                                         </div>
                                     </td>
@@ -92,7 +92,7 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
                         })}
                         {snapshots.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-6 py-8 text-center text-[#555]">
+                                <td colSpan={5} className="px-6 py-8 text-center text-app-text-muted">
                                     No snapshots found in this repository.
                                 </td>
                             </tr>

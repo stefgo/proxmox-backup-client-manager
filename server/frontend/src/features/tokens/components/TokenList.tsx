@@ -21,14 +21,14 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         {
             tableHeader: "Token",
             tableItemRender: (t) => (
-                <span className={`font-mono text-sm text-gray-800 dark:text-[#ccc] ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
+                <span className={`font-mono text-sm text-gray-800 dark:text-app-text-main ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
                     {t.token}
                 </span>
             ),
         },
         {
             tableHeader: "Expires / Used",
-            tableCellClassName: "text-sm text-gray-500 dark:text-[#666]",
+            tableCellClassName: "text-sm text-gray-500 dark:text-app-text-muted",
             tableItemRender: (t) => {
                 if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
                 if (new Date(t.expiresAt) < new Date()) return <>Expired: {formatDate(t.expiresAt)}</>;
@@ -38,7 +38,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         {
             tableHeader: "Status",
             tableItemRender: (t) => {
-                if (t.usedAt) return <span className="text-xs bg-gray-200 text-gray-600 dark:bg-[#333] dark:text-[#888] px-2 py-0.5 rounded">Used</span>;
+                if (t.usedAt) return <span className="text-xs bg-gray-200 text-gray-600 dark:bg-app-input dark:text-app-text-muted px-2 py-0.5 rounded">Used</span>;
                 if (new Date(t.expiresAt) < new Date()) return <span className="text-xs bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-500 px-2 py-0.5 rounded">Expired</span>;
                 return <span className="text-xs bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-2 py-0.5 rounded">Active</span>;
             }
@@ -65,11 +65,11 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
 
     return (
         <DataCard
-            title={<><Key size={18} className="text-gray-500 dark:text-[#888]" /> Client Tokens</>}
+            title={<><Key size={18} className="text-app-text-muted" /> Client Tokens</>}
             action={
                 <button
                     onClick={generateToken}
-                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-[#ff5f1f]"
+                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-app-accent-hover"
                 >
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>
