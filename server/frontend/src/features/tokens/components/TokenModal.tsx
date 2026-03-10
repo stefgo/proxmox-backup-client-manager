@@ -19,7 +19,7 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-app-card rounded-xl border border-app-border shadow-2xl max-w-lg w-full p-6">
+            <div className="glass-card max-w-lg w-full p-6 animate-fade-in">
                 <h3 className="text-xl font-bold dark:text-app-text-main text-gray-900 mb-4">New Registration Token</h3>
 
                 <div className="flex items-center gap-2 mb-4">

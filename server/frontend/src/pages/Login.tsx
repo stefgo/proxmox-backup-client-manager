@@ -60,18 +60,18 @@ export default function Login() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-app-bg p-4 text-app-text-main font-sans">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-app-input via-app-bg to-black opacity-50 z-0"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-app-input/40 via-app-bg to-black opacity-70 z-0"></div>
 
-            <div className="w-full max-w-md bg-app-card rounded-xl shadow-premium border border-app-border relative z-10 overflow-hidden">
+            <div className="w-full max-w-md glass-card relative z-10 overflow-hidden animate-fade-in shadow-2xl">
                 <div className="h-1 w-full bg-gradient-to-r from-app-accent to-app-accent-hover"></div>
 
                 <div className="p-8">
                     <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-app-input mb-4 shadow-inner">
-                            <Lock className="w-8 h-8 text-app-accent" />
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-app-input to-app-bg mb-4 shadow-inner border border-white/5 animate-pulse-soft">
+                            <Lock className="w-10 h-10 text-app-accent drop-shadow-glow-accent animate-pulse-glow" />
                         </div>
-                        <h2 className="text-2xl font-bold tracking-tight text-app-text-main">Proxmox Backup</h2>
-                        <p className="text-app-text-muted text-sm mt-1 uppercase tracking-widest font-semibold">Client Manager</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-white mb-1">Proxmox <span className="text-app-accent">Backup</span></h2>
+                        <p className="text-app-text-muted text-xs uppercase tracking-[0.3em] font-bold opacity-80">Client Manager</p>
                     </div>
 
                     {authType === 'oidc' ? (

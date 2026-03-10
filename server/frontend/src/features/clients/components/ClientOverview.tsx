@@ -155,10 +155,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         <div className="space-y-6">
             {/* Detail View */}
             <div className="space-y-6">
-                <div className="bg-white dark:bg-app-card rounded-xl border border-gray-200 dark:border-app-border p-6 shadow-premium">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online' : 'bg-gray-400 dark:bg-app-input'}`} />
+                            <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-gray-400 dark:bg-app-input'}`} />
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900 dark:text-app-text-main">
                                     {client.displayName || client.hostname}

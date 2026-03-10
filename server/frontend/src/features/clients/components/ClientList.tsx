@@ -34,7 +34,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online' : 'bg-gray-400 dark:bg-app-input'}`} />
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-gray-400 dark:bg-app-input'}`} />
                         <div className={`text-sm text-gray-900 dark:text-app-text-main ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
                             {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-app-text-muted ml-2">({client.hostname})</span>}
@@ -100,7 +100,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online' : 'bg-gray-400 dark:bg-app-input'}`} />
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-gray-400 dark:bg-app-input'}`} />
                     <div className={`font-inherit text-gray-900 dark:text-app-text-main ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-gray-500 dark:text-app-text-muted ml-2">({client.hostname})</span>}
