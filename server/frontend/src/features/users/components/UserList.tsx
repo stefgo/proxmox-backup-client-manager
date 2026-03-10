@@ -103,7 +103,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                 isLoading={isLoading}
                 loadingMessage="Loading users..."
                 emptyMessage="No users found"
-                containerClassName="rounded-none border-0 shadow-none"
+                containerClassName="rounded-b-xl border-0 shadow-none"
             />
         </DataCard>
     );

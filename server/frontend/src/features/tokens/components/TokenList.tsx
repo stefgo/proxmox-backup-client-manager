@@ -81,7 +81,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
                 itemDef={columns}
                 keyField="token"
                 emptyMessage="No tokens generated"
-                containerClassName="rounded-none border-0 shadow-none"
+                containerClassName="rounded-b-xl border-0 shadow-none"
             />
         </DataCard>
     );

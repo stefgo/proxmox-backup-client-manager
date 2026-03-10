@@ -173,7 +173,7 @@ export const BaseHistoryList = ({
                 keyField="id"
                 itemDef={itemDef}
                 onRowClick={(item) => toggleExpand(item.id)}
-                containerClassName="border-0 shadow-none rounded-none flex-1"
+                containerClassName="rounded-b-xl border-0 shadow-none flex-1"
                 emptyMessage={emptyMessage}
                 rowClassName="!px-5 !py-3"
                 pagination={{
