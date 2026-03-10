@@ -53,7 +53,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
     };
 
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col">
+        <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col">
             <div className="p-6 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525] rounded-t-xl">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                     {repository ? 'Edit Repository' : 'Add Repository'}
@@ -134,7 +134,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                 <button
                     onClick={handleSubmit}
                     disabled={isSaving}
-                    className="px-4 py-2 rounded bg-[#E54D0D] hover:bg-[#ff5f1f] text-white"
+                    className="px-4 py-2 rounded bg-app-accent hover:bg-[#ff5f1f] text-white"
                 >
                     {repository ? 'Update' : 'Save'} Repository
                 </button>

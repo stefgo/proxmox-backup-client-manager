@@ -62,7 +62,7 @@ export default function Login() {
         <div className="min-h-screen flex items-center justify-center bg-[#121212] p-4 text-[#e0e0e0] font-sans">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#2a2a2a] via-[#121212] to-[#000000] opacity-50 z-0"></div>
 
-            <div className="w-full max-w-md bg-[#1e1e1e] rounded-xl shadow-2xl border border-[#333] relative z-10 overflow-hidden">
+            <div className="w-full max-w-md bg-app-dark rounded-xl shadow-2xl border border-[#333] relative z-10 overflow-hidden">
                 <div className="h-1 w-full bg-gradient-to-r from-[#E54D0D] to-[#ff7f40]"></div>
 
                 <div className="p-8">
@@ -83,7 +83,7 @@ export default function Login() {
 
                                 <button
                                     onClick={handleOidcLogin}
-                                    className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-[#E54D0D] hover:bg-[#ff5f1f] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E54D0D] transition-all shadow-lg hover:shadow-[#E54D0D]/20 active:scale-[0.98]"
+                                    className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-app-accent hover:bg-[#ff5f1f] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E54D0D] transition-all shadow-lg hover:shadow-[#E54D0D]/20 active:scale-[0.98]"
                                 >
                                     Login with OIDC
                                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -138,7 +138,7 @@ export default function Login() {
                             <button
                                 type="submit"
                                 disabled={isLoading}
-                                className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-[#E54D0D] hover:bg-[#ff5f1f] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E54D0D] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-[#E54D0D]/20 active:scale-[0.98]"
+                                className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg text-sm font-semibold text-white bg-app-accent hover:bg-[#ff5f1f] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E54D0D] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-[#E54D0D]/20 active:scale-[0.98]"
                             >
                                 {isLoading ? 'Signing in...' : 'Sign in to Dashboard'}
                                 {!isLoading && <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />}

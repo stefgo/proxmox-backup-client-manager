@@ -81,7 +81,7 @@ export const JobRepositorySelect = ({
                     </button>
                 </div>
 
-                <div className="divide-y divide-gray-200 dark:divide-[#333] border border-gray-200 dark:border-[#333] rounded-lg overflow-hidden bg-white dark:bg-[#1e1e1e]">
+                <div className="divide-y divide-gray-200 dark:divide-[#333] border border-gray-200 dark:border-[#333] rounded-lg overflow-hidden bg-app-light dark:bg-app-dark">
                     {repositories.map(repo => (
                         <div key={repo.id} className="flex flex-col">
                             <div
@@ -134,7 +134,7 @@ export const JobRepositorySelect = ({
 
                 <div className="flex-1 border border-gray-200 dark:border-[#333] rounded-lg bg-gray-50 dark:bg-[#111] overflow-y-auto p-2 space-y-2">
                     {selectedRepository ? (
-                        <div className="bg-white dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded overflow-hidden group">
+                        <div className="bg-app-light dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded overflow-hidden group">
                             <div className="flex flex-col">
                                 <div className="px-3 py-2 flex justify-between items-center gap-2">
                                     <div className="flex items-center gap-2 overflow-hidden">

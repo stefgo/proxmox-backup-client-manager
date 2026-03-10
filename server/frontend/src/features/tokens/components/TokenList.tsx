@@ -69,7 +69,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             action={
                 <button
                     onClick={generateToken}
-                    className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
+                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-[#ff5f1f]"
                 >
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>

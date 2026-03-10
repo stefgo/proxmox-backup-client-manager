@@ -32,7 +32,7 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
     };
 
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg h-full flex flex-col">
+        <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] overflow-hidden shadow-lg h-full flex flex-col">
             <div className="px-5 py-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525]">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <FileBox size={18} className="text-gray-500 dark:text-[#888]" /> Snapshots
@@ -50,7 +50,7 @@ export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: Reposi
                             <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-white dark:bg-[#1e1e1e] divide-y divide-gray-200 dark:divide-[#333]">
+                    <tbody className="bg-app-light dark:bg-app-dark divide-y divide-gray-200 dark:divide-[#333]">
                         {paginatedSnapshots.map((snap) => {
                             const client = clients.find(c => c.id === snap.backupId);
                             return (

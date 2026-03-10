@@ -68,7 +68,7 @@ export const JobArchiveEditor = () => {
                     />
                 </div>
 
-                <button onClick={addArchiveItem} disabled={!newItemPath} className="w-full py-2 bg-[#E54D0D] hover:bg-[#ff5f1f] disabled:opacity-50 text-white rounded font-bold">
+                <button onClick={addArchiveItem} disabled={!newItemPath} className="w-full py-2 bg-app-accent hover:bg-[#ff5f1f] disabled:opacity-50 text-white rounded font-bold">
                     Confirm Archive
                 </button>
             </div>

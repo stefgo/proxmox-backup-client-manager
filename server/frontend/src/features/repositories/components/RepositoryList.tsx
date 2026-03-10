@@ -166,7 +166,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             extraActions={
                 <button
                     onClick={onAdd}
-                    className="px-3 py-1 bg-[#E54D0D] text-white text-xs rounded hover:bg-[#ff5f1f]"
+                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-[#ff5f1f]"
                 >
                     <Plus size={12} className="inline mr-1" /> Add Repository
                 </button>

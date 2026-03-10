@@ -121,7 +121,7 @@ export default function Settings() {
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-white dark:bg-[#1e1e1e]">
+                    <div className="flex-1 flex flex-col bg-app-light dark:bg-app-dark">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
                                 <div className="max-w-3xl space-y-8">
@@ -146,7 +146,7 @@ export default function Settings() {
                                                     value={settings.retention_invalid_tokens_days}
                                                     onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
                                                     placeholder="30"
-                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                    className="rounded-xl bg-app-light dark:bg-[#161616]"
                                                 />
                                                 <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
                                                     Number of days an invalid token remains in the database.
@@ -162,7 +162,7 @@ export default function Settings() {
                                                     value={settings.retention_invalid_tokens_count}
                                                     onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_count: Math.max(0, parseInt(e.target.value) || 0).toString() })}
                                                     placeholder="10"
-                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                    className="rounded-xl bg-app-light dark:bg-[#161616]"
                                                 />
                                                 <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
                                                     Ensure at least this many invalid tokens are always kept.
@@ -217,7 +217,7 @@ export default function Settings() {
                                                     value={settings.retention_job_history_days}
                                                     onChange={(e) => setSettings({ ...settings, retention_job_history_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
                                                     placeholder="90"
-                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                    className="rounded-xl bg-app-light dark:bg-[#161616]"
                                                 />
                                                 <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
                                                     Number of days job history entries remain in the database.
@@ -233,7 +233,7 @@ export default function Settings() {
                                                     value={settings.retention_job_history_count}
                                                     onChange={(e) => setSettings({ ...settings, retention_job_history_count: Math.max(1, parseInt(e.target.value) || 1).toString() })}
                                                     placeholder="50"
-                                                    className="rounded-xl bg-white dark:bg-[#161616]"
+                                                    className="rounded-xl bg-app-light dark:bg-[#161616]"
                                                 />
                                                 <p className="text-xs text-gray-500 dark:text-[#555] leading-relaxed">
                                                     Ensure at least this many entries are kept for each client.
@@ -274,7 +274,7 @@ export default function Settings() {
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2 rounded bg-[#E54D0D] hover:bg-[#ff5f1f] text-white font-bold flex items-center gap-2 shadow-lg shadow-orange-500/20"
+                        className="px-6 py-2 rounded bg-app-accent hover:bg-[#ff5f1f] text-white font-bold flex items-center gap-2 shadow-lg shadow-orange-500/20"
                     >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>

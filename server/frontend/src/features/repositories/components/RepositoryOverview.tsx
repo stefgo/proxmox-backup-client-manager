@@ -63,7 +63,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     return (
         <div className="space-y-6 h-full flex flex-col">
             {/* Header */}
-            <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
+            <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />

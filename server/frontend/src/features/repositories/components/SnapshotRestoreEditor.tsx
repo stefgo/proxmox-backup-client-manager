@@ -133,7 +133,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     };
 
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col h-full overflow-hidden">
+        <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525]">
                 <div>
@@ -227,7 +227,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 <button
                     onClick={handleRestore}
                     disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0}
-                    className="px-4 py-2 rounded bg-[#E54D0D] hover:bg-[#ff5f1f] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2"
+                    className="px-4 py-2 rounded bg-app-accent hover:bg-[#ff5f1f] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2"
                 >
                     Restore Content
                 </button>

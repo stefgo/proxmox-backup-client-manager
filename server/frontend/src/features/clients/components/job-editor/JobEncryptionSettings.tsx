@@ -57,8 +57,8 @@ export const JobEncryptionSettings: React.FC = () => {
                     className={`flex items-center gap-2 ${isGenerating ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                     onClick={handleToggle}
                 >
-                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-[#E54D0D]' : 'bg-gray-300 dark:bg-[#444]'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
+                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-app-accent' : 'bg-gray-300 dark:bg-[#444]'}`}>
+                        <div className={`w-4 h-4 bg-app-light rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
                     </div>
                     <label className="text-xs font-bold text-gray-500 dark:text-[#888] uppercase cursor-pointer flex items-center gap-1">
                         {encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
@@ -72,7 +72,7 @@ export const JobEncryptionSettings: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleDownloadKey}
-                                className="flex-1 flex items-center justify-center py-2 px-3 border border-[#E54D0D] text-[#E54D0D] hover:bg-[#E54D0D]/10 rounded font-bold transition-colors"
+                                className="flex-1 flex items-center justify-center py-2 px-3 border border-[#E54D0D] text-[#E54D0D] hover:bg-app-accent/10 rounded font-bold transition-colors"
                             >
                                 <Download className="h-4 w-4 mr-2" />
                                 Download Key (.json)

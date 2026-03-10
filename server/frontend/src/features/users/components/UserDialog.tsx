@@ -80,7 +80,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-2xl max-w-md w-full p-6">
+            <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-2xl max-w-md w-full p-6">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold dark:text-white text-gray-900">
                         {editingUser ? 'Edit User' : 'New User'}

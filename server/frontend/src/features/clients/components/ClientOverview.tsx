@@ -155,7 +155,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         <div className="space-y-6">
             {/* Detail View */}
             <div className="space-y-6">
-                <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
+                <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]' : 'bg-gray-400 dark:bg-[#444]'}`} />

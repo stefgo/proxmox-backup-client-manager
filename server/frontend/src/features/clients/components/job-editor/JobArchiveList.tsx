@@ -25,7 +25,7 @@ export const JobArchiveList = () => {
 
             <div className="flex-1 border border-gray-200 dark:border-[#333] rounded-lg bg-gray-50 dark:bg-[#111] overflow-y-auto p-2 space-y-2">
                 {jobArchives.map((bk, idx) => (
-                    <div key={idx} className="bg-white dark:bg-[#222] p-3 rounded border border-gray-200 dark:border-[#333] flex justify-between items-center group">
+                    <div key={idx} className="bg-app-light dark:bg-[#222] p-3 rounded border border-gray-200 dark:border-[#333] flex justify-between items-center group">
                         <div>
                             <div className="font-bold text-gray-900 dark:text-white text-sm">{bk.name}</div>
                             <div className="text-xs text-blue-500 font-mono mb-1">{bk.path}</div>

@@ -385,7 +385,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     const newJobButton = showNewJobButton && onCreateJob && (
         <button
             onClick={onCreateJob}
-            className="px-3 py-1 text-white text-xs rounded transition-colors bg-[#E54D0D] hover:bg-[#ff5f1f]"
+            className="px-3 py-1 text-white text-xs rounded transition-colors bg-app-accent hover:bg-[#ff5f1f]"
         >
             <Plus size={12} className="inline mr-1" /> New Job
         </button>

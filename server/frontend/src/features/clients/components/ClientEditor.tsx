@@ -26,7 +26,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
     };
 
     return (
-        <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col">
+        <div className="bg-app-light dark:bg-app-dark rounded-xl border border-gray-200 dark:border-[#333] shadow-lg flex flex-col">
             <div className="p-6 border-b border-gray-200 dark:border-[#333] flex justify-between items-center bg-gray-50 dark:bg-[#252525] rounded-t-xl">
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white">Edit Client</h3>
                 <button onClick={onCancel} className="text-gray-500 dark:text-[#888] hover:text-gray-900 dark:hover:text-white">
@@ -45,7 +45,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             placeholder={client.hostname}
-                            className="w-full px-3 py-2 bg-white dark:bg-[#111] border border-gray-300 dark:border-[#333] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E54D0D] dark:text-white outline-none transition-all"
+                            className="w-full px-3 py-2 bg-app-light dark:bg-[#111] border border-gray-300 dark:border-[#333] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E54D0D] dark:text-white outline-none transition-all"
                         />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             Leave empty to use hostname ({client.hostname})
@@ -63,7 +63,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 text-sm bg-[#E54D0D] hover:bg-[#ff5f1f] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="px-4 py-2 text-sm bg-app-accent hover:bg-[#ff5f1f] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
                             disabled={isSaving}
                         >
                             <Save size={16} /> {isSaving ? 'Saving...' : 'Save Changes'}

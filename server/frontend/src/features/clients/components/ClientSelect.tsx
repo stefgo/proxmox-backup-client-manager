@@ -59,13 +59,13 @@ export const ClientSelect = ({
                     </button>
                 </div>
 
-                <div className="divide-y divide-gray-200 dark:divide-[#333] border border-gray-200 dark:border-[#333] rounded-lg overflow-hidden bg-white dark:bg-[#1e1e1e]">
+                <div className="divide-y divide-gray-200 dark:divide-[#333] border border-gray-200 dark:border-[#333] rounded-lg overflow-hidden bg-app-light dark:bg-app-dark">
                     {clients.map(client => (
                         <Collapsible
                             key={client.id}
                             title={
                                 <div className="flex items-center gap-2 overflow-hidden" onClick={() => { onSelect(client.id); onSetIsSelecting?.(false); }}>
-                                    <div className={`w-3 h-3 rounded-full ${selectedClientId === client.id ? 'bg-[#E54D0D]' : 'border-2 border-gray-300 dark:border-[#444]'}`} />
+                                    <div className={`w-3 h-3 rounded-full ${selectedClientId === client.id ? 'bg-app-accent' : 'border-2 border-gray-300 dark:border-[#444]'}`} />
                                     <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
                                         {client.displayName || client.hostname}
                                     </div>
@@ -99,7 +99,7 @@ export const ClientSelect = ({
 
             <div className="flex-1 border border-gray-200 dark:border-[#333] rounded-lg bg-gray-50 dark:bg-[#111] overflow-y-auto p-2 space-y-2">
                 {selectedClient ? (
-                    <div className="bg-white dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded overflow-hidden group">
+                    <div className="bg-app-light dark:bg-[#222] border border-gray-200 dark:border-[#333] rounded overflow-hidden group">
                         <Collapsible
                             title={
                                 <div className="flex justify-between items-center gap-2 w-full">

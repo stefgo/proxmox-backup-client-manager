@@ -17,10 +17,10 @@ export default {
         extend: {
             colors: {
                 // Custom color palette for "Premium Design"
-                proxmox: {
+                app: {
                     dark: "#1e1e1e",
                     light: "#f5f5f5",
-                    accent: "#E57000", // Proxmox Orange-ish
+                    accent: "#E54D0D", // Orange-ish
                 },
             },
         },
