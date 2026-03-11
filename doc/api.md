@@ -39,6 +39,10 @@
     - [Create Token](#create-token)
     - [Delete Token](#delete-token)
     - [Register Client (Public)](#register-client-public)
+- [Settings & Maintenance](#-settings--maintenance)
+    - [Get Cleanup Settings](#get-cleanup-settings)
+    - [Update Cleanup Settings](#update-cleanup-settings)
+    - [Run Maintenance](#run-maintenance)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
     - [Agent Connection](#agent-connection)
@@ -247,6 +251,30 @@
 
 ---
 
+## 📅 Global Data Views
+
+### List All Jobs
+
+`GET /v1/jobs`
+
+**Description:** Retrieves all backup jobs configured across all registered clients.
+
+#### Response (Array of Job objects)
+
+_Same structure as [List Client Jobs](#list-client-jobs)._
+
+### Get Global History
+
+`GET /v1/history`
+
+**Description:** Retrieves the execution history of all jobs across all clients.
+
+#### Response (Array of History objects)
+
+_Same structure as [Get Client History](#get-client-history)._
+
+---
+
 ## 🖥 Clients
 
 ### List Clients
@@ -364,6 +392,23 @@
 {
     "requestId": "req-uuid-123",
     "version": "1.0.0"
+}
+```
+
+### Generate Client Key
+
+`POST /v1/clients/:clientId/key`
+
+**Description:** Triggers the generation of a new encryption key for the client.
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "status": "triggered",
+    "requestId": "gen-key-uuid"
 }
 ```
 
@@ -594,6 +639,22 @@
 ]
 ```
 
+### Get Repository Status
+
+`GET /v1/repositories/:repositoryId/status`
+
+**Description:** Checks and returns the current connectivity status of a Proxmox Backup Server repository.
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "status": "online"
+}
+```
+
 ### Create Repository
 
 `POST /v1/repositories`
@@ -808,6 +869,41 @@ _Same fields as Create Repository._
     "clientId": "550e8400-..."
 }
 ```
+
+---
+
+## 🛠 Settings & Maintenance
+
+### Get Cleanup Settings
+
+`GET /v1/settings/cleanup`
+
+**Description:** Retrieves current automated cleanup and retention settings.
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "keepLast": 10,
+    "keepDaily": 7,
+    "keepWeekly": 4,
+    "keepMonthly": 12
+}
+```
+
+### Update Cleanup Settings
+
+`PUT /v1/settings/cleanup`
+
+**Description:** Updates the automated cleanup and retention parameters.
+
+### Run Maintenance
+
+`POST /v1/settings/cleanup`
+
+**Description:** Manually triggers the cleanup/maintenance task based on current settings.
 
 ---
 
