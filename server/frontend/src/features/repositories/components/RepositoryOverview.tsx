@@ -43,9 +43,9 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     }, [clients.length, token, fetchClients]);
 
     const getStatusColor = () => {
-        if (isLoading) return 'bg-yellow-500 animate-pulse shadow-[0_0_12px_rgba(234,179,8,0.4)]';
-        if (repo?.status === 'online') return 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]';
-        return 'bg-gray-400 dark:bg-[#444]';
+        if (isLoading) return 'bg-yellow-500 animate-pulse shadow-glow-accent';
+        if (repo?.status === 'online') return 'bg-green-500 shadow-glow-online';
+        return 'bg-gray-400 dark:bg-app-input';
     };
 
     if (!repo) {
@@ -63,15 +63,15 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     return (
         <div className="space-y-6 h-full flex flex-col">
             {/* Header */}
-            <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
+            <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border p-6 shadow-premium">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-app-text-main flex items-center gap-3">
                                 {repo.baseUrl}:{repo.datastore}
                             </h2>
-                            <div className="text-sm font-mono text-gray-500 dark:text-[#666] flex items-center gap-2">
+                            <div className="text-sm font-mono text-gray-500 dark:text-app-text-muted flex items-center gap-2">
                                 {repo.id}
                             </div>
                         </div>
@@ -83,12 +83,12 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {showDetails && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-blue-500 rounded-xl h-full' : 'h-full'}>
+                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-app-accent rounded-xl h-full' : 'h-full'}>
                             <StatCard
                                 label="Snapshots"
                                 value={snapshots.length.toString()}
                                 sub="Available Backups"
-                                icon={<FileBox className="text-gray-500 dark:text-[#888]" />}
+                                icon={<FileBox className="text-app-text-muted" />}
                                 onClick={() => setActiveTab('snapshots')}
                             />
                         </div>
@@ -108,8 +108,13 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         ) : (
                             <RepositorySnapshotList
                                 snapshots={snapshots}
-                                clients={clients}
+                                showClientColumn={true}
                                 onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
+                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || 'offline'}
+                                getClientName={(clientId) => {
+                                    const client = clients.find(c => c.id === clientId);
+                                    return client ? (client.displayName || client.hostname) : null;
+                                }}
                             />
                         )
                     )}

@@ -32,10 +32,10 @@ export const JobArchiveEditor = () => {
         <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 gap-4">
             <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase">Add Directory</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase">Add Directory</label>
                     <button
                         onClick={() => setIsAddingArchive(false)}
-                        className="text-xs text-[#E54D0D] font-bold hover:underline"
+                        className="text-xs text-app-accent font-bold hover:underline"
                     >
                         Back
                     </button>
@@ -55,7 +55,7 @@ export const JobArchiveEditor = () => {
 
             <div className="space-y-2">
                 <div>
-                    <label className="block text-xs font-bold text-gray-500 dark:text-[#888] uppercase mb-1">Archive Name</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">Archive Name</label>
                     <input
                         type="text"
                         value={newItemName}
@@ -64,11 +64,11 @@ export const JobArchiveEditor = () => {
                             setIsNameModified(true);
                         }}
                         placeholder="e.g. Database Dump"
-                        className="w-full bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded px-3 py-2 text-gray-900 dark:text-white focus:border-[#E54D0D] outline-none"
+                        className="w-full bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded px-3 py-2 text-gray-900 dark:text-app-text-main focus:border-app-accent outline-none"
                     />
                 </div>
 
-                <button onClick={addArchiveItem} disabled={!newItemPath} className="w-full py-2 bg-[#E54D0D] hover:bg-[#ff5f1f] disabled:opacity-50 text-white rounded font-bold">
+                <button onClick={addArchiveItem} disabled={!newItemPath} className="w-full py-2 bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 text-white rounded font-bold transition-colors shadow-glow-accent">
                     Confirm Archive
                 </button>
             </div>

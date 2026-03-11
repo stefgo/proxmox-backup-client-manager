@@ -70,7 +70,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         if (!isOnline) {
             return (
-                <span className="text-gray-400 dark:text-[#666] grayscale">
+                <span className="text-gray-400 dark:text-app-text-muted grayscale">
                     {date < now ? "Pending" : formatDate(date)}
                 </span>
             );
@@ -103,8 +103,8 @@ export const BaseJobList = <T extends BaseJobItem>({
                         <div className="flex items-center gap-3 mb-1">
                             <div
                                 className={`w-2 h-2 rounded-full shrink-0 ${online
-                                    ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
-                                    : "bg-gray-400 dark:bg-[#444]"
+                                    ? "bg-green-500 shadow-glow-online"
+                                    : "bg-gray-400 dark:bg-app-input"
                                     }`}
                             />
                             <div
@@ -133,12 +133,12 @@ export const BaseJobList = <T extends BaseJobItem>({
                 return (
                     <>
                         <div
-                            className={`text-sm ${online ? "font-medium text-gray-900 dark:text-white" : ""
+                            className={`text-sm ${online ? "font-medium text-gray-900 dark:text-app-text-main" : ""
                                 }`}
                         >
                             {job.name}
                         </div>
-                        <div className="text-xs font-mono text-gray-500 dark:text-[#666] truncate opacity-70 mt-0.5">
+                        <div className="text-xs font-mono text-gray-500 dark:text-app-text-muted truncate opacity-70 mt-0.5">
                             {job.id}
                         </div>
                     </>
@@ -151,7 +151,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
-                    <div className={`text-sm ${online ? "text-gray-900 dark:text-white" : ""}`}>
+                    <div className={`text-sm ${online ? "text-gray-900 dark:text-app-text-main" : ""}`}>
                         {job.archives?.length || 0}
                     </div>
                 );
@@ -163,11 +163,11 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
-                    <div className={`text-sm ${online ? "text-gray-500 dark:text-[#ccc]" : ""}`}>
+                    <div className={`text-sm ${online ? "text-gray-500 dark:text-app-text-muted" : ""}`}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, online)
                         ) : (
-                            <span className={online ? "text-gray-400 dark:text-[#555]" : ""}>
+                            <span className={online ? "text-gray-400 dark:text-app-text-footer" : ""}>
                                 Manual Only
                             </span>
                         )}
@@ -187,8 +187,8 @@ export const BaseJobList = <T extends BaseJobItem>({
                         size={16}
                         className={
                             online
-                                ? "text-gray-500 dark:text-[#ccc]"
-                                : "text-gray-400 dark:text-[#444]"
+                                ? "text-gray-500 dark:text-app-text-footer"
+                                : "text-gray-400 dark:text-app-input"
                         }
                     />
                 ) : null;
@@ -256,7 +256,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                             />
                             <span
                                 className={`${isOnline
-                                    ? "text-gray-900 dark:text-white"
+                                    ? "text-gray-900 dark:text-app-text-main"
                                     : "text-inherit"
                                     }`}
                             >
@@ -280,7 +280,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-gray-900 dark:text-white" : "text-inherit"}>
+                    <span className={isOnline ? "text-gray-900 dark:text-app-text-main" : "text-inherit"}>
                         {job.name}
                     </span>
                 );
@@ -292,7 +292,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-gray-900 dark:text-white" : "text-inherit"}>
+                    <span className={isOnline ? "text-gray-900 dark:text-app-text-main" : "text-inherit"}>
                         {job.archives?.length || 0}
                     </span>
                 );
@@ -304,11 +304,11 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-gray-700 dark:text-[#ccc]" : "text-inherit"}>
+                    <span className={isOnline ? "text-gray-700 dark:text-app-text-muted" : "text-inherit"}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, isOnline)
                         ) : (
-                            <span className={isOnline ? "text-gray-400 dark:text-[#555]" : "text-inherit"}>
+                            <span className={isOnline ? "text-gray-400 dark:text-app-text-footer" : "text-inherit"}>
                                 Manual Only
                             </span>
                         )}
@@ -324,7 +324,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 if (!job.encryption?.enabled) return null;
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={`${isOnline ? "text-gray-700 dark:text-[#ccc]" : "text-inherit"} flex items-center gap-1`}>
+                    <span className={`${isOnline ? "text-gray-700 dark:text-app-text-muted" : "text-inherit"} flex items-center gap-1`}>
                         <KeyRound size={14} className={isOnline ? "" : "text-inherit"} /> Yes
                     </span>
                 );
@@ -385,7 +385,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     const newJobButton = showNewJobButton && onCreateJob && (
         <button
             onClick={onCreateJob}
-            className="px-3 py-1 text-white text-xs rounded transition-colors bg-[#E54D0D] hover:bg-[#ff5f1f]"
+            className="px-3 py-1 text-white text-xs rounded transition-colors bg-app-accent hover:bg-app-accent-hover"
         >
             <Plus size={12} className="inline mr-1" /> New Job
         </button>
@@ -393,7 +393,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
     return (
         <DataMultiView
-            title={<><HardDrive size={18} className="text-gray-500 dark:text-[#888]" />{title}</>}
+            title={<><HardDrive size={18} className="text-app-text-muted" />{title}</>}
             extraActions={newJobButton || undefined}
             viewModeStorageKey={viewModeStorageKey}
             data={currentJobs}
@@ -406,7 +406,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             rowClassName={(job) =>
                 getStatus(job) === "online"
                     ? "align-top"
-                    : "bg-gray-50 dark:bg-[#2a2a2a] text-gray-400 dark:text-[#666] opacity-75"
+                    : "bg-gray-50 dark:bg-app-input text-gray-400 dark:text-app-text-muted opacity-75"
             }
             pagination={{
                 currentPage,

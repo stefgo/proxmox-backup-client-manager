@@ -2,8 +2,8 @@ name: Registry Cleanup
 
 on:
     schedule:
-        - cron: "0 2 * * *" # Läuft jede Nacht um 02:00 Uhr
-    workflow_dispatch: # Ermöglicht manuelles Starten zum Testen
+        - cron: "0 2 * * *" # Runs every night at 02:00
+    workflow_dispatch: # Allows manual trigger for testing
 
 jobs:
     delete-old-packages:
@@ -12,14 +12,18 @@ jobs:
             packages: write
             contents: read
 
+        strategy:
+            matrix:
+                package: [pbcm-client, pbcm-client-arm64, pbcm-server]
+
         steps:
             - name: Delete unwanted versions
               uses: actions/delete-package-versions@v5
               with:
-                  package-name: "DEIN_PAKET_NAME" # Hier den Namen deines Pakets eintragen
-                  package-type: "container" # 'container', 'npm', 'maven', etc.
-                  # Wir behalten Versionen, die NICHT gelöscht werden sollen:
-                  # Regulärer Ausdruck für: 'latest' ODER Versionsnummern (z.B. v1.0.1)
-                  # ODER Branch-Namen (hier beispielhaft 'main' und 'develop')
+                  package-name: ${{ matrix.package }}
+                  package-type: "container"
+                  # We keep versions that should NOT be deleted:
+                  # Regex for: 'latest' OR version numbers (e.g., v1.0.1)
+                  # OR branch names (here 'main')
                   ignore-versions: '^(latest|v?\d+\.\d+\.\d+|main)$'
-                  min-versions-to-keep: 0
+                  min-versions-to-keep: 5 # Always keep the last 5 versions per package

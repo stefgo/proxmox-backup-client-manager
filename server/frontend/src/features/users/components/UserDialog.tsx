@@ -80,12 +80,12 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] shadow-2xl max-w-md w-full p-6">
+            <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border shadow-2xl max-w-md w-full p-6">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold dark:text-white text-gray-900">
                         {editingUser ? 'Edit User' : 'New User'}
                     </h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-[#888] dark:hover:text-white">
+                    <button onClick={onClose} className="text-app-text-muted hover:text-gray-700 dark:hover:text-app-text-main transition-colors">
                         <X size={20} />
                     </button>
                 </div>
@@ -98,51 +98,51 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-[#ccc] mb-1">Username</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-1">Username</label>
                         <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             disabled={!!editingUser} // Prevent changing username for now
-                            className={`w-full px-3 py-2 bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white ${editingUser ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            className={`w-full px-3 py-2 bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded-lg focus:outline-none focus:ring-2 focus:ring-app-accent/50 dark:text-app-text-main ${editingUser ? 'opacity-60 cursor-not-allowed' : ''}`}
                             placeholder="username"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-[#ccc] mb-2">Authentication Methods</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-2">Authentication Methods</label>
                         <div className="flex gap-4">
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={authMethods.includes('local')}
                                     onChange={() => toggleAuthMethod('local')}
-                                    className="rounded border-gray-300 dark:border-[#333] text-blue-600 focus:ring-blue-500"
+                                    className="rounded border-gray-300 dark:border-app-border text-app-accent focus:ring-app-accent bg-app-input"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-[#ccc]">Local (Password)</span>
+                                <span className="text-sm text-gray-700 dark:text-app-text-muted">Local (Password)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={authMethods.includes('oidc')}
                                     onChange={() => toggleAuthMethod('oidc')}
-                                    className="rounded border-gray-300 dark:border-[#333] text-blue-600 focus:ring-blue-500"
+                                    className="rounded border-gray-300 dark:border-app-border text-app-accent focus:ring-app-accent bg-app-input"
                                 />
-                                <span className="text-sm text-gray-700 dark:text-[#ccc]">OIDC (SSO)</span>
+                                <span className="text-sm text-gray-700 dark:text-app-text-muted">OIDC (SSO)</span>
                             </label>
                         </div>
                     </div>
 
                     {authMethods.includes('local') && (
                         <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-[#ccc] mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-app-text-muted mb-1">
                                 {editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
                             </label>
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-3 py-2 bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-[#333] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                                className="w-full px-3 py-2 bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded-lg focus:outline-none focus:ring-2 focus:ring-app-accent/50 dark:text-app-text-main"
                                 placeholder={editingUser ? '••••••••' : 'password'}
                             />
                         </div>
@@ -152,14 +152,14 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-gray-600 dark:text-[#aaa] hover:bg-gray-100 dark:hover:bg-[#333] rounded-lg"
+                            className="px-4 py-2 text-gray-600 dark:text-app-text-muted hover:bg-gray-100 dark:hover:bg-app-input rounded-lg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                            className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded-lg disabled:opacity-50 transition-colors font-medium shadow-glow-accent"
                         >
                             {isLoading ? 'Saving...' : 'Save User'}
                         </button>

@@ -2,7 +2,7 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard, Badge } from '@stefgo/react-ui-components';
+import { StatCard } from '@stefgo/react-ui-components';
 import { Client } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
@@ -155,17 +155,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         <div className="space-y-6">
             {/* Detail View */}
             <div className="space-y-6">
-                <div className="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-[#333] p-6 shadow-lg">
+                <div className="premium-card p-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Badge variant={client.status === 'online' ? 'success' : 'gray'} size="sm">
-                                {client.status}
-                            </Badge>
+                            <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-gray-400 dark:bg-app-input'}`} />
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                                <h2 className="text-2xl font-bold text-gray-900 dark:text-app-text-main">
                                     {client.displayName || client.hostname}
                                 </h2>
-                                <div className="text-sm font-mono text-gray-500 dark:text-[#666] flex items-center gap-2">
+                                <div className="text-sm font-mono text-gray-500 dark:text-app-text-muted flex items-center gap-2">
                                     {client.id}
                                 </div>
                             </div>
@@ -175,8 +173,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <div className="flex items-center gap-4">
                             {client.status !== 'online' && (
                                 <div className="text-right mr-2">
-                                    <div className="text-xs text-gray-500 dark:text-[#888] uppercase tracking-wider font-bold mb-1">Last Seen</div>
-                                    <div className="text-sm text-gray-700 dark:text-[#ccc] font-mono">{formatDate(client.lastSeen)}</div>
+                                    <div className="text-xs text-app-text-muted uppercase tracking-wider font-bold mb-1">Last Seen</div>
+                                    <div className="text-sm text-gray-700 dark:text-app-text-main font-mono">{formatDate(client.lastSeen)}</div>
                                 </div>
                             )}
 
@@ -184,7 +182,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             <div className="relative">
                                 <button
                                     onClick={(e) => openMenu(e, client.id)}
-                                    className="p-2 hover:bg-gray-100 dark:hover:bg-[#333] rounded-full transition-colors text-gray-500 dark:text-gray-400"
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-app-input rounded-full transition-colors text-app-text-muted"
                                 >
                                     <MoreVertical size={20} />
                                 </button>
@@ -199,7 +197,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                             setIsEditing(true);
                                             closeMenu();
                                         }}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#333] flex items-center gap-2"
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-app-text-main hover:bg-gray-50 dark:hover:bg-app-input flex items-center gap-2"
                                     >
                                         <Edit size={16} /> Edit Client
                                     </button>
@@ -223,30 +221,30 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <>
                             {/* Client Stats Row */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                <div className={activeTab === 'jobs' ? 'ring-2 ring-blue-500 rounded-xl h-full' : 'h-full'}>
+                                <div className={activeTab === 'jobs' ? 'ring-2 ring-app-accent rounded-xl h-full' : 'h-full'}>
                                     <StatCard
                                         label="Backup Jobs"
                                         value={configuredJobs.length.toString()}
                                         sub="Configurations"
-                                        icon={<HardDrive className="text-gray-500 dark:text-[#888]" />}
+                                        icon={<HardDrive className="text-app-text-muted" />}
                                         onClick={() => setActiveTab('jobs')}
                                     />
                                 </div>
-                                <div className={activeTab === 'snapshots' ? 'ring-2 ring-blue-500 rounded-xl h-full' : 'h-full'}>
+                                <div className={activeTab === 'snapshots' ? 'ring-2 ring-app-accent rounded-xl h-full' : 'h-full'}>
                                     <StatCard
                                         label="Snapshots"
                                         value={clientSnapshots.length.toString()}
                                         sub="Available Backups"
-                                        icon={<FileBox className="text-gray-500 dark:text-[#888]" />}
+                                        icon={<FileBox className="text-app-text-muted" />}
                                         onClick={() => setActiveTab('snapshots')}
                                     />
                                 </div>
-                                <div className={activeTab === 'history' ? 'ring-2 ring-blue-500 rounded-xl h-full' : 'h-full'}>
+                                <div className={activeTab === 'history' ? 'ring-2 ring-app-accent rounded-xl h-full' : 'h-full'}>
                                     <StatCard
                                         label="Job History"
                                         value={backupJobs.length.toString()}
                                         sub="Recorded Runs"
-                                        icon={<Activity className="text-gray-500 dark:text-[#888]" />}
+                                        icon={<Activity className="text-app-text-muted" />}
                                         onClick={() => setActiveTab('history')}
                                     />
                                 </div>
@@ -285,7 +283,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     ) : (
                                         <RepositorySnapshotList
                                             snapshots={clientSnapshots}
-                                            clients={[client]}
+                                            showClientColumn={false}
                                             onRestore={setRestoreSnapshot}
                                         />
                                     )
