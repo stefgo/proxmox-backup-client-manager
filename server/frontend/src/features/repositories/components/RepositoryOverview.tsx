@@ -108,8 +108,13 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         ) : (
                             <RepositorySnapshotList
                                 snapshots={snapshots}
-                                clients={clients}
+                                showClientColumn={true}
                                 onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
+                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || 'offline'}
+                                getClientName={(clientId) => {
+                                    const client = clients.find(c => c.id === clientId);
+                                    return client ? (client.displayName || client.hostname) : null;
+                                }}
                             />
                         )
                     )}

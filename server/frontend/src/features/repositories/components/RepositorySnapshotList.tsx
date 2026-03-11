@@ -1,113 +1,192 @@
-import { useState } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
-import { Client } from '@pbcm/shared';
-import { PaginationControls } from '@stefgo/react-ui-components';
+import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { ActionButton } from '@stefgo/react-ui-components';
+import { usePagination } from '../../../hooks/usePagination';
 
 interface RepositorySnapshotListProps {
     snapshots: Snapshot[];
-    clients: Client[];
     onRestore: (snapshot: Snapshot) => void;
+    showClientColumn?: boolean;
+    getClientStatus?: (clientId: string) => "online" | "offline";
+    getClientName?: (clientId: string) => string | null;
 }
 
-export const RepositorySnapshotList = ({ snapshots, clients, onRestore }: RepositorySnapshotListProps) => {
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+export const RepositorySnapshotList = ({
+    snapshots,
+    onRestore,
+    showClientColumn = false,
+    getClientStatus,
+    getClientName
+}: RepositorySnapshotListProps) => {
+    const {
+        currentItems,
+        currentPage,
+        totalPages,
+        itemsPerPage,
+        totalItems,
+        goToPage,
+        setItemsPerPage,
+    } = usePagination(snapshots, 10);
 
-    // Pagination logic
-    const totalItems = snapshots.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const paginatedSnapshots = snapshots.slice(startIndex, startIndex + itemsPerPage);
-
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
+    const getStatus = (snap: Snapshot): "online" | "offline" => {
+        if (!showClientColumn || !getClientStatus || !snap.backupId) return "online";
+        return getClientStatus(snap.backupId);
     };
 
-    const handleItemsPerPageChange = (size: number) => {
-        setItemsPerPage(size);
-        setCurrentPage(1); // Reset to first page when page size changes
-    };
+    const tableDef: DataTableDef<Snapshot>[] = [];
+
+    if (showClientColumn) {
+        tableDef.push({
+            tableHeader: "Client",
+            tableItemRender: (snap) => {
+                const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
+                if (!name) return null;
+
+                const online = getStatus(snap) === "online";
+                return (
+                    <div className="flex items-center gap-3">
+                        <div
+                            className={`w-2 h-2 rounded-full shrink-0 ${online
+                                ? "bg-green-500 shadow-glow-online"
+                                : "bg-gray-400 dark:bg-app-input"
+                                }`}
+                        />
+                        <div
+                            className={`text-sm ${online ? "text-gray-900 dark:text-app-text-main" : ""
+                                } max-w-[150px] truncate`}
+                            title={name}
+                        >
+                            {name}
+                        </div>
+                    </div>
+                );
+            }
+        });
+    }
+
+    tableDef.push({
+        tableHeader: "Date",
+        tableItemRender: (snap) => (
+            <div className="text-sm text-gray-500 dark:text-app-text-muted flex items-center gap-2">
+                {formatDate(snap.backupTime * 1000)}
+            </div>
+        )
+    });
+
+    tableDef.push({
+        tableHeader: "Size",
+        tableItemRender: (snap) => (
+            <div className="text-sm text-gray-500 dark:text-app-text-muted">
+                {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
+            </div>
+        )
+    });
+
+    tableDef.push({
+        tableHeader: "Actions",
+        tableHeaderClassName: "text-right",
+        tableItemRender: (snap) => (
+            <DataAction
+                rowId={snap.backupTime.toString()}
+                actions={[
+                    {
+                        icon: ArchiveRestore,
+                        onClick: () => onRestore(snap),
+                        color: "blue",
+                        tooltip: "Restore Snapshot",
+                    }
+                ]}
+            />
+        )
+    });
+
+    const listColumns: DataListColumnDef<Snapshot>[] = [];
+    const fields: DataListDef<Snapshot>[] = [];
+
+    if (showClientColumn) {
+        fields.push({
+            listLabel: null,
+            listItemRender: (snap) => {
+                const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
+                if (!name) return null;
+
+                const isOnline = getStatus(snap) === "online";
+                return (
+                    <div className="flex items-center gap-2 py-1">
+                        <span
+                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
+                        />
+                        <span
+                            className={`${isOnline
+                                ? "text-gray-900 dark:text-app-text-main"
+                                : "text-inherit"
+                                }`}
+                        >
+                            {name}
+                        </span>
+                    </div>
+                );
+            },
+        });
+    }
+
+    fields.push({
+        listLabel: "Snapshot",
+        listItemRender: (snap) => `${snap.backupType} / ${snap.backupId}`
+    });
+
+    fields.push({
+        listLabel: "Date",
+        listItemRender: (snap) => formatDate(snap.backupTime * 1000)
+    });
+
+    fields.push({
+        listLabel: "Size",
+        listItemRender: (snap) => snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'
+    });
+
+    listColumns.push({ fields, columnClassName: "flex-1" });
+
+    listColumns.push({
+        fields: [{
+            listLabel: null,
+            listItemRender: (snap) => (
+                <div className="flex justify-center mt-2">
+                    <DataAction
+                        rowId={snap.backupTime.toString()}
+                        actions={[
+                            {
+                                icon: ArchiveRestore,
+                                onClick: () => onRestore(snap),
+                                color: "blue",
+                                tooltip: "Restore Snapshot",
+                            }
+                        ]}
+                    />
+                </div>
+            )
+        }],
+        columnClassName: "md:text-right"
+    });
 
     return (
-        <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border overflow-hidden shadow-premium h-full flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-200 dark:border-app-border flex justify-between items-center bg-gray-50 dark:bg-app-input">
-                <h3 className="font-semibold text-gray-900 dark:text-app-text-main flex items-center gap-2">
-                    <FileBox size={18} className="text-app-text-muted" /> Snapshots
-                </h3>
-            </div>
-
-            <div className="flex-1 overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-app-border">
-                    <thead className="bg-gray-50 dark:bg-app-input">
-                        <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Snapshot</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Client</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Size</th>
-                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-app-card divide-y divide-gray-200 dark:divide-app-border">
-                        {paginatedSnapshots.map((snap) => {
-                            const client = clients.find(c => c.id === snap.backupId);
-                            return (
-                                <tr key={snap.backupTime} className="hover:bg-gray-50 dark:hover:bg-app-input transition-colors group">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900 dark:text-app-text-main flex items-center gap-2">
-                                            {snap.backupType} / {snap.backupId}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {client ? (
-                                            <div className="text-sm text-gray-500 dark:text-app-text-main flex items-center gap-2">
-                                                {client.displayName || client.hostname}
-                                            </div>
-                                        ) : (
-                                            <span className="text-sm text-gray-400 dark:text-app-text-footer">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-500 dark:text-app-text-muted flex items-center gap-2">
-                                            {formatDate(snap.backupTime * 1000)}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-500 dark:text-app-text-muted">
-                                            {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <ActionButton
-                                            icon={ArchiveRestore}
-                                            onClick={() => onRestore(snap)}
-                                            color="blue"
-                                            tooltip="Restore Snapshot"
-                                        />
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        {snapshots.length === 0 && (
-                            <tr>
-                                <td colSpan={5} className="px-6 py-8 text-center text-app-text-muted">
-                                    No snapshots found in this repository.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                itemsPerPage={itemsPerPage}
-                totalItems={totalItems}
-                onPageChange={handlePageChange}
-                onItemsPerPageChange={handleItemsPerPageChange}
-            />
-        </div>
+        <DataMultiView
+            title={<><FileBox size={18} className="text-app-text-muted" /> Snapshots</>}
+            data={currentItems}
+            tableDef={tableDef}
+            listColumns={listColumns}
+            keyField={(snap) => snap.backupTime.toString()}
+            viewModeStorageKey="snapshotListViewMode"
+            emptyMessage="No snapshots found in this repository."
+            pagination={{
+                currentPage,
+                totalPages,
+                itemsPerPage,
+                totalItems,
+                onPageChange: goToPage,
+                onItemsPerPageChange: setItemsPerPage,
+            }}
+        />
     );
 };

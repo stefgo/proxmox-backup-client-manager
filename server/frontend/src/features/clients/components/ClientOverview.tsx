@@ -283,7 +283,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     ) : (
                                         <RepositorySnapshotList
                                             snapshots={clientSnapshots}
-                                            clients={[client]}
+                                            showClientColumn={false}
                                             onRestore={setRestoreSnapshot}
                                         />
                                     )
