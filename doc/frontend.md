@@ -63,19 +63,27 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useUIStore`**: Manages global UI state like sidebar visibility, active notifications, and global search/filter parameters.
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status.
 - **`useClientDetailStore`**: Focuses on the currently selected client, managing its local history, job configurations, and activity logs.
-- **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
-- **`useRepositoryStore`**: Manages Proxmox Backup Server (PBS) integration settings.
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
+- **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
 
 ---
 
-## 🧱 UI Component Reference
-
 Generic UI components (Buttons, Inputs, Cards, etc.) are primarily sourced from the external library **`@stefgo/react-ui-components`**. Components within `src/components/` in this project are reserved for domain-specific or complex composite views.
+
+### UI Library Integration
+
+To ensure all Tailwind utility classes used by the external library are included in the build, the `tailwind.config.js` dynamically resolves the library's distribution path:
+
+```javascript
+const uiLibDist = path.join(
+    path.dirname(require.resolve("@stefgo/react-ui-components/tailwind-preset")),
+    "dist/**/*.{js,mjs}",
+);
+```
 
 ### Data Views (`AbstractDataView` Hierarchy)
 
-Most data-driven lists utilize a common base to provide consistent loading, error, and empty states.
+Most data-driven lists utilize a common base to provide consistent loading, error, and empty states. We use a **Base Component Pattern** (e.g., `BaseJobList`, `BaseRepositorySnapshotList`) to share logic across different views.
 
 - **`DataMultiView`**: The standard container that allows switching between `DataTable` and `DataCard` layouts.
 - **`DataTable`**: A generic, column-based tabular view for structured data.
@@ -108,7 +116,7 @@ The detail view of a client. It consists of multiple tabs/sections:
 
 1. **Stats**: Tiles for jobs, snapshots, and history (also act as a tab switcher).
 2. **Configured**: List of configured backup jobs (`ClientJobList`) and editor.
-3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`RepositorySnapshotRestore`).
+3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`RepositorySnapshotRestore`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
 4. **History**: Execution logs (`ClientHistoryList`).
 
 ### Restore Flow
@@ -128,6 +136,10 @@ The restore process is complex and distributed across:
 - **Tech Stack**: Tailwind CSS.
 - **UI Library**: Integrated via `@stefgo/react-ui-components`.
 - **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` uses dynamic path resolution via `require.resolve` to scan the library's `dist/` directory.
+- **Semantic Design Tokens**: The project uses a set of semantic tokens for a "Premium Design" look:
+    - `app-accent`: Proxmox Orange (`#E54D0D`).
+    - `app-bg`: Main dark background.
+    - `app-card`: Surface for cards and panels.
+    - `app-text-main` / `app-text-muted`: Categorized text colors.
+    - `shadow-premium`: Custom shadows for a high-end feel.
 - **Dark Mode**: Supported via `dark:` class. The `dark` class is set on the `<html>` tag (controlled by `ThemeContext`).
-- **Primary Color**: `#E54D0D` (Proxmox Orange).
-- **Design System**: Flat design, rounded corners (`rounded-lg`, `rounded-xl`), subtle shadows.
