@@ -31,7 +31,10 @@ Detailed documentation is available in the [`doc/`](./doc) directory:
 
 - [Installation & Setup](doc/install.md) - Detailed guide on how to build and run the project locally.
 - [API Documentation](doc/api.md) - Full specification of the REST and WebSocket APIs.
-- [Frontend Architecture](doc/frontend.md) - Overview of the React application structure and state management.
+- [Frontend Architecture](doc/frontend.md) - Overview of the React application structure, state management, and design system.
+- [Backend Architecture](doc/backend.md) - Controllers, services, WebSocket protocol, and database schema.
+- [Client Agent](doc/client.md) - Agent lifecycle, scheduler, executor, and offline operation.
+- [Development Guide](doc/development.md) - Local development setup and contribution guidelines.
 
 ## 🐳 Quick Start (Docker Compose)
 

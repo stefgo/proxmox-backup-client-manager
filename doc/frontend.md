@@ -8,14 +8,18 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 
 ```
 src/
-├── components/       # Domain-specific UI components (generic ones come from @stefgo/react-ui-components)
 ├── features/         # Feature modules (Domain Logic)
+│   ├── app/          # App-level layout (App.tsx, App.css)
 │   ├── auth/         # Authentication & Context
-│   ├── clients/      # Client management, lists, detail views
-│   ├── dashboard/    # Dashboard layout elements (Sidebar, Header)
-│   └── repositories/ # PBS Repository management
-├── layouts/          # Page layouts (e.g., DashboardLayout)
+│   ├── clients/      # Client management, lists, detail views, job editor
+│   ├── history/      # Execution history views
+│   ├── jobs/         # Global job list views
+│   ├── repositories/ # PBS Repository management & snapshot browser
+│   ├── tokens/       # Registration token management
+│   └── users/        # User management
 ├── pages/            # Main pages (Entry points for routes)
+│   ├── Login.tsx
+│   └── Settings.tsx
 ├── stores/           # Global State Management (Zustand)
 │   ├── useUIStore.ts               # UI state (sidebar, modals, filters)
 │   ├── useClientStore.ts           # Client list & connectivity status
@@ -24,6 +28,7 @@ src/
 │   ├── useRepositoryStore.ts       # PBS repository configurations
 │   └── useRepositorySnapshotStore.ts # PBS snapshot management
 ├── hooks/            # Global Custom Hooks
+├── index.css         # Global CSS layers (glass-card, field-label)
 └── utils.ts          # General utility functions
 ```
 
@@ -133,13 +138,48 @@ The restore process is complex and distributed across:
 
 ## 🎨 Styling & Theming
 
-- **Tech Stack**: Tailwind CSS.
-- **UI Library**: Integrated via `@stefgo/react-ui-components`.
-- **Tailwind Integration**: To include library-specific styles in the production build, `tailwind.config.js` uses dynamic path resolution via `require.resolve` to scan the library's `dist/` directory.
-- **Semantic Design Tokens**: The project uses a set of semantic tokens for a "Premium Design" look:
-    - `app-accent`: Proxmox Orange (`#E54D0D`).
-    - `app-bg`: Main dark background.
-    - `app-card`: Surface for cards and panels.
-    - `app-text-main` / `app-text-muted`: Categorized text colors.
-    - `shadow-premium`: Custom shadows for a high-end feel.
-- **Dark Mode**: Supported via `dark:` class. The `dark` class is set on the `<html>` tag (controlled by `ThemeContext`).
+- **Tech Stack**: Tailwind CSS v3 with `darkMode: "class"`.
+- **UI Library**: `@stefgo/react-ui-components` – all generic components (Card, Input, Select, Button, DataTable, StatCard, etc.) come from this library.
+- **Tailwind Preset**: The library ships a `tailwind-preset.js` that defines all design tokens. PBCM's `tailwind.config.js` uses it as a preset and also scans the library's `dist/` for class usage:
+
+```js
+presets: [require("@stefgo/react-ui-components/tailwind-preset")],
+content: ["./src/**/*.{js,ts,jsx,tsx}", uiLibDist],
+```
+
+### Design Tokens
+
+All tokens are CSS custom properties defined in the library (`--ruic-*`) and exposed as Tailwind classes:
+
+| Token class              | Usage                                    |
+| :----------------------- | :--------------------------------------- |
+| `bg-app-bg`              | Main page background                     |
+| `bg-card` / `bg-card-dark` | Card and panel surfaces                |
+| `bg-card-header`         | Card header background                   |
+| `text-text-primary`      | Primary text color                       |
+| `text-text-muted`        | Secondary / label text                   |
+| `border-border`          | Standard border (always with `border`)   |
+| `bg-hover`               | Interactive hover backgrounds            |
+| `text-primary`           | Brand accent color (Proxmox Orange)      |
+| `shadow-premium`         | Elevated card shadow                     |
+
+> **Important**: Always pair `border` with `border-border dark:border-border-dark`. The bare `border` class does not set a color — it defaults to `currentColor`.
+
+> **Opacity modifiers**: Only `primary` supports `/` opacity modifiers (e.g. `bg-primary/10`). Other tokens use plain CSS variables and cannot be used with `/`.
+
+### CSS Component Layer (`index.css`)
+
+Project-level reusable classes defined via `@layer components`:
+
+| Class         | Usage                                                      |
+| :------------ | :--------------------------------------------------------- |
+| `.glass-card` | Frosted glass modal overlay (Login, token modals)          |
+| `.field-label`| Label styling for native `<select>` and custom form groups |
+
+### UI Components
+
+All forms use the `Input` and `Select` components from the library, which provide consistent label, hint, error, disabled, and dark mode styling out of the box. Native `<input>` elements are only used for checkboxes.
+
+Modal dialogs (UserDialog, TokenModal) and detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
+
+- **Dark Mode**: The `dark` class on `<html>` is toggled by `ThemeContext`. All tokens have `dark:` variants.
