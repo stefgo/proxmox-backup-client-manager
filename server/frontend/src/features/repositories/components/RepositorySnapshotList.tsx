@@ -49,11 +49,11 @@ export const RepositorySnapshotList = ({
                         <div
                             className={`w-2 h-2 rounded-full shrink-0 ${online
                                 ? "bg-green-500 shadow-glow-online"
-                                : "bg-gray-400 dark:bg-app-input"
+                                : "bg-border dark:bg-border-dark"
                                 }`}
                         />
                         <div
-                            className={`text-sm ${online ? "text-gray-900 dark:text-app-text-main" : ""
+                            className={`text-sm ${online ? "text-text-primary dark:text-text-primary-dark" : ""
                                 } max-w-[150px] truncate`}
                             title={name}
                         >
@@ -68,7 +68,7 @@ export const RepositorySnapshotList = ({
     tableDef.push({
         tableHeader: "Date",
         tableItemRender: (snap) => (
-            <div className="text-sm text-gray-500 dark:text-app-text-muted flex items-center gap-2">
+            <div className="text-sm text-text-muted dark:text-text-muted-dark flex items-center gap-2">
                 {formatDate(snap.backupTime * 1000)}
             </div>
         )
@@ -77,7 +77,7 @@ export const RepositorySnapshotList = ({
     tableDef.push({
         tableHeader: "Size",
         tableItemRender: (snap) => (
-            <div className="text-sm text-gray-500 dark:text-app-text-muted">
+            <div className="text-sm text-text-muted dark:text-text-muted-dark">
                 {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
             </div>
         )
@@ -115,11 +115,11 @@ export const RepositorySnapshotList = ({
                 return (
                     <div className="flex items-center gap-2 py-1">
                         <span
-                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-400"}`}
+                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-border"}`}
                         />
                         <span
                             className={`${isOnline
-                                ? "text-gray-900 dark:text-app-text-main"
+                                ? "text-text-primary dark:text-text-primary-dark"
                                 : "text-inherit"
                                 }`}
                         >
@@ -172,7 +172,7 @@ export const RepositorySnapshotList = ({
 
     return (
         <DataMultiView
-            title={<><FileBox size={18} className="text-app-text-muted" /> Snapshots</>}
+            title={<><FileBox size={18} className="text-text-muted dark:text-text-muted-dark" /> Snapshots</>}
             data={currentItems}
             tableDef={tableDef}
             listColumns={listColumns}

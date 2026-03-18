@@ -11,16 +11,8 @@ export const JobEncryptionSettings: React.FC = () => {
 
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const handleGenerateKey = async () => {
-        setIsGenerating(true);
-        try {
-            await generateKey();
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
     const handleDownloadKey = () => {
+
         if (!encryptionKeyContent) return;
         const blob = new Blob([encryptionKeyContent], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
@@ -44,23 +36,28 @@ export const JobEncryptionSettings: React.FC = () => {
         setEncryptionEnabled(nextState);
 
         if (nextState && !encryptionKeyContent) {
-            await handleGenerateKey();
+            setIsGenerating(true);
+            const success = await generateKey();
+            setIsGenerating(false);
+            if (!success) {
+                setEncryptionEnabled(false);
+            }
         }
     };
 
     return (
         <div className="space-y-1">
-            <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase">Encryption</label>
-            <div className="p-2 border border-gray-200 dark:border-app-border rounded bg-gray-50 dark:bg-app-input">
+            <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase">Encryption</label>
+            <div className="p-2 border dark:border-border-dark rounded bg-app-bg dark:bg-card-dark">
                 {/* Toggle header */}
                 <div
                     className={`flex items-center gap-2 ${isGenerating ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                     onClick={handleToggle}
                 >
-                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-app-accent' : 'bg-gray-300 dark:bg-app-border'}`}>
-                        <div className={`w-4 h-4 bg-app-light rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
+                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-accent' : 'dark:bg-border-dark'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
                     </div>
-                    <label className="text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase cursor-pointer flex items-center gap-1">
+                    <label className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase cursor-pointer flex items-center gap-1">
                         {encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
                     </label>
                 </div>
@@ -72,7 +69,7 @@ export const JobEncryptionSettings: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleDownloadKey}
-                                className="flex-1 flex items-center justify-center py-2 px-3 border border-app-accent text-app-accent hover:bg-app-accent/10 rounded font-bold transition-colors"
+                                className="flex-1 flex items-center justify-center py-2 px-3 border border-primary text-primary hover:bg-primary/10 rounded font-bold transition-colors"
                             >
                                 <Download className="h-4 w-4 mr-2" />
                                 Download Key (.json)
@@ -80,7 +77,7 @@ export const JobEncryptionSettings: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleDropKey}
-                                className="flex items-center justify-center py-2 px-3 border border-gray-400 dark:border-app-border text-gray-600 dark:text-app-text-muted hover:border-red-500 hover:text-red-500 rounded font-bold transition-colors"
+                                className="flex items-center justify-center py-2 px-3 border dark:border-border-dark text-text-muted dark:text-text-muted-dark hover:border-error hover:text-error rounded font-bold transition-colors"
                             >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Drop
