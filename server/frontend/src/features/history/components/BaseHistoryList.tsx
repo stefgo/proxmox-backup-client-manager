@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
 import { Card } from '@stefgo/react-ui-components';
-import { CardHeader } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 
 export interface BaseHistoryItem {
@@ -93,9 +92,9 @@ export const BaseHistoryList = ({
                                         className={`transition-all duration-200 ${isExpanded ? "rotate-90" : ""
                                             }`}
                                     >
-                                        <ChevronRight size={14} className="text-gray-400" />
+                                        <ChevronRight size={14} className="text-text-muted" />
                                     </span>
-                                    <span className="text-sm font-medium text-gray-900 dark:text-app-text-main">
+                                    <span className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
                                         {showClientName && `${item.displayName || item.hostname || "Unknown Client"} : `}
                                         {item.name || item.jobId || "Unknown Job"}
                                     </span>
@@ -115,7 +114,7 @@ export const BaseHistoryList = ({
                                     {item.status}
                                 </span>
                             </div>
-                            <div className="flex justify-between text-xs text-gray-500 dark:text-app-text-muted font-mono mt-0.5 pl-6">
+                            <div className="flex justify-between text-xs text-text-muted font-mono mt-0.5 pl-6">
                                 <span>{item.id}</span>
                                 <span>{formatDate(item.startTime)}</span>
                             </div>
@@ -146,7 +145,7 @@ export const BaseHistoryList = ({
                                         {item.stdout}
                                     </div>
                                 ) : (
-                                    <div className="mt-2 text-xs text-gray-400 italic pl-4 ml-6 cursor-default">
+                                    <div className="mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default">
                                         No output available
                                     </div>
                                 )}
@@ -159,15 +158,15 @@ export const BaseHistoryList = ({
     ];
 
     return (
-        <Card className="h-full flex flex-col">
-            <CardHeader
-                title={
-                    <div className="flex items-center gap-2">
-                        <Activity size={18} className="text-app-text-muted" />
-                        {title}
-                    </div>
-                }
-            />
+        <Card
+            className="h-full flex flex-col"
+            title={
+                <div className="flex items-center gap-2">
+                    <Activity size={18} className="text-text-muted" />
+                    {title}
+                </div>
+            }
+        >
             <DataList
                 data={currentItems}
                 keyField="id"

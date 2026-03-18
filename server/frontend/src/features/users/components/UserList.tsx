@@ -25,7 +25,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         return (
             <div className="flex gap-1">
                 {methods.includes('local') && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-app-input dark:text-app-text-muted border border-gray-200 dark:border-app-border">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:bg-card-dark dark:text-text-muted border border-border dark:border-border-dark">
                         <Key size={10} /> Local
                     </span>
                 )}
@@ -41,7 +41,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
     const columns: DataTableDef<UserData>[] = [
         {
             tableHeader: "User",
-            tableCellClassName: "font-medium text-gray-900 dark:text-app-text-main",
+            tableCellClassName: "font-medium text-text-primary",
             accessorKey: "username"
         },
         {
@@ -50,7 +50,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         },
         {
             tableHeader: "Created At",
-            tableCellClassName: "text-sm text-gray-500 dark:text-app-text-muted",
+            tableCellClassName: "text-sm text-text-muted",
             tableItemRender: (user) => formatDate(user.created_at)
         },
         {
@@ -85,11 +85,11 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
 
     return (
         <DataCard
-            title={<><User size={18} className="text-app-text-muted" /> Users</>}
+            title={<><User size={18} className="text-text-muted dark:text-text-muted-dark" /> Users</>}
             action={
                 <button
                     onClick={onCreateUser}
-                    className="px-3 py-1 text-white text-xs rounded transition-colors bg-app-accent hover:bg-app-accent-hover"
+                    className="px-3 py-1 text-white text-xs rounded transition-colors bg-primary hover:bg-primary-hover"
                 >
                     <Plus size={12} className="inline mr-1" /> New User
                 </button>

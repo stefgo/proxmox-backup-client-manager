@@ -59,7 +59,7 @@ export interface JobFormContextType {
     setEncryptionEnabled: (val: boolean) => void;
     encryptionKeyContent: string | null;
     setEncryptionKeyContent: (val: string | null) => void;
-    generateKey: () => Promise<void>;
+    generateKey: () => Promise<boolean>;
 }
 
 const JobFormContext = createContext<JobFormContextType | null>(null);

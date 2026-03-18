@@ -5,6 +5,7 @@ import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
 import { JobArchiveList } from './job-editor/JobArchiveList';
 import { JobEncryptionSettings } from './job-editor/JobEncryptionSettings';
 import { JobFormProvider, JobFormContextType } from '../context/JobFormContext';
+import { Card, Button, Input } from '@stefgo/react-ui-components';
 
 // ClientJobEditor now accepts the form state and provides it via context
 // It implements the "Compound Component" pattern by using Context
@@ -30,67 +31,81 @@ export const ClientJobEditor = (props: JobFormContextType) => {
 
     return (
         <JobFormProvider value={props}>
-            <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border shadow-premium flex flex-col">
-                <div className="p-6 border-b border-gray-200 dark:border-app-border flex justify-between items-center bg-gray-50 dark:bg-app-input rounded-t-xl">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-app-text-main">{editingJobId ? 'Edit Job' : 'New Backup Job'}</h3>
-                    <button onClick={() => setIsCreatingJob(false)} className="text-gray-500 dark:text-app-text-muted hover:text-gray-900 dark:hover:text-app-text-main transition-colors"><X size={20} /></button>
-                </div>
+            <Card
+                className="flex flex-col"
+                title={editingJobId ? 'Edit Job' : 'New Backup Job'}
+                action={
+                    <button onClick={() => setIsCreatingJob(false)} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover dark:hover:bg-hover-dark">
+                        <X size={20} />
+                    </button>
+                }
+                classNames={{
+                    header: "py-6 px-7",
+                    headerTitle: "text-xl font-bold"
+                }}
+            >
 
-                <div className="p-6 flex-1 overflow-hidden flex flex-col gap-4">
+                <div className="p-7 bg-card dark:bg-card-dark flex-1 overflow-hidden flex flex-col gap-6">
                     {editingJobId && (
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">ID</label>
-                            <div className="bg-gray-100 dark:bg-app-input border border-gray-200 dark:border-app-border rounded px-3 py-2 text-gray-500 dark:text-app-text-footer font-mono text-sm">
+                            <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1.5 ml-1">ID</label>
+                            <div className="bg-hover dark:bg-card-dark border dark:border-border-dark rounded-lg px-3 py-2.5 text-text-muted dark:text-text-muted-dark opacity-60 font-mono text-sm">
                                 {editingJobId}
                             </div>
                         </div>
                     )}
 
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">Name <span className="text-red-500">*</span></label>
-                        <input
-                            type="text"
-                            value={newJobName}
-                            onChange={(e) => setNewJobName(e.target.value)}
-                            placeholder="e.g. Production System"
-                            className="w-full bg-gray-50 dark:bg-app-input border border-gray-200 dark:border-app-border rounded px-3 py-2 text-gray-900 dark:text-app-text-main focus:border-app-accent outline-none"
-                        />
-                    </div>
-
-                    <JobRepositorySelect
-                        repositories={repositories}
-                        selectedRepository={jobRepository}
-                        onSelect={setJobRepository}
-                        isSelecting={isSelectingRepository}
-                        onSetIsSelecting={setIsSelectingRepository}
+                    <Input
+                        label="Name"
+                        required
+                        value={newJobName}
+                        onChange={(e) => setNewJobName(e.target.value)}
+                        placeholder="e.g. Production System"
+                        classNames={{
+                            label: "mb-2",
+                            input: "bg-app-bg dark:bg-card-dark border-border dark:border-border-dark"
+                        }}
                     />
 
-                    {isSelectingRepository ? null : isAddingArchive ? (
-                        <JobArchiveEditor />
-                    ) : (
-                        <>
-                            <JobArchiveList />
-                            <JobEncryptionSettings />
-                            <JobScheduleSettings />
-                        </>
-                    )}
+                    <div className="space-y-6">
+                        <JobRepositorySelect
+                            repositories={repositories}
+                            selectedRepository={jobRepository}
+                            onSelect={setJobRepository}
+                            isSelecting={isSelectingRepository}
+                            onSetIsSelecting={setIsSelectingRepository}
+                        />
+
+                        {isSelectingRepository ? null : isAddingArchive ? (
+                            <JobArchiveEditor />
+                        ) : (
+                            <div className="space-y-6">
+                                <JobArchiveList />
+                                <JobEncryptionSettings />
+                                <JobScheduleSettings />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 dark:border-app-border flex justify-end gap-3 bg-gray-50 dark:bg-app-input">
-                    <button onClick={() => setIsCreatingJob(false)} className="px-4 py-2 rounded bg-gray-200 dark:bg-app-input hover:bg-gray-300 dark:hover:bg-app-card text-gray-800 dark:text-app-text-main font-medium transition-colors">
+                <div className="p-6 bg-card dark:bg-card-dark flex justify-end gap-3">
+                    <Button
+                        variant="secondary"
+                        onClick={() => setIsCreatingJob(false)}
+                    >
                         Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        variant="primary"
                         onClick={saveBackupJob}
                         disabled={!newJobName || !jobRepository || jobArchives.length === 0}
-                        className="px-4 py-2 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent"
+                        className="shadow-glow-accent"
                     >
                         Save Job
-                    </button>
+                    </Button>
                 </div>
-            </div >
+            </Card >
         </JobFormProvider>
     );
 };
-

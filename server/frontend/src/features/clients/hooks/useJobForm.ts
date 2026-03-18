@@ -227,8 +227,8 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         } catch (e) { console.error(e); }
     };
 
-    const generateKey = async () => {
-        if (!clientId) return;
+    const generateKey = async (): Promise<boolean> => {
+        if (!clientId) return false;
         try {
             const res = await fetch(`/api/v1/clients/${clientId}/key`, {
                 method: 'POST',
@@ -238,11 +238,16 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
             if (res.ok) {
                 const data = await res.json();
                 setEncryptionKeyContent(data.keyContent || null);
+                return true;
             } else {
                 const err = await res.json().catch(() => ({}));
                 alert('Failed to generate key: ' + (err.error || res.statusText));
+                return false;
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            return false;
+        }
     };
 
     return {

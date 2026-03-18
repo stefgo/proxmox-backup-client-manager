@@ -35,13 +35,13 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                     <div className="flex items-center gap-3 mb-1">
                         <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
                             : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                                : 'bg-gray-400 dark:bg-app-input'
+                                : 'bg-border dark:bg-border-dark'
                             }`} />
-                        <div className={`text-sm text-gray-900 dark:text-app-text-main ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`text-sm text-text-primary dark:text-text-primary-dark ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {repo.baseUrl}:{repo.datastore}
                         </div>
                     </div>
-                    <div className="text-xs font-mono text-gray-500 dark:text-app-text-muted pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
                         {repo.id}
                     </div>
                 </>
@@ -89,9 +89,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 <div className="flex items-center gap-2 py-1">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
                         : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                            : 'bg-gray-400 dark:bg-app-input'
+                            : 'bg-border dark:bg-border-dark'
                         }`} />
-                    <div className={`font-inherit text-gray-900 dark:text-app-text-main ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`font-inherit text-text-primary dark:text-text-primary-dark ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
                 </div>
@@ -162,11 +162,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
 
     return (
         <DataMultiView
-            title={<><Server size={18} className="text-app-text-muted" /> Repositories</>}
+            title={<><Server size={18} className="text-text-muted dark:text-text-muted-dark" /> Repositories</>}
             extraActions={
                 <button
                     onClick={onAdd}
-                    className="px-3 py-1 bg-app-accent text-white text-xs rounded hover:bg-app-accent-hover"
+                    className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
                 >
                     <Plus size={12} className="inline mr-1" /> Add Repository
                 </button>

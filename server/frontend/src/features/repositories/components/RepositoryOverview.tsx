@@ -5,7 +5,7 @@ import { Snapshot } from '@pbcm/shared';
 import { useState, useEffect } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
-import { StatCard } from '@stefgo/react-ui-components';
+import { Card, StatCard } from '@stefgo/react-ui-components';
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
@@ -45,7 +45,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const getStatusColor = () => {
         if (isLoading) return 'bg-yellow-500 animate-pulse shadow-glow-accent';
         if (repo?.status === 'online') return 'bg-green-500 shadow-glow-online';
-        return 'bg-gray-400 dark:bg-app-input';
+        return 'bg-border dark:bg-border-dark';
     };
 
     if (!repo) {
@@ -63,32 +63,32 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     return (
         <div className="space-y-6 h-full flex flex-col">
             {/* Header */}
-            <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border p-6 shadow-premium">
-                <div className="flex items-center gap-4">
+            <Card
+                title={
                     <div className="flex items-center gap-4">
                         <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-app-text-main flex items-center gap-3">
+                            <h2 className="text-2xl font-bold">
                                 {repo.baseUrl}:{repo.datastore}
                             </h2>
-                            <div className="text-sm font-mono text-gray-500 dark:text-app-text-muted flex items-center gap-2">
+                            <div className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
                                 {repo.id}
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                }
+            />
 
             {/* Stat Cards & Details - Only when online and not loading */}
             {showDetails && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-app-accent rounded-xl h-full' : 'h-full'}>
+                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
                             <StatCard
                                 label="Snapshots"
                                 value={snapshots.length.toString()}
                                 sub="Available Backups"
-                                icon={<FileBox className="text-app-text-muted" />}
+                                icon={<FileBox className="text-text-muted dark:text-text-muted-dark" />}
                                 onClick={() => setActiveTab('snapshots')}
                             />
                         </div>

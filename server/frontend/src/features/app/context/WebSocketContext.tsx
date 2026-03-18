@@ -26,11 +26,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     useEffect(() => {
         if (!token) return;
 
+        let isClosing = false;
+        let connectTimeout: any = null;
+
         const connect = () => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/api/ws/dashboard?token=${token}`;
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
 
             console.log('Connecting to WebSocket:', wsUrl);
             const socket = new WebSocket(wsUrl);
@@ -71,6 +74,8 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             };
 
             socket.onclose = (event) => {
+                if (isClosing) return; // Ignore intentional closure
+
                 console.log('WebSocket disconnected', event.code, event.reason);
                 setIsConnected(false);
                 socketRef.current = null;
@@ -80,28 +85,32 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     return;
                 }
 
-                // Only reconnect if token is still present (though this effect cleanup handles that usually)
-                // We use a timeout to retry
                 reconnectTimeoutRef.current = setTimeout(() => {
-                    connect(); // This uses the closure's connect, which depends on token from render scope?
-                    // No, invalid. connect is defined INSIDE useEffect, so it captures 'token' from the Effect scope.
-                    // This is correct.
+                    connect();
                 }, 3000);
             };
 
             socket.onerror = (err) => {
+                if (isClosing) return; // Ignore errors during intentional closure
                 console.error('WebSocket error', err);
                 socket.close();
             };
         };
 
-        connect();
+        // Delay initial connection slightly to avoid React Strict Mode noisy double-mount in dev
+        connectTimeout = setTimeout(() => {
+            if (!isClosing) connect();
+        }, 100);
 
         return () => {
+            isClosing = true;
+            if (connectTimeout) {
+                clearTimeout(connectTimeout);
+            }
             if (socketRef.current) {
-                // Remove listener to prevent reconnection attempt on cleanup
                 socketRef.current.onclose = null;
                 socketRef.current.close();
+                socketRef.current = null;
             }
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);

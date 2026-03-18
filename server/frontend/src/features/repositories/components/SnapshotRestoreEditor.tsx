@@ -133,18 +133,18 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     };
 
     return (
-        <div className="bg-app-card rounded-xl border border-gray-200 dark:border-app-border shadow-premium flex flex-col h-full overflow-hidden">
+        <div className="dark:bg-card-dark rounded-xl border border-border dark:border-border-dark shadow-premium flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-app-border flex justify-between items-center bg-gray-50 dark:bg-app-input">
+            <div className="p-4 border-b border-border dark:border-border-dark flex justify-between items-center bg-app-bg dark:bg-card-dark">
                 <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-app-text-main flex items-center gap-2">
-                        <Folder size={20} className="text-app-accent" /> Restore Snapshot
+                    <h3 className="text-xl font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                        <Folder size={20} className="text-primary" /> Restore Snapshot
                     </h3>
-                    <div className="text-xs text-gray-500 dark:text-app-text-muted font-mono mt-1">
+                    <div className="text-xs text-text-muted dark:text-text-muted-dark font-mono mt-1">
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
                     </div>
                 </div>
-                <button onClick={onCancel} className="text-gray-500 hover:text-gray-900 dark:text-app-text-muted dark:hover:text-app-text-main p-1 rounded hover:bg-gray-200 dark:hover:bg-app-card transition-colors">
+                <button onClick={onCancel} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary p-1 rounded hover:bg-hover dark:hover:bg-hover-dark transition-colors">
                     <X size={20} />
                 </button>
             </div>
@@ -163,26 +163,26 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
                     {/* Step 1: Archives Selection */}
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">Select Archives</label>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Select Archives</label>
 
                         {availableArchives.length > 0 ? (
-                            <div className="border border-gray-200 dark:border-app-border rounded overflow-hidden">
+                            <div className="border border-border dark:border-border-dark rounded overflow-hidden">
                                 {availableArchives.map(arch => (
-                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-app-input cursor-pointer border-b last:border-0 border-gray-100 dark:border-app-border">
+                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-hover dark:hover:bg-hover-dark cursor-pointer border-b last:border-0 border-border dark:border-border-dark">
                                         <input
                                             type="checkbox"
                                             checked={selectedArchives.includes(arch)}
                                             onChange={() => toggleArchive(arch)}
-                                            className="custom-checkbox h-4 w-4 bg-gray-100 dark:bg-app-card border-gray-300 dark:border-app-border rounded text-app-accent focus:ring-app-accent"
+                                            className="custom-checkbox h-4 w-4 bg-hover dark:bg-card-dark border-border dark:border-border-dark rounded text-primary focus:ring-primary"
                                         />
-                                        <span className="text-sm font-mono text-gray-700 dark:text-app-text-muted">
+                                        <span className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
                                             {formatArchiveName(arch)}
                                         </span>
                                     </label>
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-3 text-sm text-gray-500 bg-gray-50 dark:bg-app-input rounded border border-gray-200 dark:border-app-border flex items-center gap-2">
+                            <div className="p-3 text-sm text-text-muted dark:text-text-muted-dark bg-app-bg dark:bg-card-dark rounded border border-border dark:border-border-dark flex items-center gap-2">
                                 <AlertCircle size={16} /> No archives found in this snapshot.
                             </div>
                         )}
@@ -206,7 +206,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 {/* Step 3: Directory Selection */}
                 {selectedClientId && (
                     <div className="flex flex-col">
-                        <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
                         <FileBrowser
                             currentPath={browserPath}
                             onNavigate={setBrowserPath}
@@ -220,14 +220,14 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-200 dark:border-app-border flex justify-end gap-3 bg-gray-50 dark:bg-app-input">
-                <button onClick={onCancel} className="px-4 py-2 rounded bg-gray-200 dark:bg-app-input hover:bg-gray-300 dark:hover:bg-app-card text-gray-800 dark:text-app-text-main font-medium transition-colors">
+            <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark">
+                <button onClick={onCancel} className="px-4 py-2 rounded bg-border dark:bg-card-dark hover:bg-hover dark:hover:bg-hover-dark text-text-primary dark:text-text-primary-dark font-medium transition-colors">
                     Cancel
                 </button>
                 <button
                     onClick={handleRestore}
                     disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0}
-                    className="px-4 py-2 rounded bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent active:scale-[0.98]"
+                    className="px-4 py-2 rounded bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent active:scale-[0.98]"
                 >
                     Restore Content
                 </button>

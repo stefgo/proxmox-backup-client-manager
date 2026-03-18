@@ -97,89 +97,75 @@ export default function Settings() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <RefreshCw className="animate-spin text-app-accent" size={32} />
+                <RefreshCw className="animate-spin text-primary" size={32} />
             </div>
         );
     }
 
     const tabBaseClass = "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer outline-none border-l-4 border-transparent";
-    const tabSelectedClass = "bg-app-accent/10 text-app-accent border-l-app-accent shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
+    const tabSelectedClass = "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <DataCard
-                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-app-text-muted" /> System Settings</span>}
-                className="p-0 overflow-hidden overflow-visible"
+                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted dark:text-text-muted-dark" /> System Settings</span>}
+                className="p-0 overflow-visible"
                 noPadding={true}
             >
                 <Tabs className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 bg-gray-50 dark:bg-app-bg border-r border-gray-200 dark:border-app-border py-4 flex flex-col gap-1">
+                    <TabList className="w-full md:w-64 bg-app-bg dark:bg-app-bg-dark border-r border-border dark:border-border-dark py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Sliders size={18} /> Common
                         </Tab>
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-app-light dark:bg-app-dark">
+                    <div className="flex-1 flex flex-col bg-white dark:bg-card-dark">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-app-text-main flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
                                                 Retention of invalid client tokens
                                             </h3>
-                                            <p className="text-sm text-gray-500 dark:text-app-text-muted">
+                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
                                                 Define how long registration tokens are kept after they become invalid.
                                             </p>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">
-                                                    Retention Time (Days)
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={settings.retention_invalid_tokens_days}
-                                                    onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                    placeholder="30"
-                                                    className="rounded-xl bg-app-light dark:bg-app-card"
-                                                />
-                                                <p className="text-xs text-gray-500 dark:text-app-text-footer leading-relaxed">
-                                                    Number of days an invalid token remains in the database.
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">
-                                                    Minimum Keep Count
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={settings.retention_invalid_tokens_count}
-                                                    onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_count: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                    placeholder="10"
-                                                    className="rounded-xl bg-app-light dark:bg-app-card"
-                                                />
-                                                <p className="text-xs text-gray-500 dark:text-app-text-footer leading-relaxed">
-                                                    Ensure at least this many invalid tokens are always kept.
-                                                </p>
-                                            </div>
+                                            <Input
+                                                label="Retention Time (Days)"
+                                                type="number"
+                                                min="0"
+                                                value={settings.retention_invalid_tokens_days}
+                                                onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
+                                                placeholder="30"
+                                                hint="Number of days an invalid token remains in the database."
+                                            />
+                                            <Input
+                                                label="Minimum Keep Count"
+                                                type="number"
+                                                min="0"
+                                                value={settings.retention_invalid_tokens_count}
+                                                onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_count: Math.max(0, parseInt(e.target.value) || 0).toString() })}
+                                                placeholder="10"
+                                                hint="Ensure at least this many invalid tokens are always kept."
+                                            />
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-gray-50 dark:bg-app-card rounded-xl border border-gray-200 dark:border-app-border flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-gray-900 dark:text-app-text-main">Manual Run</h4>
-                                                <p className="text-xs text-gray-500 dark:text-app-text-muted">Trigger the maintenance process immediately using the current retention settings.</p>
+                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
+                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">Trigger the maintenance process immediately using the current retention settings.</p>
                                             </div>
                                             <Button
                                                 variant="secondary"
                                                 onClick={handleCleanup}
                                                 disabled={isCleaning || !!cleanupResult}
-                                                className="w-[140px] px-4 py-2 rounded bg-gray-200 dark:bg-app-input hover:bg-gray-300 dark:hover:bg-app-input/80 text-gray-800 dark:text-app-text-main font-semibold transition-colors flex items-center justify-center gap-2 shadow-none focus:ring-0 focus:ring-offset-0"
+                                                className="w-[140px]"
                                             >
                                                 {isCleaning ? (
                                                     <RefreshCw size={16} className="animate-spin" />
@@ -194,63 +180,51 @@ export default function Settings() {
                                         </div>
                                     </section>
 
-                                    <hr className="border-gray-200 dark:border-app-border" />
+                                    <hr className="border-border dark:border-border-dark" />
 
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-app-text-main flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
                                                 Retention of global job history
                                             </h3>
-                                            <p className="text-sm text-gray-500 dark:text-app-text-muted">
+                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
                                                 Define how long job execution history records are kept on the server.
                                             </p>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">
-                                                    Retention Time (Days)
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={settings.retention_job_history_days}
-                                                    onChange={(e) => setSettings({ ...settings, retention_job_history_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                    placeholder="90"
-                                                    className="rounded-xl bg-app-light dark:bg-app-card"
-                                                />
-                                                <p className="text-xs text-gray-500 dark:text-app-text-footer leading-relaxed">
-                                                    Number of days job history entries remain in the database.
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 dark:text-app-text-muted uppercase mb-1">
-                                                    Minimum Keep Count (per client)
-                                                </label>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={settings.retention_job_history_count}
-                                                    onChange={(e) => setSettings({ ...settings, retention_job_history_count: Math.max(1, parseInt(e.target.value) || 1).toString() })}
-                                                    placeholder="50"
-                                                    className="rounded-xl bg-app-light dark:bg-app-card"
-                                                />
-                                                <p className="text-xs text-gray-500 dark:text-app-text-footer leading-relaxed">
-                                                    Ensure at least this many entries are kept for each client.
-                                                </p>
-                                            </div>
+                                            <Input
+                                                label="Retention Time (Days)"
+                                                type="number"
+                                                min="0"
+                                                value={settings.retention_job_history_days}
+                                                onChange={(e) => setSettings({ ...settings, retention_job_history_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
+                                                placeholder="90"
+                                                hint="Number of days job history entries remain in the database."
+                                                classNames={{ input: "bg-app-bg rounded-xl" }}
+                                            />
+                                            <Input
+                                                label="Minimum Keep Count (per client)"
+                                                type="number"
+                                                min="1"
+                                                value={settings.retention_job_history_count}
+                                                onChange={(e) => setSettings({ ...settings, retention_job_history_count: Math.max(1, parseInt(e.target.value) || 1).toString() })}
+                                                placeholder="50"
+                                                hint="Ensure at least this many entries are kept for each client."
+                                                classNames={{ input: "bg-app-bg rounded-xl" }}
+                                            />
                                         </div>
 
-                                        <div className="mt-8 p-4 bg-gray-50 dark:bg-app-card rounded-xl border border-gray-200 dark:border-app-border flex items-center justify-between gap-4">
+                                        <div className="mt-8 p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
                                             <div>
-                                                <h4 className="text-sm font-bold text-gray-900 dark:text-app-text-main">Manual Run</h4>
-                                                <p className="text-xs text-gray-500 dark:text-app-text-muted">Trigger the maintenance process immediately using the current retention settings.</p>
+                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
+                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">Trigger the maintenance process immediately using the current retention settings.</p>
                                             </div>
                                             <Button
                                                 variant="secondary"
                                                 onClick={handleCleanup}
                                                 disabled={isCleaning || !!cleanupResult}
-                                                className="w-[140px] px-4 py-2 rounded bg-gray-200 dark:bg-app-input hover:bg-gray-300 dark:hover:bg-app-input/80 text-gray-800 dark:text-app-text-main font-semibold transition-colors flex items-center justify-center gap-2 shadow-none focus:ring-0 focus:ring-offset-0"
+                                                className="w-[140px]"
                                             >
                                                 {isCleaning ? (
                                                     <RefreshCw size={16} className="animate-spin" />
@@ -270,11 +244,11 @@ export default function Settings() {
                     </div>
                 </Tabs>
                 {/* Sticky Action Footer */}
-                <div className="p-4 border-t border-gray-200 dark:border-app-border flex justify-end gap-3 bg-gray-50 dark:bg-app-input rounded-b-xl">
+                <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark rounded-b-xl">
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2 rounded bg-app-accent hover:bg-app-accent-hover text-white font-bold flex items-center gap-2 shadow-glow-accent"
+                        className="px-6 py-2 rounded bg-primary hover:bg-primary-hover text-white font-bold flex items-center gap-2 shadow-glow-accent"
                     >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
