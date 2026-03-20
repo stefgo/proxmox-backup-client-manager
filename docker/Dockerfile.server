@@ -16,7 +16,11 @@ COPY server/frontend/package.json server/frontend/
 # Explicitly install the linux-x64 rollup binary to ensure vite build works.
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci
-RUN npm install --no-save @rollup/rollup-linux-x64-gnu
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then ROLLUP_PKG="@rollup/rollup-linux-x64-gnu"; \
+    elif [ "$ARCH" = "aarch64" ]; then ROLLUP_PKG="@rollup/rollup-linux-arm64-gnu"; \
+    else echo "Unsupported arch: $ARCH" && exit 1; fi && \
+    npm install --no-save "$ROLLUP_PKG"
 
 # Copy source code
 COPY shared ./shared
