@@ -11,8 +11,12 @@ COPY server/backend/package.json server/backend/
 COPY server/frontend/package.json server/frontend/
 
 # Install all dependencies (with GitHub Packages auth)
+# npm ci may miss platform-specific optional deps (e.g. rollup native binaries)
+# when package-lock.json was generated on a different OS (e.g. macOS).
+# Explicitly install the linux-x64 rollup binary to ensure vite build works.
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci
+RUN npm install --no-save @rollup/rollup-linux-x64-gnu
 
 # Copy source code
 COPY shared ./shared
