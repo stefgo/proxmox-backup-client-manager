@@ -10,6 +10,10 @@ export class ProxyService {
     private static jobCache = new Map<string, BackupJob[]>();
 
     static registerClient(clientId: string, socket: WebSocket) {
+        const existing = this.connectedClients.get(clientId);
+        if (existing) {
+            existing.close(4000, "Replaced by new connection");
+        }
         this.connectedClients.set(clientId, socket);
         // Refresh job cache asynchronously when client connects
         this.refreshJobCache(clientId).catch((e) => {
@@ -20,9 +24,11 @@ export class ProxyService {
         });
     }
 
-    static unregisterClient(clientId: string) {
-        this.connectedClients.delete(clientId);
-        this.jobCache.delete(clientId);
+    static unregisterClient(clientId: string, socket: WebSocket) {
+        if (this.connectedClients.get(clientId) === socket) {
+            this.connectedClients.delete(clientId);
+            this.jobCache.delete(clientId);
+        }
     }
 
     static addDashboardClient(socket: WebSocket) {
