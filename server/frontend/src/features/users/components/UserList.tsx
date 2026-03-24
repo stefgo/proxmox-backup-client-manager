@@ -42,7 +42,8 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         {
             tableHeader: "User",
             tableCellClassName: "font-medium text-text-primary",
-            accessorKey: "username"
+            accessorKey: "username",
+            sortable: true,
         },
         {
             tableHeader: "Auth",
@@ -51,6 +52,8 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         {
             tableHeader: "Created At",
             tableCellClassName: "text-sm text-text-muted",
+            sortable: true,
+            sortValue: (user) => user.created_at,
             tableItemRender: (user) => formatDate(user.created_at)
         },
         {

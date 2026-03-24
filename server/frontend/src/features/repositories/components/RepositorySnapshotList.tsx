@@ -39,6 +39,8 @@ export const RepositorySnapshotList = ({
     if (showClientColumn) {
         tableDef.push({
             tableHeader: "Client",
+            sortable: true,
+            sortValue: (snap) => (snap.backupId && getClientName ? getClientName(snap.backupId) : '') ?? '',
             tableItemRender: (snap) => {
                 const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
                 if (!name) return null;
@@ -67,6 +69,8 @@ export const RepositorySnapshotList = ({
 
     tableDef.push({
         tableHeader: "Date",
+        sortable: true,
+        sortValue: (snap) => snap.backupTime,
         tableItemRender: (snap) => (
             <div className="text-sm text-text-muted dark:text-text-muted-dark flex items-center gap-2">
                 {formatDate(snap.backupTime * 1000)}
@@ -76,6 +80,8 @@ export const RepositorySnapshotList = ({
 
     tableDef.push({
         tableHeader: "Size",
+        sortable: true,
+        sortValue: (snap) => snap.size ?? 0,
         tableItemRender: (snap) => (
             <div className="text-sm text-text-muted dark:text-text-muted-dark">
                 {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
