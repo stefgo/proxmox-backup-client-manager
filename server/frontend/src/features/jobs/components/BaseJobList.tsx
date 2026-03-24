@@ -97,6 +97,8 @@ export const BaseJobList = <T extends BaseJobItem>({
         if (showClientColumn) {
             cols.push({
                 tableHeader: "Client",
+                sortable: true,
+                sortValue: (job) => (job.clientId && getClientName ? getClientName(job.clientId) : '') ?? '',
                 tableItemRender: (job) => {
                     const online = getStatus(job) === "online";
                     return (
@@ -128,6 +130,8 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         cols.push({
             tableHeader: "Job",
+            sortable: true,
+            sortValue: (job) => job.name,
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
@@ -148,6 +152,8 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         cols.push({
             tableHeader: "Archives",
+            sortable: true,
+            sortValue: (job) => job.archives?.length ?? 0,
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
@@ -160,6 +166,8 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         cols.push({
             tableHeader: "Schedule",
+            sortable: true,
+            sortValue: (job) => job.nextRunAt ?? '',
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (

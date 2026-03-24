@@ -29,6 +29,8 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         {
             tableHeader: "Expires / Used",
             tableCellClassName: "text-sm text-text-muted",
+            sortable: true,
+            sortValue: (t) => t.usedAt ?? t.expiresAt,
             tableItemRender: (t) => {
                 if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
                 if (new Date(t.expiresAt) < new Date()) return <>Expired: {formatDate(t.expiresAt)}</>;
@@ -37,6 +39,8 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         },
         {
             tableHeader: "Status",
+            sortable: true,
+            sortValue: (t) => t.usedAt ? 2 : new Date(t.expiresAt) < new Date() ? 1 : 0,
             tableItemRender: (t) => {
                 if (t.usedAt) return <span className="text-xs bg-border text-text-muted dark:text-text-muted-dark dark:bg-card-dark px-2 py-0.5 rounded">Used</span>;
                 if (new Date(t.expiresAt) < new Date()) return <span className="text-xs bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-500 px-2 py-0.5 rounded">Expired</span>;

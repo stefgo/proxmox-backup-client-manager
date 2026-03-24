@@ -30,6 +30,8 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
 
         cols.push({
             tableHeader: "Repository",
+            sortable: true,
+            sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
