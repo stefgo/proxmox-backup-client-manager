@@ -59,8 +59,6 @@ function AppLayout() {
 
   // Routing Helpers
   const path = location.pathname;
-  const isClients = path === "/" || path === "/clients" || path.startsWith("/client/");
-  const isRepos = path === "/repositories" || path.startsWith("/repository/");
 
   // Client Store
   const { clients, fetchClients, deleteClient, updateClient } =
@@ -156,7 +154,7 @@ function AppLayout() {
       label: "Clients",
       icon: Monitor,
       badge: `${stats.clients.active} / ${stats.clients.total}`,
-      active: isClients,
+      path: ["/", "/clients", "/client"],
       onClick: () => navigate("/clients"),
       content: (
         <>
@@ -186,6 +184,7 @@ function AppLayout() {
       label: "Jobs",
       icon: HardDrive,
       badge: `${stats.jobs.active} / ${stats.jobs.total}`,
+      path: "/jobs",
       onClick: () => navigate("/jobs"),
       content: (
         <ManagedJobs />
@@ -197,7 +196,7 @@ function AppLayout() {
       label: "Repositories",
       icon: ServerIcon,
       badge: `${stats.repositories.active} / ${stats.repositories.total}`,
-      active: isRepos,
+      path: ["/repositories", "/repository"],
       onClick: () => navigate("/repositories"),
       content: (
         <>
@@ -220,6 +219,7 @@ function AppLayout() {
       group: "Ressources",
       label: "History",
       icon: Activity,
+      path: "/history",
       onClick: () => navigate("/history"),
       content: (
         <HistoryOverview />
@@ -231,6 +231,7 @@ function AppLayout() {
       isMobileMoreMenu: true,
       label: "Benutzerverwaltung",
       icon: Users,
+      path: "/users",
       onClick: () => navigate("/users"),
       content: (
         <UserOverview />
@@ -242,6 +243,7 @@ function AppLayout() {
       isMobileMoreMenu: true,
       label: "Client Tokens",
       icon: Key,
+      path: "/tokens",
       onClick: () => navigate("/tokens"),
       content: (
         <TokenOverview />
@@ -253,6 +255,7 @@ function AppLayout() {
       isMobileMoreMenu: true,
       label: "Einstellungen",
       icon: SettingsIcon,
+      path: "/settings",
       onClick: () => navigate("/settings"),
       content: (
         <Settings />
@@ -260,8 +263,6 @@ function AppLayout() {
     }
   ], [
     path,
-    isClients,
-    isRepos,
     selectedClient,
     selectedRepo,
     clients,
@@ -288,6 +289,7 @@ function AppLayout() {
       isSidebarCollapsed={isSidebarCollapsed}
       onToggleSidebar={toggleSidebarCollapsed}
       pages={pages}
+      currentPath={path}
     />
   );
 }
