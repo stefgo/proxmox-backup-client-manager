@@ -170,7 +170,7 @@ export const BaseHistoryList = ({
             <DataList
                 data={currentItems}
                 keyField="id"
-                itemDef={itemDef}
+                columns={[{ fields: itemDef }]}
                 onRowClick={(item) => toggleExpand(item.id)}
                 containerClassName="rounded-b-xl border-0 shadow-none flex-1"
                 emptyMessage={emptyMessage}
