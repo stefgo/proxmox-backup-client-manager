@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
@@ -16,6 +17,11 @@ interface ClientListProps {
 }
 
 export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient }: ClientListProps) => {
+    const sortedClients = useMemo(
+        () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
+        [clients],
+    );
+
     const {
         currentItems: currentClients,
         currentPage,
@@ -24,7 +30,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         totalItems,
         goToPage,
         setItemsPerPage
-    } = usePagination(clients, 10);
+    } = usePagination(sortedClients, 10);
 
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
@@ -186,6 +192,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>
             }
+            defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="clientViewMode"
             data={currentClients}
             tableDef={tableColumns}

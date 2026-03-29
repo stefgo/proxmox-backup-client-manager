@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
@@ -15,6 +16,11 @@ interface RepositoryListProps {
 }
 
 export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd }: RepositoryListProps) => {
+    const sortedRepositories = useMemo(
+        () => [...repositories].sort((a, b) => `${a.baseUrl}:${a.datastore}`.localeCompare(`${b.baseUrl}:${b.datastore}`)),
+        [repositories],
+    );
+
     const {
         currentItems: currentRepos,
         currentPage,
@@ -23,7 +29,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         totalItems,
         goToPage,
         setItemsPerPage
-    } = usePagination(repositories, 10);
+    } = usePagination(sortedRepositories, 10);
 
     const buildTableDefinitions = (): DataTableDef<Repository>[] => {
         const cols: DataTableDef<Repository>[] = [];
@@ -173,6 +179,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                     <Plus size={12} className="inline mr-1" /> Add Repository
                 </button>
             }
+            defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="repositoryViewMode"
             data={currentRepos}
             tableDef={tableColumns}
