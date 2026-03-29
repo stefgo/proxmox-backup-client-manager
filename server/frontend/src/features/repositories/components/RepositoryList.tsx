@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
@@ -16,10 +16,22 @@ interface RepositoryListProps {
 }
 
 export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd }: RepositoryListProps) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
     const sortedRepositories = useMemo(
         () => [...repositories].sort((a, b) => `${a.baseUrl}:${a.datastore}`.localeCompare(`${b.baseUrl}:${b.datastore}`)),
         [repositories],
     );
+
+    const filteredRepositories = useMemo(() => {
+        if (!searchQuery) return sortedRepositories;
+        const q = searchQuery.toLowerCase();
+        return sortedRepositories.filter(r =>
+            r.baseUrl.toLowerCase().includes(q) ||
+            r.datastore.toLowerCase().includes(q) ||
+            (r.username ?? '').toLowerCase().includes(q),
+        );
+    }, [sortedRepositories, searchQuery]);
 
     const {
         currentItems: currentRepos,
@@ -29,7 +41,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         totalItems,
         goToPage,
         setItemsPerPage
-    } = usePagination(sortedRepositories, 10);
+    } = usePagination(filteredRepositories, 10);
 
     const buildTableDefinitions = (): DataTableDef<Repository>[] => {
         const cols: DataTableDef<Repository>[] = [];
@@ -185,7 +197,10 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
-            emptyMessage="No repositories added"
+            searchable
+            searchPlaceholder="Search Repositories ..."
+            onSearchChange={setSearchQuery}
+            emptyMessage="No repositories added."
             rowClassName="align-top"
             onRowClick={onSelect}
             pagination={{

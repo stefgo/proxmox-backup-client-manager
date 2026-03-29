@@ -6,7 +6,7 @@ import {
     KeyRound,
     Plus,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePagination } from "../../../hooks/usePagination";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from '@stefgo/react-ui-components';
@@ -54,6 +54,8 @@ export const BaseJobList = <T extends BaseJobItem>({
     getClientName,
     viewModeStorageKey = "jobViewMode",
 }: BaseJobListProps<T>) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
     const sortedJobs = useMemo(
         () => [...jobs].sort((a, b) => {
             if (showClientColumn && getClientName) {
@@ -64,6 +66,16 @@ export const BaseJobList = <T extends BaseJobItem>({
         [jobs, showClientColumn, getClientName],
     );
 
+    const filteredJobs = useMemo(() => {
+        if (!searchQuery) return sortedJobs;
+        const q = searchQuery.toLowerCase();
+        return sortedJobs.filter(j =>
+            j.name.toLowerCase().includes(q) ||
+            (j.id ?? '').toLowerCase().includes(q) ||
+            (j.clientId && getClientName ? getClientName(j.clientId).toLowerCase().includes(q) : false),
+        );
+    }, [sortedJobs, searchQuery, getClientName]);
+
     const {
         currentItems: currentJobs,
         currentPage,
@@ -72,7 +84,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         totalItems,
         goToPage,
         setItemsPerPage,
-    } = usePagination(sortedJobs, 10);
+    } = usePagination(filteredJobs, 10);
 
     const formatNextRun = (nextRunAt: string | undefined, isOnline: boolean) => {
         if (!nextRunAt) return <span className="text-text-muted dark:text-text-muted-dark">not defined</span>;
@@ -422,7 +434,10 @@ export const BaseJobList = <T extends BaseJobItem>({
             keyField={(job) =>
                 job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new')
             }
-            emptyMessage="No jobs configured"
+            searchable
+            searchPlaceholder="Search Jobs ..."
+            onSearchChange={setSearchQuery}
+            emptyMessage="No jobs configured."
             rowClassName={(job) =>
                 getStatus(job) === "online"
                     ? "align-top"

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
@@ -20,6 +20,8 @@ export const RepositorySnapshotList = ({
     getClientStatus,
     getClientName
 }: RepositorySnapshotListProps) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
     const sortedSnapshots = useMemo(
         () => [...snapshots].sort((a, b) => {
             if (showClientColumn && getClientName) {
@@ -30,6 +32,17 @@ export const RepositorySnapshotList = ({
         [snapshots, showClientColumn, getClientName],
     );
 
+    const filteredSnapshots = useMemo(() => {
+        if (!searchQuery) return sortedSnapshots;
+        const q = searchQuery.toLowerCase();
+        return sortedSnapshots.filter(s => {
+            if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
+            if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
+            if (s.backupType.toLowerCase().includes(q)) return true;
+            return false;
+        });
+    }, [sortedSnapshots, searchQuery, getClientName]);
+
     const {
         currentItems,
         currentPage,
@@ -38,7 +51,7 @@ export const RepositorySnapshotList = ({
         totalItems,
         goToPage,
         setItemsPerPage,
-    } = usePagination(sortedSnapshots, 10);
+    } = usePagination(filteredSnapshots, 10);
 
     const getStatus = (snap: Snapshot): "online" | "offline" => {
         if (!showClientColumn || !getClientStatus || !snap.backupId) return "online";
@@ -198,6 +211,9 @@ export const RepositorySnapshotList = ({
             keyField={(snap) => snap.backupTime.toString()}
             defaultSort={{ colIndex: dateSortColIndex, direction: 'desc' }}
             viewModeStorageKey="snapshotListViewMode"
+            searchable
+            searchPlaceholder="Search Snapshots ..."
+            onSearchChange={setSearchQuery}
             emptyMessage="No snapshots found in this repository."
             pagination={{
                 currentPage,
