@@ -10,7 +10,7 @@ The backend is built using **Fastify** as the core framework, written in **TypeS
 server/backend/src/
 ├── config/        # Environment and app configuration loading
 ├── controllers/   # Route handlers (HTTP incoming requests)
-├── core/          # Core server instances (e.g., Database initialization)
+├── core/          # Core server instances (Database initialization, migrations)
 ├── routes/        # Fastify route definitions (Plugin registrations)
 ├── services/      # Business logic and external API integrations
 ├── utils/         # Helper functions
@@ -23,7 +23,17 @@ server/backend/src/
 
 Controllers handle HTTP requests and responses. They enforce input parsing, delegate business logic to `services`, and format Fastify replies.
 
-- **Example**: `ClientController.ts` handles REST operations like fetching, deleting clients, or triggering backups.
+| Controller                  | Responsibility                                                             |
+| :-------------------------- | :------------------------------------------------------------------------- |
+| `AuthController.ts`         | Local login, OIDC flow (login, callback, config endpoint).                 |
+| `ClientController.ts`       | Client list, update, delete, file system browsing, version, history.       |
+| `JobController.ts`          | Job CRUD, manual backup/restore triggers, encryption key generation.        |
+| `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing.                        |
+| `TokenController.ts`        | Registration token management, public client registration endpoint.         |
+| `UserController.ts`         | User CRUD.                                                                  |
+| `SettingsController.ts`     | Cleanup settings read/write and manual maintenance trigger.                 |
+| `HistoryController.ts`      | Global job history across all clients.                                      |
+| `WebSocketController.ts`    | Entry point for WebSocket connections (agents and dashboards).               |
 
 ### 2. Services (`src/services/`)
 
@@ -37,6 +47,8 @@ Services contain the heavy business logic of the application. They are designed 
 ### 3. Routes (`src/routes/`)
 
 Routes are Fastify plugins. They map HTTP verbs (GET, POST, PUT, DELETE) to specific methods in the Controllers and handle generic middleware (e.g., verifying JWT tokens).
+
+All protected routes require a valid JWT in the `Authorization` header (`Bearer <token>`). The single public API route outside of auth is `POST /v1/register` (client self-registration).
 
 ### 4. WebSocket Controller & ProxyService
 
@@ -52,10 +64,8 @@ The `WebSocketController` acts as the entry point, while `ProxyService` manages 
 
 The backend relies on **SQLite3** wrapped with `better-sqlite3` for fast, synchronous database operations.
 
-- The `core/` directory handles initializing the DB file location and running schemas.
-- It stores: User credentials, Client tokens, Registered Clients, PBS Configurations, and complete Job Histories.
-
-_(Note: Database migrations using `umzug` are planned/implemented to handle schema updates.)_
+- The `core/` directory handles initializing the DB file location and running schema migrations via **Umzug**.
+- It stores: User credentials, client tokens, registered clients, PBS repository configurations, job configurations (cache), and complete job histories.
 
 ## 🔐 Authentication Flow
 
