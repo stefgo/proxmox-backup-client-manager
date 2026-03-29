@@ -18,9 +18,11 @@
     - [Delete User](#delete-user)
 - [Clients](#-clients)
     - [List Clients](#list-clients)
+    - [Update Client](#update-client)
     - [Get Client History](#get-client-history)
     - [Get Client File System](#get-client-file-system)
     - [Get Client Version](#get-client-version)
+    - [Generate Client Key](#generate-client-key)
     - [Delete Client](#delete-client)
 - [Jobs](#-jobs)
     - [List Client Jobs](#list-client-jobs)
@@ -28,8 +30,12 @@
     - [Delete Job](#delete-job)
     - [Run Backup](#run-backup)
     - [Trigger Restore](#trigger-restore)
+- [Global Data Views](#-global-data-views)
+    - [List All Jobs](#list-all-jobs)
+    - [Get Global History](#get-global-history)
 - [Repositories](#-repositories)
     - [List Repositories](#list-repositories)
+    - [Get Repository Status](#get-repository-status)
     - [Create Repository](#create-repository)
     - [Update Repository](#update-repository)
     - [Delete Repository](#delete-repository)
@@ -43,6 +49,7 @@
     - [Get Cleanup Settings](#get-cleanup-settings)
     - [Update Cleanup Settings](#update-cleanup-settings)
     - [Run Maintenance](#run-maintenance)
+- [Health Check](#-health-check)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
     - [Agent Connection](#agent-connection)
@@ -251,30 +258,6 @@
 
 ---
 
-## 📅 Global Data Views
-
-### List All Jobs
-
-`GET /v1/jobs`
-
-**Description:** Retrieves all backup jobs configured across all registered clients.
-
-#### Response (Array of Job objects)
-
-_Same structure as [List Client Jobs](#list-client-jobs)._
-
-### Get Global History
-
-`GET /v1/history`
-
-**Description:** Retrieves the execution history of all jobs across all clients.
-
-#### Response (Array of History objects)
-
-_Same structure as [Get Client History](#get-client-history)._
-
----
-
 ## 🖥 Clients
 
 ### List Clients
@@ -283,7 +266,16 @@ _Same structure as [Get Client History](#get-client-history)._
 
 **Description:** Retrieves a list of all registered clients with their connection status.
 
-#### Response
+#### Response (Array of Client objects)
+
+| Field         | Type   | Description                                        |
+| :------------ | :----- | :------------------------------------------------- |
+| `id`          | string | UUID of the client.                                |
+| `hostname`    | string | Hostname of the client machine.                    |
+| `displayName` | string | Optional custom display name for the client.       |
+| `status`      | string | Connection status: `"online"` or `"offline"`.      |
+| `lastSeen`    | string | ISO 8601 timestamp of the last connection.         |
+| `version`     | string | Version of the client agent (if reported).         |
 
 **Example Response:**
 
@@ -292,10 +284,48 @@ _Same structure as [Get Client History](#get-client-history)._
     {
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "hostname": "backup-client-01",
+        "displayName": "Production Server",
         "status": "online",
-        "lastSeen": "2023-10-27T12:30:00.000Z"
+        "lastSeen": "2023-10-27T12:30:00.000Z",
+        "version": "1.2.0"
     }
 ]
+```
+
+### Update Client
+
+`PUT /v1/clients/:clientId`
+
+**Description:** Updates client metadata such as the display name.
+
+#### Path Parameters
+
+| Parameter  | Type   | Required | Description             |
+| :--------- | :----- | :------- | :---------------------- |
+| `clientId` | string | **Yes**  | The UUID of the client. |
+
+#### Request Body
+
+| Field         | Type   | Required | Description                              |
+| :------------ | :----- | :------- | :--------------------------------------- |
+| `displayName` | string | No       | A custom display name for the client.    |
+
+**Example Request:**
+
+```json
+{
+    "displayName": "Production Server"
+}
+```
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "status": "updated"
+}
 ```
 
 ### Get Client History
@@ -310,7 +340,20 @@ _Same structure as [Get Client History](#get-client-history)._
 | :--------- | :----- | :------- | :---------------------- |
 | `clientId` | string | **Yes**  | The UUID of the client. |
 
-#### Response
+#### Response (Array of HistoryEntry objects)
+
+| Field         | Type   | Description                                               |
+| :------------ | :----- | :-------------------------------------------------------- |
+| `id`          | string | UUID of the history entry.                                |
+| `jobConfigId` | string | UUID of the job configuration that was executed.          |
+| `name`        | string | Name of the job.                                          |
+| `type`        | string | Job type: `"backup"` or `"restore"`.                      |
+| `status`      | string | Result: `"success"`, `"failed"`, or `"running"`.          |
+| `startTime`   | string | ISO 8601 timestamp of job start.                          |
+| `endTime`     | string | ISO 8601 timestamp of job end (null if still running).    |
+| `exitCode`    | number | Process exit code (null if still running).                |
+| `stdout`      | string | Standard output of the backup process.                    |
+| `stderr`      | string | Standard error output (null if none).                     |
 
 **Example Response:**
 
@@ -318,12 +361,13 @@ _Same structure as [Get Client History](#get-client-history)._
 [
     {
         "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+        "jobConfigId": "job-uuid",
         "name": "Daily System Backup",
         "type": "backup",
         "status": "success",
-        "start_time": "2023-10-26T02:00:00.000Z",
-        "end_time": "2023-10-26T02:15:30.000Z",
-        "exit_code": 0,
+        "startTime": "2023-10-26T02:00:00.000Z",
+        "endTime": "2023-10-26T02:15:30.000Z",
+        "exitCode": 0,
         "stdout": "Backup finished successfully...",
         "stderr": null
     }
@@ -399,7 +443,13 @@ _Same structure as [Get Client History](#get-client-history)._
 
 `POST /v1/clients/:clientId/key`
 
-**Description:** Triggers the generation of a new encryption key for the client.
+**Description:** Triggers the generation of a new encryption key on the client agent.
+
+#### Path Parameters
+
+| Parameter  | Type   | Required | Description             |
+| :--------- | :----- | :------- | :---------------------- |
+| `clientId` | string | **Yes**  | The UUID of the client. |
 
 #### Response
 
@@ -450,14 +500,40 @@ _Same structure as [Get Client History](#get-client-history)._
 | :--------- | :----- | :------- | :---------------------- |
 | `clientId` | string | **Yes**  | The UUID of the client. |
 
-#### Response
+#### Response (Array of BackupJob objects)
+
+| Field             | Type            | Description                                              |
+| :---------------- | :-------------- | :------------------------------------------------------- |
+| `id`              | string          | UUID of the job.                                         |
+| `name`            | string          | Name of the job.                                         |
+| `schedule`        | ScheduleConfig  | Schedule configuration object (see below). Nullable.     |
+| `scheduleEnabled` | boolean         | Whether the schedule is active.                          |
+| `nextRunAt`       | string          | ISO 8601 timestamp of the next scheduled run (optional). |
+| `lastRunAt`       | string          | ISO 8601 timestamp of the last run (optional).           |
+| `archives`        | Archive[]       | Array of archive objects (see below).                    |
+| `repository`      | Repository      | The PBS repository configuration.                        |
+
+**ScheduleConfig object:**
+
+| Field      | Type     | Description                                                        |
+| :--------- | :------- | :----------------------------------------------------------------- |
+| `interval` | number   | Numeric interval value (min 1).                                    |
+| `unit`     | string   | Unit of the interval: `"seconds"`, `"minutes"`, `"hours"`, `"days"`, `"weeks"`. |
+| `weekdays` | string[] | Array of weekday names for weekly schedules (e.g., `["Mon","Wed"]`). |
+
+**Archive object:**
+
+| Field  | Type   | Description                                              |
+| :----- | :----- | :------------------------------------------------------- |
+| `path` | string | Absolute path on the client to include in the backup.    |
+| `name` | string | Archive name in the PBS datastore (e.g., `"etc.pxar"`).  |
 
 **Example Response:**
 
 ```json
 [
     {
-        "id": "job-123",
+        "id": "job-uuid-123",
         "name": "Daily ETC Backup",
         "schedule": {
             "interval": 1,
@@ -465,13 +541,13 @@ _Same structure as [Get Client History](#get-client-history)._
             "weekdays": []
         },
         "scheduleEnabled": true,
+        "nextRunAt": "2023-10-27T02:00:00.000Z",
         "archives": [{ "path": "/etc", "name": "etc.pxar" }],
         "repository": {
-            "id": "repo-abc",
             "baseUrl": "https://pbs.local:8007",
             "datastore": "backups",
             "username": "client@pbs",
-            "status": "online"
+            "secret": "***"
         }
     }
 ]
@@ -491,23 +567,27 @@ _Same structure as [Get Client History](#get-client-history)._
 
 #### Request Body
 
-| Field             | Type     | Required | Description                                                                |
-| :---------------- | :------- | :------- | :------------------------------------------------------------------------- |
-| `id`              | string   | No       | UUID of the job. If provided, updates existing job; otherwise creates new. |
-| `name`            | string   | **Yes**  | Name of the job.                                                           |
-| `archives`        | string[] | **Yes**  | Array of absolute paths to include in the backup.                          |
-| `schedule`        | string   | **Yes**  | Cron-like schedule string.                                                 |
-| `scheduleEnabled` | boolean  | **Yes**  | Enable/disable schedule.                                                   |
-| `repository`      | string   | **Yes**  | The ID of the repository to use.                                           |
+| Field             | Type           | Required | Description                                                                |
+| :---------------- | :------------- | :------- | :------------------------------------------------------------------------- |
+| `id`              | string         | No       | UUID of the job. If provided, updates existing job; otherwise creates new. |
+| `name`            | string         | **Yes**  | Name of the job.                                                           |
+| `archives`        | Archive[]      | **Yes**  | Array of archive objects with `path` and `name`.                           |
+| `schedule`        | ScheduleConfig | No       | Schedule configuration object (nullable).                                  |
+| `scheduleEnabled` | boolean        | **Yes**  | Enable/disable the schedule.                                               |
+| `repository`      | string         | **Yes**  | The ID of the repository to use.                                           |
 
 **Example Request:**
 
 ```json
 {
-    "id": "job-123",
+    "id": "job-uuid-123",
     "name": "Daily ETC Backup",
-    "archives": ["/etc"],
-    "schedule": "0 2 * * *",
+    "archives": [{ "path": "/etc", "name": "etc.pxar" }],
+    "schedule": {
+        "interval": 1,
+        "unit": "days",
+        "weekdays": []
+    },
     "scheduleEnabled": true,
     "repository": "repo-abc"
 }
@@ -584,12 +664,12 @@ _Same structure as [Get Client History](#get-client-history)._
 
 #### Request Body
 
-| Field        | Type   | Required | Description                                                                       |
-| :----------- | :----- | :------- | :-------------------------------------------------------------------------------- |
-| `snapshot`   | string | **Yes**  | The name/ID of the snapshot to restore from.                                      |
-| `targetPath` | string | **Yes**  | The absolute path where files should be restored.                                 |
-| `repository` | string | **Yes**  | The ID of the repository containing the snapshot.                                 |
-| `archives`   | string | **Yes**  | The name of the archive (file) within the snapshot to restore (e.g. `root.pxar`). |
+| Field        | Type     | Required | Description                                                                        |
+| :----------- | :------- | :------- | :--------------------------------------------------------------------------------- |
+| `snapshot`   | string   | **Yes**  | The name/ID of the snapshot to restore from.                                       |
+| `targetPath` | string   | **Yes**  | The absolute path where files should be restored.                                  |
+| `repository` | string   | **Yes**  | The ID of the repository containing the snapshot.                                  |
+| `archives`   | string[] | **Yes**  | Array of archive filenames within the snapshot to restore (e.g. `["root.pxar"]`). |
 
 **Example Request:**
 
@@ -598,7 +678,7 @@ _Same structure as [Get Client History](#get-client-history)._
     "snapshot": "host/backup-client-01/2023-10-26T02:00:00Z",
     "targetPath": "/tmp/restore",
     "repository": "repo-abc",
-    "archives": "root.pxar"
+    "archives": ["root.pxar"]
 }
 ```
 
@@ -612,6 +692,30 @@ _Same structure as [Get Client History](#get-client-history)._
     "runId": "restore-run-456"
 }
 ```
+
+---
+
+## 📅 Global Data Views
+
+### List All Jobs
+
+`GET /v1/jobs`
+
+**Description:** Retrieves all backup jobs configured across all registered clients.
+
+#### Response
+
+_Same structure as [List Client Jobs](#list-client-jobs)._
+
+### Get Global History
+
+`GET /v1/history`
+
+**Description:** Retrieves the execution history of all jobs across all clients.
+
+#### Response
+
+_Same structure as [Get Client History](#get-client-history)._
 
 ---
 
@@ -644,6 +748,12 @@ _Same structure as [Get Client History](#get-client-history)._
 `GET /v1/repositories/:repositoryId/status`
 
 **Description:** Checks and returns the current connectivity status of a Proxmox Backup Server repository.
+
+#### Path Parameters
+
+| Parameter      | Type   | Required | Description             |
+| :------------- | :----- | :------- | :---------------------- |
+| `repositoryId` | string | **Yes**  | UUID of the repository. |
 
 #### Response
 
@@ -709,7 +819,7 @@ _Same structure as [Get Client History](#get-client-history)._
 
 #### Request Body
 
-_Same fields as Create Repository._
+_Same fields as [Create Repository](#create-repository)._
 
 #### Response
 
@@ -755,17 +865,29 @@ _Same fields as Create Repository._
 | :------------- | :----- | :------- | :---------------------- |
 | `repositoryId` | string | **Yes**  | UUID of the repository. |
 
-#### Response
+#### Response (Array of Snapshot objects)
+
+| Field          | Type   | Description                                              |
+| :------------- | :----- | :------------------------------------------------------- |
+| `backupType`   | string | Backup type (e.g., `"host"`).                            |
+| `backupId`     | string | Identifier of the backup source (hostname).              |
+| `backupTime`   | number | Unix timestamp of the backup.                            |
+| `files`        | array  | Array of file objects with `filename`, `cryptMode`, `size`. |
+| `size`         | number | Total size in bytes (optional).                          |
+| `owner`        | string | Owner of the snapshot (optional).                        |
+| `comment`      | string | Comment stored with the snapshot (optional).             |
+| `fingerprint`  | string | Encryption fingerprint (optional).                       |
 
 **Example Response:**
 
 ```json
 [
     {
-        "backup_type": "host",
-        "backup_id": "hostname",
-        "backup_time": 1672574400,
-        "files": [{ "filename": "root.pxar" }],
+        "backupType": "host",
+        "backupId": "hostname",
+        "backupTime": 1672574400,
+        "files": [{ "filename": "root.pxar", "size": 104857600 }],
+        "owner": "root@pam",
         "fingerprint": "a1b2..."
     }
 ]
@@ -781,7 +903,14 @@ _Same fields as Create Repository._
 
 **Description:** Lists active client registration tokens.
 
-#### Response
+#### Response (Array of Token objects)
+
+| Field       | Type   | Description                                     |
+| :---------- | :----- | :---------------------------------------------- |
+| `token`     | string | The token string.                               |
+| `createdAt` | string | ISO 8601 timestamp of creation.                 |
+| `expiresAt` | string | ISO 8601 timestamp of expiry.                   |
+| `usedAt`    | string | ISO 8601 timestamp of when it was used (optional). |
 
 **Example Response:**
 
@@ -789,9 +918,9 @@ _Same fields as Create Repository._
 [
     {
         "token": "token-123",
-        "created_at": "2023-10-27T10:00:00Z",
-        "expires_at": "2023-10-27T14:00:00Z",
-        "used_at": null
+        "createdAt": "2023-10-27T10:00:00Z",
+        "expiresAt": "2023-10-27T14:00:00Z",
+        "usedAt": null
     }
 ]
 ```
@@ -846,7 +975,7 @@ _Same fields as Create Repository._
 | Field      | Type   | Required | Description                                 |
 | :--------- | :----- | :------- | :------------------------------------------ |
 | `token`    | string | **Yes**  | A valid, unused registration token.         |
-| `clientId` | string | **Yes**  | CSS-generated UUID for the client identity. |
+| `clientId` | string | **Yes**  | Client-generated UUID for the client identity. |
 | `hostname` | string | No       | Hostname of the client device.              |
 
 **Example Request:**
@@ -899,11 +1028,35 @@ _Same fields as Create Repository._
 
 **Description:** Updates the automated cleanup and retention parameters.
 
+#### Request Body
+
+_Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
+
 ### Run Maintenance
 
 `POST /v1/settings/cleanup`
 
 **Description:** Manually triggers the cleanup/maintenance task based on current settings.
+
+---
+
+## 🏓 Health Check
+
+### Ping
+
+`GET /v1/ping`
+
+**Description:** Public health check endpoint. No authentication required.
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "status": "ok"
+}
+```
 
 ---
 
@@ -923,11 +1076,12 @@ _Same fields as Create Repository._
 
 #### Events (Server -> Client)
 
-| Event            | Payload Structure                                                     | Description                        |
-| :--------------- | :-------------------------------------------------------------------- | :--------------------------------- |
-| `CLIENTS_UPDATE` | `Client[]`                                                            | Full list of clients and statuses. |
-| `JOB_UPDATE`     | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.          |
-| `LOG_UPDATE`     | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                   |
+| Event                | Payload Structure                                                     | Description                              |
+| :------------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
+| `CLIENTS_UPDATE`     | `Client[]`                                                            | Full list of clients and statuses.       |
+| `JOB_UPDATE`         | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.                |
+| `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
+| `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
 
 ### Agent Connection
 
@@ -938,7 +1092,7 @@ _Same fields as Create Repository._
 #### Client -> Server Events
 
 **`AUTH`**
-**Description:** Initial handshake.
+**Description:** Initial handshake. Sent by the agent immediately after connecting.
 **Payload:**
 
 ```json
@@ -978,14 +1132,15 @@ _Same fields as Create Repository._
 ```json
 {
     "id": "run-uuid",
+    "jobId": "job-uuid",
     "name": "job-name",
-    "status": "running", // or "success", "failed"
-    "type": "backup", // or "restore"
-    "start_time": "ISO-TIMESTAMP",
-    "end_time": "ISO-TIMESTAMP", // optional
-    "exit_code": 0, // optional
-    "stdout": "output...", // optional
-    "stderr": "errors..." // optional
+    "status": "running",
+    "type": "backup",
+    "startTime": "ISO-TIMESTAMP",
+    "endTime": "ISO-TIMESTAMP",
+    "exitCode": 0,
+    "stdout": "output...",
+    "stderr": "errors..."
 }
 ```
 
@@ -997,7 +1152,7 @@ _Same fields as Create Repository._
 {
     "jobId": "run-uuid",
     "output": "log line content\n",
-    "stream": "stdout" // or "stderr"
+    "stream": "stdout"
 }
 ```
 
@@ -1038,16 +1193,16 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "runId": "new-run-uuid",
-  "snapshot": "snapshot-name",
-  "targetPath": "/restore/path",
-  "repository": { ...Repository object... },
-  "archives": ["root.pxar"]
+    "runId": "new-run-uuid",
+    "snapshot": "snapshot-name",
+    "targetPath": "/restore/path",
+    "repository": { "baseUrl": "...", "datastore": "...", "username": "...", "secret": "..." },
+    "archives": ["root.pxar"]
 }
 ```
 
 **`JOB_LIST_CONFIG`**
-**Description:** Server requests the list of configured jobs.
+**Description:** Server requests the list of configured jobs from the agent.
 **Payload:**
 
 ```json
@@ -1062,8 +1217,8 @@ _Same fields as Create Repository._
 
 ```json
 {
-  "requestId": "req-uuid",
-  "job": { ...Job config object... }
+    "requestId": "req-uuid",
+    "job": { "id": "job-uuid", "name": "...", "archives": [], "repository": {}, "schedule": {}, "scheduleEnabled": true }
 }
 ```
 
@@ -1078,8 +1233,27 @@ _Same fields as Create Repository._
 }
 ```
 
+**`GENERATE_KEY_CONFIG`**
+**Description:** Server instructs agent to generate a new encryption key.
+**Payload:**
+
+```json
+{
+    "requestId": "req-uuid"
+}
+```
+
+**Agent Response:**
+```json
+{
+    "requestId": "req-uuid",
+    "success": true,
+    "keyContent": "-----BEGIN ENCRYPTED PRIVATE KEY-----..."
+}
+```
+
 **`HISTORY`**
-**Description:** Server requests job history.
+**Description:** Server requests job history from the agent.
 **Payload:**
 
 ```json

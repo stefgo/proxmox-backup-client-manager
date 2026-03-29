@@ -13,10 +13,10 @@ Development is performed entirely within Docker containers to ensure a consisten
 
 ### Starting the Development Environment
 
-The development environment is configured and started using the `compose.dev.yml` file:
+The development environment is configured and started using the `compose.dev.yaml` file:
 
 ```bash
-docker compose -f compose.dev.yml up --build
+docker compose -f compose.dev.yaml up --build
 ```
 
 This starts two services:

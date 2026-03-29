@@ -83,6 +83,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             <DataTable
                 data={currentTokens}
                 itemDef={columns}
+                defaultSort={{ colIndex: 1, direction: 'asc' }}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 containerClassName="rounded-b-xl border-0 shadow-none"

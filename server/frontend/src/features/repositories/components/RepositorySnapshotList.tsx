@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
@@ -19,6 +20,29 @@ export const RepositorySnapshotList = ({
     getClientStatus,
     getClientName
 }: RepositorySnapshotListProps) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const sortedSnapshots = useMemo(
+        () => [...snapshots].sort((a, b) => {
+            if (showClientColumn && getClientName) {
+                return (getClientName(a.backupId ?? '') ?? '').localeCompare(getClientName(b.backupId ?? '') ?? '');
+            }
+            return b.backupTime - a.backupTime;
+        }),
+        [snapshots, showClientColumn, getClientName],
+    );
+
+    const filteredSnapshots = useMemo(() => {
+        if (!searchQuery) return sortedSnapshots;
+        const q = searchQuery.toLowerCase();
+        return sortedSnapshots.filter(s => {
+            if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
+            if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
+            if (s.backupType.toLowerCase().includes(q)) return true;
+            return false;
+        });
+    }, [sortedSnapshots, searchQuery, getClientName]);
+
     const {
         currentItems,
         currentPage,
@@ -27,7 +51,7 @@ export const RepositorySnapshotList = ({
         totalItems,
         goToPage,
         setItemsPerPage,
-    } = usePagination(snapshots, 10);
+    } = usePagination(filteredSnapshots, 10);
 
     const getStatus = (snap: Snapshot): "online" | "offline" => {
         if (!showClientColumn || !getClientStatus || !snap.backupId) return "online";
@@ -176,6 +200,8 @@ export const RepositorySnapshotList = ({
         columnClassName: "md:text-right"
     });
 
+    const dateSortColIndex = showClientColumn ? 1 : 0;
+
     return (
         <DataMultiView
             title={<><FileBox size={18} className="text-text-muted dark:text-text-muted-dark" /> Snapshots</>}
@@ -183,7 +209,11 @@ export const RepositorySnapshotList = ({
             tableDef={tableDef}
             listColumns={listColumns}
             keyField={(snap) => snap.backupTime.toString()}
+            defaultSort={{ colIndex: dateSortColIndex, direction: 'desc' }}
             viewModeStorageKey="snapshotListViewMode"
+            searchable
+            searchPlaceholder="Search Snapshots ..."
+            onSearchChange={setSearchQuery}
             emptyMessage="No snapshots found in this repository."
             pagination={{
                 currentPage,

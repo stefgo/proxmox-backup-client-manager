@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '../../../hooks/usePagination';
@@ -16,6 +17,23 @@ interface ClientListProps {
 }
 
 export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient }: ClientListProps) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const sortedClients = useMemo(
+        () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
+        [clients],
+    );
+
+    const filteredClients = useMemo(() => {
+        if (!searchQuery) return sortedClients;
+        const q = searchQuery.toLowerCase();
+        return sortedClients.filter(c =>
+            (c.displayName ?? '').toLowerCase().includes(q) ||
+            c.hostname.toLowerCase().includes(q) ||
+            c.id.toLowerCase().includes(q),
+        );
+    }, [sortedClients, searchQuery]);
+
     const {
         currentItems: currentClients,
         currentPage,
@@ -24,7 +42,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         totalItems,
         goToPage,
         setItemsPerPage
-    } = usePagination(clients, 10);
+    } = usePagination(filteredClients, 10);
 
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
@@ -186,12 +204,16 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>
             }
+            defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="clientViewMode"
             data={currentClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
-            emptyMessage="No clients connected"
+            searchable
+            searchPlaceholder="Search Clients ..."
+            onSearchChange={setSearchQuery}
+            emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}
             pagination={{

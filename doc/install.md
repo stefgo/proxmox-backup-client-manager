@@ -43,14 +43,23 @@ The project is organized as a monorepo:
 
 You can start the client and server separately.
 
-**Start Server:**
-This starts the backend and the frontend (if configured):
+**Start Server (Backend):**
 
 ```bash
 npm run dev:server
 ```
 
-_The server runs on <http://localhost:3000> by default._
+_The backend runs on <http://localhost:3000> by default._
+
+**Start Frontend (Vite Dev Server):**
+
+```bash
+npm run dev:frontend
+```
+
+_The frontend dev server runs on <http://localhost:5173> with hot module replacement. Vite proxies `/api` and `/ws` requests to the backend._
+
+**Start Client Agent:**
 
 ```bash
 npm run dev:client
@@ -70,11 +79,11 @@ The standard `pbcm-client` image is built for `linux/amd64`.
 For a complete development environment including isolation:
 
 ```bash
-docker compose -f compose.dev.yml up -d --build
+docker compose -f compose.dev.yaml up -d --build
 ```
 
 - **Server**: <http://localhost:3000> (Supports both x86_64 and ARM64)
-- View logs: `docker compose -f compose.dev.yml logs -f`
+- View logs: `docker compose -f compose.dev.yaml logs -f`
 
 ## Configuration
 
