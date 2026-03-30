@@ -137,8 +137,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             {/* Header */}
             <div className="p-4 border-b border-border dark:border-border-dark flex justify-between items-center bg-app-bg dark:bg-card-dark">
                 <div>
-                    <h3 className="text-xl font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
-                        <Folder size={20} className="text-primary" /> Restore Snapshot
+                    <h3 className="font-semibold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                        <Folder size={20} className="text-text-muted dark:text-text-muted-dark" /> Restore Snapshot
                     </h3>
                     <div className="text-xs text-text-muted dark:text-text-muted-dark font-mono mt-1">
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
