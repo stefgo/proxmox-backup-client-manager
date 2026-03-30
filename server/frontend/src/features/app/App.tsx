@@ -154,7 +154,7 @@ function AppLayout() {
       label: "Clients",
       icon: Monitor,
       badge: `${stats.clients.active} / ${stats.clients.total}`,
-      path: ["/", "/clients", "/client"],
+      path: ["/", "/clients", "/client/:clientId"],
       onClick: () => navigate("/clients"),
       content: (
         <>
@@ -196,7 +196,7 @@ function AppLayout() {
       label: "Repositories",
       icon: ServerIcon,
       badge: `${stats.repositories.active} / ${stats.repositories.total}`,
-      path: ["/repositories", "/repository"],
+      path: ["/repositories", "/repository/:repositoryId"],
       onClick: () => navigate("/repositories"),
       content: (
         <>
