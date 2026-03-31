@@ -1,6 +1,6 @@
 import { Activity, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';

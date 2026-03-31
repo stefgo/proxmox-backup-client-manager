@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
 import { Client } from '@pbcm/shared';
-import { usePagination } from '../../../hooks/usePagination';
+import { usePagination } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';

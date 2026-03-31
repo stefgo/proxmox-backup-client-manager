@@ -3,7 +3,7 @@ import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { usePagination } from '../../../hooks/usePagination';
+import { usePagination } from '@stefgo/react-ui-components';
 
 interface RepositorySnapshotListProps {
     snapshots: Snapshot[];

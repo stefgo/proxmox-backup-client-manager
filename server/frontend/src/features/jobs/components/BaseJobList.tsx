@@ -7,7 +7,7 @@ import {
     Plus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { usePagination } from "../../../hooks/usePagination";
+import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
