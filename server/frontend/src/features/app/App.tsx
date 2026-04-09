@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // Library Components
-import { Dashboard, DashboardPage } from "@stefgo/react-ui-components";
+import { Dashboard, DashboardNavGroup, DashboardPage } from "@stefgo/react-ui-components";
 
 import Login from '../../pages/Login';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -147,15 +147,22 @@ function AppLayout() {
     </div>
   );
 
+  const navGroups: DashboardNavGroup[] = [
+    { id: "resources", title: "Ressources" },
+    { id: "administration", title: "Administration" },
+  ];
+
   const pages: DashboardPage[] = useMemo(() => [
     {
       id: "clients",
-      group: "Ressources",
-      label: "Clients",
-      icon: Monitor,
-      badge: `${stats.clients.active} / ${stats.clients.total}`,
       path: ["/", "/clients", "/client/:clientId"],
-      onClick: () => navigate("/clients"),
+      nav: {
+        groupId: "resources",
+        label: "Clients",
+        icon: Monitor,
+        badge: `${stats.clients.active} / ${stats.clients.total}`,
+        onClick: () => navigate("/clients"),
+      },
       content: (
         <>
           {path.startsWith("/client/") && selectedClient ? (
@@ -180,24 +187,28 @@ function AppLayout() {
     },
     {
       id: "jobs",
-      group: "Ressources",
-      label: "Jobs",
-      icon: HardDrive,
-      badge: `${stats.jobs.active} / ${stats.jobs.total}`,
       path: "/jobs",
-      onClick: () => navigate("/jobs"),
+      nav: {
+        groupId: "resources",
+        label: "Jobs",
+        icon: HardDrive,
+        badge: `${stats.jobs.active} / ${stats.jobs.total}`,
+        onClick: () => navigate("/jobs"),
+      },
       content: (
         <ManagedJobs />
       )
     },
     {
       id: "repositories",
-      group: "Ressources",
-      label: "Repositories",
-      icon: ServerIcon,
-      badge: `${stats.repositories.active} / ${stats.repositories.total}`,
       path: ["/repositories", "/repository/:repositoryId"],
-      onClick: () => navigate("/repositories"),
+      nav: {
+        groupId: "resources",
+        label: "Repositories",
+        icon: ServerIcon,
+        badge: `${stats.repositories.active} / ${stats.repositories.total}`,
+        onClick: () => navigate("/repositories"),
+      },
       content: (
         <>
           {path.startsWith("/repository/") && selectedRepo ? (
@@ -216,47 +227,55 @@ function AppLayout() {
     },
     {
       id: "history",
-      group: "Ressources",
-      label: "History",
-      icon: Activity,
       path: "/history",
-      onClick: () => navigate("/history"),
+      nav: {
+        groupId: "resources",
+        label: "History",
+        icon: Activity,
+        onClick: () => navigate("/history"),
+      },
       content: (
         <HistoryOverview />
       )
     },
     {
       id: "users",
-      group: "Administration",
-      isMobileMoreMenu: true,
-      label: "Users",
-      icon: Users,
       path: "/users",
-      onClick: () => navigate("/users"),
+      nav: {
+        groupId: "administration",
+        placement: "mobile-more",
+        label: "Users",
+        icon: Users,
+        onClick: () => navigate("/users"),
+      },
       content: (
         <UserOverview />
       )
     },
     {
       id: "tokens",
-      group: "Administration",
-      isMobileMoreMenu: true,
-      label: "Client Tokens",
-      icon: Key,
       path: "/tokens",
-      onClick: () => navigate("/tokens"),
+      nav: {
+        groupId: "administration",
+        placement: "mobile-more",
+        label: "Client Tokens",
+        icon: Key,
+        onClick: () => navigate("/tokens"),
+      },
       content: (
         <TokenOverview />
       )
     },
     {
       id: "settings",
-      group: "Administration",
-      isMobileMoreMenu: true,
-      label: "Settings",
-      icon: SettingsIcon,
       path: "/settings",
-      onClick: () => navigate("/settings"),
+      nav: {
+        groupId: "administration",
+        placement: "mobile-more",
+        label: "Settings",
+        icon: SettingsIcon,
+        onClick: () => navigate("/settings"),
+      },
       content: (
         <Settings />
       )
@@ -289,6 +308,7 @@ function AppLayout() {
       isSidebarCollapsed={isSidebarCollapsed}
       onToggleSidebar={toggleSidebarCollapsed}
       pages={pages}
+      navGroups={navGroups}
       currentPath={path}
     />
   );
