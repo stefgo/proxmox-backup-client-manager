@@ -25,5 +25,5 @@ jobs:
                   # We keep versions that should NOT be deleted:
                   # Regex for: 'latest' OR version numbers (e.g., v1.0.1)
                   # OR branch names (here 'main')
-                  ignore-versions: '^(latest|v?\d+\.\d+\.\d+|main)$'
+                  ignore-versions: '^(latest|main|v?[0-9]+\.[0-9]+\.[0-9]+)$'
                   min-versions-to-keep: 5 # Always keep the last 5 versions per package
