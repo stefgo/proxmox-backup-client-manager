@@ -106,17 +106,18 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
         !!test?.ok && fingerprintConfirmed && !!targetAddress.trim() && !!registrationSecret.trim() && !creating;
 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <Card
                 title="Outbound-Client hinzufügen"
-                className="max-w-2xl w-full animate-fade-in my-8"
+                className="max-w-2xl w-full max-h-[calc(100vh-2rem)] flex flex-col animate-fade-in"
+                classNames={{ header: 'shrink-0' }}
                 action={
                     <button onClick={onClose} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors p-1 rounded-full">
                         <X size={20} />
                     </button>
                 }
             >
-                <div className="p-6 space-y-6">
+                <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
                     <p className="text-sm text-text-muted dark:text-text-muted-dark">
                         Der Server wählt diesen Client aktiv an und stellt ihm den Weg zum PBS über einen
                         SSH-Reverse-Tunnel bereit. <strong>Die Verbindungsart ist danach nicht mehr änderbar.</strong>
@@ -232,22 +233,22 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                     {error && (
                         <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>
                     )}
+                </div>
 
-                    <div className="flex justify-end gap-3">
-                        <Button type="button" variant="secondary" onClick={onClose} disabled={creating} icon={<X size={16} />}>
-                            Abbrechen
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="primary"
-                            onClick={handleCreate}
-                            disabled={!canCreate}
-                            isLoading={creating}
-                            icon={<Plug size={16} />}
-                        >
-                            Client anlegen
-                        </Button>
-                    </div>
+                <div className="shrink-0 flex justify-end gap-3 border-t border-border dark:border-border-dark px-6 py-4">
+                    <Button type="button" variant="secondary" onClick={onClose} disabled={creating} icon={<X size={16} />}>
+                        Abbrechen
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleCreate}
+                        disabled={!canCreate}
+                        isLoading={creating}
+                        icon={<Plug size={16} />}
+                    >
+                        Client anlegen
+                    </Button>
                 </div>
             </Card>
         </div>
