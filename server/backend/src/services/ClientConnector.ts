@@ -42,33 +42,73 @@ export class ClientConnector {
         outboundTargetAddress: string,
         registrationSecret: string,
         onPersist: (authToken: string, version: string | null) => void,
-    ): Promise<boolean> {
-        const authToken = await this.performRegistration(
+    ): Promise<{ ok: boolean; error?: string }> {
+        const registration = await this.performRegistration(
             outboundTargetAddress,
             registrationSecret,
         );
-        if (!authToken) return false;
+        if (!registration.authToken) {
+            return { ok: false, error: registration.error };
+        }
 
-        return this.connectWithToken(
+        const connected = await this.connectWithToken(
             id,
             outboundTargetAddress,
-            authToken,
+            registration.authToken,
             onPersist,
         );
+        return connected
+            ? { ok: true }
+            : {
+                  ok: false,
+                  error: "Die Registrierung war erfolgreich, aber die anschließende Agent-Verbindung (AUTH) kam nicht zustande.",
+              };
+    }
+
+    /** Turns a WebSocket close code from the agent into a message for the operator. */
+    private static describeRegistrationClose(
+        code: number,
+        reason: string,
+    ): string {
+        if (code === 4003 && reason === "Already registered") {
+            return "Der Client ist bereits registriert (authToken in seiner config.yaml). Vor einer Neuanlage am Client-Host den authToken entfernen und ein neues registrationSecret setzen.";
+        }
+        if (code === 4003 && reason === "No registration secret configured") {
+            return "Am Client-Host ist kein registrationSecret konfiguriert. Bitte in der config.yaml des Agents setzen und den Agent neu starten.";
+        }
+        if (code === 4003) {
+            return "Der Client hat das Registrierungs-Secret abgelehnt.";
+        }
+        return `Der Client hat die Registrierungsverbindung beendet (Code ${code}${
+            reason ? `: ${reason}` : ""
+        }).`;
     }
 
     /**
-     * Performs the registration handshake and returns the generated authToken,
-     * or null on failure. Writes nothing to the database.
+     * Performs the registration handshake and returns the generated authToken, or an
+     * error describing why it failed. Writes nothing to the database.
+     *
+     * Every terminal event — including a bare `close` without any protocol message, which
+     * is how the agent rejects an already-registered host — has to settle the promise.
+     * Otherwise the HTTP request that started the handshake would hang forever.
      */
     private static performRegistration(
         outboundTargetAddress: string,
         registrationSecret: string,
-    ): Promise<string | null> {
+    ): Promise<{ authToken: string | null; error?: string }> {
         const wsUrl = `ws://${outboundTargetAddress}/ws/register`;
         logger.info({ url: wsUrl }, "ClientConnector: starting registration");
 
         return new Promise((resolve) => {
+            let settled = false;
+            let timeout: NodeJS.Timeout | undefined;
+            const finish = (authToken: string | null, error?: string) => {
+                if (settled) return;
+                settled = true;
+                if (timeout) clearTimeout(timeout);
+                resolve({ authToken, error });
+            };
+
             let ws: WebSocket;
             try {
                 ws = new WebSocket(wsUrl);
@@ -77,15 +117,23 @@ export class ClientConnector {
                     { err },
                     "ClientConnector: failed to create registration socket",
                 );
-                resolve(null);
+                finish(
+                    null,
+                    `Registrierungsverbindung konnte nicht aufgebaut werden: ${
+                        err instanceof Error ? err.message : String(err)
+                    }`,
+                );
                 return;
             }
 
             const authToken = randomUUID();
-            const timeout = setTimeout(() => {
-                ws.terminate();
+            timeout = setTimeout(() => {
                 logger.warn("ClientConnector: registration timed out");
-                resolve(null);
+                finish(
+                    null,
+                    "Zeitüberschreitung bei der Registrierung — der Client hat nicht geantwortet.",
+                );
+                ws.terminate();
             }, HANDSHAKE_TIMEOUT_MS);
 
             ws.on("open", () => {
@@ -101,39 +149,55 @@ export class ClientConnector {
                 try {
                     const message = JSON.parse(data.toString());
                     if (message.type === WS_EVENTS.REGISTRATION_SUCCESS) {
-                        clearTimeout(timeout);
                         logger.info("ClientConnector: registration successful");
+                        finish(authToken);
                         ws.close(1000, "Registration complete");
-                        resolve(authToken);
                     } else if (message.type === WS_EVENTS.REGISTRATION_FAILURE) {
-                        clearTimeout(timeout);
                         logger.error(
                             "ClientConnector: client rejected registration secret",
                         );
+                        finish(
+                            null,
+                            message?.payload?.error
+                                ? `Der Client hat die Registrierung abgelehnt: ${message.payload.error}`
+                                : "Der Client hat das Registrierungs-Secret abgelehnt.",
+                        );
                         ws.close();
-                        resolve(null);
                     }
                 } catch (err) {
-                    clearTimeout(timeout);
                     logger.error(
                         { err },
                         "ClientConnector: error parsing registration response",
                     );
+                    finish(
+                        null,
+                        "Ungültige Antwort des Clients auf die Registrierung.",
+                    );
                     ws.close();
-                    resolve(null);
                 }
             });
 
             ws.on("error", (err) => {
-                clearTimeout(timeout);
                 logger.error(
                     { err: err.message },
                     "ClientConnector: registration connection error",
                 );
-                resolve(null);
+                finish(
+                    null,
+                    `Registrierungsverbindung fehlgeschlagen: ${err.message}`,
+                );
             });
 
-            ws.on("close", () => clearTimeout(timeout));
+            // A close without a protocol message is a rejection by the agent — resolve it
+            // instead of silently dropping the promise.
+            ws.on("close", (code: number, reason: Buffer) => {
+                const text = reason?.toString() ?? "";
+                logger.warn(
+                    { code, reason: text },
+                    "ClientConnector: registration socket closed",
+                );
+                finish(null, this.describeRegistrationClose(code, text));
+            });
         });
     }
 
@@ -190,6 +254,13 @@ export class ClientConnector {
                     { err: err.message, clientId: id },
                     "ClientConnector: connection error",
                 );
+                resolve(false);
+            });
+
+            // Safety net: a close that never produced an AUTH result must still settle
+            // the promise. A later resolve after a successful AUTH is a no-op.
+            ws.on("close", () => {
+                clearTimeout(timeout);
                 resolve(false);
             });
         });

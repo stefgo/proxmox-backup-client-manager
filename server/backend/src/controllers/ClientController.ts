@@ -72,7 +72,7 @@ export class ClientController {
         const resolvedHostname = hostname?.trim() || outboundTargetAddress;
         let persisted = false;
 
-        const success = await ClientConnector.firstConnect(
+        const result = await ClientConnector.firstConnect(
             id,
             outboundTargetAddress,
             registrationSecret,
@@ -99,9 +99,12 @@ export class ClientController {
             },
         );
 
-        if (!success || !persisted) {
+        if (!result.ok || !persisted) {
+            const reason =
+                result.error ??
+                "Das Registrierungs-Secret wurde dabei möglicherweise bereits verbraucht — bitte am Client-Host ein neues setzen.";
             return reply.code(400).send({
-                error: "Registrierung am Client fehlgeschlagen. Das Registrierungs-Secret wurde dabei möglicherweise bereits verbraucht — bitte am Client-Host ein neues setzen.",
+                error: `Registrierung am Client fehlgeschlagen. ${reason}`,
             });
         }
 
