@@ -86,7 +86,7 @@ Environment variables of note:
 
 ## Code Style
 
-- **Indentation**: 4 spaces for backend/client/shared, 2 spaces for frontend (enforced via `.editorconfig`)
+- **Indentation**: 4 spaces in all workspaces, no tabs. No formatter is configured — match the surrounding file.
 - **TypeScript**: strict mode everywhere
 - **Frontend linting**: ESLint with `react-hooks` and `react-refresh` plugins
 - **UI components**: `@stefgo/react-ui-components` – custom external library; styles are resolved via `tailwind.config.js` using `VITE_UI_COMPONENTS_PATH`
