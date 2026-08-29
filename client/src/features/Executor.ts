@@ -9,6 +9,7 @@ import { config } from "../core/Config.js";
 import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
+import { TunnelClient, TunnelLease } from "./TunnelClient.js";
 
 export interface JobHistoryRow {
     id: string;
@@ -176,6 +177,46 @@ export class Executor {
     }
 
     /**
+     * Ends a run that failed before the backup process could even be started — currently
+     * the tunnel paths. The history row already exists at this point, so it is closed out
+     * rather than created.
+     */
+    private static finishFailedRun(
+        runId: string,
+        jobId: string | undefined,
+        name: string,
+        startTime: string,
+        jobType: string,
+        message: string,
+    ) {
+        try {
+            JobHistoryRepository.finishJob(
+                runId,
+                "failed",
+                new Date().toISOString(),
+                null,
+                null,
+                message,
+            );
+        } catch (e) {
+            logger.error({ err: e }, "DB Update Error (pre-spawn failure)");
+        }
+
+        const payload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+            id: runId,
+            jobId: jobId,
+            name,
+            startTime,
+            status: "failed",
+            endTime: new Date().toISOString(),
+            error: message,
+            stderr: message,
+            type: jobType,
+        };
+        Connection.send(WS_EVENTS.STATUS_UPDATE, payload);
+    }
+
+    /**
      * Executes a backup job by spawning the proxmox-backup-client CLI tool.
      * Resolves the job configuration from the local database, mounts repository
      * credentials, processes encryption keys, and pipes live log streams back
@@ -317,24 +358,16 @@ export class Executor {
             if (jobConfigData.repository) {
                 try {
                     const repo = jobConfigData.repository;
-                    const cred = repo;
-
-                    let hostStr = "";
-                    try {
-                        const u = new URL(repo.baseUrl);
-                        hostStr = u.hostname;
-                        if (u.port) hostStr += ":" + u.port;
-                    } catch (e) {
-                        hostStr = repo.baseUrl;
-                    }
 
                     // Map repository credentials to environment variables for proxmox-backup-client
-                    // The format username!tokenname@host:datastore is required for PBS_REPOSITORY
-                    env.PBS_REPOSITORY = `${cred.username}!${cred.tokenname}@${hostStr}:${repo.datastore}`;
+                    // The format username!tokenname@host:datastore is required for PBS_REPOSITORY.
+                    // For tunneled clients host and port are replaced right before spawn,
+                    // once the lease tells us the loopback port of the reverse forward.
+                    env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(repo);
 
                     // Pass password via file descriptor 3 to avoid exposing it in process arguments
                     env.PBS_PASSWORD_FD = "3";
-                    pbsPassword = cred.secret;
+                    pbsPassword = repo.secret;
 
                     if (repo.fingerprint) {
                         env.PBS_FINGERPRINT = repo.fingerprint;
@@ -439,6 +472,36 @@ export class Executor {
         let stdoutBuffer = "";
         let stderrBuffer = "";
 
+        // Outbound clients reach the PBS only through the SSH reverse tunnel. The lease is
+        // requested here, immediately before the spawn, and released again in every exit
+        // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
+        let lease: TunnelLease | undefined;
+        try {
+            const tunnelRequired = !!jobConfigData.tunnel?.required;
+            TunnelClient.assertModeMatches(tunnelRequired);
+
+            if (tunnelRequired && jobConfigData.repository) {
+                lease = await TunnelClient.acquire(runId, jobId);
+                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
+                    jobConfigData.repository,
+                    lease,
+                );
+            }
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error({ err: e }, "Tunnel acquisition failed");
+            this.runningJobs.delete(jobId);
+            this.finishFailedRun(
+                runId,
+                jobId,
+                jobName || "Unknown Backup",
+                startTime,
+                jobType,
+                message,
+            );
+            return;
+        }
+
         const child = spawn(command, args, {
             shell: false,
             env: env,
@@ -478,6 +541,8 @@ export class Executor {
         });
 
         child.on("close", (code: number | null) => {
+            TunnelClient.release(lease);
+            lease = undefined;
             const status = code === 0 ? "success" : "failed";
             const endTime = new Date().toISOString();
             logger.info(`Job ${jobId} finished with code ${code}`);
@@ -570,6 +635,8 @@ export class Executor {
         });
 
         child.on("error", (err: Error) => {
+            TunnelClient.release(lease);
+            lease = undefined;
             this.runningJobs.delete(jobId);
             logger.error({ err: err }, "Spawn Error");
 
@@ -637,19 +704,10 @@ export class Executor {
 
             if (repository) {
                 try {
-                    const cred = repository;
-                    let hostStr = "";
-                    try {
-                        const u = new URL(repository.baseUrl);
-                        hostStr = u.hostname;
-                        if (u.port) hostStr += ":" + u.port;
-                    } catch (e) {
-                        hostStr = repository.baseUrl;
-                    }
-
-                    env.PBS_REPOSITORY = `${cred.username}!${cred.tokenname}@${hostStr}:${repository.datastore}`;
+                    env.PBS_REPOSITORY =
+                        TunnelClient.buildRepositoryValue(repository);
                     env.PBS_PASSWORD_FD = "3";
-                    pbsPassword = cred.secret;
+                    pbsPassword = repository.secret;
 
                     if (repository.fingerprint) {
                         env.PBS_FINGERPRINT = repository.fingerprint;
@@ -723,6 +781,34 @@ export class Executor {
         let stdoutBuffer = "";
         let stderrBuffer = "";
 
+        // Same tunnel handling as for backups. A restore carries no jobId — the server
+        // authorised the target for this runId when it triggered the restore.
+        let lease: TunnelLease | undefined;
+        try {
+            const tunnelRequired = !!payload?.tunnel?.required;
+            TunnelClient.assertModeMatches(tunnelRequired);
+
+            if (tunnelRequired && repository) {
+                lease = await TunnelClient.acquire(runId);
+                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
+                    repository,
+                    lease,
+                );
+            }
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error({ err: e }, "Tunnel acquisition failed (restore)");
+            this.finishFailedRun(
+                runId,
+                undefined,
+                jobName,
+                startTime,
+                jobType,
+                message,
+            );
+            return;
+        }
+
         const child = spawn(command, args, {
             shell: false,
             env: env,
@@ -771,6 +857,8 @@ export class Executor {
         };
 
         child.on("close", (code: number | null) => {
+            TunnelClient.release(lease);
+            lease = undefined;
             const status = code === 0 ? "success" : "failed";
             const endTime = new Date().toISOString();
             logger.info(`Restore ${runId} finished with code ${code}`);
@@ -847,6 +935,8 @@ export class Executor {
         });
 
         child.on("error", (err: Error) => {
+            TunnelClient.release(lease);
+            lease = undefined;
             const errorMsg = err.message;
             stderrBuffer += "\nSpawn Error: " + errorMsg;
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {

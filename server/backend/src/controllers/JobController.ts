@@ -2,6 +2,19 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
 import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
+import { ClientRepository } from "../repositories/ClientRepository.js";
+import { TunnelService } from "../services/TunnelService.js";
+import { WebSocketController } from "./WebSocketController.js";
+
+/**
+ * Outbound clients reach the PBS only through the SSH reverse tunnel. Their jobs carry
+ * this marker so the agent knows it must obtain a lease before running. The loopback port
+ * is deliberately NOT part of the job: it is allocated per forward and only known at
+ * lease time, so the stored job keeps the real PBS URL.
+ */
+function isTunneled(clientId: string): boolean {
+    return ClientRepository.findById(clientId)?.connection_mode === "outbound";
+}
 
 export class JobController {
     /**
@@ -41,7 +54,10 @@ export class JobController {
         }
 
         try {
-            const jobData = parsed.data;
+            const jobData = {
+                ...parsed.data,
+                tunnel: isTunneled(clientId) ? { required: true } : undefined,
+            };
             const result = await ProxyService.sendRequest(
                 clientId,
                 WS_EVENTS.JOB_SAVE_CONFIG,
@@ -136,8 +152,24 @@ export class JobController {
         const { snapshot, targetPath, repository, archives, encryption } =
             parsed.data;
         const runId = randomUUID();
+        const tunneled = isTunneled(clientId);
 
         try {
+            if (tunneled) {
+                // A restore carries no jobId, so the client cannot reference a stored job
+                // when asking for its tunnel. Pre-authorise the target for this runId —
+                // the client still never names a host itself.
+                const target = WebSocketController.repositoryTarget(
+                    repository.baseUrl,
+                );
+                if (!target) {
+                    return reply
+                        .code(400)
+                        .send({ error: "Repository-URL ist ungültig" });
+                }
+                TunnelService.registerRunTarget(clientId, runId, target);
+            }
+
             ProxyService.sendFireAndForget(clientId, WS_EVENTS.RUN_RESTORE, {
                 runId,
                 snapshot,
@@ -145,6 +177,7 @@ export class JobController {
                 repository,
                 archives,
                 encryption,
+                tunnel: tunneled ? { required: true } : undefined,
             });
             return { status: "triggered", runId };
         } catch (e: unknown) {

@@ -17,6 +17,16 @@ export interface ClientConfig {
     executable: string;
     clientId: string;
     authToken?: string;
+    /**
+     * One-time secret for outbound mode: the server dials this agent and registers
+     * itself with it. Consumed on first successful registration.
+     */
+    registrationSecret?: string;
+    /**
+     * Random delay before requesting a tunnel lease. Clients usually share the same
+     * schedule ("daily at 02:00") and would otherwise all ask in the same second.
+     */
+    tunnelAcquireJitterSeconds?: number;
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
@@ -33,6 +43,7 @@ let configDoc: YAML.Document = new YAML.Document({});
 export const config: ClientConfig = {
     executable: "proxmox-backup-client",
     clientId: randomUUID(),
+    tunnelAcquireJitterSeconds: 30,
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
@@ -51,6 +62,12 @@ function syncDoc() {
     delete configToSync.websocketURL; // Don't save dynamic prop
 
     for (const [key, value] of Object.entries(configToSync)) {
+        // Skip cleared values (e.g. a consumed registrationSecret) so they are not
+        // written back as explicit nulls.
+        if (value === undefined) {
+            configDoc.delete(key);
+            continue;
+        }
         configDoc.set(key, value);
     }
 }
@@ -132,6 +149,15 @@ if (fs.existsSync(CONFIG_PATH)) {
             config.retentionTime = loadedConfig.retentionTime;
         }
 
+        if (typeof loadedConfig.registrationSecret === "string") {
+            config.registrationSecret = loadedConfig.registrationSecret;
+        }
+
+        if (typeof loadedConfig.tunnelAcquireJitterSeconds === "number") {
+            config.tunnelAcquireJitterSeconds =
+                loadedConfig.tunnelAcquireJitterSeconds;
+        }
+
         if (typeof loadedConfig.preScript === "string") {
             config.preScript = loadedConfig.preScript;
         }
@@ -148,3 +174,34 @@ if (fs.existsSync(CONFIG_PATH)) {
 }
 
 logger.level = config.logLevel;
+
+/**
+ * Stores the auth token the server generated during outbound registration.
+ */
+export function persistAuthToken(authToken: string): void {
+    config.authToken = authToken;
+    saveConfig();
+}
+
+/**
+ * Removes the registration secret after it has been used — it is single use, and a
+ * leftover secret would allow a second party to register against this agent.
+ */
+export function deleteRegistrationSecret(): void {
+    config.registrationSecret = undefined;
+    try {
+        configDoc.delete("registrationSecret");
+        fs.writeFileSync(CONFIG_PATH, configDoc.toString());
+    } catch (e) {
+        logger.error({ err: e }, "Failed to remove registrationSecret from config.yaml");
+    }
+}
+
+/**
+ * True when this agent is operated in outbound mode: the server dials it, so it must
+ * host the agent endpoints instead of connecting out.
+ */
+export function isOutboundMode(): boolean {
+    if (config.registrationSecret) return true;
+    return !!config.authToken && !config.serverUrl;
+}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Monitor, Trash2, Edit } from 'lucide-react';
+import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client } from '@pbcm/shared';
 import { usePagination } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
@@ -14,9 +14,29 @@ interface ClientListProps {
     deleteClient: (client: Client) => void;
     generateToken: () => void;
     editClient: (client: Client) => void;
+    addOutboundClient: () => void;
+    reconnectClient: (client: Client) => void;
 }
 
-export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient }: ClientListProps) => {
+/** Outbound clients reach the PBS only through the SSH tunnel — worth showing at a glance. */
+const ConnectionBadge = ({ client }: { client: Client }) => {
+    if (client.connectionMode !== 'outbound') return null;
+    const tunnel = (client as any).tunnel;
+    const tone = tunnel?.status === 'error'
+        ? 'text-red-600 dark:text-red-400'
+        : tunnel?.status === 'up'
+            ? 'text-green-600 dark:text-green-500'
+            : 'text-text-muted dark:text-text-muted-dark';
+    return (
+        <span className={`inline-flex items-center gap-1 text-xs ${tone}`} title={tunnel?.lastError || undefined}>
+            <Network size={12} />
+            Tunnel
+            {tunnel?.activeLeases ? ` (${tunnel.activeLeases})` : ''}
+        </span>
+    );
+};
+
+export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient, addOutboundClient, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const sortedClients = useMemo(
@@ -59,6 +79,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                             {client.displayName || client.hostname}
                             {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
                         </div>
+                        <ConnectionBadge client={client} />
                     </div>
                     <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
                         {client.id}
@@ -96,6 +117,16 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                                 },
                                 variant: 'default',
                             },
+                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
+                                ? [{
+                                    label: 'Jetzt verbinden',
+                                    icon: PlugZap,
+                                    onClick: () => {
+                                        reconnectClient(client);
+                                    },
+                                    variant: 'default' as const,
+                                }]
+                                : []),
                             {
                                 label: 'Delete Client',
                                 icon: Trash2,
@@ -125,6 +156,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
                     </div>
+                    <ConnectionBadge client={client} />
                 </div>
             ),
             listLabel: null,
@@ -169,6 +201,16 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                                 },
                                 variant: 'default',
                             },
+                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
+                                ? [{
+                                    label: 'Jetzt verbinden',
+                                    icon: PlugZap,
+                                    onClick: () => {
+                                        reconnectClient(client);
+                                    },
+                                    variant: 'default' as const,
+                                }]
+                                : []),
                             {
                                 label: 'Delete Client',
                                 icon: Trash2,
@@ -197,12 +239,20 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         <DataMultiView
             title={<><Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients</>}
             extraActions={
-                <button
-                    onClick={generateToken}
-                    className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" />Generate New Token
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={addOutboundClient}
+                        className="px-3 py-1 bg-card dark:bg-card-dark border border-border dark:border-border-dark text-text-primary dark:text-text-primary-dark text-xs rounded hover:bg-hover dark:hover:bg-hover-dark"
+                    >
+                        <Plus size={12} className="inline mr-1" />Outbound-Client
+                    </button>
+                    <button
+                        onClick={generateToken}
+                        className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
+                    >
+                        <Plus size={12} className="inline mr-1" />Generate New Token
+                    </button>
+                </div>
             }
             defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="clientViewMode"

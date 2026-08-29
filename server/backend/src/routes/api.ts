@@ -7,6 +7,7 @@ import { RepositoryController } from "../controllers/RepositoryController.js";
 import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { HistoryController } from "../controllers/HistoryController.js";
+import { TunnelController } from "../controllers/TunnelController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
@@ -36,6 +37,37 @@ export default async function apiRoutes(fastify: FastifyInstance) {
 
                 // Clients
                 protectedRoutes.get("/clients", ClientController.list);
+                protectedRoutes.post(
+                    "/clients/outbound",
+                    ClientController.createOutbound,
+                );
+                protectedRoutes.post(
+                    "/clients/:clientId/reconnect",
+                    ClientController.reconnect,
+                );
+
+                // SSH reverse tunnel (outbound clients only)
+                protectedRoutes.post("/tunnel/test", TunnelController.test);
+                protectedRoutes.post(
+                    "/tunnel/keypair",
+                    TunnelController.generateKeyPair,
+                );
+                protectedRoutes.post(
+                    "/tunnel/pubkey",
+                    TunnelController.derivePublicKey,
+                );
+                protectedRoutes.get(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.get,
+                );
+                protectedRoutes.put(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.update,
+                );
+                protectedRoutes.post(
+                    "/clients/:clientId/tunnel/test",
+                    TunnelController.testStored,
+                );
                 protectedRoutes.delete(
                     "/clients/:clientId",
                     ClientController.delete,

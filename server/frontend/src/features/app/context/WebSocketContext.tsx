@@ -56,6 +56,11 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         setClients(data.payload);
                     }
 
+                    // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
+                    if (data.type === 'TUNNEL_UPDATE') {
+                        useClientStore.getState().setTunnelState(data.payload);
+                    }
+
                     if (data.type === 'JOB_UPDATE') {
                         window.dispatchEvent(new CustomEvent('pbcm:job_update', { detail: data.payload }));
                     }

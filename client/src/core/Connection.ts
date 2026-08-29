@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { randomUUID } from "crypto";
 
 import os from "os";
 import { config } from "./Config.js";
@@ -11,6 +12,11 @@ import { VERSION } from "./Version.js";
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
+    /** Correlation table for requests this agent sends to the server. */
+    private static pending = new Map<
+        string,
+        { resolve: (value: any) => void; reject: (err: Error) => void }
+    >();
 
     /**
      * Checks if the WebSocket connection to the server is currently open.
@@ -112,114 +118,22 @@ export class Connection {
 
             ws.on("ping", heartbeat);
 
-            ws.on("message", (data: WebSocket.RawData) => {
-                heartbeat();
-                try {
-                    const message = JSON.parse(data.toString()) as WsMessage;
-                    if (message.type !== WS_EVENTS.LOG_UPDATE) {
-                        logger.debug("Received: " + message.type);
-                    }
-
-                    // Route messages to appropriate handlers based on event type
-                    switch (message.type) {
-                        case WS_EVENTS.AUTH_SUCCESS:
-                            clearTimeout(timeout);
-                            logger.info("Authenticated successfully");
-
-                            // Delta Sync History
-                            try {
-                                const lastSyncTime =
-                                    message.payload?.lastSyncTime;
-                                let historyToSync = [];
-                                if (lastSyncTime) {
-                                    historyToSync = db
-                                        .prepare(
-                                            "SELECT * FROM job_history WHERE updated_at > ?",
-                                        )
-                                        .all(lastSyncTime) as any[];
-                                } else {
-                                    historyToSync = db
-                                        .prepare(
-                                            "SELECT * FROM job_history WHERE updated_at IS NOT NULL",
-                                        )
-                                        .all() as any[];
-                                }
-
-                                if (historyToSync.length > 0) {
-                                    const formattedHistory = historyToSync.map(
-                                        (h: any) => ({
-                                            id: h.id,
-                                            jobConfigId: h.job_id,
-                                            name: h.name,
-                                            type: h.type,
-                                            status: h.status,
-                                            startTime: h.start_time,
-                                            endTime: h.end_time,
-                                            exitCode: h.exit_code,
-                                            stdout: h.stdout,
-                                            stderr: h.stderr,
-                                        }),
-                                    );
-
-                                    logger.info(
-                                        `Syncing ${formattedHistory.length} history records to server...`,
-                                    );
-                                    Connection.send(WS_EVENTS.SYNC_HISTORY, {
-                                        history: formattedHistory,
-                                    });
-                                }
-                            } catch (e) {
-                                logger.error({ err: e }, "Failed to sync history");
-                            }
-
-                            resolve({ connected: true });
-                            break;
-                        case WS_EVENTS.RUN_BACKUP:
-                            Handlers.handleRunJob(message.payload);
-                            break;
-                        case WS_EVENTS.JOB_LIST_CONFIG:
-                            Handlers.handleJobList(message.payload);
-                            break;
-                        case WS_EVENTS.JOB_SAVE_CONFIG:
-                            Handlers.handleJobSave(message.payload);
-                            break;
-                        case WS_EVENTS.JOB_DELETE_CONFIG:
-                            Handlers.handleJobDelete(message.payload);
-                            break;
-                        case WS_EVENTS.GENERATE_KEY_CONFIG:
-                            Handlers.handleGenerateKey(message.payload);
-                            break;
-                        case WS_EVENTS.HISTORY:
-                            Handlers.handleHistory(message.payload);
-                            break;
-                        case WS_EVENTS.FS_LIST:
-                            Handlers.handleFsList(message.payload);
-                            break;
-                        case WS_EVENTS.GET_VERSION:
-                            Handlers.handleGetVersion(message.payload);
-                            break;
-                        case WS_EVENTS.RUN_RESTORE:
-                            Handlers.handleRestoreSnapshot(message.payload);
-                            break;
-                    }
-                } catch (err) {
-                    logger.error({ err: err }, "Failed to parse message");
-                }
-            });
-
-            ws.on("close", (code: number, reason: Buffer) => {
-                clearTimeout(pingTimeout);
-                clearTimeout(timeout);
-                this.wsInstance = null;
-                const reasonStr = reason.toString() || "No reason provided";
-                logger.warn(
-                    `Disconnected (Code: ${code}, Reason: ${reasonStr}). Reconnecting in 5s...`,
-                );
-                resolve({
-                    connected: false,
-                    error: `${reasonStr} (Code: ${code})`,
-                });
-                setTimeout(() => Connection.connect(), 5000);
+            this.attach(ws, {
+                onAuthSuccess: () => {
+                    clearTimeout(timeout);
+                    resolve({ connected: true });
+                },
+                onHeartbeat: heartbeat,
+                onClose: (code, reasonStr) => {
+                    clearTimeout(pingTimeout);
+                    clearTimeout(timeout);
+                    resolve({
+                        connected: false,
+                        error: `${reasonStr} (Code: ${code})`,
+                    });
+                    logger.warn("Reconnecting in 5s...");
+                    setTimeout(() => Connection.connect(), 5000);
+                },
             });
 
             ws.on("error", (err: Error) => {
@@ -227,5 +141,208 @@ export class Connection {
                 ws.close();
             });
         });
+    }
+
+    /**
+     * Installs the message routing on a socket. Used by both directions: the outbound
+     * connection this agent dials itself, and an inbound session the server opened to us.
+     */
+    private static attach(
+        ws: WebSocket,
+        opts: {
+            onAuthSuccess?: () => void;
+            onHeartbeat?: () => void;
+            onClose?: (code: number, reason: string) => void;
+        },
+    ): void {
+        ws.on("message", (data: WebSocket.RawData) => {
+            opts.onHeartbeat?.();
+            try {
+                const message = JSON.parse(data.toString()) as WsMessage;
+                if (message.type !== WS_EVENTS.LOG_UPDATE) {
+                    logger.debug("Received: " + message.type);
+                }
+
+                // Route messages to appropriate handlers based on event type
+                switch (message.type) {
+                    case WS_EVENTS.AUTH_SUCCESS:
+                        logger.info("Authenticated successfully");
+
+                        // Delta Sync History
+                        try {
+                            const lastSyncTime =
+                                message.payload?.lastSyncTime;
+                            let historyToSync = [];
+                            if (lastSyncTime) {
+                                historyToSync = db
+                                    .prepare(
+                                        "SELECT * FROM job_history WHERE updated_at > ?",
+                                    )
+                                    .all(lastSyncTime) as any[];
+                            } else {
+                                historyToSync = db
+                                    .prepare(
+                                        "SELECT * FROM job_history WHERE updated_at IS NOT NULL",
+                                    )
+                                    .all() as any[];
+                            }
+
+                            if (historyToSync.length > 0) {
+                                const formattedHistory = historyToSync.map(
+                                    (h: any) => ({
+                                        id: h.id,
+                                        jobConfigId: h.job_id,
+                                        name: h.name,
+                                        type: h.type,
+                                        status: h.status,
+                                        startTime: h.start_time,
+                                        endTime: h.end_time,
+                                        exitCode: h.exit_code,
+                                        stdout: h.stdout,
+                                        stderr: h.stderr,
+                                    }),
+                                );
+
+                                logger.info(
+                                    `Syncing ${formattedHistory.length} history records to server...`,
+                                );
+                                Connection.send(WS_EVENTS.SYNC_HISTORY, {
+                                    history: formattedHistory,
+                                });
+                            }
+                        } catch (e) {
+                            logger.error({ err: e }, "Failed to sync history");
+                        }
+
+                        opts.onAuthSuccess?.();
+                        break;
+                    case WS_EVENTS.RUN_BACKUP:
+                        Handlers.handleRunJob(message.payload);
+                        break;
+                    case WS_EVENTS.JOB_LIST_CONFIG:
+                        Handlers.handleJobList(message.payload);
+                        break;
+                    case WS_EVENTS.JOB_SAVE_CONFIG:
+                        Handlers.handleJobSave(message.payload);
+                        break;
+                    case WS_EVENTS.JOB_DELETE_CONFIG:
+                        Handlers.handleJobDelete(message.payload);
+                        break;
+                    case WS_EVENTS.GENERATE_KEY_CONFIG:
+                        Handlers.handleGenerateKey(message.payload);
+                        break;
+                    case WS_EVENTS.HISTORY:
+                        Handlers.handleHistory(message.payload);
+                        break;
+                    case WS_EVENTS.FS_LIST:
+                        Handlers.handleFsList(message.payload);
+                        break;
+                    case WS_EVENTS.GET_VERSION:
+                        Handlers.handleGetVersion(message.payload);
+                        break;
+                    case WS_EVENTS.RUN_RESTORE:
+                        Handlers.handleRestoreSnapshot(message.payload);
+                        break;
+                    case WS_EVENTS.TUNNEL_ACQUIRE_RESULT:
+                        Connection.resolvePending(message.payload);
+                        break;
+                }
+            } catch (err) {
+                logger.error({ err: err }, "Failed to parse message");
+            }
+        });
+
+        ws.on("close", (code: number, reason: Buffer) => {
+            this.wsInstance = null;
+            this.rejectPending("Verbindung zum Server verloren");
+            const reasonStr = reason.toString() || "No reason provided";
+            logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
+            opts.onClose?.(code, reasonStr);
+        });
+
+    }
+
+    /**
+     * Accepts a session the server opened to this agent (outbound connection mode).
+     * The agent still sends AUTH first — the protocol is identical from there on.
+     */
+    static handleIncoming(ws: WebSocket): void {
+        if (this.wsInstance) {
+            try {
+                this.wsInstance.close(4000, "Replaced by new connection");
+            } catch (_) {}
+        }
+        this.wsInstance = ws;
+
+        logger.info("Inbound server connection received, sending AUTH...");
+
+        this.attach(ws, {
+            onClose: () => {
+                // No reconnect here: the server dials us and handles retries itself.
+                logger.warn("Inbound server connection closed.");
+            },
+        });
+
+        ws.send(
+            JSON.stringify({
+                type: WS_EVENTS.AUTH,
+                payload: { hostname: os.hostname(), version: VERSION },
+            }),
+        );
+    }
+
+    /**
+     * Request/response towards the server — the mirror image of ProxyService.sendRequest.
+     * Needed because the tunnel lease is requested by the client, not pushed by the server.
+     */
+    static request<T extends keyof ProtocolMap>(
+        type: T,
+        payload: Omit<ProtocolMap[T]["req"], "requestId">,
+        timeoutMs: number,
+    ): Promise<ProtocolMap[T]["res"]> {
+        return new Promise((resolve, reject) => {
+            if (!this.isConnected()) {
+                reject(new Error("Keine Serververbindung"));
+                return;
+            }
+
+            const requestId = randomUUID();
+            const timer = setTimeout(() => {
+                this.pending.delete(requestId);
+                reject(new Error("Zeitüberschreitung bei der Serveranfrage"));
+            }, timeoutMs);
+
+            this.pending.set(requestId, {
+                resolve: (value: any) => {
+                    clearTimeout(timer);
+                    resolve(value);
+                },
+                reject: (err: Error) => {
+                    clearTimeout(timer);
+                    reject(err);
+                },
+            });
+
+            this.wsInstance!.send(
+                JSON.stringify({ type, payload: { ...payload, requestId } }),
+            );
+        });
+    }
+
+    /** Resolves a pending request by its correlation id. */
+    static resolvePending(payload: any): void {
+        const entry = payload?.requestId
+            ? this.pending.get(payload.requestId)
+            : undefined;
+        if (!entry) return;
+        this.pending.delete(payload.requestId);
+        entry.resolve(payload);
+    }
+
+    private static rejectPending(reason: string): void {
+        for (const [id, entry] of [...this.pending.entries()]) {
+            this.pending.delete(id);
+            entry.reject(new Error(reason));
+        }
     }
 }

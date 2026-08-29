@@ -13,6 +13,8 @@ import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_history.js";
 import { migration02 } from "./migrations/02_client_version.js";
 import { migration03 } from "./migrations/03_job_history_timestamps.js";
+import { migration04 } from "./migrations/04_connection_mode.js";
+import { migration05 } from "./migrations/05_client_tunnels.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -43,6 +45,16 @@ const migrator = new Umzug({
             name: "03_job_history_timestamps",
             up: migration03.up,
             down: migration03.down,
+        },
+        {
+            name: "04_connection_mode",
+            up: migration04.up,
+            down: migration04.down,
+        },
+        {
+            name: "05_client_tunnels",
+            up: migration05.up,
+            down: migration05.down,
         },
     ],
     context: db,

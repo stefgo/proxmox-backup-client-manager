@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Client } from "@pbcm/shared";
+import { Client, TunnelState } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 
 interface ClientsState {
@@ -15,6 +15,7 @@ interface ClientsState {
         token: string,
     ) => Promise<void>;
     setClients: (clients: Client[]) => void;
+    setTunnelState: (state: TunnelState) => void;
 }
 
 export const useClientStore = create<ClientsState>((set, get) => ({
@@ -103,5 +104,17 @@ export const useClientStore = create<ClientsState>((set, get) => ({
 
     setClients: (clients) => {
         set({ clients });
+    },
+
+    /**
+     * Merges a live tunnel update into the client it belongs to. The tunnel state is
+     * runtime-only on the server, so it arrives by broadcast rather than with the list.
+     */
+    setTunnelState: (state) => {
+        set({
+            clients: get().clients.map((c) =>
+                c.id === state.clientId ? { ...c, tunnel: state } : c,
+            ),
+        });
     },
 }));
