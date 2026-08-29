@@ -34,7 +34,17 @@ fordert ihn unmittelbar vor einem Lauf an und gibt ihn danach wieder frei.
 
 ### 1. Client-Host vorbereiten
 
-Auf dem Client-Host einen Schlüssel des PBCM-Servers hinterlegen, streng beschränkt:
+Der Wizard „Outbound-Client hinzufügen" unterstützt beides. Unter **Schlüssel** wählt man
+zwischen *Schlüssel erzeugen lassen* — ein ed25519-Schlüssel ohne Passphrase, weil der Server
+ihn unbeaufsichtigt nutzt — und *Eigenen Schlüssel einfügen*. Der private Schlüssel wird nur
+gespeichert, nie wieder ausgegeben; für einen Wechsel erzeugt man im Client-Editor einen neuen.
+
+Darunter liefert der optionale, zugeklappte Abschnitt **Einrichtung auf dem Client-Host** einen
+kopierbaren Befehlsblock — für beide Wege gleichermaßen, da der öffentliche Teil bei Bedarf aus
+dem eingetragenen Schlüssel abgeleitet wird. Er muss auf dem Client-Host ausgeführt sein,
+**bevor** „Verbindung testen" erfolgreich sein kann.
+
+Manuell entspricht das folgendem Eintrag auf dem Client-Host:
 
 ```
 # ~/.ssh/authorized_keys

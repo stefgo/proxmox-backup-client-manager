@@ -48,6 +48,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
 
                 // SSH reverse tunnel (outbound clients only)
                 protectedRoutes.post("/tunnel/test", TunnelController.test);
+                protectedRoutes.post(
+                    "/tunnel/keypair",
+                    TunnelController.generateKeyPair,
+                );
+                protectedRoutes.post(
+                    "/tunnel/pubkey",
+                    TunnelController.derivePublicKey,
+                );
                 protectedRoutes.get(
                     "/clients/:clientId/tunnel",
                     TunnelController.get,

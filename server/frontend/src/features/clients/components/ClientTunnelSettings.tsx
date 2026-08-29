@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { PlugZap, Save } from 'lucide-react';
 import { Button, Input } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
+import { SshKeyFields, SshKeyMode } from './SshKeyFields';
+import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 
 interface ClientTunnelSettingsProps {
     clientId: string;
@@ -33,6 +35,7 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
     const [sshUser, setSshUser] = useState('');
+    const [keyMode, setKeyMode] = useState<SshKeyMode>('keep');
     const [privateKey, setPrivateKey] = useState('');
     const [passphrase, setPassphrase] = useState('');
     const [busy, setBusy] = useState(false);
@@ -90,8 +93,10 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 sshPort: Number(sshPort) || 22,
                 sshUser,
             };
-            if (privateKey.trim()) body.privateKey = privateKey.trim();
-            if (passphrase) body.passphrase = passphrase;
+            if (keyMode !== 'keep' && privateKey.trim()) {
+                body.privateKey = privateKey.trim();
+                body.passphrase = keyMode === 'manual' && passphrase ? passphrase : null;
+            }
 
             const res = await fetch(`/api/v1/clients/${clientId}/tunnel`, {
                 method: 'PUT',
@@ -101,6 +106,7 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Speichern fehlgeschlagen');
             setMessage('SSH-Zugangsdaten gespeichert');
+            setKeyMode('keep');
             setPrivateKey('');
             setPassphrase('');
         } catch (e) {
@@ -141,24 +147,22 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 <Input label="Port" value={sshPort} onChange={(e) => setSshPort(e.target.value)} />
             </div>
             <Input label="SSH-Benutzer" value={sshUser} onChange={(e) => setSshUser(e.target.value)} />
-            <div>
-                <label className="block text-sm mb-1 text-text-primary dark:text-text-primary-dark">
-                    Privater Schlüssel ersetzen (optional)
-                </label>
-                <textarea
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    rows={4}
-                    spellCheck={false}
-                    placeholder="Leer lassen, um den hinterlegten Schlüssel zu behalten"
-                    className="w-full font-mono text-xs p-2 rounded border border-border dark:border-border-dark bg-card dark:bg-card-dark text-text-primary dark:text-text-primary-dark"
-                />
-            </div>
-            <Input
-                label="Passphrase (optional)"
-                type="password"
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
+            <SshKeyFields
+                token={token}
+                allowKeep
+                mode={keyMode}
+                onModeChange={(m) => { setKeyMode(m); setPrivateKey(''); setPassphrase(''); }}
+                privateKey={privateKey}
+                onPrivateKeyChange={setPrivateKey}
+                passphrase={passphrase}
+                onPassphraseChange={setPassphrase}
+            />
+
+            <SshHostSetupSnippet
+                token={token}
+                privateKey={privateKey}
+                passphrase={passphrase}
+                sshUser={sshUser}
             />
 
             {message && <div className="text-sm text-green-600 dark:text-green-500">{message}</div>}

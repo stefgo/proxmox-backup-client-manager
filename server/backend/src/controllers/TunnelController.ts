@@ -1,4 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+// ssh2 is CommonJS and Node's ESM interop does not expose `utils` as a named export,
+// unlike `Client` — so it has to come off the default export.
+import ssh2 from "ssh2";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
@@ -10,6 +13,15 @@ interface TunnelUpdateBody {
     privateKey?: string;
     passphrase?: string | null;
     hostKeySha256?: string;
+}
+
+interface KeyPairBody {
+    comment?: string;
+}
+
+interface PublicKeyBody {
+    privateKey?: string;
+    passphrase?: string;
 }
 
 interface TunnelTestBody {
@@ -103,6 +115,57 @@ export class TunnelController {
             expectedHostKeySha256: body.expectedHostKeySha256,
         });
         return result;
+    }
+
+    /**
+     * Creates a fresh ed25519 key pair for the setup helper in the UI. Nothing is stored
+     * here — the key is persisted only by the regular create/update calls. This is the one
+     * moment a private key travels to the browser; it is write-only everywhere else.
+     */
+    static async generateKeyPair(request: FastifyRequest, reply: FastifyReply) {
+        const body = (request.body ?? {}) as KeyPairBody;
+        const comment = (body.comment || "pbcm-server").trim();
+
+        try {
+            const pair = ssh2.utils.generateKeyPairSync("ed25519", { comment });
+            return {
+                type: "ssh-ed25519",
+                privateKey: pair.private,
+                publicKey: pair.public,
+            };
+        } catch (e) {
+            return reply.code(500).send({
+                error: `Schlüsselpaar konnte nicht erzeugt werden: ${
+                    e instanceof Error ? e.message : String(e)
+                }`,
+            });
+        }
+    }
+
+    /**
+     * Derives the public key from a private key the operator brought along, so the
+     * authorized_keys snippet is available for self-supplied keys too.
+     */
+    static async derivePublicKey(request: FastifyRequest, reply: FastifyReply) {
+        const body = (request.body ?? {}) as PublicKeyBody;
+
+        if (!body.privateKey) {
+            return reply.code(400).send({ error: "privateKey ist erforderlich" });
+        }
+
+        const parsed = ssh2.utils.parseKey(body.privateKey, body.passphrase);
+        if (parsed instanceof Error) {
+            return reply.code(400).send({
+                error: `Privater Schlüssel konnte nicht gelesen werden: ${parsed.message}`,
+            });
+        }
+
+        const key = Array.isArray(parsed) ? parsed[0] : parsed;
+        const comment = key.comment ? ` ${key.comment}` : "";
+        return {
+            type: key.type,
+            publicKey: `${key.type} ${key.getPublicSSH().toString("base64")}${comment}`,
+        };
     }
 
     /**

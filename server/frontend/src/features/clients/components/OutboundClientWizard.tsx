@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Plug, X, ShieldCheck, PlugZap } from 'lucide-react';
 import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { SshKeyFields, SshKeyMode } from './SshKeyFields';
+import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 
 interface OutboundClientWizardProps {
     token: string | null;
@@ -27,6 +29,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
     const [sshUser, setSshUser] = useState('');
+    const [keyMode, setKeyMode] = useState<SshKeyMode>('generate');
     const [privateKey, setPrivateKey] = useState('');
     const [passphrase, setPassphrase] = useState('');
 
@@ -168,24 +171,26 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                             onChange={(e) => { setSshUser(e.target.value); invalidateTest(); }}
                             placeholder="pbcm"
                         />
-                        <div>
-                            <label className="block text-sm mb-1 text-text-primary dark:text-text-primary-dark">
-                                Privater Schlüssel
-                            </label>
-                            <textarea
-                                value={privateKey}
-                                onChange={(e) => { setPrivateKey(e.target.value); invalidateTest(); }}
-                                rows={5}
-                                spellCheck={false}
-                                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                                className="w-full font-mono text-xs p-2 rounded border border-border dark:border-border-dark bg-card dark:bg-card-dark text-text-primary dark:text-text-primary-dark"
-                            />
-                        </div>
-                        <Input
-                            label="Passphrase (optional)"
-                            type="password"
-                            value={passphrase}
-                            onChange={(e) => { setPassphrase(e.target.value); invalidateTest(); }}
+                        <SshKeyFields
+                            token={token}
+                            mode={keyMode}
+                            onModeChange={(m) => {
+                                setKeyMode(m);
+                                setPrivateKey('');
+                                setPassphrase('');
+                                invalidateTest();
+                            }}
+                            privateKey={privateKey}
+                            onPrivateKeyChange={(v) => { setPrivateKey(v); invalidateTest(); }}
+                            passphrase={passphrase}
+                            onPassphraseChange={(v) => { setPassphrase(v); invalidateTest(); }}
+                        />
+
+                        <SshHostSetupSnippet
+                            token={token}
+                            privateKey={privateKey}
+                            passphrase={passphrase}
+                            sshUser={sshUser}
                         />
 
                         <Button

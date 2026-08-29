@@ -550,6 +550,62 @@ effect.
 
 ---
 
+### Generate Key Pair
+
+`POST /v1/tunnel/keypair`
+
+**Description:** Creates a fresh ed25519 key pair for the setup helper in the UI. Stateless —
+nothing is stored; the key is persisted only by the regular create/update calls. This is the
+only response that ever carries a private key; it is write-only everywhere else.
+
+**Request Body:**
+
+```json
+{
+    "comment": "pbcm-server"
+}
+```
+
+**Example Response:**
+
+```json
+{
+    "type": "ssh-ed25519",
+    "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+    "publicKey": "ssh-ed25519 AAAAC3... pbcm-server"
+}
+```
+
+---
+
+### Derive Public Key
+
+`POST /v1/tunnel/pubkey`
+
+**Description:** Derives the public key from a private key the operator supplied, so the
+`authorized_keys` snippet is available for self-supplied keys too. Returns `400` when the key
+cannot be parsed — including a passphrase-protected key without the matching `passphrase`.
+
+**Request Body:**
+
+```json
+{
+    "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+    "passphrase": "optional"
+}
+```
+
+**Example Response:**
+
+```json
+{
+    "type": "ssh-ed25519",
+    "publicKey": "ssh-ed25519 AAAAC3... pbcm-server"
+}
+```
+
+---
+
 ### Test Tunnel
 
 `POST /v1/tunnel/test` — with supplied SSH parameters, for the create wizard.
