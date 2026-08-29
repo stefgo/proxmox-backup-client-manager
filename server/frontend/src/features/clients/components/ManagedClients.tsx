@@ -4,6 +4,7 @@ import { ClientEditor } from "./ClientEditor";
 import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { TokenModal } from "../../tokens/components/TokenModal";
+import { OutboundClientWizard } from "./OutboundClientWizard";
 
 interface ManagedClientsProps {
     clients: Client[];
@@ -30,6 +31,7 @@ export const ManagedClients = ({
     } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<Client | null>(null);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
 
     const handleGenerateToken = async () => {
         try {
@@ -49,8 +51,31 @@ export const ManagedClients = ({
     };
 
     const handleDeleteClient = async (client: Client) => {
-        if (!confirm("Delete this client?")) return;
+        const extra =
+            client.connectionMode === "outbound"
+                ? "\n\nHinweis: Die Verbindungsart ist nicht änderbar. Beim Löschen geht die Job-Historie dieses Clients verloren."
+                : "";
+        if (!confirm(`Delete this client?${extra}`)) return;
         onDelete(client.id);
+    };
+
+    /** Immediate reconnect attempt for an outbound client, bypassing the backoff. */
+    const handleReconnect = async (client: Client) => {
+        try {
+            const res = await fetch(`/api/v1/clients/${client.id}/reconnect`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            if (!data.connected) {
+                alert(
+                    "Verbindung zum Client konnte nicht hergestellt werden. Der Server versucht es weiterhin im Hintergrund.",
+                );
+            }
+            onRefresh();
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const handleSaveClient = async (
@@ -76,6 +101,16 @@ export const ManagedClients = ({
                     deleteClient={handleDeleteClient}
                     generateToken={handleGenerateToken}
                     editClient={setEditingClient}
+                    addOutboundClient={() => setIsWizardOpen(true)}
+                    reconnectClient={handleReconnect}
+                />
+            )}
+
+            {isWizardOpen && (
+                <OutboundClientWizard
+                    token={token}
+                    onClose={() => setIsWizardOpen(false)}
+                    onCreated={onRefresh}
                 />
             )}
 

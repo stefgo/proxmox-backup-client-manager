@@ -12,6 +12,8 @@ import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController } from "./controllers/WebSocketController.js";
 import { CleanupService } from "./services/CleanupService.js";
+import { ClientConnector } from "./services/ClientConnector.js";
+import { TunnelService } from "./services/TunnelService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -102,8 +104,15 @@ try {
     process.exit(1);
 }
 
+// Dial every outbound client. Tunnels are NOT opened here — they are established
+// on demand when a client requests a lease for a run.
+ClientConnector.connectAll().catch((err) =>
+    server.log.error({ err }, "Failed to connect outbound clients on startup"),
+);
+
 const shutdown = () => {
     server.log.info("Shutting down server...");
+    TunnelService.shutdown();
     server.close(() => {
         process.exit(0);
     });

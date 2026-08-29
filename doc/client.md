@@ -102,3 +102,10 @@ Schema migrations are managed via **Umzug** and run automatically on startup.
 | `jobs`                 | Job configurations synchronized from the server.                     |
 | `job_history`          | Execution records (status, output, timing) for each backup/restore run. |
 | `job_schedule_state`   | Last and next run timestamps per job for schedule tracking.           |
+
+## Outbound-Modus und Tunnel
+
+Ist ein `registrationSecret` gesetzt (oder ein `authToken` ohne `serverUrl`), läuft der Agent im
+Outbound-Modus: Er verbindet sich nicht selbst, sondern stellt `/ws/register` und `/ws/agent`
+bereit. Vor jedem Lauf fordert er über `TunnelClient` eine Tunnel-Lease an und ersetzt Host und
+Port in `PBS_REPOSITORY` durch den Loopback-Endpunkt. Details: [tunnel.md](tunnel.md).

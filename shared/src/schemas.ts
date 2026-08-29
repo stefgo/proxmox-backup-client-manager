@@ -16,6 +16,27 @@ export const ClientSchema = z.object({
     status: z.enum(["online", "offline"]),
     lastSeen: z.string(),
     version: z.string().optional(),
+    connectionMode: z.enum(["inbound", "outbound"]).optional(),
+    outboundTargetAddress: z.string().optional(),
+});
+
+/**
+ * Marker attached by the server to every job pushed to an outbound client.
+ * The client must obtain a tunnel lease before running such a job; the actual
+ * loopback port is only known at lease time (see TunnelAcquireResult).
+ */
+export const TunnelDescriptorSchema = z.object({
+    required: z.boolean(),
+});
+
+/** SSH parameters for a client tunnel. Never leaves the backend once stored. */
+export const TunnelConfigSchema = z.object({
+    sshHost: z.string().min(1),
+    sshPort: z.number().int().min(1).max(65535).optional(),
+    sshUser: z.string().min(1),
+    privateKey: z.string().min(1),
+    passphrase: z.string().optional(),
+    hostKeySha256: z.string().min(1),
 });
 
 export const ScheduleConfigSchema = z.object({
@@ -48,6 +69,7 @@ export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
+    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const RestoreJobSchema = JobSchema.extend({
@@ -56,6 +78,7 @@ export const RestoreJobSchema = JobSchema.extend({
     archives: z.array(z.string()),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
+    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const RegistrationPayloadSchema = z.object({
@@ -239,4 +262,39 @@ export const SyncHistoryPayloadSchema = z.object({
 export const JobNextRunUpdatePayloadSchema = z.object({
     jobId: z.string(),
     nextRunAt: z.string().nullable(),
+});
+
+// Outbound connection mode: the server dials the client and registers itself.
+
+export const RegistrationRequestSchema = z.object({
+    secret: z.string().min(1),
+    authToken: z.string().min(1),
+});
+
+export const RegistrationResultSchema = z.object({
+    hostname: z.string().optional(),
+    error: z.string().optional(),
+});
+
+// Tunnel lease protocol (client -> server -> client).
+// The client never names a target: jobId (backup) or runId (restore) is resolved
+// server-side into the actual PBS host/port.
+
+export const TunnelAcquireSchema = z.object({
+    requestId: z.string(),
+    runId: z.string(),
+    jobId: z.string().optional(),
+});
+
+export const TunnelAcquireResultSchema = z.object({
+    requestId: z.string(),
+    granted: z.boolean(),
+    leaseId: z.string().optional(),
+    bindHost: z.string().optional(),
+    bindPort: z.number().optional(),
+    error: z.string().optional(),
+});
+
+export const TunnelReleaseSchema = z.object({
+    leaseId: z.string(),
 });

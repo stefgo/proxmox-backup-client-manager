@@ -30,8 +30,42 @@ export interface AppConfig {
         allowed_networks?: string[];
         trusted_networks?: string[];
     };
+    tunnel: TunnelSettings;
     [key: string]: any;
 }
+
+export interface TunnelSettings {
+    /** Emergency switch. false rejects every lease request — no outbound client can back up. */
+    enabled: boolean;
+    /** Never 0.0.0.0: that would need GatewayPorts on the client host. */
+    remoteBindHost: string;
+    connectTimeoutMs: number;
+    keepaliveIntervalMs: number;
+    /** Grace period before an unused tunnel is torn down. */
+    idleGraceMs: number;
+    /** Hard stop against leases that were never released. */
+    maxLeaseMs: number;
+    /** Includes time spent waiting for a free slot; the client must wait longer than this. */
+    acquireTimeoutMs: number;
+    maxConcurrentTunnels: number;
+    retryDelaysMs: number[];
+    minRequestIntervalMs: number;
+    /** Key for encrypting SSH secrets at rest. Deliberately separate from jwtSecret. */
+    keySecret?: string;
+}
+
+const DEFAULT_TUNNEL: TunnelSettings = {
+    enabled: true,
+    remoteBindHost: '127.0.0.1',
+    connectTimeoutMs: 10000,
+    keepaliveIntervalMs: 15000,
+    idleGraceMs: 60000,
+    maxLeaseMs: 86400000,
+    acquireTimeoutMs: 20000,
+    maxConcurrentTunnels: 20,
+    retryDelaysMs: [2000, 5000, 10000],
+    minRequestIntervalMs: 3000
+};
 
 const DEFAULT_SETTINGS = {
     retention_invalid_tokens_days: '30',
@@ -70,6 +104,9 @@ function loadConfig() {
         if (!config.security.allowed_networks) config.security.allowed_networks = [];
         if (!config.security.trusted_networks) config.security.trusted_networks = [];
     }
+
+    // Ensure tunnel object exists and is complete
+    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel || {}) } as TunnelSettings;
 
     // Synchronize document with the potentially merged settings
     syncDoc();
@@ -123,6 +160,18 @@ if (!config.jwtSecret) {
         logger.info('Generated new JWT secret and saved to config.yaml');
     } catch (e) {
         logger.error({ err: e }, 'Failed to save generated JWT secret to config.yaml');
+    }
+}
+
+if (!config.tunnel?.keySecret) {
+    logger.info('No tunnel key secret found in config.yaml, generating a new one...');
+    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel || {}) } as TunnelSettings;
+    config.tunnel.keySecret = crypto.randomBytes(32).toString('hex');
+    try {
+        saveConfig();
+        logger.info('Generated new tunnel key secret and saved to config.yaml');
+    } catch (e) {
+        logger.error({ err: e }, 'Failed to save generated tunnel key secret to config.yaml');
     }
 }
 

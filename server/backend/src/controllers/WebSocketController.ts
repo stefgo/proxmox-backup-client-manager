@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { WebSocket } from "ws";
 import {
     WS_EVENTS,
     WsMessage,
@@ -8,12 +9,23 @@ import {
     LogUpdatePayloadSchema,
     SyncHistoryPayloadSchema,
     JobNextRunUpdatePayloadSchema,
+    TunnelAcquireSchema,
+    TunnelReleaseSchema,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
+import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInNetworks } from "../utils/networkUtils.js";
+import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
+
+type AgentLogger = {
+    info: (o: any) => void;
+    warn: (o: any) => void;
+    error: (o: any) => void;
+};
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -234,120 +246,7 @@ export class WebSocketController {
                     return;
                 }
 
-                // Handle Messages from Agent
-                // 1. Status Updates (Forward to Dashboard + Save to DB if final)
-                if (data.type === WS_EVENTS.STATUS_UPDATE) {
-                    const parsed = StatusUpdatePayloadSchema.safeParse(
-                        data.payload,
-                    );
-                    if (!parsed.success) {
-                        fastify.log.warn({
-                            msg: "Invalid STATUS_UPDATE payload",
-                            errors: parsed.error,
-                        });
-                        return;
-                    }
-                    const statusPayload = parsed.data;
-
-                    // If job has ended, save to history
-                    if (
-                        ["success", "failed", "abort"].includes(
-                            statusPayload.status,
-                        )
-                    ) {
-                        try {
-                            JobHistoryRepository.upsertStatus(
-                                clientId!,
-                                statusPayload,
-                            );
-                        } catch (err) {
-                            fastify.log.error({
-                                msg: "Failed to save job history",
-                                err,
-                            });
-                        }
-                    }
-
-                    const updateMsg = {
-                        type: "JOB_UPDATE",
-                        payload: {
-                            clientId: clientId,
-                            job: statusPayload,
-                        },
-                    };
-                    // We need to implement this method in ProxyService or expose dashboardClients
-                    // I'll assume I update ProxyService or access it if I change it to public.
-                    // Better: update ProxyService.
-                    ProxyService.broadcastToDashboard(updateMsg);
-                }
-
-                // 2. Log Updates
-                // Stream stdout/stderr from client jobs to the dashboard for real-time monitoring.
-                if (data.type === WS_EVENTS.LOG_UPDATE) {
-                    const parsed = LogUpdatePayloadSchema.safeParse(
-                        data.payload,
-                    );
-                    if (!parsed.success) return;
-                    const logPayload = parsed.data;
-                    const updateMsg = {
-                        type: "LOG_UPDATE",
-                        payload: {
-                            clientId: clientId,
-                            ...logPayload,
-                        },
-                    };
-                    ProxyService.broadcastToDashboard(updateMsg);
-                }
-
-                // 3. Sync History (Delta load from client)
-                if (data.type === WS_EVENTS.SYNC_HISTORY) {
-                    const parsed = SyncHistoryPayloadSchema.safeParse(
-                        data.payload,
-                    );
-                    if (!parsed.success) {
-                        fastify.log.warn({
-                            msg: "Invalid SYNC_HISTORY payload",
-                            errors: parsed.error,
-                        });
-                        return;
-                    }
-                    const syncPayload = parsed.data;
-                    if (
-                        syncPayload.history &&
-                        Array.isArray(syncPayload.history)
-                    ) {
-                        try {
-                            JobHistoryRepository.upsertHistoryBatch(
-                                clientId!,
-                                syncPayload.history,
-                            );
-                            fastify.log.info({
-                                msg: "Processed history sync from client",
-                                clientId,
-                                count: syncPayload.history.length,
-                            });
-                        } catch (err) {
-                            fastify.log.error({
-                                msg: "Failed to process history sync",
-                                err,
-                            });
-                        }
-                    }
-                }
-
-                // 4. Job Next Run Update
-                if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
-                    const parsed = JobNextRunUpdatePayloadSchema.safeParse(
-                        data.payload,
-                    );
-                    if (!parsed.success) return;
-                    const nextRunPayload = parsed.data;
-                    ProxyService.updateJobNextRun(
-                        clientId!,
-                        nextRunPayload.jobId,
-                        nextRunPayload.nextRunAt,
-                    );
-                }
+                void this.handleAgentMessage(clientId!, socket, data, fastify.log);
             } catch (err) {
                 fastify.log.error({
                     msg: "Error processing WebSocket message",
@@ -356,8 +255,371 @@ export class WebSocketController {
             }
         });
 
-        // Handling StatusUpdate forwarding:
-        // I need to patch ProxyService to allow broadcasting arbitrary messages.
-        // It has `broadcastClientUpdate` which is specific.
+    }
+
+    /**
+     * Handles every post-authentication message from an agent. Shared by both connection
+     * modes: inbound clients dial in, outbound clients are dialed by the server, but the
+     * protocol from here on is identical.
+     */
+    static async handleAgentMessage(
+        clientId: string,
+        socket: any,
+        data: WsMessage,
+        log: AgentLogger,
+    ) {
+            // Handle Messages from Agent
+            // 1. Status Updates (Forward to Dashboard + Save to DB if final)
+            if (data.type === WS_EVENTS.STATUS_UPDATE) {
+                const parsed = StatusUpdatePayloadSchema.safeParse(
+                    data.payload,
+                );
+                if (!parsed.success) {
+                    log.warn({
+                        msg: "Invalid STATUS_UPDATE payload",
+                        errors: parsed.error,
+                    });
+                    return;
+                }
+                const statusPayload = parsed.data;
+
+                // If job has ended, save to history
+                if (
+                    ["success", "failed", "abort"].includes(
+                        statusPayload.status,
+                    )
+                ) {
+                    try {
+                        JobHistoryRepository.upsertStatus(
+                            clientId,
+                            statusPayload,
+                        );
+                    } catch (err) {
+                        log.error({
+                            msg: "Failed to save job history",
+                            err,
+                        });
+                    }
+                }
+
+                const updateMsg = {
+                    type: "JOB_UPDATE",
+                    payload: {
+                        clientId: clientId,
+                        job: statusPayload,
+                    },
+                };
+                // We need to implement this method in ProxyService or expose dashboardClients
+                // I'll assume I update ProxyService or access it if I change it to public.
+                // Better: update ProxyService.
+                ProxyService.broadcastToDashboard(updateMsg);
+            }
+
+            // 2. Log Updates
+            // Stream stdout/stderr from client jobs to the dashboard for real-time monitoring.
+            if (data.type === WS_EVENTS.LOG_UPDATE) {
+                const parsed = LogUpdatePayloadSchema.safeParse(
+                    data.payload,
+                );
+                if (!parsed.success) return;
+                const logPayload = parsed.data;
+                const updateMsg = {
+                    type: "LOG_UPDATE",
+                    payload: {
+                        clientId: clientId,
+                        ...logPayload,
+                    },
+                };
+                ProxyService.broadcastToDashboard(updateMsg);
+            }
+
+            // 3. Sync History (Delta load from client)
+            if (data.type === WS_EVENTS.SYNC_HISTORY) {
+                const parsed = SyncHistoryPayloadSchema.safeParse(
+                    data.payload,
+                );
+                if (!parsed.success) {
+                    log.warn({
+                        msg: "Invalid SYNC_HISTORY payload",
+                        errors: parsed.error,
+                    });
+                    return;
+                }
+                const syncPayload = parsed.data;
+                if (
+                    syncPayload.history &&
+                    Array.isArray(syncPayload.history)
+                ) {
+                    try {
+                        JobHistoryRepository.upsertHistoryBatch(
+                            clientId,
+                            syncPayload.history,
+                        );
+                        log.info({
+                            msg: "Processed history sync from client",
+                            clientId,
+                            count: syncPayload.history.length,
+                        });
+                    } catch (err) {
+                        log.error({
+                            msg: "Failed to process history sync",
+                            err,
+                        });
+                    }
+                }
+            }
+
+            // 4. Job Next Run Update
+            if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
+                const parsed = JobNextRunUpdatePayloadSchema.safeParse(
+                    data.payload,
+                );
+                if (!parsed.success) return;
+                const nextRunPayload = parsed.data;
+                ProxyService.updateJobNextRun(
+                    clientId,
+                    nextRunPayload.jobId,
+                    nextRunPayload.nextRunAt,
+                );
+            }
+
+            // 5. Tunnel lease requests (outbound clients only).
+            // The client never names a target: jobId (backup) or runId (restore) is
+            // resolved server-side into the actual PBS host and port.
+            if (data.type === WS_EVENTS.TUNNEL_ACQUIRE) {
+                await this.handleTunnelAcquire(clientId, socket, data, log);
+            }
+
+            if (data.type === WS_EVENTS.TUNNEL_RELEASE) {
+                const parsed = TunnelReleaseSchema.safeParse(data.payload);
+                if (!parsed.success) return;
+                TunnelService.release(clientId, parsed.data.leaseId);
+            }
+    }
+
+    /**
+     * Grants or denies a tunnel lease. Everything security relevant happens here:
+     * the requested job must belong to the requesting client, and the target is derived
+     * from the job's repository — never from the request.
+     */
+    private static async handleTunnelAcquire(
+        clientId: string,
+        socket: any,
+        data: WsMessage,
+        log: AgentLogger,
+    ) {
+        const parsed = TunnelAcquireSchema.safeParse(data.payload);
+        if (!parsed.success) {
+            log.warn({ msg: "Invalid TUNNEL_ACQUIRE payload", clientId });
+            return;
+        }
+        const { requestId, runId, jobId } = parsed.data;
+
+        const deny = (error: string) => {
+            log.warn({ msg: "Tunnel request denied", clientId, runId, jobId, error });
+            socket.send(
+                JSON.stringify({
+                    type: WS_EVENTS.TUNNEL_ACQUIRE_RESULT,
+                    payload: { requestId, granted: false, error },
+                }),
+            );
+        };
+
+        try {
+            const client = ClientRepository.findById(clientId);
+            if (!client || client.connection_mode !== "outbound") {
+                deny("Client ist kein Outbound-Client — kein Tunnel vorgesehen");
+                return;
+            }
+            if (!ClientTunnelRepository.findByClientId(clientId)) {
+                deny("Für diesen Client ist kein SSH-Tunnel hinterlegt");
+                return;
+            }
+
+            const target = await this.resolveTunnelTarget(clientId, runId, jobId);
+            if (!target) {
+                deny(
+                    "Kein zulässiges Tunnelziel für diese Anforderung — Job unbekannt oder gehört zu einem anderen Client",
+                );
+                return;
+            }
+
+            const lease = await TunnelService.acquire(
+                clientId,
+                target,
+                runId,
+                jobId,
+            );
+            socket.send(
+                JSON.stringify({
+                    type: WS_EVENTS.TUNNEL_ACQUIRE_RESULT,
+                    payload: {
+                        requestId,
+                        granted: true,
+                        leaseId: lease.leaseId,
+                        bindHost: lease.bindHost,
+                        bindPort: lease.bindPort,
+                    },
+                }),
+            );
+        } catch (e) {
+            deny(e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    /**
+     * Resolves the PBS endpoint for a request. Backups carry a jobId whose repository is
+     * looked up in the server-side job cache; restores carry only a runId, which the
+     * server pre-authorised when it triggered the restore.
+     */
+    private static async resolveTunnelTarget(
+        clientId: string,
+        runId: string,
+        jobId?: string,
+    ): Promise<{ host: string; port: number } | undefined> {
+        if (!jobId) {
+            return TunnelService.resolveRunTarget(clientId, runId);
+        }
+
+        let job = ProxyService.getCachedJob(clientId, jobId);
+        if (!job) {
+            // Cache may be cold right after a restart — refresh once before giving up.
+            await ProxyService.refreshJobCache(clientId);
+            job = ProxyService.getCachedJob(clientId, jobId);
+        }
+        if (!job?.repository?.baseUrl) return undefined;
+
+        return this.repositoryTarget(job.repository.baseUrl);
+    }
+
+    /** Turns a repository base URL into the host/port the tunnel must forward to. */
+    static repositoryTarget(
+        baseUrl: string,
+    ): { host: string; port: number } | undefined {
+        try {
+            const url = new URL(baseUrl);
+            return {
+                host: url.hostname,
+                port: url.port ? Number(url.port) : 8007,
+            };
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Handles a connection the server opened itself (outbound mode). Same AUTH handshake
+     * as inbound, but without the IP check: the server chose the peer, so there is no
+     * remote address to pin.
+     */
+    static handleOutboundAgentConnection(
+        clientId: string,
+        socket: WebSocket,
+        onClose: () => void,
+        onAuthResult?: (success: boolean) => void,
+        onPersist?: (version: string | null) => void,
+    ): void {
+        logger.info(
+            { clientId },
+            "Outbound agent connection established, awaiting AUTH",
+        );
+
+        (socket as any).isAlive = true;
+        socket.on("pong", () => {
+            (socket as any).isAlive = true;
+        });
+
+        const pingInterval = setInterval(() => {
+            if ((socket as any).isAlive === false) {
+                socket.terminate();
+                return;
+            }
+            (socket as any).isAlive = false;
+            socket.ping();
+        }, 30000);
+
+        let isAuthenticated = false;
+        let authResultSent = false;
+        const notifyAuthResult = (success: boolean) => {
+            if (!authResultSent) {
+                authResultSent = true;
+                onAuthResult?.(success);
+            }
+        };
+
+        const authTimeout = setTimeout(() => {
+            if (!isAuthenticated) {
+                logger.warn({ clientId }, "Outbound agent authentication timed out");
+                notifyAuthResult(false);
+                socket.close(4001, "Authentication timed out");
+            }
+        }, 5000);
+
+        socket.on("message", (message: Buffer) => {
+            try {
+                const data = JSON.parse(message.toString()) as WsMessage;
+
+                if (!isAuthenticated) {
+                    if (data.type !== WS_EVENTS.AUTH) return;
+
+                    const parsed = AuthPayloadSchema.safeParse(data.payload);
+                    if (!parsed.success) {
+                        notifyAuthResult(false);
+                        socket.close(4000, "Invalid payload");
+                        return;
+                    }
+
+                    isAuthenticated = true;
+                    clearTimeout(authTimeout);
+
+                    const version = parsed.data.version || null;
+
+                    // For a brand new client this creates the DB rows; for reconnects the
+                    // rows already exist and only the metadata is refreshed.
+                    onPersist?.(version);
+                    ClientRepository.updateOutboundAuthSuccess(clientId, version);
+
+                    logger.info({ clientId }, "Outbound agent authenticated");
+                    ProxyService.registerClient(clientId, socket);
+                    notifyAuthResult(true);
+
+                    const lastSyncTime =
+                        JobHistoryRepository.findLatestSyncTime(clientId);
+                    socket.send(
+                        JSON.stringify({
+                            type: WS_EVENTS.AUTH_SUCCESS,
+                            payload: { lastSyncTime },
+                        }),
+                    );
+                    ProxyService.broadcastClientUpdate();
+                    return;
+                }
+
+                void this.handleAgentMessage(clientId, socket, data, {
+                    info: (o) => logger.info(o),
+                    warn: (o) => logger.warn(o),
+                    error: (o) => logger.error(o),
+                });
+            } catch (err) {
+                logger.error({ err, clientId }, "Error processing outbound agent message");
+            }
+        });
+
+        socket.on("close", () => {
+            clearInterval(pingInterval);
+            clearTimeout(authTimeout);
+            notifyAuthResult(false);
+            if (isAuthenticated) {
+                ClientRepository.updateLastSeen(clientId);
+                ProxyService.unregisterClient(clientId, socket);
+                logger.info({ clientId }, "Outbound agent disconnected");
+                ProxyService.broadcastClientUpdate();
+            }
+            onClose();
+        });
+
+        socket.on("error", (err: Error) => {
+            logger.error({ err: err.message, clientId }, "Outbound agent socket error");
+        });
     }
 }

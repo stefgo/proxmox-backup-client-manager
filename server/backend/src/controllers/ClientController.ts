@@ -1,9 +1,131 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import { WS_EVENTS, ClientSchema } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
+import { ClientConnector } from "../services/ClientConnector.js";
+import { TunnelService } from "../services/TunnelService.js";
+import { logger } from "../core/logger.js";
+import db from "../core/Database.js";
+
+interface OutboundBody {
+    hostname?: string;
+    outboundTargetAddress?: string;
+    registrationSecret?: string;
+    tunnel?: {
+        sshHost?: string;
+        sshPort?: number;
+        sshUser?: string;
+        privateKey?: string;
+        passphrase?: string;
+        hostKeySha256?: string;
+    };
+}
 
 export class ClientController {
+    /**
+     * Creates an outbound client together with its SSH tunnel — deliberately one atomic
+     * operation. An outbound client without a working tunnel has no route to the PBS at
+     * all, so nothing is persisted unless both the tunnel test and the registration
+     * handshake succeed. The connection mode is fixed here and cannot be changed later.
+     */
+    static async createOutbound(request: FastifyRequest, reply: FastifyReply) {
+        const body = (request.body ?? {}) as OutboundBody;
+        const { hostname, outboundTargetAddress, registrationSecret } = body;
+        const tunnel = body.tunnel;
+
+        if (!outboundTargetAddress || !registrationSecret) {
+            return reply.code(400).send({
+                error: "outboundTargetAddress und registrationSecret sind erforderlich",
+            });
+        }
+        if (
+            !tunnel?.sshHost ||
+            !tunnel?.sshUser ||
+            !tunnel?.privateKey ||
+            !tunnel?.hostKeySha256
+        ) {
+            return reply.code(400).send({
+                error: "SSH-Zugangsdaten unvollständig (sshHost, sshUser, privateKey, hostKeySha256)",
+            });
+        }
+
+        // Step 1 — prove the tunnel works and that the host key matches the fingerprint
+        // the operator confirmed in the wizard.
+        const test = await TunnelService.testConnection({
+            sshHost: tunnel.sshHost,
+            sshPort: tunnel.sshPort,
+            sshUser: tunnel.sshUser,
+            privateKey: tunnel.privateKey,
+            passphrase: tunnel.passphrase,
+            expectedHostKeySha256: tunnel.hostKeySha256,
+        });
+        if (!test.ok) {
+            return reply
+                .code(400)
+                .send({ error: `SSH-Tunneltest fehlgeschlagen: ${test.error}` });
+        }
+
+        // Step 2 — registration and AUTH. Nothing is written before this succeeds.
+        const id = randomUUID();
+        const resolvedHostname = hostname?.trim() || outboundTargetAddress;
+        let persisted = false;
+
+        const success = await ClientConnector.firstConnect(
+            id,
+            outboundTargetAddress,
+            registrationSecret,
+            (authToken, version) => {
+                // Step 3 — both checks passed: write client and tunnel in one transaction.
+                db.transaction(() => {
+                    ClientRepository.createOutbound(
+                        id,
+                        resolvedHostname,
+                        outboundTargetAddress,
+                        authToken,
+                        version,
+                    );
+                    ClientTunnelRepository.create(id, {
+                        sshHost: tunnel.sshHost!,
+                        sshPort: tunnel.sshPort,
+                        sshUser: tunnel.sshUser!,
+                        privateKey: tunnel.privateKey!,
+                        passphrase: tunnel.passphrase,
+                        hostKeySha256: tunnel.hostKeySha256!,
+                    });
+                })();
+                persisted = true;
+            },
+        );
+
+        if (!success || !persisted) {
+            return reply.code(400).send({
+                error: "Registrierung am Client fehlgeschlagen. Das Registrierungs-Secret wurde dabei möglicherweise bereits verbraucht — bitte am Client-Host ein neues setzen.",
+            });
+        }
+
+        ProxyService.broadcastClientUpdate();
+        return { id, status: "created" };
+    }
+
+    /** Immediate reconnect attempt for an offline outbound client, bypassing the backoff. */
+    static async reconnect(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+        const client = ClientRepository.findById(clientId);
+
+        if (!client) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+        if (client.connection_mode !== "outbound") {
+            return reply
+                .code(400)
+                .send({ error: "Nur Outbound-Clients können aktiv verbunden werden" });
+        }
+
+        const connected = await ClientConnector.reconnectNow(clientId);
+        return { connected };
+    }
     /**
      * Retrieves a list of all clients combined with their live WebSocket connection status.
      * @param request - Fastify request
@@ -21,6 +143,12 @@ export class ClientController {
      */
     static async delete(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
+
+        // Stop dialing and tear down the tunnel before the rows disappear — otherwise a
+        // pending reconnect would try to reach a client that no longer exists.
+        ClientConnector.cancelReconnect(clientId);
+        TunnelService.closeClient(clientId);
+
         const info = ClientRepository.delete(clientId);
 
         if (info.changes === 0) {

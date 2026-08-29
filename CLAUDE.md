@@ -98,3 +98,4 @@ Detailed documentation lives in `/doc/`:
 - `frontend.md` – Routing, stores, component conventions
 - `client.md` – Agent lifecycle, scheduler, executor
 - `api.md` – Full REST and WebSocket API spec
+- `tunnel.md` – Outbound clients and the SSH reverse tunnel (setup, protocol, test protocol)

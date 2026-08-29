@@ -1,6 +1,6 @@
 import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer } from "./web/server.js";
-import { config } from "./core/Config.js";
+import { config, isOutboundMode } from "./core/Config.js";
 import { logger } from "./core/logger.js";
 import { Scheduler } from "./features/Scheduler.js";
 import { Executor } from "./features/Executor.js";
@@ -25,8 +25,15 @@ if (process.env.DISABLE_WEB_UI !== "true") {
 Cleanup.initialize();
 Scheduler.start();
 
-// Try to connect to server
-Connection.connect();
+// In outbound mode the server dials us: the agent only hosts /ws/register and /ws/agent
+// and must not try to connect out (it has no server URL to connect to).
+if (isOutboundMode()) {
+    logger.info(
+        "Outbound connection mode: waiting for the server to connect to this agent.",
+    );
+} else {
+    Connection.connect();
+}
 
 // Handle graceful shutdown
 const shutdown = async () => {

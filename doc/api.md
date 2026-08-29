@@ -467,6 +467,9 @@
 `DELETE /v1/clients/:clientId`
 
 **Description:** Removes a client registration. If the client is connected, it will be disconnected.
+For outbound clients, pending reconnects are cancelled and the SSH tunnel is closed first.
+Note that the connection mode cannot be changed — switching means deleting and re-creating
+the client, which discards its job history.
 
 #### Path Parameters
 
@@ -481,6 +484,89 @@
 ```json
 {
     "status": "deleted"
+}
+```
+
+---
+
+### Create Outbound Client
+
+`POST /v1/clients/outbound`
+
+**Description:** Creates a client the **server** connects to, together with its SSH reverse
+tunnel — deliberately one atomic operation. Nothing is persisted unless both the tunnel test
+and the registration handshake succeed. The connection mode is fixed here and cannot be
+changed later. See `doc/tunnel.md`.
+
+**Example Request:**
+
+```json
+{
+    "hostname": "backup-host",
+    "outboundTargetAddress": "192.168.1.50:3001",
+    "registrationSecret": "one-time-secret",
+    "tunnel": {
+        "sshHost": "192.168.1.50",
+        "sshPort": 22,
+        "sshUser": "pbcm",
+        "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----...",
+        "passphrase": "optional",
+        "hostKeySha256": "confirmed-fingerprint"
+    }
+}
+```
+
+`hostKeySha256` is the fingerprint the operator confirmed in the wizard; the server verifies
+the host key actually presented matches it before pinning.
+
+---
+
+### Reconnect Outbound Client
+
+`POST /v1/clients/:clientId/reconnect`
+
+**Description:** Immediate reconnect attempt for an offline outbound client, bypassing the
+backoff. Returns `{ "connected": true | false }`.
+
+---
+
+### Get Client Tunnel
+
+`GET /v1/clients/:clientId/tunnel`
+
+**Description:** SSH tunnel configuration and live state. Never returns secrets — the private
+key is write-only.
+
+---
+
+### Update Client Tunnel
+
+`PUT /v1/clients/:clientId/tunnel`
+
+**Description:** Updates the SSH credentials only. There is no port, no tunnel target and no
+on/off switch: the mode is fixed, the target follows from each job's repository, and the bind
+port is allocated per forward. An existing connection is closed so the new credentials take
+effect.
+
+---
+
+### Test Tunnel
+
+`POST /v1/tunnel/test` — with supplied SSH parameters, for the create wizard.
+`POST /v1/clients/:clientId/tunnel/test` — with the stored credentials, so the key never has
+to leave the backend.
+
+**Description:** Verifies SSH reachability, credentials and that a reverse forward is
+permitted. Does **not** contact any PBS: server-to-PBS reachability is a property of the
+repository and is covered by `GET /v1/repositories/:id/status`.
+
+**Example Response:**
+
+```json
+{
+    "ok": true,
+    "hostKeySha256": "SHA256-fingerprint",
+    "boundPort": 43021
 }
 ```
 
@@ -1089,6 +1175,10 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 **Description:** WebSocket endpoint for client agents. Requires an active `authToken`.
 
+> For clients with `connectionMode: "outbound"` the direction is reversed: the **server**
+> connects to the agent's own `/ws/register` and `/ws/agent` endpoints (port 3001). The
+> protocol after AUTH is identical. See `doc/tunnel.md`.
+
 #### Client -> Server Events
 
 **`AUTH`**
@@ -1099,6 +1189,31 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 {
     "hostname": "client-hostname",
     "version": "1.0.0"
+}
+```
+
+**`TUNNEL_ACQUIRE`**
+**Description:** Requests an SSH reverse tunnel lease before a run. Outbound clients only.
+The request carries **no target**: the server resolves the PBS endpoint from the job (or, for
+restores, from the run it authorised when triggering it) and verifies that the job belongs to
+the requesting client.
+**Payload:**
+
+```json
+{
+    "requestId": "uuid",
+    "runId": "run-uuid",
+    "jobId": "job-uuid"
+}
+```
+
+**`TUNNEL_RELEASE`**
+**Description:** Releases a lease after the run has finished. Fire-and-forget.
+**Payload:**
+
+```json
+{
+    "leaseId": "lease-uuid"
 }
 ```
 

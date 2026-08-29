@@ -1,6 +1,8 @@
 export const WS_EVENTS = {
     // Client -> Server
     AUTH: "AUTH",
+    TUNNEL_ACQUIRE: "TUNNEL_ACQUIRE",
+    TUNNEL_RELEASE: "TUNNEL_RELEASE",
     LOG_UPDATE: "LOG_UPDATE",
     STATUS_UPDATE: "STATUS_UPDATE",
     SYNC_HISTORY: "SYNC_HISTORY",
@@ -17,6 +19,12 @@ export const WS_EVENTS = {
     GENERATE_KEY_CONFIG: "GENERATE_KEY_CONFIG",
     HISTORY: "HISTORY",
     RUN_RESTORE: "RUN_RESTORE",
+    TUNNEL_ACQUIRE_RESULT: "TUNNEL_ACQUIRE_RESULT",
+
+    // Server -> Client (outbound connection mode: server dials the client)
+    REGISTRATION_REQUEST: "REGISTRATION_REQUEST",
+    REGISTRATION_SUCCESS: "REGISTRATION_SUCCESS",
+    REGISTRATION_FAILURE: "REGISTRATION_FAILURE",
 
     GET_VERSION: "GET_VERSION", // Client <-> Server
 
@@ -33,6 +41,18 @@ export const JOB_STATUS = {
     SKIPPED: "skipped",
     QUEUED: "queued",
 };
+
+export const CONNECTION_MODE = {
+    INBOUND: "inbound",
+    OUTBOUND: "outbound",
+} as const;
+
+export const TUNNEL_STATUS = {
+    IDLE: "idle",
+    CONNECTING: "connecting",
+    UP: "up",
+    ERROR: "error",
+} as const;
 
 export const CLIENT_STATUS = {
     ONLINE: "online",

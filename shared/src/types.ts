@@ -35,7 +35,17 @@ import {
     HistoryResponseSchema,
     SyncHistoryPayloadSchema,
     JobNextRunUpdatePayloadSchema,
+    TunnelDescriptorSchema,
+    TunnelConfigSchema,
+    RegistrationRequestSchema,
+    RegistrationResultSchema,
+    TunnelAcquireSchema,
+    TunnelAcquireResultSchema,
+    TunnelReleaseSchema,
 } from "./schemas.js";
+
+export type ConnectionMode = "inbound" | "outbound";
+export type TunnelStatus = "idle" | "connecting" | "up" | "error";
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
@@ -47,7 +57,10 @@ export interface ManagedRepository extends Repository {
     status: "online" | "offline" | "unknown" | "loading";
 }
 
-export type Client = z.infer<typeof ClientSchema>;
+export type Client = z.infer<typeof ClientSchema> & {
+    /** Runtime tunnel state, present for outbound clients only. Never persisted. */
+    tunnel?: TunnelState;
+};
 
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -89,6 +102,24 @@ export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
 export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;
+
+export type TunnelDescriptor = z.infer<typeof TunnelDescriptorSchema>;
+export type TunnelConfig = z.infer<typeof TunnelConfigSchema>;
+export type RegistrationRequest = z.infer<typeof RegistrationRequestSchema>;
+export type RegistrationResult = z.infer<typeof RegistrationResultSchema>;
+export type TunnelAcquire = z.infer<typeof TunnelAcquireSchema>;
+export type TunnelAcquireResult = z.infer<typeof TunnelAcquireResultSchema>;
+export type TunnelRelease = z.infer<typeof TunnelReleaseSchema>;
+
+/** Tunnel runtime state as broadcast to the dashboard (never persisted). */
+export interface TunnelState {
+    clientId: string;
+    status: TunnelStatus;
+    activeLeases: number;
+    forwards: { target: string; port: number }[];
+    lastUsedAt?: string | null;
+    lastError?: string | null;
+}
 
 export interface WsMessage<T = any> {
     type: string;
@@ -158,6 +189,18 @@ export interface ProtocolMap {
     };
     JOB_NEXT_RUN_UPDATE: {
         req: JobNextRunUpdatePayload;
+        res: void;
+    };
+    TUNNEL_ACQUIRE: {
+        req: TunnelAcquire;
+        res: TunnelAcquireResult;
+    };
+    TUNNEL_ACQUIRE_RESULT: {
+        req: TunnelAcquireResult;
+        res: void;
+    };
+    TUNNEL_RELEASE: {
+        req: TunnelRelease;
         res: void;
     };
 }

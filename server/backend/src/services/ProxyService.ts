@@ -3,6 +3,7 @@ import crypto, { randomUUID } from "crypto";
 import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { TunnelService } from "./TunnelService.js";
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
@@ -28,6 +29,9 @@ export class ProxyService {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
             this.jobCache.delete(clientId);
+            // A client that is gone cannot release its leases any more — drop them here,
+            // otherwise the tunnel would stay open until maxLeaseMs.
+            TunnelService.dropClientLeases(clientId);
         }
     }
 
@@ -88,6 +92,11 @@ export class ProxyService {
         return result;
     }
 
+    /** Single cached job of a client — used to resolve tunnel targets server-side. */
+    static getCachedJob(clientId: string, jobId: string): BackupJob | undefined {
+        return this.jobCache.get(clientId)?.find((j) => j.id === jobId);
+    }
+
     static getClientSocket(clientId: string): WebSocket | undefined {
         return this.connectedClients.get(clientId);
     }
@@ -102,6 +111,12 @@ export class ProxyService {
             lastSeen: client.last_seen,
             ipAddress: client.ip_address,
             version: client.version,
+            connectionMode: client.connection_mode || "inbound",
+            outboundTargetAddress: client.outbound_target_address,
+            tunnel:
+                client.connection_mode === "outbound"
+                    ? TunnelService.getStatus(client.id)
+                    : undefined,
             publicKey: client.publickey,
             createdAt: client.created_at,
             updatedAt: client.updated_at,

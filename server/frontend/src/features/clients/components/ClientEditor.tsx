@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Client } from '@pbcm/shared';
 import { Save, X } from 'lucide-react';
 import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { ClientTunnelSettings } from './ClientTunnelSettings';
 
 interface ClientEditorProps {
     client: Client;
@@ -48,6 +49,22 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                         disabled={isSaving}
                         hint={`Leave empty to use hostname (${client.hostname})`}
                     />
+
+                    {/* Connection mode is fixed at creation time and shown read-only. */}
+                    <div className="text-sm text-text-muted dark:text-text-muted-dark">
+                        Verbindungsart:{' '}
+                        <span className="font-mono text-text-primary dark:text-text-primary-dark">
+                            {client.connectionMode === 'outbound' ? 'Outbound (Server verbindet, PBS über SSH-Tunnel)' : 'Inbound (Client verbindet, PBS direkt)'}
+                        </span>
+                        {client.outboundTargetAddress && (
+                            <span className="ml-2 font-mono">· {client.outboundTargetAddress}</span>
+                        )}
+                        <div className="text-xs mt-1">Nicht änderbar — ein Wechsel erfordert Löschen und Neuanlegen.</div>
+                    </div>
+
+                    {client.connectionMode === 'outbound' && (
+                        <ClientTunnelSettings clientId={client.id} />
+                    )}
 
                     <div className="flex justify-end gap-3 pt-2">
                         <Button
