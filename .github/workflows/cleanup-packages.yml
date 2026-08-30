@@ -17,6 +17,9 @@ jobs:
                 package: [pbcm-client, pbcm-client-arm64, pbcm-server]
 
         steps:
+            # Bleibt vorerst auf node20: v5 ist die aktuelle Major-Version dieser
+            # Action, eine node24-Fassung gibt es noch nicht. Sie erzeugt daher
+            # weiterhin die Deprecation-Warnung der Runner.
             - name: Delete unwanted versions
               uses: actions/delete-package-versions@v5
               with:
