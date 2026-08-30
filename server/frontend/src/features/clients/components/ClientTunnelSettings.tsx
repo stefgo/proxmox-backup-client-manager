@@ -70,9 +70,9 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
             });
             const data = await res.json();
             if (data.ok) {
-                setMessage(`Verbindung erfolgreich (Testport ${data.boundPort})`);
+                setMessage(`Connection succeeded (test port ${data.boundPort})`);
             } else {
-                setError(data.error || 'Tunneltest fehlgeschlagen');
+                setError(data.error || 'Tunnel test failed');
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
@@ -102,8 +102,8 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 body: JSON.stringify(body),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Speichern fehlgeschlagen');
-            setMessage('SSH-Zugangsdaten gespeichert');
+            if (!res.ok) throw new Error(data.error || 'Failed to save credentials');
+            setMessage('SSH credentials saved');
             setKeyMode('keep');
             setPrivateKey('');
             setPassphrase('');
@@ -119,13 +119,13 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
     return (
         <div className="space-y-4 border-t border-border dark:border-border-dark pt-6">
             <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary-dark">
-                SSH-Reverse-Tunnel
+                SSH Reverse Tunnel
             </h3>
 
             <div className="text-xs text-text-muted dark:text-text-muted-dark space-y-1">
                 <div>
                     Status: <span className="font-mono">{info.state?.status ?? 'idle'}</span>
-                    {!!info.state?.activeLeases && ` · ${info.state.activeLeases} aktive Lease(s)`}
+                    {!!info.state?.activeLeases && ` · ${info.state.activeLeases} active lease(s)`}
                 </div>
                 {info.state?.forwards?.map((f) => (
                     <div key={f.target} className="font-mono">
@@ -135,16 +135,16 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 {info.state?.lastError && (
                     <div className="text-red-600 dark:text-red-400">{info.state.lastError}</div>
                 )}
-                <div className="font-mono break-all">Host-Key: {info.hostKeySha256}</div>
+                <div className="font-mono break-all">Host key: {info.hostKeySha256}</div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                    <Input label="SSH-Host" value={sshHost} onChange={(e) => setSshHost(e.target.value)} />
+                    <Input label="SSH Host" value={sshHost} onChange={(e) => setSshHost(e.target.value)} />
                 </div>
                 <Input label="Port" value={sshPort} onChange={(e) => setSshPort(e.target.value)} />
             </div>
-            <Input label="SSH-Benutzer" value={sshUser} onChange={(e) => setSshUser(e.target.value)} />
+            <Input label="SSH User" value={sshUser} onChange={(e) => setSshUser(e.target.value)} />
             <SshKeyFields
                 token={token}
                 allowKeep
@@ -168,10 +168,10 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
 
             <div className="flex gap-3">
                 <Button type="button" variant="secondary" onClick={handleTest} disabled={busy} icon={<PlugZap size={16} />}>
-                    Verbindung testen
+                    Test Connection
                 </Button>
                 <Button type="button" variant="secondary" onClick={handleSave} disabled={busy} icon={<Save size={16} />}>
-                    Zugangsdaten speichern
+                    Save Credentials
                 </Button>
             </div>
         </div>

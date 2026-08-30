@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Archive, BackupJob } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
+import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
 
 interface UseJobFormProps {
     clientId: string | null;
@@ -55,10 +56,8 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setScheduleWeekdays(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
         const now = new Date();
-        setScheduleStartDate(now.toISOString().split('T')[0]);
-        const hours = now.getHours().toString().padStart(2, '0');
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        setScheduleStartTime(`${hours}:${minutes}`);
+        setScheduleStartDate(toLocalDateInput(now));
+        setScheduleStartTime(toLocalTimeInput(now));
 
         setNewItemName('');
         setNewItemPath('');
@@ -85,23 +84,19 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
 
             if (job.nextRunAt) {
                 const d = new Date(job.nextRunAt);
-                setScheduleStartDate(d.toISOString().split('T')[0]);
-                const hours = d.getHours().toString().padStart(2, '0');
-                const minutes = d.getMinutes().toString().padStart(2, '0');
-                setScheduleStartTime(`${hours}:${minutes}`);
+                setScheduleStartDate(toLocalDateInput(d));
+                setScheduleStartTime(toLocalTimeInput(d));
             } else {
                 const now = new Date();
-                setScheduleStartDate(now.toISOString().split('T')[0]);
-                const hours = now.getHours().toString().padStart(2, '0');
-                const minutes = now.getMinutes().toString().padStart(2, '0');
-                setScheduleStartTime(`${hours}:${minutes}`);
+                setScheduleStartDate(toLocalDateInput(now));
+                setScheduleStartTime(toLocalTimeInput(now));
             }
         } else {
             setScheduleEnabled(false);
             setScheduleInterval(1);
             setScheduleUnit('days');
             const now = new Date();
-            setScheduleStartDate(now.toISOString().split('T')[0]);
+            setScheduleStartDate(toLocalDateInput(now));
             setScheduleStartTime('00:00');
         }
 

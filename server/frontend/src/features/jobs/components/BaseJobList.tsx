@@ -77,7 +77,6 @@ export const BaseJobList = <T extends BaseJobItem>({
     }, [sortedJobs, searchQuery, getClientName]);
 
     const {
-        currentItems: currentJobs,
         currentPage,
         totalPages,
         itemsPerPage,
@@ -428,7 +427,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             extraActions={newJobButton || undefined}
             defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey={viewModeStorageKey}
-            data={currentJobs}
+            data={filteredJobs}
             tableDef={tableItems}
             listColumns={listItems}
             keyField={(job) =>
@@ -450,6 +449,9 @@ export const BaseJobList = <T extends BaseJobItem>({
                 totalItems,
                 onPageChange: goToPage,
                 onItemsPerPageChange: setItemsPerPage,
+                // Hand over the full list: the table has to sort before it pages,
+                // otherwise a column sort only reorders the rows already on screen.
+                sliceInternally: true
             }}
         />
     );

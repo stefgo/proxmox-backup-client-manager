@@ -55,7 +55,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
     }, [sortedClients, searchQuery]);
 
     const {
-        currentItems: currentClients,
         currentPage,
         totalPages,
         itemsPerPage,
@@ -119,7 +118,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                             },
                             ...(client.connectionMode === 'outbound' && client.status !== 'online'
                                 ? [{
-                                    label: 'Jetzt verbinden',
+                                    label: 'Connect Now',
                                     icon: PlugZap,
                                     onClick: () => {
                                         reconnectClient(client);
@@ -203,7 +202,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                             },
                             ...(client.connectionMode === 'outbound' && client.status !== 'online'
                                 ? [{
-                                    label: 'Jetzt verbinden',
+                                    label: 'Connect Now',
                                     icon: PlugZap,
                                     onClick: () => {
                                         reconnectClient(client);
@@ -256,7 +255,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             }
             defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="clientViewMode"
-            data={currentClients}
+            data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
@@ -272,7 +271,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                 itemsPerPage,
                 totalItems,
                 onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage
+                onItemsPerPageChange: setItemsPerPage,
+                // Hand over the full list: the table has to sort before it pages,
+                // otherwise a column sort only reorders the rows already on screen.
+                sliceInternally: true
             }}
         />
     );

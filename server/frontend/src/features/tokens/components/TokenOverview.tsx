@@ -11,16 +11,18 @@ export const TokenOverview = () => {
     const [createdToken, setCreatedToken] = useState<{ token: string; expiresAt: string } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
-    useEffect(() => {
-        fetchTokens();
-    }, [token]);
-
+    // Declared before the effect that calls it: the other way round the effect read
+    // `fetchTokens` before its initialiser had run on that render.
     const fetchTokens = async () => {
         try {
             const res = await apiFetch('/api/v1/tokens');
             if (res.ok) setTokens(await res.json());
         } catch (e) { console.error(e); }
     };
+
+    useEffect(() => {
+        fetchTokens();
+    }, [token]);
 
     const deleteToken = async (tokenStr: string) => {
         try {

@@ -48,9 +48,9 @@ export const SshKeyFields = ({
                 body: JSON.stringify({}),
             });
             const raw = await res.text();
-            if (!raw) throw new Error(`Server nicht erreichbar (HTTP ${res.status})`);
+            if (!raw) throw new Error(`Server not reachable (HTTP ${res.status})`);
             const data = JSON.parse(raw);
-            if (!res.ok) throw new Error(data.error || 'Schlüssel konnte nicht erzeugt werden');
+            if (!res.ok) throw new Error(data.error || 'Could not generate key pair');
             onPrivateKeyChange(data.privateKey);
             onPassphraseChange('');
         } catch (e) {
@@ -61,15 +61,15 @@ export const SshKeyFields = ({
     };
 
     const options: { value: SshKeyMode; label: string }[] = [
-        ...(allowKeep ? [{ value: 'keep' as const, label: 'Hinterlegten Schlüssel behalten' }] : []),
-        { value: 'generate', label: 'Schlüssel erzeugen lassen' },
-        { value: 'manual', label: 'Eigenen Schlüssel einfügen' },
+        ...(allowKeep ? [{ value: 'keep' as const, label: 'Keep stored key' }] : []),
+        { value: 'generate', label: 'Generate a key' },
+        { value: 'manual', label: 'Paste your own key' },
     ];
 
     return (
         <div className="space-y-3">
             <div className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
-                Schlüssel
+                Key
             </div>
 
             <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -92,7 +92,7 @@ export const SshKeyFields = ({
 
             {mode === 'keep' && (
                 <p className="text-xs text-text-muted dark:text-text-muted-dark">
-                    Der gespeicherte Schlüssel bleibt unverändert.
+                    The stored key stays unchanged.
                 </p>
             )}
 
@@ -106,17 +106,17 @@ export const SshKeyFields = ({
                         isLoading={busy}
                         icon={<KeyRound size={16} />}
                     >
-                        {generated ? 'Neu erzeugen' : 'Schlüsselpaar erzeugen'}
+                        {generated ? 'Regenerate' : 'Generate Key Pair'}
                     </Button>
                     {generated && (
                         <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
                             <Check size={16} />
-                            ed25519-Schlüssel erzeugt
+                            ed25519 key generated
                         </div>
                     )}
                     <p className="text-xs text-text-muted dark:text-text-muted-dark">
-                        Ohne Passphrase — der Server nutzt den Schlüssel unbeaufsichtigt. Er wird nur
-                        gespeichert, nie wieder ausgegeben.
+                        No passphrase — the server uses the key unattended. It is only stored,
+                        never handed back out.
                     </p>
                 </div>
             )}

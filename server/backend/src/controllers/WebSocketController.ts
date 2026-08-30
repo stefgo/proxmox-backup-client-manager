@@ -458,18 +458,18 @@ export class WebSocketController {
         try {
             const client = ClientRepository.findById(clientId);
             if (!client || client.connection_mode !== "outbound") {
-                deny("Client ist kein Outbound-Client — kein Tunnel vorgesehen");
+                deny("Client is not an outbound client — no tunnel applies");
                 return;
             }
             if (!ClientTunnelRepository.findByClientId(clientId)) {
-                deny("Für diesen Client ist kein SSH-Tunnel hinterlegt");
+                deny("No SSH tunnel is configured for this client");
                 return;
             }
 
             const target = await this.resolveTunnelTarget(clientId, runId, jobId);
             if (!target) {
                 deny(
-                    "Kein zulässiges Tunnelziel für diese Anforderung — Job unbekannt oder gehört zu einem anderen Client",
+                    "No permitted tunnel target for this request — job unknown or belongs to another client",
                 );
                 return;
             }

@@ -26,6 +26,23 @@ export const formatDate = (
     }).format(d);
 };
 
+/**
+ * Value for an <input type="date">, in the viewer's own timezone.
+ *
+ * Not toISOString().split("T")[0] — that is the UTC date, which east of Greenwich
+ * is tomorrow's for most of the evening. Pairing it with a local clock time, as the
+ * job form used to, silently moved a schedule by a day.
+ */
+export const toLocalDateInput = (date: Date): string =>
+    `${date.getFullYear()}-` +
+    `${String(date.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(date.getDate()).padStart(2, "0")}`;
+
+/** Value for an <input type="time">, in the viewer's own timezone. */
+export const toLocalTimeInput = (date: Date): string =>
+    `${String(date.getHours()).padStart(2, "0")}:` +
+    `${String(date.getMinutes()).padStart(2, "0")}`;
+
 export const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;
     if (typeof error === "string") return error;

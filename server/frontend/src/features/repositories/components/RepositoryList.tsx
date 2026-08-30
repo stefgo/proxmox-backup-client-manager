@@ -34,7 +34,6 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
     }, [sortedRepositories, searchQuery]);
 
     const {
-        currentItems: currentRepos,
         currentPage,
         totalPages,
         itemsPerPage,
@@ -193,7 +192,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             }
             defaultSort={{ colIndex: 0, direction: 'asc' }}
             viewModeStorageKey="repositoryViewMode"
-            data={currentRepos}
+            data={filteredRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
@@ -209,7 +208,10 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 itemsPerPage,
                 totalItems,
                 onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage
+                onItemsPerPageChange: setItemsPerPage,
+                // Hand over the full list: the table has to sort before it pages,
+                // otherwise a column sort only reorders the rows already on screen.
+                sliceInternally: true
             }}
         />
     );

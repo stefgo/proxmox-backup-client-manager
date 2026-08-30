@@ -76,15 +76,15 @@ export default function Settings() {
         setIsCleaning(true);
         try {
             const response = await apiFetch('/api/v1/settings/cleanup', {
-                method: 'POST',
-                headers: {
-                }
+                method: 'POST'
             });
-            if (response.ok) {
-                setCleanupResult('Done');
-            } else {
+            if (!response.ok) {
                 throw new Error('Failed to trigger cleanup');
             }
+            // The endpoint reports how many rows each pass removed. Saying so beats
+            // "Done", which left it open whether anything had happened at all.
+            const { tokens = 0, history = 0 } = await response.json();
+            setCleanupResult(`${tokens + history} removed`);
         } catch (e: unknown) {
             alert(getErrorMessage(e));
         } finally {
@@ -153,29 +153,6 @@ export default function Settings() {
                                                 hint="Ensure at least this many invalid tokens are always kept."
                                             />
                                         </div>
-
-                                        <div className="mt-8 p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">Trigger the maintenance process immediately using the current retention settings.</p>
-                                            </div>
-                                            <Button
-                                                variant="secondary"
-                                                onClick={handleCleanup}
-                                                disabled={isCleaning || !!cleanupResult}
-                                                className="w-[140px]"
-                                            >
-                                                {isCleaning ? (
-                                                    <RefreshCw size={16} className="animate-spin" />
-                                                ) : cleanupResult ? (
-                                                    <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
-                                                ) : (
-                                                    <>
-                                                        <span>Run Now</span>
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
                                     </section>
 
                                     <hr className="border-border dark:border-border-dark" />
@@ -212,30 +189,33 @@ export default function Settings() {
                                                 classNames={{ input: "bg-app-bg rounded-xl" }}
                                             />
                                         </div>
-
-                                        <div className="mt-8 p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
-                                            <div>
-                                                <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
-                                                <p className="text-xs text-text-muted dark:text-text-muted-dark">Trigger the maintenance process immediately using the current retention settings.</p>
-                                            </div>
-                                            <Button
-                                                variant="secondary"
-                                                onClick={handleCleanup}
-                                                disabled={isCleaning || !!cleanupResult}
-                                                className="w-[140px]"
-                                            >
-                                                {isCleaning ? (
-                                                    <RefreshCw size={16} className="animate-spin" />
-                                                ) : cleanupResult ? (
-                                                    <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
-                                                ) : (
-                                                    <>
-                                                        <span>Run Now</span>
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
                                     </section>
+
+                                    <hr className="border-border dark:border-border-dark" />
+
+                                    {/* One block, below both sections: the endpoint runs
+                                        cleanupTokens() and cleanupJobHistory() together,
+                                        so there is no such thing as a separate run. */}
+                                    <div className="p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                        <div>
+                                            <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
+                                            <p className="text-xs text-text-muted dark:text-text-muted-dark">Apply both retention rules above right now, using the settings as last saved.</p>
+                                        </div>
+                                        <Button
+                                            variant="secondary"
+                                            onClick={handleCleanup}
+                                            disabled={isCleaning || !!cleanupResult}
+                                            className="w-[140px]"
+                                        >
+                                            {isCleaning ? (
+                                                <RefreshCw size={16} className="animate-spin" />
+                                            ) : cleanupResult ? (
+                                                <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
+                                            ) : (
+                                                <span>Run Now</span>
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
                             </TabPanel>
                         </div>

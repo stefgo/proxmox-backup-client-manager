@@ -34,12 +34,12 @@ export class TunnelClient {
         const outbound = isOutboundMode();
         if (tunnelRequired && !outbound) {
             throw new Error(
-                "Job erwartet einen SSH-Tunnel, dieser Client läuft aber im Direktmodus",
+                "Job expects an SSH tunnel, but this client runs in direct mode",
             );
         }
         if (!tunnelRequired && outbound) {
             throw new Error(
-                "Client läuft im Tunnelmodus, der Job ist aber ohne Tunnel konfiguriert",
+                "Client runs in tunnel mode, but the job is configured without a tunnel",
             );
         }
     }
@@ -54,7 +54,7 @@ export class TunnelClient {
 
         if (!Connection.isConnected()) {
             throw new Error(
-                "SSH-Tunnel nicht verfügbar: keine Serververbindung",
+                "SSH tunnel unavailable: no server connection",
             );
         }
 
@@ -66,7 +66,7 @@ export class TunnelClient {
 
         if (!result.granted || !result.leaseId || !result.bindPort) {
             throw new Error(
-                `SSH-Tunnel nicht verfügbar: ${result.error || "Anforderung abgelehnt"}`,
+                `SSH tunnel unavailable: ${result.error || "request rejected"}`,
             );
         }
 
@@ -154,14 +154,14 @@ export class TunnelClient {
             socket.on("timeout", () =>
                 done(
                     new Error(
-                        `SSH-Tunnel nicht erreichbar: Zeitüberschreitung auf ${lease.bindHost}:${lease.bindPort}`,
+                        `SSH tunnel not reachable: timed out on ${lease.bindHost}:${lease.bindPort}`,
                     ),
                 ),
             );
             socket.on("error", (err) =>
                 done(
                     new Error(
-                        `SSH-Tunnel nicht erreichbar (${lease.bindHost}:${lease.bindPort}): ${err.message}`,
+                        `SSH tunnel not reachable (${lease.bindHost}:${lease.bindPort}): ${err.message}`,
                     ),
                 ),
             );

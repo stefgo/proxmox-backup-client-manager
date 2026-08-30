@@ -127,7 +127,7 @@ export class RepositoryController {
                         failed.push({
                             clientId,
                             jobId: job.id!,
-                            error: result.error || "unbekannter Fehler",
+                            error: result.error || "unknown error",
                         });
                     }
                 } catch (e) {

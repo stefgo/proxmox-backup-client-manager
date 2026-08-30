@@ -148,7 +148,7 @@ export class TunnelService {
                 if (idx >= 0) this.waiting.splice(idx, 1);
                 reject(
                     new Error(
-                        "Zu viele gleichzeitige Tunnel — Wartezeit überschritten",
+                        "Too many concurrent tunnels — timed out waiting for a slot",
                     ),
                 );
             }, this.cfg().acquireTimeoutMs);
@@ -283,7 +283,7 @@ export class TunnelService {
                 if (err) {
                     reject(
                         new Error(
-                            `Reverse-Forward abgelehnt (${err.message}) — AllowTcpForwarding und permitlisten auf dem Client-Host prüfen`,
+                            `Reverse forward rejected (${err.message}) — check AllowTcpForwarding and permitlisten on the client host`,
                         ),
                     );
                     return;
@@ -441,7 +441,7 @@ export class TunnelService {
 
         const creds = ClientTunnelRepository.findCredentials(clientId);
         if (!creds) {
-            throw new Error("Für diesen Client ist kein SSH-Tunnel hinterlegt");
+            throw new Error("No SSH tunnel is configured for this client");
         }
 
         if (e.idleTimer) {
@@ -676,7 +676,7 @@ export class TunnelService {
                         if (err) {
                             reject(
                                 new Error(
-                                    `Reverse-Forward abgelehnt (${err.message}) — AllowTcpForwarding und permitlisten prüfen`,
+                                    `Reverse forward rejected (${err.message}) — check AllowTcpForwarding and permitlisten`,
                                 ),
                             );
                             return;
@@ -696,7 +696,7 @@ export class TunnelService {
                     params.expectedHostKeySha256 &&
                     hostKey &&
                     hostKey !== params.expectedHostKeySha256
-                        ? "Host-Key stimmt nicht mit dem hinterlegten Fingerprint überein"
+                        ? "Host key does not match the stored fingerprint"
                         : message,
             };
         } finally {

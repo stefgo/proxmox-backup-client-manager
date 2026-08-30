@@ -24,10 +24,12 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
     const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_STORAGE_KEY));
 
-    const login = (newToken: string) => {
+    // Memoised like logout below: Login.tsx keeps this in an effect's dependency
+    // array, so an unstable identity re-ran that effect on every render.
+    const login = useCallback((newToken: string) => {
         setToken(newToken);
         localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-    };
+    }, []);
 
     const logout = useCallback(() => {
         setToken(null);

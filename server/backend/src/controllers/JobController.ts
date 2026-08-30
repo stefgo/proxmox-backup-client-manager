@@ -165,7 +165,7 @@ export class JobController {
                 if (!target) {
                     return reply
                         .code(400)
-                        .send({ error: "Repository-URL ist ungültig" });
+                        .send({ error: "Repository URL is invalid" });
                 }
                 TunnelService.registerRunTarget(clientId, runId, target);
             }

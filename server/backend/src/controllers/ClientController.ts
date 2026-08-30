@@ -54,7 +54,7 @@ export class ClientController {
 
         if (!outboundTargetAddress || !registrationSecret) {
             return reply.code(400).send({
-                error: "outboundTargetAddress und registrationSecret sind erforderlich",
+                error: "outboundTargetAddress and registrationSecret are required",
             });
         }
         if (
@@ -64,7 +64,7 @@ export class ClientController {
             !tunnel?.hostKeySha256
         ) {
             return reply.code(400).send({
-                error: "SSH-Zugangsdaten unvollständig (sshHost, sshUser, privateKey, hostKeySha256)",
+                error: "Incomplete SSH credentials (sshHost, sshUser, privateKey, hostKeySha256)",
             });
         }
 
@@ -81,7 +81,7 @@ export class ClientController {
         if (!test.ok) {
             return reply
                 .code(400)
-                .send({ error: `SSH-Tunneltest fehlgeschlagen: ${test.error}` });
+                .send({ error: `SSH tunnel test failed: ${test.error}` });
         }
 
         // Step 2 — registration and AUTH. Nothing is written before this succeeds.
@@ -119,9 +119,9 @@ export class ClientController {
         if (!result.ok || !persisted) {
             const reason =
                 result.error ??
-                "Das Registrierungs-Secret wurde dabei möglicherweise bereits verbraucht — bitte am Client-Host ein neues setzen.";
+                "The registration secret may already have been consumed — set a new one on the client host.";
             return reply.code(400).send({
-                error: `Registrierung am Client fehlgeschlagen. ${reason}`,
+                error: `Registration at the client failed. ${reason}`,
             });
         }
 
@@ -140,7 +140,7 @@ export class ClientController {
         if (client.connection_mode !== "outbound") {
             return reply
                 .code(400)
-                .send({ error: "Nur Outbound-Clients können aktiv verbunden werden" });
+                .send({ error: "Only outbound clients can be dialled" });
         }
 
         const connected = await ClientConnector.reconnectNow(clientId);
@@ -208,13 +208,13 @@ export class ClientController {
         if (body.outboundTargetAddress !== undefined) {
             if (client.connection_mode !== "outbound") {
                 return reply.code(400).send({
-                    error: "Nur Outbound-Clients haben eine Zieladresse",
+                    error: "Only outbound clients have a target address",
                 });
             }
             address = normaliseTargetAddress(body.outboundTargetAddress);
             if (!address) {
                 return reply.code(400).send({
-                    error: "Zieladresse muss die Form host:port haben",
+                    error: "Target address must have the form host:port",
                 });
             }
         }

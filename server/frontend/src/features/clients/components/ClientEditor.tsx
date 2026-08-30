@@ -63,22 +63,22 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
 
                     {/* Connection mode is fixed at creation time and shown read-only. */}
                     <div className="text-sm text-text-muted dark:text-text-muted-dark">
-                        Verbindungsart:{' '}
+                        Connection mode:{' '}
                         <span className="font-mono text-text-primary dark:text-text-primary-dark">
-                            {isOutbound ? 'Outbound (Server verbindet, PBS über SSH-Tunnel)' : 'Inbound (Client verbindet, PBS direkt)'}
+                            {isOutbound ? 'Outbound (server dials in, PBS through an SSH tunnel)' : 'Inbound (client dials in, PBS directly)'}
                         </span>
-                        <div className="text-xs mt-1">Nicht änderbar — ein Wechsel erfordert Löschen und Neuanlegen.</div>
+                        <div className="text-xs mt-1">Fixed at creation — switching requires deleting and re-adding the client.</div>
                     </div>
 
                     {/* The address itself stays editable: the agent's port may change. */}
                     {isOutbound && (
                         <Input
-                            label="Zieladresse"
+                            label="Target Address"
                             value={targetAddress}
                             onChange={(e) => setTargetAddress(e.target.value)}
                             placeholder="192.168.1.50:3001"
                             disabled={isSaving}
-                            hint="Host und Port, unter denen der Agent erreichbar ist. Beim Speichern wird die Verbindung neu aufgebaut."
+                            hint="Host and port the agent is reachable on. Saving reconnects."
                         />
                     )}
 

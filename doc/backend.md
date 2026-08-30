@@ -76,8 +76,8 @@ The backend relies on **SQLite3** wrapped with `better-sqlite3` for fast, synchr
 - **OIDC Login**: OpenID Connect flow supported out of the box. Redirects to Provider and exchanges the callback code for a local JWT session.
 - **Agent Auth**: Agents authenticate via WebSockets using tokens generated on the dashboard.
 
-## SSH-Reverse-Tunnel und Outbound-Clients
+## SSH reverse tunnel and outbound clients
 
-`ClientConnector` wählt Outbound-Clients aktiv an (Registrierung über `/ws/register` des Agents,
-danach Session über `/ws/agent`), `TunnelService` baut den SSH-Reverse-Tunnel auf Anforderung des
-Clients auf und wieder ab. Details, Einrichtung und Testprotokoll: [tunnel.md](tunnel.md).
+`ClientConnector` dials outbound clients (registration through the agent's `/ws/register`, then a
+session over `/ws/agent`), and `TunnelService` establishes and tears down the SSH reverse tunnel
+on the client's request. Details, setup and test protocol: [tunnel.md](tunnel.md).

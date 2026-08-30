@@ -34,7 +34,7 @@ export function requestAllowSelfSigned(
         try {
             target = new URL(url);
         } catch (e) {
-            reject(new Error(`Ungültige Server-Adresse: ${url}`));
+            reject(new Error(`Invalid server address: ${url}`));
             return;
         }
 
@@ -61,7 +61,7 @@ export function requestAllowSelfSigned(
         );
 
         req.setTimeout(timeoutMs, () => {
-            req.destroy(new Error("Zeitüberschreitung"));
+            req.destroy(new Error("Timed out"));
         });
         req.on("error", reject);
 

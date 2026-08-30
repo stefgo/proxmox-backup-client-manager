@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Folder, AlertCircle } from 'lucide-react';
+import { X, Folder, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
@@ -22,11 +22,17 @@ const EMPTY_CLIENTS: Client[] = [];
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
     const { token } = useAuth();
     const [selectedClientId, setSelectedClientId] = useState<string>('');
+    // ClientSelect only opens its list when it is told to. Without this state the
+    // "Set Client" button had nothing to call and the preselected client was final.
+    const [isSelectingClient, setIsSelectingClient] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
     const [selectedArchives, setSelectedArchives] = useState<string[]>([]);
 
     const [error, setError] = useState<string | null>(null);
+    // A started restore used to leave the form looking untouched, which invites
+    // triggering it a second time. The message doubles as the button's lock.
+    const [message, setMessage] = useState<string | null>(null);
 
     // Use Global Store for File Browser
     const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
@@ -54,6 +60,9 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             setSelectedTarget('');
             setBrowserPath('/');
+            setIsSelectingClient(false);
+            setMessage(null);
+            setError(null);
             // Pre-select all archives by default
             const initialArchives = snapshot.files
                 .map(f => f.filename)
@@ -68,10 +77,11 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
         if (selectedClientId && token) {
             fetchFileList(selectedClientId, browserPath);
         }
-    }, [selectedClientId, browserPath, token]);
+    }, [selectedClientId, browserPath, token, fetchFileList]);
 
     const handleRestore = async () => {
         setError(null);
+        setMessage(null);
         if (!selectedClientId || !selectedTarget || !snapshot || !repo) return;
         if (selectedArchives.length === 0) {
             setError('Please select at least one archive to restore.');
@@ -106,7 +116,12 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             if (!res.ok) {
                 const data = await res.json();
                 setError('Failed to start restore: ' + (data.error || 'Unknown error'));
+                return;
             }
+
+            setMessage(
+                `Restore of ${sanitizedArchives.length} archive(s) started — follow it in the client's job history.`,
+            );
         } catch (e: unknown) {
             console.error(e);
             setError('Error triggering restore: ' + getErrorMessage(e));
@@ -116,6 +131,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     if (!snapshot || !repo) return null;
 
     const toggleArchive = (arch: string) => {
+        setMessage(null);
         if (selectedArchives.includes(arch)) {
             setSelectedArchives(selectedArchives.filter(a => a !== arch));
         } else {
@@ -148,6 +164,13 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                     <X size={20} />
                 </button>
             </div>
+
+            {message && (
+                <div className="mx-6 mt-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-green-700 dark:text-green-400 text-sm flex items-center gap-2">
+                    <ShieldCheck size={16} className="shrink-0" />
+                    {message}
+                </div>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -193,10 +216,13 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         <ClientSelect
                             clients={clients}
                             selectedClientId={selectedClientId}
+                            isSelecting={isSelectingClient}
+                            onSetIsSelecting={setIsSelectingClient}
                             onSelect={(id) => {
                                 setSelectedClientId(id);
                                 setBrowserPath('/');
                                 setSelectedTarget('');
+                                setMessage(null);
                             }}
                         />
                     )}
@@ -212,7 +238,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                             onNavigate={setBrowserPath}
                             files={fileList}
                             isLoading={isLoadingFiles}
-                            onSelect={setSelectedTarget}
+                            onSelect={(path) => {
+                                setSelectedTarget(path);
+                                setMessage(null);
+                            }}
                             className="flex-1 min-h-[250px] max-h-[300px]"
                         />
                     </div>
@@ -226,10 +255,11 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 </button>
                 <button
                     onClick={handleRestore}
-                    disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0}
+                    disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!message}
+                    title={message ? 'Change the selection to start another restore' : undefined}
                     className="px-4 py-2 rounded bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent active:scale-[0.98]"
                 >
-                    Restore Content
+                    {message ? 'Restore Started' : 'Restore Content'}
                 </button>
             </div>
         </div>

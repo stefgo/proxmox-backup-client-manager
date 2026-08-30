@@ -1,203 +1,205 @@
-# Implementierungsplan: SSH-Reverse-Tunnel + Outbound-WebSocket (PBCM)
+# Implementation plan: SSH reverse tunnel + outbound WebSocket (PBCM)
 
-Status: **Entwurf zur Freigabe** — bitte editieren/kommentieren, Umsetzung erst nach Freigabe.
+Status: **draft for approval** — please edit and comment; implementation only after approval.
 
 ---
 
-## 1. Ausgangslage
+## 1. Starting point
 
-**Heute in PBCM:**
-- Client-Agent verbindet sich *immer selbst* zum Server (`Connection.connect()` → `ws://server/ws/agent?token=…`).
-  Server-seitig prüft `WebSocketController.handleAgentConnection` Token **und** `allowed_ip` (`clients.allowed_ip`).
-- Die Repository-Zugangsdaten liegen serverseitig (`repositories`-Tabelle) und werden als Teil der Job-Config per
-  `JOB_SAVE_CONFIG` an den Client gepusht. Der Client persistiert sie in seiner eigenen SQLite und baut daraus in
-  `Executor` die `PBS_REPOSITORY`-Env (`user!token@host[:port]:datastore`, Passwort via FD 3, `PBS_FINGERPRINT`).
-- Der Client fährt Jobs **autonom** per node-cron, auch wenn der Server offline ist.
+**In PBCM today:**
+- The client agent *always* dials the server itself (`Connection.connect()` → `ws://server/ws/agent?token=…`).
+  On the server side, `WebSocketController.handleAgentConnection` checks the token **and** `allowed_ip`
+  (`clients.allowed_ip`).
+- The repository credentials live on the server (`repositories` table) and are pushed to the client as part of the
+  job config via `JOB_SAVE_CONFIG`. The client persists them in its own SQLite and builds the `PBS_REPOSITORY` env
+  from them in `Executor` (`user!token@host[:port]:datastore`, password via FD 3, `PBS_FINGERPRINT`).
+- The client runs jobs **autonomously** via node-cron, even while the server is offline.
 
-**Heute in DIM (was PBCM fehlt):**
-- `clients.connection_mode = 'inbound' | 'outbound'` (Migration `06_connection_mode`), plus
+**In DIM today (what PBCM lacks):**
+- `clients.connection_mode = 'inbound' | 'outbound'` (migration `06_connection_mode`), plus
   `inbound_registered_ip` / `outbound_target_address`.
-- `ClientConnector` (Backend): wählt aktiv den Client an — Registrierung über `ws://client/ws/register`
-  (Secret ↔ generierter authToken), danach Session über `ws://client/ws/agent?token=…`, mit Reconnect-Backoff
+- `ClientConnector` (backend): dials the client — registration via `ws://client/ws/register`
+  (secret ↔ generated authToken), then a session over `ws://client/ws/agent?token=…`, with reconnect backoff
   `[5s, 10s, 30s, 60s]`.
-- `WebSocketController.handleOutboundAgentConnection` — dieselbe AUTH/Ping/Registrierungs-Logik, nur ohne IP-Prüfung.
-- Client-seitig: `/ws/register` + `/ws/agent` als **Server**-Endpunkte im eigenen Fastify-Webserver,
-  `Connection.handleIncoming(socket)` für die eingehende Session.
+- `WebSocketController.handleOutboundAgentConnection` — the same AUTH/ping/registration logic, just without the IP check.
+- On the client side: `/ws/register` + `/ws/agent` as **server** endpoints in its own Fastify web server,
+  `Connection.handleIncoming(socket)` for the incoming session.
 
-## 2. Topologie & Grundsatzentscheidung
+## 2. Topology and the decision it rests on
 
-Ein vom **PBCM-Server initiierter** `ssh -R` setzt voraus, dass der Server den Client-Host per SSH erreicht —
-also genau die Richtung, die DIMs Outbound-Modus abbildet. Daraus ergibt sich ein in sich stimmiges Szenario:
+An `ssh -R` initiated by the **PBCM server** requires the server to reach the client host over SSH — exactly the
+direction DIM's outbound mode models. From that follows a coherent scenario:
 
 ```
-            ssh (Server ist SSH-Client)          Client-Host (sshd)
+            ssh (server is the SSH client)       client host (sshd)
  ┌───────────────┐  ──────────────────────────►  ┌──────────────────────┐
- │  PBCM-Server  │                               │  pbcm-client         │
- │               │  ws  ─────────────────────►   │  :3001 /ws/agent     │  (Outbound-Modus, wie DIM)
+ │  PBCM server  │                               │  pbcm-client         │
+ │               │  ws  ─────────────────────►   │  :3001 /ws/agent     │  (outbound mode, as in DIM)
  │               │                               │                      │
- │               │  ◄── Reverse-Forward ────────  │ 127.0.0.1:<dyn>      │  ← proxmox-backup-client
+ │               │  ◄── reverse forward ────────  │ 127.0.0.1:<dyn>      │  ← proxmox-backup-client
  └──────┬────────┘    (-R 127.0.0.1:0:pbs:8007)  └──────────────────────┘
         │ https
         ▼
    ┌──────────┐
-   │   PBS    │   (nur vom Server erreichbar)
+   │   PBS    │   (reachable from the server only)
    └──────────┘
 ```
 
-Der Client-Host braucht **keinerlei** Route zum PBS und keine ausgehende Verbindung — der Server bringt beides mit.
+The client host needs **no** route to the PBS whatsoever, and no outbound connection — the server brings both.
 
-Der Tunnel wird dabei **nicht dauerhaft** gehalten, sondern vom Client unmittelbar vor einem Lauf über den
-WebSocket angefordert und nach dem Lauf wieder freigegeben (Details in §4).
+The tunnel is **not** held permanently: the client requests it over the WebSocket right before a run and releases
+it again afterwards (details in §4).
 
-### 2.1 Rahmenbedingung: Verbindungsart ist unveränderlich
+### 2.1 Constraint: the connection mode is immutable
 
-Die Verbindungsart wird beim Anlegen des Clients **einmalig festgelegt und ist danach nicht mehr änderbar**. Sie
-bestimmt zugleich den Weg zum PBS — beides ist dieselbe Entscheidung, kein Paar unabhängiger Schalter:
+The connection mode is **fixed once when the client is created and cannot be changed afterwards**. It also
+determines the route to the PBS — both are the same decision, not a pair of independent switches:
 
-| `connection_mode` | WS zwischen Server und Client | Weg des `proxmox-backup-client` zum PBS |
+| `connection_mode` | WS between server and client | Route of `proxmox-backup-client` to the PBS |
 |---|---|---|
-| `inbound` | Client wählt den Server an (heutiges Verhalten) | direkt zum PBS |
-| `outbound` | Server wählt den Client an (wie DIM) | **immer** über den SSH-Reverse-Tunnel |
+| `inbound` | the client dials the server (today's behaviour) | directly to the PBS |
+| `outbound` | the server dials the client (as in DIM) | **always** through the SSH reverse tunnel |
 
-Daraus folgen drei Dinge, die den gesamten Rest des Plans prägen:
+Three things follow, and they shape the whole rest of this plan:
 
-1. **Es gibt keinen Tunnel-Schalter.** Ob getunnelt wird, ist aus `clients.connection_mode` ableitbar; ein eigenes
-   `enabled`-Flag existiert nicht. Damit ist der Zustand „Tunnel aus, aber Jobs zeigen auf Loopback" konstruktiv
-   unmöglich.
-2. **Anlegen ist atomar.** Ein Outbound-Client ohne funktionierende Tunnel-Konfiguration hat *keinen* Weg zum PBS
-   und wäre funktionsunfähig. WS-Registrierung und SSH-Tunneltest laufen deshalb im selben Vorgang, und
-   **nichts** wird persistiert, wenn einer von beiden scheitert (siehe §B3).
-3. **Kein Moduswechsel, kein Fallback.** Jeder Job eines Outbound-Clients trägt die Tunnelpflicht als Marker
-   (§B6) und wird ohne Lease gar nicht erst gestartet — ein ersatzweises Sichern direkt zum PBS gibt es nicht.
-   Läuft der PBCM-Server nicht, sichern Outbound-Clients gar nicht.
-   Das ist eine Architekturaussage, keine Konfigurationsoption, und gehört so in die Betriebsdoku.
-   Umstellen heißt: Client löschen und neu anlegen — inklusive Verlust der an der Client-ID hängenden Historie.
+1. **There is no tunnel switch.** Whether traffic is tunnelled follows from `clients.connection_mode`; a separate
+   `enabled` flag does not exist. That makes the state "tunnel off, but jobs point at loopback" structurally
+   impossible.
+2. **Creation is atomic.** An outbound client without a working tunnel configuration has *no* route to the PBS and
+   would be inoperable. WS registration and the SSH tunnel test therefore run in the same operation, and **nothing**
+   is persisted if either of them fails (see §B3).
+3. **No mode switch, no fallback.** Every job of an outbound client carries the tunnel requirement as a marker (§B6)
+   and is not started at all without a lease — there is no backing up directly to the PBS as a substitute. If the
+   PBCM server is not running, outbound clients do not back up at all.
+   That is an architectural statement, not a configuration option, and belongs in the operations documentation as
+   such. Switching means: delete the client and create it again — including the loss of the history that hangs off
+   the client ID.
 
-**SSH-Implementierung: `ssh2` (npm) statt System-`ssh`.** Empfohlen, weil:
-- kein `openssh-client` im Server-Image nötig (Dockerfile.server bleibt unverändert),
-- `client.forwardIn(bindAddr, bindPort)` + `'tcp connection'`-Event → der Reverse-Forward läuft in-process, jede
-  Verbindung ist als Event sichtbar (echte Health-/Traffic-Metriken statt Prozess-Polling),
-- Fehler (Auth, Forward abgelehnt, Host-Key) kommen als typisierte Events statt als stderr-Text,
-- Host-Key-Prüfung über `hostVerifier`-Callback → Pinning in der DB, kein `known_hosts`-Filehandling.
-Fallback (falls `ssh2` unerwünscht): `spawn("ssh", ["-N","-T","-o","ExitOnForwardFailure=yes","-o","ServerAliveInterval=15",
-"-o","ServerAliveCountMax=3","-o","BatchMode=yes","-R","127.0.0.1:0:pbs:8007", …])` — dann Dockerfile.server um
-`openssh-client` erweitern.
+**SSH implementation: `ssh2` (npm) rather than the system `ssh`.** Recommended, because:
+- no `openssh-client` is needed in the server image (Dockerfile.server stays unchanged),
+- `client.forwardIn(bindAddr, bindPort)` + the `'tcp connection'` event → the reverse forward runs in-process and
+  every connection is visible as an event (real health and traffic metrics instead of process polling),
+- errors (auth, forward rejected, host key) arrive as typed events instead of stderr text,
+- host key checking through the `hostVerifier` callback → pinning in the DB, no `known_hosts` file handling.
+Fallback (should `ssh2` be unwanted): `spawn("ssh", ["-N","-T","-o","ExitOnForwardFailure=yes","-o","ServerAliveInterval=15",
+"-o","ServerAliveCountMax=3","-o","BatchMode=yes","-R","127.0.0.1:0:pbs:8007", …])` — then extend Dockerfile.server
+with `openssh-client`.
 
 ---
 
-## 3. Teil A — Outbound-WebSocket (1:1-Port aus DIM)
+## 3. Part A — outbound WebSocket (a 1:1 port from DIM)
 
 ### A1 `shared/`
-- `constants.ts`: `WS_EVENTS` um `REGISTRATION_REQUEST`, `REGISTRATION_SUCCESS`, `REGISTRATION_FAILURE` sowie
-  `TUNNEL_ACQUIRE`, `TUNNEL_ACQUIRE_RESULT`, `TUNNEL_RELEASE` (§B4) ergänzen.
-- `schemas.ts`: `ClientSchema` um `connectionMode` und `outboundTargetAddress` erweitern;
-  `RegistrationRequestSchema { secret, authToken }`; `BackupJobSchema`/`RestoreJobSchema` um das optionale Feld
-  `tunnel: { required: boolean }` (§B6); Schemas für die drei Tunnel-Events.
-- `types.ts`: `export type ConnectionMode = "inbound" | "outbound";`, `ProtocolMap`-Einträge für die Tunnel-Events.
-- Danach zwingend `npm run build -w shared`.
+- `constants.ts`: extend `WS_EVENTS` with `REGISTRATION_REQUEST`, `REGISTRATION_SUCCESS`, `REGISTRATION_FAILURE` as
+  well as `TUNNEL_ACQUIRE`, `TUNNEL_ACQUIRE_RESULT`, `TUNNEL_RELEASE` (§B4).
+- `schemas.ts`: extend `ClientSchema` with `connectionMode` and `outboundTargetAddress`;
+  `RegistrationRequestSchema { secret, authToken }`; extend `BackupJobSchema`/`RestoreJobSchema` with the optional
+  field `tunnel: { required: boolean }` (§B6); schemas for the three tunnel events.
+- `types.ts`: `export type ConnectionMode = "inbound" | "outbound";`, `ProtocolMap` entries for the tunnel events.
+- Then `npm run build -w shared`, without exception.
 
-### A2 Backend-DB — neue Migration `04_connection_mode.ts`
-Analog DIM-Migration 06 (Tabelle neu anlegen + kopieren, da SQLite):
-`connection_mode TEXT NOT NULL DEFAULT 'inbound'`, `inbound_registered_ip` (aus `allowed_ip`/`ip_address`),
-`outbound_target_address`. Bestehende Clients werden als `inbound` migriert — kein Verhaltensbruch.
-`down()` stellt `allowed_ip`/`ip_address` wieder her.
+### A2 Backend DB — new migration `04_connection_mode.ts`
+Analogous to DIM migration 06 (create a new table and copy, since this is SQLite):
+`connection_mode TEXT NOT NULL DEFAULT 'inbound'`, `inbound_registered_ip` (from `allowed_ip`/`ip_address`),
+`outbound_target_address`. Existing clients are migrated as `inbound` — no behavioural break.
+`down()` restores `allowed_ip`/`ip_address`.
 
 ### A3 `ClientRepository`
-Neu: `findOutboundClients()`, `createOutbound(id, hostname, targetAddress, authToken)`,
-`updateAuthSuccess(id, version)` ohne IP-Argument für Outbound (Signatur splitten statt überladen),
+New: `findOutboundClients()`, `createOutbound(id, hostname, targetAddress, authToken)`,
+`updateAuthSuccess(id, version)` without an IP argument for outbound (split the signature rather than overloading it),
 `findById(id)`.
 
-### A4 `server/backend/src/services/ClientConnector.ts` (neu)
-Übernahme aus DIM, angepasst an PBCM-Namen (`@pbcm/shared`, `ProxyService`):
-`connectAll()` beim Start, `firstConnect()` (Registrierung + AUTH, DB-Write nur bei Erfolg via `onPersist`),
-`connectWithToken()`, `scheduleReconnect()` mit Backoff, `cancelReconnect(id)`, `disconnect(id)`.
-Aufruf von `connectAll()` in `server/backend/src/index.ts` nach Migrationen.
+### A4 `server/backend/src/services/ClientConnector.ts` (new)
+Taken from DIM, adapted to PBCM names (`@pbcm/shared`, `ProxyService`):
+`connectAll()` at start-up, `firstConnect()` (registration + AUTH, DB write only on success via `onPersist`),
+`connectWithToken()`, `scheduleReconnect()` with backoff, `cancelReconnect(id)`, `disconnect(id)`.
+`connectAll()` is called in `server/backend/src/index.ts` after the migrations.
 
 ### A5 `WebSocketController.handleOutboundAgentConnection(...)`
-Port aus DIM: Ping/Pong 30s, AUTH-Timeout 5s, `AuthPayloadSchema`-Validierung, `onPersist(version)`,
-`ProxyService.registerClient`, `AUTH_SUCCESS` inkl. `lastSyncTime` (PBCM sendet hier den echten Wert, nicht `null`),
-`close` → `unregisterClient` + `broadcastClientUpdate` + `onClose()`. **Keine** IP-Prüfung.
-Bestehendes `handleAgentConnection` bleibt unverändert (Inbound).
+Ported from DIM: ping/pong 30s, AUTH timeout 5s, `AuthPayloadSchema` validation, `onPersist(version)`,
+`ProxyService.registerClient`, `AUTH_SUCCESS` including `lastSyncTime` (PBCM sends the real value here, not `null`),
+`close` → `unregisterClient` + `broadcastClientUpdate` + `onClose()`. **No** IP check.
+The existing `handleAgentConnection` stays unchanged (inbound).
 
-### A6 `ClientController` + Routen
-- `POST /api/v1/clients/outbound` — legt Client **und** Tunnel in einem Vorgang an (siehe §B4):
+### A6 `ClientController` + routes
+- `POST /api/v1/clients/outbound` — creates the client **and** the tunnel in one operation (see §B4):
   `{ hostname?, outboundTargetAddress, registrationSecret, tunnel: { sshHost, sshPort?, sshUser, privateKey,
-  passphrase?, hostKeySha256 } }` → Tunneltest, dann `firstConnect`. `hostKeySha256` ist der im Assistenten
-  bestätigte Fingerprint (kein bloßes Bestätigungs-Flag): Der Server verifiziert, dass der beim Anlegen tatsächlich
-  angetroffene Host-Key damit übereinstimmt, und pinnt erst dann. Kein Portfeld (dynamisch, §B6), kein Passwort
-  (nur Key-Auth, §B2), kein Zielrepository — weder als gespeicherter Wert noch als Prüfparameter (§B3).
-- `POST /api/v1/clients/:clientId/reconnect` — sofortiger Reconnect-Versuch (nur `connection_mode='outbound'`).
-- `DELETE /api/v1/clients/:clientId` — zusätzlich `ClientConnector.cancelReconnect/disconnect`
-  **und** `TunnelService.closeClient(clientId)` (Teil B).
+  passphrase?, hostKeySha256 } }` → tunnel test, then `firstConnect`. `hostKeySha256` is the fingerprint confirmed
+  in the wizard (not a mere confirmation flag): the server verifies that the host key actually encountered during
+  creation matches it, and only then pins. No port field (dynamic, §B6), no password (key auth only, §B2), no target
+  repository — neither as a stored value nor as a test parameter (§B3).
+- `POST /api/v1/clients/:clientId/reconnect` — an immediate reconnect attempt (only for `connection_mode='outbound'`).
+- `DELETE /api/v1/clients/:clientId` — additionally `ClientConnector.cancelReconnect/disconnect`
+  **and** `TunnelService.closeClient(clientId)` (part B).
 
-### A7 Client-Agent
-- `client/src/web/server.ts`: `@fastify/websocket` registrieren; `/ws/register` (nur ohne `authToken` und mit
-  gesetztem `registrationSecret`; Secret prüfen → `persistAuthToken` + `deleteRegistrationSecret`) und
-  `/ws/agent` (Token-Vergleich → `Connection.handleIncoming(socket)`).
-- `client/src/core/Connection.ts`: `handleIncoming(socket)` — dieselbe Message-Routing-Schleife wie beim
-  ausgehenden Socket (Handlers), `wsInstance` setzen, AUTH aktiv senden, Heartbeat.
-  Refactoring-Hinweis: Message-Handling in eine private `attach(ws)` ziehen, die beide Pfade nutzen.
+### A7 Client agent
+- `client/src/web/server.ts`: register `@fastify/websocket`; `/ws/register` (only without an `authToken` and with a
+  `registrationSecret` set; check the secret → `persistAuthToken` + `deleteRegistrationSecret`) and
+  `/ws/agent` (token comparison → `Connection.handleIncoming(socket)`).
+- `client/src/core/Connection.ts`: `handleIncoming(socket)` — the same message routing loop as for the outgoing
+  socket (handlers), set `wsInstance`, send AUTH actively, heartbeat.
+  Refactoring note: pull the message handling into a private `attach(ws)` used by both paths.
 - `client/src/core/Config.ts`: `registrationSecret`, `enableRegisterPage`, `enableStatusPage`,
-  `tunnelAcquireJitterSeconds` (Default 30, §B4), `persistAuthToken()`, `deleteRegistrationSecret()`;
-  `serverUrl` wird im Outbound-Modus optional.
-- `isWebServerNeeded()`-Logik wie in DIM.
+  `tunnelAcquireJitterSeconds` (default 30, §B4), `persistAuthToken()`, `deleteRegistrationSecret()`;
+  `serverUrl` becomes optional in outbound mode.
+- `isWebServerNeeded()` logic as in DIM.
 
 ### A8 Frontend
-Badge „Inbound/Outbound" im `ClientList`, Button „Jetzt verbinden" für offline Outbound-Clients. Der Anlege-Dialog
-selbst wird zusammen mit der Tunnel-Konfiguration gebaut (§B10), weil bei Outbound beides in einem Vorgang
-erfasst und geprüft werden muss.
+An "inbound/outbound" badge in `ClientList`, a "Connect now" button for offline outbound clients. The creation
+dialog itself is built together with the tunnel configuration (§B10), because for outbound both have to be captured
+and checked in a single operation.
 
 ---
 
-## 4. Teil B — SSH-Reverse-Tunnel (On-Demand, vom Client angefordert)
+## 4. Part B — SSH reverse tunnel (on demand, requested by the client)
 
-**Leitprinzip:** Der Tunnel steht *nicht* dauerhaft. Er wird unmittelbar vor einem Backup-/Restore-Lauf aufgebaut
-und nach dessen Ende wieder abgebaut. Angefordert wird er vom **Client über den bestehenden WebSocket**, aufgebaut
-wird er weiterhin ausschließlich vom **Server** (`ssh -R` Richtung Client-Host).
+**Guiding principle:** the tunnel is *not* permanent. It is established right before a backup or restore run and
+torn down when that run ends. It is requested by the **client over the existing WebSocket**, and established, as
+before, exclusively by the **server** (`ssh -R` towards the client host).
 
-> **Sicherheitsregel Nr. 1 für dieses Design:** Der Client nennt **niemals ein Ziel**. Er nennt ausschließlich die
-> `jobId`, für die er den Tunnel braucht. Der Server prüft, dass dieser Job **diesem** Client gehört, schlägt selbst
-> das zugehörige Repository nach und leitet Zielhost und Zielport daraus ab. Weder Host, Port noch Bind-Adresse
-> dürfen je aus der Nachricht des Clients stammen. Andernfalls wird aus dem Feature ein Pivot: Ein kompromittierter
-> Client ließe sich vom Server beliebige interne Ziele forwarden.
+> **Security rule number one for this design:** the client **never names a target**. It names only the `jobId` it
+> needs the tunnel for. The server checks that this job belongs to **this** client, looks up the associated
+> repository itself, and derives target host and target port from it. Neither host, port nor bind address may ever
+> come from the client's message. Otherwise the feature turns into a pivot: a compromised client could have the
+> server forward it arbitrary internal targets.
 >
-> Die Zuordnungsprüfung (Job gehört zum anfragenden Client) ist dabei **nicht optional** — ohne sie könnte ein
-> Client über eine fremde `jobId` einen Forward zu einem Repository öffnen, für das er keine Berechtigung hat.
+> The ownership check (the job belongs to the requesting client) is **not optional** — without it a client could
+> open a forward to a repository it has no permission for, by way of a foreign `jobId`.
 
-### B1 Server-Config (`server/config.yaml`, `AppConfig.ts`)
+### B1 Server config (`server/config.yaml`, `AppConfig.ts`)
 ```yaml
 tunnel:
-  enabled: true                      # Not-Aus, siehe unten (nicht pro Client — §2.1)
-  remoteBindHost: 127.0.0.1          # niemals 0.0.0.0 (bräuchte GatewayPorts)
-  connectTimeoutMs: 10000            # SSH-Handshake + forwardIn
+  enabled: true                      # kill switch, see below (not per client — §2.1)
+  remoteBindHost: 127.0.0.1          # never 0.0.0.0 (that would need GatewayPorts)
+  connectTimeoutMs: 10000            # SSH handshake + forwardIn
   keepaliveIntervalMs: 15000
-  idleGraceMs: 60000                 # Nachlaufzeit nach der letzten Freigabe
-  maxLeaseMs: 86400000               # Not-Aus gegen hängende Leases (24 h)
-  acquireTimeoutMs: 20000            # muss > connectTimeoutMs sein, deckt auch Wartezeit ab
-  maxConcurrentTunnels: 20           # serverweite Obergrenze, darüber Warteschlange
-  retryDelaysMs: [2000, 5000, 10000] # Wiederaufbau, solange Leases bestehen
-  minRequestIntervalMs: 3000         # Rate-Limit pro Client
-  keySecret: <auto-generiert>        # eigener Schlüssel für die Secret-Verschlüsselung (§B8)
+  idleGraceMs: 60000                 # linger after the last release
+  maxLeaseMs: 86400000               # kill switch against stuck leases (24 h)
+  acquireTimeoutMs: 20000            # must be > connectTimeoutMs, also covers queueing
+  maxConcurrentTunnels: 20           # server-wide limit, queued beyond it
+  retryDelaysMs: [2000, 5000, 10000] # re-establishing while leases exist
+  minRequestIntervalMs: 3000         # rate limit per client
+  keySecret: <auto-generated>        # its own key for encrypting the secrets (§B8)
 ```
 
-Zwei Klarstellungen dazu:
+Two clarifications:
 
-- **`enabled: false` ist ein Not-Aus, kein Betriebsmodus.** Es verhindert jeden Tunnelaufbau; alle `acquire`-Anfragen
-  werden mit `granted: false` beantwortet, und damit sichern **sämtliche** Outbound-Clients nicht mehr (§2.1). Der
-  Schalter existiert für den Störfall, nicht für den Alltag — die UI muss das entsprechend deutlich machen.
-- **Kein `hostKeyPolicy`:** Da der Fingerprint beim Anlegen zwingend bestätigt und gepinnt wird (§B3), gibt es kein
-  „pin-on-first-use" zur Laufzeit mehr. Die Prüfung ist immer strikt.
+- **`enabled: false` is a kill switch, not an operating mode.** It prevents any tunnel from being established; all
+  `acquire` requests are answered with `granted: false`, and consequently **every** outbound client stops backing
+  up (§2.1). The switch exists for incidents, not for everyday use — the UI has to make that unmistakable.
+- **No `hostKeyPolicy`:** since the fingerprint has to be confirmed and pinned at creation time (§B3), there is no
+  runtime "pin on first use" left. The check is always strict.
 
 ### B2 Migration `05_client_tunnels.ts`
 ```sql
 CREATE TABLE client_tunnels (
   client_id        TEXT PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
-  ssh_host         TEXT NOT NULL,           -- Client-Host (sshd)
+  ssh_host         TEXT NOT NULL,           -- client host (sshd)
   ssh_port         INTEGER NOT NULL DEFAULT 22,
   ssh_user         TEXT NOT NULL,
-  private_key      TEXT NOT NULL,           -- verschlüsselt at rest, Key-Auth only
-  passphrase       TEXT,                    -- verschlüsselt at rest
-  host_key_sha256  TEXT NOT NULL,           -- Pinning, beim Anlegen bestätigt
+  private_key      TEXT NOT NULL,           -- encrypted at rest, key auth only
+  passphrase       TEXT,                    -- encrypted at rest
+  host_key_sha256  TEXT NOT NULL,           -- pinning, confirmed at creation
   remote_bind_host TEXT NOT NULL DEFAULT '127.0.0.1',
   last_error       TEXT,
   last_used_at     DATETIME,
@@ -205,326 +207,321 @@ CREATE TABLE client_tunnels (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
-`down()` ist hier trivial (`DROP TABLE client_tunnels`), da die Tabelle neu ist und keine Altdaten übernimmt.
+`down()` is trivial here (`DROP TABLE client_tunnels`), since the table is new and carries over no legacy data.
 
-Ein `enabled`-Flag gibt es bewusst **nicht** (§2.1): Eine Zeile in `client_tunnels` existiert genau dann, wenn der
-zugehörige Client `connection_mode = 'outbound'` hat — sie ist für Outbound-Clients Pflicht und für Inbound-Clients
-unzulässig. Erzwungen wird das im `ClientController` (§B3), nicht per SQL-Constraint, da SQLite keine
-tabellenübergreifenden CHECKs kann.
+There is deliberately **no** `enabled` flag (§2.1): a row in `client_tunnels` exists exactly when the associated
+client has `connection_mode = 'outbound'` — it is mandatory for outbound clients and not permitted for inbound
+ones. That is enforced in `ClientController` (§B3), not by an SQL constraint, since SQLite cannot do CHECKs across
+tables.
 
-Was bewusst **nicht** in der Tabelle steht:
+What deliberately is **not** in the table:
 
-- **Kein `remote_bind_port`:** Der Port wird bei jedem Forward dynamisch vom sshd des Client-Hosts vergeben (§B6)
-  und existiert nur für die Lebensdauer der Lease.
-- **Kein Tunnelziel:** Das Ziel ergibt sich pro Job aus dessen Repository (§B5) — ein Client kann Jobs gegen
-  mehrere Repositories haben. Auch kein Ziel „für Tests", denn der Tunneltest kommt ohne PBS aus (§B3).
-- **Kein `status`:** Der Zustand wechselt im On-Demand-Betrieb ständig und wird nur in-memory geführt. Persistiert
-  werden ausschließlich `last_used_at` und `last_error`. Nach einem Server-Neustart existiert damit weder Tunnel
-  noch Lease noch ein widersprüchlicher Statuswert.
-- **Keine Passwort-Authentifizierung:** Nur Key-Auth. Das spart ein Secret at rest, einen UI-Zweig und eine
-  Fallunterscheidung im `TunnelService`.
+- **No `remote_bind_port`:** the port is assigned dynamically by the client host's sshd on every forward (§B6) and
+  exists only for the lifetime of the lease.
+- **No tunnel target:** the target follows per job from its repository (§B5) — a client can have jobs against
+  several repositories. Nor a target "for tests", because the tunnel test works without a PBS (§B3).
+- **No `status`:** in on-demand operation the state changes constantly and is kept in memory only. Only
+  `last_used_at` and `last_error` are persisted. After a server restart there is therefore neither a tunnel nor a
+  lease nor a contradictory status value.
+- **No password authentication:** key auth only. That saves a secret at rest, a UI branch, and a case distinction
+  in `TunnelService`.
 
-Die aktiven Leases werden ebenfalls nur in-memory gehalten — ein laufender Client fordert nach einem
-Server-Neustart bei Bedarf neu an.
+Active leases are likewise held in memory only — a running client simply requests again when it needs to after a
+server restart.
 
-### B3 Anlegen eines Outbound-Clients (atomarer Vorgang)
+### B3 Creating an outbound client (an atomic operation)
 
-`ClientController.createOutbound` führt beide Prüfungen aus, bevor irgendetwas in die DB geschrieben wird:
+`ClientController.createOutbound` performs both checks before anything is written to the DB:
 
-1. `TunnelService.testConnection(params)` — SSH-Connect, Host-Key erfassen, `forwardIn(remote_bind_host, 0)` öffnen,
-   alles wieder schließen. Schlägt das fehl → 400 mit konkreter Ursache (Auth, Host-Key,
-   `administratively prohibited` bei fehlendem `AllowTcpForwarding`).
-   **Kein PBS-Connect im Test:** Ob der Server einen PBS erreicht, ist keine Eigenschaft dieses Clients, sondern des
-   Repositories — und wird bereits vom bestehenden Repository-Statuscheck beantwortet
-   (`RepositoryController`, `/api2/json/admin/datastore/<ds>/status`). Der Test braucht deshalb kein Zielrepository
-   als Parameter, was beim Anlegen ohnehin unpassend wäre: Der neue Client hat noch keine Jobs.
-   Der ermittelte **Host-Key-Fingerprint wird zurückgegeben und muss im Assistenten aktiv bestätigt werden**, bevor
-   es weitergeht — sonst wäre „pin-on-first-use" blindes Vertrauen genau in dem Moment, in dem man es einmal
-   bewusst richtig machen kann.
-2. `ClientConnector.firstConnect(...)` — Registrierung + AUTH wie in Teil A.
-3. Erst wenn **beides** erfolgreich war: `clients`-Zeile (`connection_mode='outbound'`) und `client_tunnels`-Zeile
-   in **einer** SQLite-Transaktion schreiben, Host-Key aus Schritt 1 als Pin übernehmen.
+1. `TunnelService.testConnection(params)` — SSH connect, capture the host key, open
+   `forwardIn(remote_bind_host, 0)`, close everything again. On failure → 400 with the concrete cause (auth, host
+   key, `administratively prohibited` when `AllowTcpForwarding` is missing).
+   **No PBS connect in the test:** whether the server reaches a PBS is not a property of this client but of the
+   repository — and is already answered by the existing repository status check
+   (`RepositoryController`, `/api2/json/admin/datastore/<ds>/status`). The test therefore needs no target repository
+   as a parameter, which would be out of place at creation time anyway: the new client has no jobs yet.
+   The **host key fingerprint that was determined is returned and has to be confirmed actively in the wizard**
+   before anything proceeds — otherwise "pin on first use" would be blind trust at precisely the moment one can
+   deliberately get it right once.
+2. `ClientConnector.firstConnect(...)` — registration + AUTH as in part A.
+3. Only once **both** have succeeded: write the `clients` row (`connection_mode='outbound'`) and the
+   `client_tunnels` row in **one** SQLite transaction, adopting the host key from step 1 as the pin.
 
-Scheitert Schritt 2 nach erfolgreichem Schritt 1, bleibt die DB unberührt — das entspricht exakt der bestehenden
-`firstConnect`-Semantik aus DIM („nichts schreiben bei Fehlschlag") und verhindert halb angelegte, funktionsunfähige
-Clients.
+If step 2 fails after step 1 succeeded, the DB is left untouched — which matches the existing `firstConnect`
+semantics from DIM ("write nothing on failure") exactly, and prevents half-created, inoperable clients.
 
-### B4 Protokoll: Tunnel-Anforderung über den WebSocket
+### B4 Protocol: requesting a tunnel over the WebSocket
 
-Neue Events in `shared/src/constants.ts` + `ProtocolMap` + Schemas:
+New events in `shared/src/constants.ts` + `ProtocolMap` + schemas:
 
-| Event | Richtung | Payload |
+| Event | Direction | Payload |
 |---|---|---|
-| `TUNNEL_ACQUIRE` | Client → Server | `{ requestId, jobId, runId }` — `jobId` bestimmt über die Serverauflösung das Ziel, `runId` dient nur dem Audit. **Kein** Host/Port |
-| `TUNNEL_ACQUIRE_RESULT` | Server → Client | `{ requestId, granted: true, leaseId, bindHost, bindPort }` \| `{ requestId, granted: false, error }` |
-| `TUNNEL_RELEASE` | Client → Server | `{ leaseId }` — fire-and-forget |
+| `TUNNEL_ACQUIRE` | client → server | `{ requestId, jobId, runId }` — `jobId` determines the target through the server-side lookup, `runId` serves only the audit trail. **No** host/port |
+| `TUNNEL_ACQUIRE_RESULT` | server → client | `{ requestId, granted: true, leaseId, bindHost, bindPort }` \| `{ requestId, granted: false, error }` |
+| `TUNNEL_RELEASE` | client → server | `{ leaseId }` — fire and forget |
 
-Die **`leaseId` vergibt der Server**, nicht der Client. Ein doppelt gesendeter oder falscher `runId` kann damit den
-refcount nicht durcheinanderbringen, und ein `RELEASE` wirkt nur auf eine Lease, die der Server selbst ausgegeben
-hat.
+**The server assigns the `leaseId`**, not the client. A duplicated or wrong `runId` therefore cannot upset the
+refcount, and a `RELEASE` only acts on a lease the server itself issued.
 
-Ablauf eines Laufs:
+Anatomy of a run:
 
 ```
-Client (Executor)                        Server (TunnelService)
-      │  (Jitter 0–n s)
-      │  TUNNEL_ACQUIRE {jobId,runId} ───────►  Job → Client-Zuordnung prüfen
-      │                                         Repository des Jobs auflösen = Ziel
-      │                                         SSH-Verbindung offen? ──nein──► connect
-      │                                         Forward für dieses Ziel offen? ──nein──► forwardIn(host,0)
-      │                                         Lease anlegen (leaseId, refcount++)
+Client (executor)                        Server (TunnelService)
+      │  (jitter 0–n s)
+      │  TUNNEL_ACQUIRE {jobId,runId} ───────►  check the job → client mapping
+      │                                         resolve the job's repository = target
+      │                                         SSH connection open? ──no──► connect
+      │                                         forward for this target open? ──no──► forwardIn(host,0)
+      │                                         create lease (leaseId, refcount++)
       │  ◄──── TUNNEL_ACQUIRE_RESULT {leaseId, bindPort}
-      │  TCP-Preflight auf 127.0.0.1:bindPort
+      │  TCP preflight against 127.0.0.1:bindPort
       │  spawn proxmox-backup-client …
-      │  … Job läuft …
+      │  … job runs …
       │  TUNNEL_RELEASE {leaseId} ───────────►  refcount--
-      │                                         0 ► idleGraceMs ► Forwards + SSH schließen
+      │                                         0 ► idleGraceMs ► close forwards + SSH
 ```
 
-- **Client-seitig** braucht `Connection` einen Request/Response-Helper in Gegenrichtung (das Pendant zu
-  `ProxyService.sendRequest`): `Connection.request(type, payload)` mit `requestId`-Korrelation, Pending-Map und
-  eigenem Timeout. Dieses **muss größer sein als das serverseitige `acquireTimeoutMs`** (z. B. 25 s bei 20 s), sonst
-  bricht der Client eine Anfrage ab, die gerade noch legitim in der Warteschlange steht (§B5) — und der Server
-  vergibt danach eine Lease, die niemand mehr freigibt.
-- **`Executor`**: `acquireTunnel(jobId, runId)` vor dem Spawn liefert `{ leaseId, bindHost, bindPort }`,
-  `releaseTunnel(leaseId)` in einem `finally` — ausnahmslos, auch bei Abbruch, Fehler und Timeout. Eine vergessene
-  Freigabe hält den Tunnel sonst bis `maxLeaseMs` offen.
-- Kein WS oder Server nicht erreichbar → Lauf endet sofort mit `status=failed`,
-  `stderr="SSH-Tunnel nicht verfügbar: keine Serververbindung"`. Der `proxmox-backup-client` wird gar nicht erst
-  gestartet.
-- **Jitter vor dem `acquire`:** Neue Client-Config `tunnelAcquireJitterSeconds` (Default 30, `0` schaltet ab). Der
-  Client wartet vor der Anforderung eine zufällige Spanne aus `[0, n]`. Grund: Alle Clients teilen typischerweise
-  denselben Zeitplan („täglich 02:00") und würden sonst in derselben Sekunde anfragen. Der Jitter verteilt
-  lediglich — begrenzt wird serverseitig über `maxConcurrentTunnels` (§B5).
+- **On the client side**, `Connection` needs a request/response helper in the opposite direction (the counterpart to
+  `ProxyService.sendRequest`): `Connection.request(type, payload)` with `requestId` correlation, a pending map and
+  its own timeout. That timeout **must be larger than the server-side `acquireTimeoutMs`** (say 25 s against 20 s),
+  or the client aborts a request that is still legitimately queued (§B5) — and the server then issues a lease that
+  nobody releases.
+- **`Executor`**: `acquireTunnel(jobId, runId)` before the spawn returns `{ leaseId, bindHost, bindPort }`,
+  `releaseTunnel(leaseId)` in a `finally` — without exception, including on abort, error and timeout. A forgotten
+  release otherwise holds the tunnel open until `maxLeaseMs`.
+- No WS, or the server unreachable → the run ends immediately with `status=failed`,
+  `stderr="SSH tunnel unavailable: no server connection"`. `proxmox-backup-client` is not started at all.
+- **Jitter before the `acquire`:** a new client config `tunnelAcquireJitterSeconds` (default 30, `0` disables it).
+  The client waits a random span from `[0, n]` before requesting. The reason: all clients typically share the same
+  schedule ("daily at 02:00") and would otherwise ask in the very same second. The jitter merely spreads them out —
+  the actual limit is server-side, via `maxConcurrentTunnels` (§B5).
 
 ### B5 `TunnelService` (`server/backend/src/services/TunnelService.ts`)
-- Kein `startAll()` beim Boot. Öffentliche API: `acquire(clientId, jobId)` → `{ leaseId, bindHost, bindPort }`,
-  `release(clientId, leaseId)`, `closeClient(clientId)` (alle Leases verwerfen und Verbindung schließen — beim
-  Löschen eines Clients, §A6), `getStatus(clientId)`, `testConnection(sshParams)` (prüft ausschließlich SSH +
-  `forwardIn`, ohne DB-Zugriff und ohne PBS-Beteiligung — für §B3 und den „Verbindung testen"-Button),
-  `shutdown()`.
-- Lease-Verwaltung:
+- No `startAll()` at boot. Public API: `acquire(clientId, jobId)` → `{ leaseId, bindHost, bindPort }`,
+  `release(clientId, leaseId)`, `closeClient(clientId)` (drop all leases and close the connection — when a client is
+  deleted, §A6), `getStatus(clientId)`, `testConnection(sshParams)` (checks SSH + `forwardIn` only, with no DB access
+  and no PBS involvement — for §B3 and the "Test connection" button), `shutdown()`.
+- Lease management:
   `Map<clientId, { ssh, connectPromise, forwards: Map<targetKey, {port, leases: Set<leaseId>}>, idleTimer, retryState }>`.
-  Eine SSH-Verbindung pro Client, darin **ein Forward je Zielrepository** — damit funktionieren auch Clients mit
-  Jobs gegen mehrere PBS-Instanzen. `targetKey` ist `host:port` des aufgelösten Repositories.
-  `idleGraceMs` verhindert Auf-/Abbau-Churn zwischen direkt aufeinanderfolgenden Jobs, `maxLeaseMs` ist der Not-Aus
-  gegen hängengebliebene Leases.
-- **Parallele `acquire`-Aufrufe teilen sich den Aufbau.** Starten zwei Jobs desselben Clients gleichzeitig, hängt
-  sich der zweite Aufrufer an das laufende `connectPromise` bzw. an den laufenden `forwardIn` an, statt eine zweite
-  SSH-Verbindung zu öffnen. Ohne diese Klammer entstehen doppelte Verbindungen und doppelte Forwards — der
-  wahrscheinlichste Implementierungsfehler an dieser Stelle.
-- **Obergrenze und Warteschlange:** `maxConcurrentTunnels` begrenzt die gleichzeitig offenen SSH-Verbindungen
-  serverweit. Ist die Grenze erreicht, wird das `acquire` **eingereiht** statt abgelehnt; es scheitert erst, wenn
-  `acquireTimeoutMs` abläuft. Ein weiteres `acquire` für einen bereits offenen Tunnel geht immer sofort durch —
-  die Grenze gilt nur für Neuaufbauten.
-- Aufbau: `ssh2.Client.connect({host, port, username, privateKey, passphrase, keepaliveInterval, readyTimeout,
-  hostVerifier})` → `ready` → `forwardIn(remote_bind_host, 0)` → der zurückgelieferte Port ist der maßgebliche
-  Wert und geht in jedes `TUNNEL_ACQUIRE_RESULT` → `'tcp connection'`-Event:
-  `net.connect(targetPort, targetHost)` gegen den PBS, Streams beidseitig verbinden (`pipe` hin und zurück,
-  Fehler/`end` auf beiden Seiten aufräumen — Socket-Leaks sind hier der klassische Bug).
-- Abbau: Ein Forward wird geschlossen, sobald seine letzte Lease weg ist; die SSH-Verbindung, sobald der letzte
-  Forward weg ist (jeweils nach `idleGraceMs`). Zusätzlich bei Lease-Timeout, bei WS-Disconnect des Clients
-  (`ProxyService.unregisterClient` → alle Leases dieses Clients verwerfen), beim Löschen des Clients und beim
-  Server-Shutdown (SIGTERM-Hook).
-- Verbindungsabbruch **während** bestehender Leases → Wiederaufbau mit `retryDelaysMs`. Achtung: Der neue Tunnel
-  bekommt einen **anderen** Port. Bereits laufende `proxmox-backup-client`-Prozesse zeigen dann ins Leere und
-  scheitern ohnehin; die zugehörigen Leases werden deshalb verworfen statt stillschweigend auf den neuen Port
-  umgebogen. Der Client erfährt davon über den fehlgeschlagenen Lauf, nicht über ein eigenes Event.
-- Rate-Limit: `minRequestIntervalMs` pro Client; zu häufige Anforderungen werden mit `granted: false` abgelehnt
-  und geloggt (Anomalie-Signal).
-- `forwardIn`-Ablehnung (`administratively prohibited`) sauber melden → Hinweis auf `AllowTcpForwarding`.
-- Status wird **in-memory** geführt und per `ProxyService.broadcastToDashboard({ type: "TUNNEL_UPDATE", payload })`
-  verteilt; in die DB gehen nur `last_used_at` und `last_error`.
+  One SSH connection per client, holding **one forward per target repository** — which also makes clients with jobs
+  against several PBS instances work. `targetKey` is `host:port` of the resolved repository.
+  `idleGraceMs` prevents setup/teardown churn between jobs that follow one another closely, `maxLeaseMs` is the kill
+  switch against leases that got stuck.
+- **Concurrent `acquire` calls share the setup.** If two jobs of the same client start at once, the second caller
+  attaches to the running `connectPromise` or the running `forwardIn` instead of opening a second SSH connection.
+  Without that bracket, duplicate connections and duplicate forwards appear — the most likely implementation mistake
+  at this point.
+- **Limit and queue:** `maxConcurrentTunnels` caps the simultaneously open SSH connections server-wide. Once the
+  limit is reached, an `acquire` is **queued** rather than rejected; it only fails when `acquireTimeoutMs` expires.
+  A further `acquire` for an already open tunnel always goes through immediately — the limit applies to new setups
+  only.
+- Setup: `ssh2.Client.connect({host, port, username, privateKey, passphrase, keepaliveInterval, readyTimeout,
+  hostVerifier})` → `ready` → `forwardIn(remote_bind_host, 0)` → the port returned is the authoritative value and
+  goes into every `TUNNEL_ACQUIRE_RESULT` → the `'tcp connection'` event:
+  `net.connect(targetPort, targetHost)` against the PBS, wire the streams both ways (`pipe` there and back, clean up
+  errors and `end` on both sides — socket leaks are the classic bug here).
+- Teardown: a forward is closed as soon as its last lease is gone; the SSH connection as soon as the last forward is
+  gone (each after `idleGraceMs`). Additionally on lease timeout, on the client's WS disconnect
+  (`ProxyService.unregisterClient` → drop all leases of that client), when the client is deleted, and at server
+  shutdown (SIGTERM hook).
+- A connection drop **while** leases exist → re-establish with `retryDelaysMs`. Careful: the new tunnel gets a
+  **different** port. `proxmox-backup-client` processes already running would then point at nothing and fail anyway;
+  the associated leases are therefore dropped rather than silently redirected to the new port. The client learns
+  about it through the failed run, not through an event of its own.
+- Rate limit: `minRequestIntervalMs` per client; requests that come too often are rejected with `granted: false` and
+  logged (an anomaly signal).
+- Report a `forwardIn` rejection (`administratively prohibited`) cleanly → point at `AllowTcpForwarding`.
+- Status is kept **in memory** and distributed via
+  `ProxyService.broadcastToDashboard({ type: "TUNNEL_UPDATE", payload })`; only `last_used_at` and `last_error` go
+  into the DB.
 
-### B6 Dynamischer Port + Laufzeit-Substitution (Kernstück)
+### B6 Dynamic port + runtime substitution (the core of it)
 
-Der Bind-Port wird **nicht** konfiguriert, sondern bei jedem Tunnelaufbau vom sshd des Client-Hosts vergeben:
-`forwardIn(remote_bind_host, 0)` liefert den tatsächlich belegten Port zurück (das Äquivalent zu `ssh -R 0:pbs:8007`).
-Damit gibt es keine Portverwaltung, keine Kollision mit einem lokal laufenden PBS und keinen Portwert, der
-irgendwo veralten könnte.
+The bind port is **not** configured but assigned by the client host's sshd on every tunnel setup:
+`forwardIn(remote_bind_host, 0)` returns the port actually taken (the equivalent of `ssh -R 0:pbs:8007`). That
+leaves no port management, no collision with a locally running PBS, and no port value that could go stale anywhere.
 
-Weil der Port erst zur Lease-Zeit feststeht, wird die Repository-URL **nicht** mehr beim Push umgeschrieben.
-Stattdessen:
+Because the port is only known at lease time, the repository URL is **no longer** rewritten at push time. Instead:
 
-- Die gepushte Job-Config enthält die **echte PBS-URL** — wahrheitsgemäß, lesbar, unabhängig vom Tunnelzustand.
-- Dazu kommt der Marker `tunnel: { required: true }` (neues optionales Feld in `BackupJobSchema`/`RestoreJobSchema`),
-  gesetzt für jeden Client mit `connection_mode = 'outbound'`. Er ist das einzige, was der Server beisteuern muss.
-- Der `Executor` ersetzt beim Bauen von `PBS_REPOSITORY` **nur Host und Port** durch `bindHost:bindPort` aus dem
-  `TUNNEL_ACQUIRE_RESULT` — also durch den Forward, den der Server für genau das Repository *dieses* Jobs geöffnet
-  hat. `fingerprint`, `username`, `tokenname`, `secret` und `datastore` bleiben unverändert.
-  Ergebnis: `user!token@127.0.0.1:<port>:datastore`.
+- The pushed job config contains the **real PBS URL** — truthful, readable, independent of the tunnel state.
+- Alongside it comes the marker `tunnel: { required: true }` (a new optional field in
+  `BackupJobSchema`/`RestoreJobSchema`), set for every client with `connection_mode = 'outbound'`. It is the only
+  thing the server has to contribute.
+- When building `PBS_REPOSITORY`, the `Executor` replaces **only host and port** with `bindHost:bindPort` from the
+  `TUNNEL_ACQUIRE_RESULT` — that is, with the forward the server opened for exactly *this* job's repository.
+  `fingerprint`, `username`, `tokenname`, `secret` and `datastore` stay unchanged.
+  Result: `user!token@127.0.0.1:<port>:datastore`.
 
-Konsequenzen:
+Consequences:
 
-- **Fail-closed:** Greift die Substitution nicht, steht die echte PBS-URL im Kommando — und die ist für einen
-  Outbound-Client nicht erreichbar. Der Lauf scheitert, statt versehentlich an der Absicherung vorbeizuarbeiten.
-- **Kein Repush, keine Invalidierung.** `applyTunnelRewrite`, `repushAllJobs` und der gesamte Invalidierungspfad
-  entfallen ersatzlos. Der einzige serverseitige Eingriff beim Push ist das Setzen des Markers.
-- **Autonome Cron-Läufe** funktionieren unverändert: Sie fordern die Lease selbst an und bekommen den Port darüber.
-- **Restore-Pfad** ist automatisch mit abgedeckt, weil die Substitution im `Executor` sitzt und nicht im Push —
-  der bisherige Sonderfall `RUN_RESTORE` verschwindet damit.
-- **Client-seitige Gegenprüfung:** Der Agent kennt seinen eigenen Modus. Trifft ein Job mit `tunnel.required = true`
-  auf einem Inbound-Client ein (oder ein Job ohne Marker auf einem Outbound-Client), wird er mit klarer Meldung
-  abgelehnt statt ausgeführt — fängt z. B. eine von Host zu Host kopierte Client-Config.
-- **Voraussetzung:** `PBS_REPOSITORY` hat damit immer die dreiteilige Form `host:port:datastore`. Die eingesetzte
-  `proxmox-backup-client`-Version muss die Port-Angabe in der Repository-Spec unterstützen — als Mindestversion
-  dokumentieren.
-- TLS: `proxmox-backup-client` prüft bei gesetztem `PBS_FINGERPRINT` gegen den Fingerprint; der Hostname-Mismatch
-  (`127.0.0.1` vs. PBS-Zertifikat) ist damit unkritisch. **→ vor Umsetzung praktisch verifizieren** (siehe §9).
+- **Fail closed:** if the substitution does not take effect, the real PBS URL ends up in the command — and that is
+  unreachable for an outbound client. The run fails instead of accidentally working around the protection.
+- **No repush, no invalidation.** `applyTunnelRewrite`, `repushAllJobs` and the whole invalidation path disappear
+  without replacement. The only server-side intervention at push time is setting the marker.
+- **Autonomous cron runs** work unchanged: they request the lease themselves and get the port that way.
+- **The restore path** is covered automatically, because the substitution sits in the `Executor` and not in the
+  push — the previous `RUN_RESTORE` special case disappears with it.
+- **Client-side counter-check:** the agent knows its own mode. If a job with `tunnel.required = true` arrives on an
+  inbound client (or a job without the marker on an outbound one), it is rejected with a clear message instead of
+  executed — which catches, for instance, a client config copied from host to host.
+- **Prerequisite:** `PBS_REPOSITORY` thereby always has the three-part form `host:port:datastore`. The
+  `proxmox-backup-client` version in use must support the port in the repository spec — document a minimum version.
+- TLS: with `PBS_FINGERPRINT` set, `proxmox-backup-client` checks against the fingerprint; the hostname mismatch
+  (`127.0.0.1` vs. the PBS certificate) is therefore harmless. **→ verify in practice before implementing** (see §9).
 
-### B7 Sichtbarkeit
-- Laufzeitzustand **nur in-memory** (`idle|connecting|up|error`, offene Forwards je Zielrepository, aktive
-  Lease-Anzahl, Wartende in der Warteschlange) → `TUNNEL_UPDATE`-Broadcast ans Dashboard. Persistiert werden
-  ausschließlich `last_used_at` und `last_error` (§B2).
-- Ein separates Health-Probe-Event entfällt: Der TCP-Preflight des `Executor` nach `TUNNEL_ACQUIRE_RESULT` ist der
-  Funktionsnachweis und läuft genau dann, wenn er gebraucht wird.
-- Log-Linie je Lease (`clientId`, `jobId`, `runId`, `leaseId`, Zielrepository, Dauer, übertragene Verbindungen) —
-  die Basis dafür, dass eine Tunnel-Anforderung außerhalb eines geplanten Fensters überhaupt auffallen kann.
+### B7 Visibility
+- Runtime state **in memory only** (`idle|connecting|up|error`, open forwards per target repository, active lease
+  count, waiters in the queue) → a `TUNNEL_UPDATE` broadcast to the dashboard. Only `last_used_at` and `last_error`
+  are persisted (§B2).
+- A separate health probe event is unnecessary: the `Executor`'s TCP preflight after `TUNNEL_ACQUIRE_RESULT` is the
+  proof of function, and it runs exactly when it is needed.
+- One log line per lease (`clientId`, `jobId`, `runId`, `leaseId`, target repository, duration, connections carried)
+  — the basis for a tunnel request outside a scheduled window being noticeable at all.
 
-### B8 Secrets & SSH-Härtung
-- **Nur Key-Auth**, keine SSH-Passwörter (§B2).
-- Private Key und Passphrase verschlüsselt at rest: AES-256-GCM mit einem aus `tunnel.keySecret` abgeleiteten
-  Schlüssel (`crypto.hkdfSync`). Bewusst **nicht** aus `jwtSecret` abgeleitet: Ein JWT-Rotieren würde sonst alle
-  SSH-Keys unlesbar machen. `keySecret` wird beim ersten Start automatisch erzeugt und in die `config.yaml`
-  geschrieben — wie `jwtSecret` heute auch. Nie im Klartext in der DB, nie in API-Responses (Write-only-Feld,
-  Anzeige nur als „gesetzt/nicht gesetzt").
-- Empfohlener Setup-Weg für den Client-Host (in `doc/` dokumentieren):
+### B8 Secrets and SSH hardening
+- **Key auth only**, no SSH passwords (§B2).
+- Private key and passphrase encrypted at rest: AES-256-GCM with a key derived from `tunnel.keySecret`
+  (`crypto.hkdfSync`). Deliberately **not** derived from `jwtSecret`: rotating the JWT would otherwise render every
+  SSH key unreadable. `keySecret` is generated automatically on first start and written into `config.yaml` — the way
+  `jwtSecret` is today. Never in cleartext in the DB, never in API responses (a write-only field, displayed only as
+  "set / not set").
+- Recommended setup path for the client host (to be documented in `doc/`):
   ```
-  # ~/.ssh/authorized_keys auf dem Client-Host
+  # ~/.ssh/authorized_keys on the client host
   restrict,port-forwarding,permitlisten="127.0.0.1:*" ssh-ed25519 AAAA... pbcm-server
   ```
-  `restrict` schaltet Shell/PTY/Agent/X11 ab, `permitlisten` begrenzt den Reverse-Forward auf Loopback. Der
-  Port-Wildcard `*` ist nötig, weil der Port dynamisch vergeben wird (§B6) — laut `man sshd` matcht `*` jeden Port.
-  Die Beschränkung auf `127.0.0.1` bleibt davon unberührt und ist der wesentliche Teil: Der Key kann keinen von
-  außen erreichbaren Listener öffnen.
-  Auf dem Client-Host muss `AllowTcpForwarding yes` (Default) gesetzt sein. `GatewayPorts` wird **nicht** benötigt.
-- Optional Komfort: Server erzeugt auf Wunsch ein Ed25519-Keypair und zeigt den Public Key zum Kopieren an.
-- Host-Key-Pinning: Der Fingerprint wird beim Anlegen ermittelt, dem Bediener **zur Bestätigung angezeigt** (§B3)
-  und dann gepinnt; danach strikte Prüfung. Mismatch → `error` mit deutlicher Meldung, keine Lease.
-- **PBS-seitig** (Empfehlung, unabhängig vom Tunnel): pro Client ein eigener API-Token mit `Datastore.Backup` auf
-  eigenem Namespace und **ohne** `Datastore.Modify`/`Prune` — sonst kann ein übernommener Client genau die Backups
-  löschen, gegen die er absichern soll. Begrenzt den Schaden stärker als jedes Tunnel-Timing.
+  `restrict` disables shell/PTY/agent/X11, `permitlisten` limits the reverse forward to loopback. The port wildcard
+  `*` is required because the port is assigned dynamically (§B6) — per `man sshd`, `*` matches any port. The
+  restriction to `127.0.0.1` is unaffected by that and is the essential part: the key cannot open a listener
+  reachable from outside.
+  `AllowTcpForwarding yes` (the default) has to be set on the client host. `GatewayPorts` is **not** required.
+- Optional convenience: on request the server generates an ed25519 key pair and shows the public key for copying.
+- Host key pinning: the fingerprint is determined at creation, **shown to the operator for confirmation** (§B3) and
+  then pinned; strict checking from then on. A mismatch → `error` with a clear message, and no lease.
+- **On the PBS side** (a recommendation independent of the tunnel): one API token per client with `Datastore.Backup`
+  on its own namespace and **without** `Datastore.Modify`/`Prune` — otherwise a compromised client can delete
+  exactly the backups it is supposed to protect. That limits the damage more than any tunnel timing.
 
 ### B9 API
-- `GET /api/v1/clients/:clientId/tunnel` (ohne Secrets, inkl. Status + aktiver Leases)
-- `PUT /api/v1/clients/:clientId/tunnel` — ändert **nur** die SSH-Credentials. Kein Portfeld, kein Tunnelziel,
-  kein An-/Abschalten, kein Moduswechsel.
-- `POST /api/v1/tunnel/test` — Test mit **übergebenen** SSH-Parametern, ohne DB-Zugriff. Für den Anlege-Assistenten,
-  in dem die Zugangsdaten noch nirgends gespeichert sind. Antwort enthält den Host-Key-Fingerprint zur Bestätigung.
-- `POST /api/v1/clients/:clientId/tunnel/test` — derselbe Test gegen die **hinterlegten** Zugangsdaten, ohne dass
-  der Schlüssel dafür das Backend verlassen muss. Für den „Verbindung testen"-Button im `ClientEditor`.
-- Dashboard-WS: `TUNNEL_UPDATE`-Broadcast.
-- **Entfällt bewusst:** `POST /clients/:id/tunnel` (Anlegen läuft ausschließlich über `POST /clients/outbound`),
-  `DELETE /clients/:id/tunnel` (nur zusammen mit dem Client löschbar) und `tunnel/restart` (kein Dauerzustand).
+- `GET /api/v1/clients/:clientId/tunnel` (without secrets, including status and active leases)
+- `PUT /api/v1/clients/:clientId/tunnel` — changes **only** the SSH credentials. No port field, no tunnel target, no
+  enabling or disabling, no mode switch.
+- `POST /api/v1/tunnel/test` — a test with **submitted** SSH parameters, without DB access. For the creation wizard,
+  where the credentials are not yet stored anywhere. The response contains the host key fingerprint for confirmation.
+- `POST /api/v1/clients/:clientId/tunnel/test` — the same test against the **stored** credentials, without the key
+  having to leave the backend for it. For the "Test connection" button in `ClientEditor`.
+- Dashboard WS: the `TUNNEL_UPDATE` broadcast.
+- **Deliberately omitted:** `POST /clients/:id/tunnel` (creation runs exclusively through `POST /clients/outbound`),
+  `DELETE /clients/:id/tunnel` (deletable only together with the client) and `tunnel/restart` (there is no permanent
+  state).
 
 ### B10 Frontend
-- **Anlege-Assistent** (`ManagedClients`): Schritt 1 Verbindungsart wählen (Inbound/Outbound, danach unveränderlich —
-  mit entsprechendem Hinweis), Schritt 2 bei Outbound zusätzlich SSH-Host/Port/User und privater Schlüssel.
-  „Verbindung testen" ist **Pflicht** vor dem Absenden, weil dabei der Host-Key-Fingerprint angezeigt und aktiv
-  bestätigt werden muss (§B3). Kein Feld für den lokalen Port, keine Passwort-Option, keine Repository-Auswahl.
-- `ClientEditor`: Verbindungsart wird nur **angezeigt**, nicht editiert. Der Abschnitt „SSH-Reverse-Tunnel" erscheint
-  ausschließlich bei Outbound-Clients und erlaubt dort nur die Pflege der SSH-Credentials. „Verbindung testen"
-  arbeitet parameterlos gegen die hinterlegten SSH-Daten. Die aktuell offenen Forwards (Zielrepository → Port) werden als Statusinformation angezeigt, solange Leases
-  bestehen.
-- Status-Badge in `ClientList`/`ClientOverview`: `idle` (bereit) / `up (n aktiv)` / `error` + `last_error` +
-  „zuletzt genutzt", gespeist aus `TUNNEL_UPDATE` über einen neuen Slice in `useClientStore`.
-- Hinweisbanner im Job-Editor, dass das Repository für diesen Client über den On-Demand-Tunnel läuft.
+- **Creation wizard** (`ManagedClients`): step 1, choose the connection mode (inbound/outbound, immutable
+  afterwards — with a corresponding note), step 2, for outbound additionally SSH host/port/user and the private key.
+  "Test connection" is **mandatory** before submitting, because that is when the host key fingerprint is shown and
+  has to be confirmed actively (§B3). No field for the local port, no password option, no repository selection.
+- `ClientEditor`: the connection mode is only **displayed**, not edited. The "SSH reverse tunnel" section appears
+  for outbound clients only and there permits nothing but maintaining the SSH credentials. "Test connection" works
+  without parameters against the stored SSH details. The currently open forwards (target repository → port) are
+  shown as status information for as long as leases exist.
+- Status badge in `ClientList`/`ClientOverview`: `idle` (ready) / `up (n active)` / `error` + `last_error` +
+  "last used", fed from `TUNNEL_UPDATE` through a new slice in `useClientStore`.
+- A note in the job editor that the repository for this client goes through the on-demand tunnel.
 
 ---
 
-## 5. Betroffene Dateien (Übersicht)
+## 5. Files affected (overview)
 
-| Bereich | Neu | Geändert |
+| Area | New | Changed |
 |---|---|---|
 | shared | – | `constants.ts`, `schemas.ts`, `types.ts` |
-| Backend DB | `migrations/04_connection_mode.ts`, `05_client_tunnels.ts` | `core/Database.ts` (Migrationsliste) |
-| Backend Services | `ClientConnector.ts`, `TunnelService.ts`, `services/crypto.ts` | `ProxyService.ts` |
-| Backend Repos | `ClientTunnelRepository.ts` | `ClientRepository.ts` |
-| Backend Controller | `TunnelController.ts` | `WebSocketController.ts`, `ClientController.ts`, `JobController.ts`, `routes/api.ts`, `config/AppConfig.ts`, `index.ts` |
+| Backend DB | `migrations/04_connection_mode.ts`, `05_client_tunnels.ts` | `core/Database.ts` (migration list) |
+| Backend services | `ClientConnector.ts`, `TunnelService.ts`, `services/crypto.ts` | `ProxyService.ts` |
+| Backend repos | `ClientTunnelRepository.ts` | `ClientRepository.ts` |
+| Backend controllers | `TunnelController.ts` | `WebSocketController.ts`, `ClientController.ts`, `JobController.ts`, `routes/api.ts`, `config/AppConfig.ts`, `index.ts` |
 | Client | – | `web/server.ts`, `core/Connection.ts`, `core/Config.ts`, `features/Executor.ts`, `features/Handlers.ts` |
 | Frontend | `components/ClientTunnelSettings.tsx` | `ClientEditor.tsx`, `ClientList.tsx`, `ManagedClients.tsx`, `useClientStore.ts` |
-| Docs | `doc/tunnel.md` (inkl. Testprotokoll §8) | `doc/api.md`, `doc/backend.md`, `doc/client.md`, `doc/install.md`, `CLAUDE.md` |
+| Docs | `doc/tunnel.md` (including the test protocol §8) | `doc/api.md`, `doc/backend.md`, `doc/client.md`, `doc/install.md`, `CLAUDE.md` |
 
-## 6. Umsetzungsreihenfolge
+## 6. Order of implementation
 
-1. **Phase 1 – Shared + Migrationen** (klein, isoliert): WS-Events und Schemas (A1), Migration 04 (A2) und 05 (B2),
-   `ClientRepository`/`ClientTunnelRepository`. Anschließend `npm run build -w shared`.
-2. **Phase 2 – Outbound-WS-Transport** (A1–A5, A7): `ClientConnector`, `handleOutboundAgentConnection`,
-   Client-seitige `/ws/register` + `/ws/agent`. Noch **ohne** das öffentliche Anlege-Endpoint — in dieser Phase
-   werden Testclients per SQL/Skript angelegt.
-3. **Phase 3 – TunnelService, Aufbau/Abbau** (B1, B5) inkl. beider `tunnel/test`-Endpunkte — per REST testbar,
-   ohne Client und ohne Frontend.
-4. **Phase 4 – Atomares Anlegen** (A6, B3): `POST /clients/outbound` in seiner endgültigen Form — erst hier
-   greifen Tunneltest und `firstConnect` ineinander. Setzt Phase 2 **und** 3 voraus, deshalb an dieser Stelle.
-5. **Phase 5 – Lease-Protokoll** (B4): WS-Events, `Connection.request()` im Client, `acquire`/`release` im
-   `Executor` inkl. `finally`-Freigabe.
-6. **Phase 6 – Laufzeit-Substitution** (B6): Marker beim Push, Host/Port-Ersetzung im `Executor`, client-seitige
-   Modus-Gegenprüfung — ab hier läuft ein echtes Backup durch den Tunnel.
-7. **Phase 7 – Frontend** (A8, B10): Anlege-Assistent und Status-Badges.
-8. **Phase 8 – Sichtbarkeit/Logging (B7), Härtung (B8), Doku inkl. Testprotokoll (§8).**
+1. **Phase 1 – shared + migrations** (small, isolated): WS events and schemas (A1), migration 04 (A2) and 05 (B2),
+   `ClientRepository`/`ClientTunnelRepository`. Then `npm run build -w shared`.
+2. **Phase 2 – outbound WS transport** (A1–A5, A7): `ClientConnector`, `handleOutboundAgentConnection`,
+   client-side `/ws/register` + `/ws/agent`. Still **without** the public creation endpoint — in this phase test
+   clients are created via SQL or a script.
+3. **Phase 3 – TunnelService, setup/teardown** (B1, B5) including both `tunnel/test` endpoints — testable over REST,
+   without a client and without the frontend.
+4. **Phase 4 – atomic creation** (A6, B3): `POST /clients/outbound` in its final form — only here do the tunnel test
+   and `firstConnect` interlock. It requires phases 2 **and** 3, hence its position.
+5. **Phase 5 – lease protocol** (B4): WS events, `Connection.request()` in the client, `acquire`/`release` in the
+   `Executor` including the `finally` release.
+6. **Phase 6 – runtime substitution** (B6): the marker at push time, host/port replacement in the `Executor`, the
+   client-side mode counter-check — from here a real backup runs through the tunnel.
+7. **Phase 7 – frontend** (A8, B10): creation wizard and status badges.
+8. **Phase 8 – visibility/logging (B7), hardening (B8), docs including the test protocol (§8).**
 
-Nach Phase 2 und nach Phase 6 jeweils ein sinnvoller Commit-/Review-Punkt. Die Reihenfolge folgt der
-Rahmenbedingung aus §2.1: Weil ein Outbound-Client ohne Tunnel ungültig ist, darf das Anlege-Endpoint erst
-existieren, wenn der `TunnelService` es absichern kann.
+There is a sensible commit and review point after phase 2 and after phase 6. The order follows the constraint from
+§2.1: because an outbound client without a tunnel is invalid, the creation endpoint may only exist once
+`TunnelService` can back it up.
 
-## 7. Neue Abhängigkeit
+## 7. New dependency
 
-`ssh2` + `@types/ssh2` in `server/backend`. Keine Änderung an `Dockerfile.server` nötig
-(nur beim Fallback „System-ssh" käme `openssh-client` dazu).
+`ssh2` + `@types/ssh2` in `server/backend`. No change to `Dockerfile.server` needed (only the "system ssh" fallback
+would add `openssh-client`).
 
-## 8. Manuelles Testprotokoll (`doc/tunnel.md`)
+## 8. Manual test protocol (`doc/tunnel.md`)
 
-Das Projekt hat kein Testframework — diese Checkliste ist das einzige Sicherungsnetz und gehört mit der Umsetzung
-geschrieben. Die ersten vier Punkte decken Fehler ab, die sonst **still** bleiben:
+The project has no test framework — this checklist is the only safety net and belongs with the implementation. The
+first four items cover failures that otherwise stay **silent**:
 
-1. **Lease-Leak nach Client-Absturz:** Client während eines Laufs hart killen (`kill -9`) → WS-Disconnect muss alle
-   Leases dieses Clients verwerfen, Tunnel schließt nach `idleGraceMs`.
-2. **Portwechsel nach Reconnect:** SSH-Verbindung während eines Laufs unterbrechen (Firewall-Regel) → Lease wird
-   verworfen, Lauf scheitert mit klarer Meldung, kein Zugriff auf einen toten Port.
-3. **Atomares Anlegen mit Fehlschlag:** Anlegen mit gültigen SSH-Daten, aber falschem Registrierungs-Secret → keine
-   Zeile in `clients` und keine in `client_tunnels`; Fehlermeldung nennt das verbrauchte Secret (Risiko 11).
-4. **Parallele Jobs:** Zwei Jobs desselben Clients gleichzeitig starten → genau **eine** SSH-Verbindung, ein Forward
-   je Zielrepository, beide Läufe erfolgreich, Tunnel schließt erst nach dem zweiten Release.
-5. **Mehrere Repositories:** Zwei Jobs eines Clients gegen zwei verschiedene PBS-Instanzen → zwei Forwards, zwei
-   verschiedene Ports, beide Backups landen im richtigen Datastore.
-6. **Fremde `jobId`:** Manipuliertes `TUNNEL_ACQUIRE` mit der `jobId` eines anderen Clients → Ablehnung, Logeintrag.
-7. **Obergrenze:** `maxConcurrentTunnels` testweise auf 1 setzen, zwei Clients gleichzeitig starten → der zweite
-   wartet und läuft danach durch, statt zu scheitern.
-8. **Inbound unberührt:** Ein bestehender Inbound-Client sichert nach der Migration unverändert direkt zum PBS.
+1. **Lease leak after a client crash:** kill the client hard during a run (`kill -9`) → the WS disconnect must drop
+   all leases of that client, the tunnel closes after `idleGraceMs`.
+2. **Port change after reconnect:** interrupt the SSH connection during a run (a firewall rule) → the lease is
+   dropped, the run fails with a clear message, no access to a dead port.
+3. **Atomic creation with a failure:** create with valid SSH details but the wrong registration secret → no row in
+   `clients` and none in `client_tunnels`; the error message names the consumed secret (risk 11).
+4. **Parallel jobs:** start two jobs of the same client at once → exactly **one** SSH connection, one forward per
+   target repository, both runs succeed, the tunnel closes only after the second release.
+5. **Multiple repositories:** two jobs of one client against two different PBS instances → two forwards, two
+   different ports, both backups land in the right datastore.
+6. **Foreign `jobId`:** a tampered `TUNNEL_ACQUIRE` carrying another client's `jobId` → rejected, with a log entry.
+7. **Upper limit:** set `maxConcurrentTunnels` to 1 for the test, start two clients at once → the second waits and
+   then runs through, rather than failing.
+8. **Inbound untouched:** an existing inbound client backs up directly to the PBS after the migration, unchanged.
 
-## 9. Offene Punkte / Risiken
+## 9. Open points / risks
 
-1. **Mindestversion `proxmox-backup-client`:** Durch den dynamischen Port hat `PBS_REPOSITORY` immer die Form
-   `user!token@127.0.0.1:<port>:datastore`. Die Port-Angabe in der Repository-Spec wird als gegeben vorausgesetzt
-   (so entschieden); die konkrete Mindestversion ist zu ermitteln und in `doc/install.md` zu dokumentieren.
-2. **Fingerprint vs. Hostname:** Annahme ist, dass `PBS_FINGERPRINT` die Hostname-Prüfung ersetzt. Einmal manuell
-   gegen einen echten PBS testen — davon hängt ab, ob die Substitution auf `127.0.0.1` überhaupt trägt.
-3. **Outbound-Clients ohne Server sichern nicht** (§2.1): Ohne WS-Verbindung keine Lease, ohne Lease kein Tunnel,
-   und einen Fallback auf Direktverbindung gibt es konstruktiv nicht. Geplante Backups schlagen sofort und mit
-   klarer Meldung fehl. Der Server muss zu den Backup-Zeiten laufen — das gehört prominent in die Betriebsdoku,
-   nicht in eine Fußnote.
-4. **`allowed_ip`-Semantik:** Migration 04 benennt um; alle Lesestellen (`findByToken`, `handleAgentConnection`,
-   `networkUtils`) müssen mitgezogen werden, sonst brechen bestehende Inbound-Clients.
-5. **Secret-Verschlüsselung hängt an `tunnel.keySecret`** (§B8): Geht der Wert verloren oder wird er ersetzt, sind
-   die hinterlegten SSH-Keys nicht mehr entschlüsselbar. Durch die Entkopplung von `jwtSecret` ist das kein
-   Nebeneffekt einer JWT-Rotation mehr, bleibt aber ein Backup-relevanter Wert der `config.yaml`.
-   → dokumentieren, Fehlermeldung „Tunnel-Credentials nicht entschlüsselbar, bitte neu hinterlegen".
-6. **Portwechsel bei Tunnel-Wiederaufbau:** Jeder Neuaufbau vergibt einen neuen Port. Leases dürfen deshalb nicht
-   über einen Reconnect hinweg als gültig gelten — sonst arbeitet ein Lauf gegen einen Port, den es nicht mehr gibt
-   (§B5).
-7. **Nicht freigegebene Leases:** Ein Absturz des Clients mitten im Lauf lässt die Lease stehen. Absicherung
-   dreifach: `finally`-Release im `Executor`, Verwerfen aller Leases beim WS-Disconnect, `maxLeaseMs` als Not-Aus.
-   Diese drei Pfade sind der wichtigste Testfall der Umsetzung.
-8. **Timing/Race beim Jobstart:** Zwischen `TUNNEL_ACQUIRE_RESULT` und dem ersten TCP-Connect des
-   `proxmox-backup-client` liegt der Reverse-Forward-Aufbau. Der TCP-Preflight im `Executor` ist deshalb Pflicht,
-   nicht optional — sonst scheitert der erste Lauf nach einer Idle-Phase sporadisch.
-9. **Neuer Kontrollpfad Client → Server:** `TUNNEL_ACQUIRE` darf kein Ziel tragen, die `jobId` muss gegen den
-   anfragenden Client geprüft werden (Kasten in §4), und die Anforderung muss rate-limitiert sein — sonst wird aus
-   dem Feature ein Pivot bzw. ein DoS-Vektor auf die SSH-Verbindungen.
-10. **Kein Moduswechsel = Historienverlust bei Umstellung:** Wer einen bestehenden Inbound-Client auf Tunnelbetrieb
-    umstellen will, muss ihn löschen und neu anlegen; die an der Client-ID hängenden `job_history`-Einträge gehen
-    dabei verloren. Bewusst so entschieden — in `doc/` und in der Lösch-Bestätigung des Frontends deutlich machen.
-11. **Teilweise angelegte Clients:** Der atomare Anlegevorgang (§B3) hat zwei Außenwirkungen, die eine DB-Transaktion
-    nicht zurückrollt — der Client hat nach `firstConnect` bereits einen `authToken` persistiert, und der
-    Registrierungs-Secret ist dort verbraucht. Scheitert danach der DB-Write, muss der Bediener am Client-Host ein
-    neues Secret setzen. Fehlermeldung entsprechend formulieren.
+1. **Minimum `proxmox-backup-client` version:** because of the dynamic port, `PBS_REPOSITORY` always has the form
+   `user!token@127.0.0.1:<port>:datastore`. The port in the repository spec is taken as given (decided so); the
+   concrete minimum version has to be determined and documented in `doc/install.md`.
+2. **Fingerprint vs. hostname:** the assumption is that `PBS_FINGERPRINT` replaces the hostname check. Test this
+   once by hand against a real PBS — whether the substitution to `127.0.0.1` holds up at all depends on it.
+3. **Outbound clients do not back up without the server** (§2.1): no WS connection means no lease, no lease means no
+   tunnel, and there is deliberately no fallback to a direct connection. Scheduled backups fail immediately and with
+   a clear message. The server has to be running at backup time — that belongs prominently in the operations
+   documentation, not in a footnote.
+4. **`allowed_ip` semantics:** migration 04 renames it; all read sites (`findByToken`, `handleAgentConnection`,
+   `networkUtils`) have to follow, or existing inbound clients break.
+5. **Secret encryption hangs off `tunnel.keySecret`** (§B8): if the value is lost or replaced, the stored SSH keys
+   can no longer be decrypted. Decoupling it from `jwtSecret` means this is no longer a side effect of a JWT
+   rotation, but it remains a backup-relevant value in `config.yaml`.
+   → document it, error message "Cannot decrypt tunnel credentials — store them again".
+6. **Port change when the tunnel is re-established:** every new setup assigns a new port. Leases must therefore not
+   count as valid across a reconnect — otherwise a run works against a port that no longer exists (§B5).
+7. **Leases that are never released:** a client crashing mid-run leaves the lease standing. Three safeguards: the
+   `finally` release in the `Executor`, dropping all leases on WS disconnect, and `maxLeaseMs` as the kill switch.
+   These three paths are the most important test case of the implementation.
+8. **Timing/race at job start:** between `TUNNEL_ACQUIRE_RESULT` and the first TCP connect of
+   `proxmox-backup-client` lies the reverse forward setup. The TCP preflight in the `Executor` is therefore
+   mandatory, not optional — otherwise the first run after an idle period fails sporadically.
+9. **A new control path client → server:** `TUNNEL_ACQUIRE` must carry no target, the `jobId` has to be checked
+   against the requesting client (the box in §4), and the request has to be rate limited — otherwise the feature
+   turns into a pivot, or a DoS vector against the SSH connections.
+10. **No mode switch = loss of history when converting:** anyone wanting to move an existing inbound client to
+    tunnel operation has to delete and re-create it; the `job_history` entries hanging off the client ID are lost in
+    the process. Decided deliberately — make it clear in `doc/` and in the frontend's delete confirmation.
+11. **Partially created clients:** the atomic creation (§B3) has two outward effects that a DB transaction does not
+    roll back — after `firstConnect` the client has already persisted an `authToken`, and the registration secret is
+    consumed there. If the DB write fails afterwards, the operator has to set a new secret on the client host. Word
+    the error message accordingly.

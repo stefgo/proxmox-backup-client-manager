@@ -1,5 +1,5 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard } from '@stefgo/react-ui-components';
@@ -72,17 +72,28 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     // Init Data & Subscriptions
     useEffect(() => {
-        if (client && token) {
+        if (client.id && token) {
             fetchClientData(client.id);
             fetchRepositories();
         }
-    }, [client, token]);
+    }, [client.id, token, fetchClientData, fetchRepositories]);
+
+    // Which repositories exist, not the array holding them: fetchRepositories kicks
+    // off a checkRepositoryStatus per repository, and each of those replaces the
+    // array. Depending on the reference reloaded every snapshot once per repository,
+    // and each reload is itself one request per repository.
+    const repositoryIds = useMemo(
+        () => repositories.map((r) => r.id).join(","),
+        [repositories],
+    );
 
     useEffect(() => {
-        if (client && token && repositories.length > 0) {
+        if (client.id && token && repositories.length > 0) {
             fetchClientSnapshots(client.id, repositories);
         }
-    }, [client, token, repositories]);
+        // repositoryIds deliberately stands in for repositories -- see above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [client.id, token, repositoryIds, fetchClientSnapshots]);
 
     useClientSubscription(client.id, (job) => {
         if (job.status === JOB_STATUS.SUCCESS && token) {
@@ -97,13 +108,17 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     });
 
     // File Browser Sync
-    // useClientFileSystem hook already destructured above
-    // store.fetchFileList is available.
     useEffect(() => {
-        if (jobForm.isCreatingJob && client && token) {
+        if (jobForm.isCreatingJob && client.id && token) {
             fetchFileList(client.id, jobForm.fileBrowserPath);
         }
-    }, [jobForm.isCreatingJob, jobForm.fileBrowserPath, client, token]);
+    }, [
+        jobForm.isCreatingJob,
+        jobForm.fileBrowserPath,
+        client.id,
+        token,
+        fetchFileList,
+    ]);
 
 
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
