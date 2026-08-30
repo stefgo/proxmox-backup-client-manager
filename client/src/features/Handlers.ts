@@ -138,13 +138,17 @@ export class Handlers {
                 nextRunAt,
                 repository,
                 encryption,
+                tunnel,
             } = payload.job;
             const jobId = id || randomUUID();
 
+            // The tunnel marker must survive in the stored config: the executor reads it
+            // from there before a run and refuses to start an outbound job without it.
             const configObj = {
                 archives: archives || [],
                 repository: repository || undefined,
                 encryption: encryption || undefined,
+                tunnel: tunnel || undefined,
             };
             const configStr = JSON.stringify(configObj);
 
