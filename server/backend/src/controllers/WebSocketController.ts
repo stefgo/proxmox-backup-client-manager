@@ -156,10 +156,13 @@ export class WebSocketController {
         const trustedNetworks = appConfig.security?.trusted_networks || [];
         const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
 
-        if (!isTrusted && client.allowed_ip !== clientIp) {
+        // Outbound clients are dialed BY the server and have no registered IP to pin against.
+        const isInbound = client.connection_mode !== "outbound";
+
+        if (isInbound && !isTrusted && client.inbound_registered_ip !== clientIp) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
-                expected: client.allowed_ip,
+                expected: client.inbound_registered_ip,
                 actual: clientIp,
                 clientId: client.id,
             });
