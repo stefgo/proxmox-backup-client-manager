@@ -101,6 +101,11 @@ export class Executor {
      * The script is executed with two arguments: the operation type (backup/restore) and the job name.
      * Script output (stdout/stderr) is streamed to the server via WebSocket.
      *
+     * scriptPath is executed directly, without a shell. It must therefore be an
+     * executable file (shebang plus +x); a config value containing shell syntax
+     * ("bash foo.sh", pipes, redirects) is not interpreted. Running it through a
+     * shell would splice the server-supplied job name into the command line.
+     *
      * @param scriptPath - The path to the script to execute.
      * @param type - The operation type ('backup' or 'restore').
      * @param jobName - The name of the job.
@@ -125,7 +130,7 @@ export class Executor {
         return new Promise((resolve) => {
             try {
                 const child = spawn(scriptPath, [type, jobName], {
-                    shell: true,
+                    shell: false,
                     env: { ...process.env },
                 });
 
