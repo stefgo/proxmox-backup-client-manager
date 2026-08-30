@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -18,18 +18,24 @@ export const ManagedJobs = () => {
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
-    const { repositories, fetchRepositories } = useRepositoryStore();
+    // Only the action: the repository list itself is read through getState() below,
+    // so this view no longer re-renders on every repository status change.
+    const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
 
     const [isEditing, setIsEditing] = useState(false);
     const [editingJob, setEditingJob] = useState<GlobalJob | null>(null);
 
     useEffect(() => {
-        if (token) {
-            fetchAllJobs();
-            if (clients.length === 0) fetchClients();
-            if (repositories.length === 0) fetchRepositories();
+        if (!token) return;
+        fetchAllJobs();
+        // Read the two stores through getState() rather than the subscribed values:
+        // this only fills them if they are still empty, and depending on their
+        // contents would re-run fetchAllJobs the moment they arrive.
+        if (useClientStore.getState().clients.length === 0) fetchClients();
+        if (useRepositoryStore.getState().repositories.length === 0) {
+            fetchRepositories();
         }
-    }, [token]);
+    }, [token, fetchAllJobs, fetchClients, fetchRepositories]);
 
     useGlobalSubscription();
 
@@ -157,15 +163,21 @@ const JobsEditorWrapper = ({
         onSaveSuccess: onSaveSuccess,
     });
 
+    // Seeds the form from the selected job exactly once. Neither jobForm nor
+    // startEditJob keeps its identity across renders, so there is no honest
+    // dependency array to write here -- the guard does the job instead.
+    const seeded = useRef(false);
     useEffect(() => {
+        if (seeded.current) return;
+        seeded.current = true;
         jobForm.startEditJob(job);
-    }, []); // Run once on mount
+    });
 
     useEffect(() => {
         if (token && job.clientId) {
             fetchFileList(job.clientId, jobForm.fileBrowserPath);
         }
-    }, [jobForm.fileBrowserPath, token]);
+    }, [jobForm.fileBrowserPath, token, job.clientId, fetchFileList]);
 
     const customSetIsCreatingJob = (
         val: boolean | ((prevState: boolean) => boolean),

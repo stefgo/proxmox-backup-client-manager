@@ -72,7 +72,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
         if (selectedClientId && token) {
             fetchFileList(selectedClientId, browserPath);
         }
-    }, [selectedClientId, browserPath, token]);
+    }, [selectedClientId, browserPath, token, fetchFileList]);
 
     const handleRestore = async () => {
         setError(null);

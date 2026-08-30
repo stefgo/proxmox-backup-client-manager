@@ -33,7 +33,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         if (repo && token) {
             fetchSnapshots(repo);
         }
-    }, [repo, token]);
+    }, [repo, token, fetchSnapshots]);
 
     // Fetch Clients needed for restore if not already loaded
     useEffect(() => {
