@@ -61,7 +61,7 @@ export class ClientConnector {
             ? { ok: true }
             : {
                   ok: false,
-                  error: "Die Registrierung war erfolgreich, aber die anschließende Agent-Verbindung (AUTH) kam nicht zustande.",
+                  error: "Registration succeeded, but the agent connection (AUTH) that follows it was never established.",
               };
     }
 
@@ -71,13 +71,13 @@ export class ClientConnector {
         reason: string,
     ): string {
         if (code === 4003 && reason === "Already registered") {
-            return "Der Client ist bereits registriert (authToken in seiner config.yaml). Vor einer Neuanlage am Client-Host den authToken entfernen und ein neues registrationSecret setzen.";
+            return "The client is already registered (authToken in its config.yaml). To add it again, remove the authToken on the client host and set a new registrationSecret.";
         }
         if (code === 4003 && reason === "No registration secret configured") {
-            return "Am Client-Host ist kein registrationSecret konfiguriert. Bitte in der config.yaml des Agents setzen und den Agent neu starten.";
+            return "No registrationSecret is configured on the client host. Set one in the agent's config.yaml and restart the agent.";
         }
         if (code === 4003) {
-            return "Der Client hat das Registrierungs-Secret abgelehnt.";
+            return "The client rejected the registration secret.";
         }
         return `Der Client hat die Registrierungsverbindung beendet (Code ${code}${
             reason ? `: ${reason}` : ""
@@ -131,7 +131,7 @@ export class ClientConnector {
                 logger.warn("ClientConnector: registration timed out");
                 finish(
                     null,
-                    "Zeitüberschreitung bei der Registrierung — der Client hat nicht geantwortet.",
+                    "Registration timed out — the client did not answer.",
                 );
                 ws.terminate();
             }, HANDSHAKE_TIMEOUT_MS);
@@ -159,8 +159,8 @@ export class ClientConnector {
                         finish(
                             null,
                             message?.payload?.error
-                                ? `Der Client hat die Registrierung abgelehnt: ${message.payload.error}`
-                                : "Der Client hat das Registrierungs-Secret abgelehnt.",
+                                ? `The client rejected the registration: ${message.payload.error}`
+                                : "The client rejected the registration secret.",
                         );
                         ws.close();
                     }
@@ -171,7 +171,7 @@ export class ClientConnector {
                     );
                     finish(
                         null,
-                        "Ungültige Antwort des Clients auf die Registrierung.",
+                        "Invalid response from the client to the registration.",
                     );
                     ws.close();
                 }
@@ -184,7 +184,7 @@ export class ClientConnector {
                 );
                 finish(
                     null,
-                    `Registrierungsverbindung fehlgeschlagen: ${err.message}`,
+                    `Registration connection failed: ${err.message}`,
                 );
             });
 

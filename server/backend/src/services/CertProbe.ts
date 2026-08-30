@@ -66,7 +66,7 @@ function handshake(
                 notAfter: cert?.valid_to,
             });
         });
-        socket.once("timeout", () => fail(new Error("Zeitüberschreitung")));
+        socket.once("timeout", () => fail(new Error("Timed out")));
         socket.once("error", fail);
     });
 }
@@ -88,7 +88,7 @@ export async function probeCertificate(
         return {
             reachable: false,
             caValid: false,
-            error: `Ungültige Repository-Adresse: ${baseUrl}`,
+            error: `Invalid repository address: ${baseUrl}`,
         };
     }
     const { host, port } = endpoint;

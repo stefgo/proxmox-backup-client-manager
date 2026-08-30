@@ -42,7 +42,7 @@ export class TunnelController {
         if (!row) {
             return reply
                 .code(404)
-                .send({ error: "Für diesen Client ist kein SSH-Tunnel hinterlegt" });
+                .send({ error: "No SSH tunnel is configured for this client" });
         }
 
         return {
@@ -73,18 +73,18 @@ export class TunnelController {
         }
         if (client.connection_mode !== "outbound") {
             return reply.code(400).send({
-                error: "Nur Outbound-Clients besitzen einen SSH-Tunnel",
+                error: "Only outbound clients have an SSH tunnel",
             });
         }
         if (!ClientTunnelRepository.findByClientId(clientId)) {
             return reply
                 .code(404)
-                .send({ error: "Für diesen Client ist kein SSH-Tunnel hinterlegt" });
+                .send({ error: "No SSH tunnel is configured for this client" });
         }
 
         const info = ClientTunnelRepository.update(clientId, body);
         if (info.changes === 0) {
-            return reply.code(400).send({ error: "Keine Änderungen übergeben" });
+            return reply.code(400).send({ error: "No changes submitted" });
         }
 
         // New credentials must not be used by an existing connection.
@@ -102,7 +102,7 @@ export class TunnelController {
 
         if (!body.sshHost || !body.sshUser || !body.privateKey) {
             return reply.code(400).send({
-                error: "sshHost, sshUser und privateKey sind erforderlich",
+                error: "sshHost, sshUser and privateKey are required",
             });
         }
 
@@ -135,7 +135,7 @@ export class TunnelController {
             };
         } catch (e) {
             return reply.code(500).send({
-                error: `Schlüsselpaar konnte nicht erzeugt werden: ${
+                error: `Could not generate key pair: ${
                     e instanceof Error ? e.message : String(e)
                 }`,
             });
@@ -150,13 +150,13 @@ export class TunnelController {
         const body = (request.body ?? {}) as PublicKeyBody;
 
         if (!body.privateKey) {
-            return reply.code(400).send({ error: "privateKey ist erforderlich" });
+            return reply.code(400).send({ error: "privateKey is required" });
         }
 
         const parsed = ssh2.utils.parseKey(body.privateKey, body.passphrase);
         if (parsed instanceof Error) {
             return reply.code(400).send({
-                error: `Privater Schlüssel konnte nicht gelesen werden: ${parsed.message}`,
+                error: `Could not read the private key: ${parsed.message}`,
             });
         }
 
@@ -187,7 +187,7 @@ export class TunnelController {
         if (!creds) {
             return reply
                 .code(404)
-                .send({ error: "Für diesen Client ist kein SSH-Tunnel hinterlegt" });
+                .send({ error: "No SSH tunnel is configured for this client" });
         }
 
         return TunnelService.testConnection({

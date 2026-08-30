@@ -36,7 +36,7 @@ export function encryptSecret(plain: string): string {
 export function decryptSecret(stored: string): string {
     const parts = stored.split(":");
     if (parts.length !== 3) {
-        throw new Error("Tunnel-Credentials nicht entschlüsselbar (Formatfehler)");
+        throw new Error("Cannot decrypt tunnel credentials (malformed)");
     }
     const [ivHex, tagHex, dataHex] = parts;
     try {
@@ -52,7 +52,7 @@ export function decryptSecret(stored: string): string {
         ]).toString("utf8");
     } catch {
         throw new Error(
-            "Tunnel-Credentials nicht entschlüsselbar, bitte neu hinterlegen",
+            "Cannot decrypt tunnel credentials — store them again",
         );
     }
 }
