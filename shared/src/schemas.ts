@@ -1,6 +1,12 @@
 import { z } from "zod";
 
 export const RepositorySchema = z.object({
+    /**
+     * Id of the managed repository this copy was taken from. Optional because jobs
+     * stored before the id was introduced do not carry it; ProxyService backfills
+     * those on the next client connect.
+     */
+    repositoryId: z.string().optional(),
     baseUrl: z.url(),
     datastore: z.string().min(1),
     fingerprint: z.string().optional(),
@@ -292,7 +298,23 @@ export const TunnelAcquireResultSchema = z.object({
     leaseId: z.string().optional(),
     bindHost: z.string().optional(),
     bindPort: z.number().optional(),
+    /**
+     * Fingerprint to pin for this run. Tunneled clients reach the PBS as 127.0.0.1 and
+     * can never validate it themselves, so the server measures it and passes it along.
+     */
+    fingerprint: z.string().optional(),
     error: z.string().optional(),
+});
+
+/**
+ * A client reporting the certificate fingerprint it measured. Purely informational —
+ * the server logs it and never adopts it as the new target value.
+ */
+export const FingerprintObservedSchema = z.object({
+    repositoryId: z.string().optional(),
+    baseUrl: z.string(),
+    fingerprint: z.string(),
+    caValid: z.boolean(),
 });
 
 export const TunnelReleaseSchema = z.object({

@@ -77,6 +77,15 @@ export class JobRepository {
         ).run(id, name, config, scheduleEnabled, schedule);
     }
 
+    /**
+     * Replaces only the config blob. Used when a run corrects a stale value inside it
+     * (currently the PBS fingerprint) — going through upsert would require restating
+     * the schedule columns and risk overwriting them with stale copies.
+     */
+    static updateConfig(id: string, config: string): void {
+        db.prepare("UPDATE job SET config = ? WHERE id = ?").run(config, id);
+    }
+
     static delete(id: string): void {
         db.prepare("DELETE FROM job WHERE id = ?").run(id);
     }

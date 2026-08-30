@@ -1,5 +1,5 @@
 import net from "net";
-import { WS_EVENTS } from "@pbcm/shared";
+import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
 import { config, isOutboundMode } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
@@ -8,6 +8,12 @@ export interface TunnelLease {
     leaseId: string;
     bindHost: string;
     bindPort: number;
+    /**
+     * Fingerprint to pin for this run, measured by the server. A tunneled run reaches
+     * the PBS as 127.0.0.1, so the hostname check can never succeed and this pin is the
+     * only trust anchor left — it has to be current, which a stored copy would not be.
+     */
+    fingerprint?: string;
 }
 
 /**
@@ -68,6 +74,7 @@ export class TunnelClient {
             leaseId: result.leaseId,
             bindHost: result.bindHost || "127.0.0.1",
             bindPort: result.bindPort,
+            fingerprint: result.fingerprint,
         };
 
         // The forward is set up on the far side of the SSH connection, so the listener
@@ -104,19 +111,21 @@ export class TunnelClient {
      * Builds the PBS_REPOSITORY value. With a lease, host and port are replaced by the
      * loopback endpoint of the reverse forward — everything else (user, token, datastore)
      * stays untouched, and the stored job keeps the real PBS URL.
+     *
+     * The port is always spelled out. Omitting it would hand the decision to
+     * proxmox-backup-client, which assumes 8007 on its own — and the server resolves the
+     * very same URL to the protocol default, so the two would silently disagree about
+     * which endpoint the run is talking to.
      */
     static buildRepositoryValue(repo: any, lease?: TunnelLease): string {
         let hostStr = "";
         if (lease) {
             hostStr = `${lease.bindHost}:${lease.bindPort}`;
         } else {
-            try {
-                const u = new URL(repo.baseUrl);
-                hostStr = u.hostname;
-                if (u.port) hostStr += ":" + u.port;
-            } catch (e) {
-                hostStr = repo.baseUrl;
-            }
+            const endpoint = parseRepositoryEndpoint(repo.baseUrl);
+            hostStr = endpoint
+                ? `${endpoint.host}:${endpoint.port}`
+                : repo.baseUrl;
         }
         return `${repo.username}!${repo.tokenname}@${hostStr}:${repo.datastore}`;
     }

@@ -152,6 +152,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/repositories/:repositoryId/snapshots",
                     RepositoryController.listSnapshots,
                 );
+                protectedRoutes.get(
+                    "/repositories/:repositoryId/certificate",
+                    RepositoryController.probeCertificate,
+                );
+                protectedRoutes.post(
+                    "/repositories/:repositoryId/distribute",
+                    RepositoryController.distribute,
+                );
 
                 // Registration Tokens
                 protectedRoutes.get("/tokens", TokenController.list);

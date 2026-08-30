@@ -2,6 +2,22 @@ import { create } from "zustand";
 import { ManagedRepository as Repository } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 
+export interface CertificateCheck {
+    storedFingerprint: string | null;
+    measuredFingerprint: string | null;
+    matches: boolean;
+    caValid: boolean;
+    reachable: boolean;
+    notAfter: string | null;
+    error: string | null;
+}
+
+export interface DistributeResult {
+    updated: { clientId: string; jobId: string; jobName: string }[];
+    failed: { clientId: string; jobId: string; error: string }[];
+    skippedOffline: { clientId: string; hostname: string }[];
+}
+
 interface RepositoriesState {
     repositories: Repository[];
     isLoading: boolean;
@@ -19,6 +35,14 @@ interface RepositoriesState {
         id: string | number,
         token: string,
     ) => Promise<void>;
+    probeCertificate: (
+        id: string | number,
+        token: string,
+    ) => Promise<CertificateCheck>;
+    distributeFingerprint: (
+        id: string | number,
+        token: string,
+    ) => Promise<DistributeResult>;
 }
 
 export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
@@ -83,6 +107,29 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
                 ),
             }));
         }
+    },
+
+    probeCertificate: async (id, token) => {
+        const res = await fetch(`/api/v1/repositories/${id}/certificate`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Zertifikatsprüfung fehlgeschlagen");
+        }
+        return (await res.json()) as CertificateCheck;
+    },
+
+    distributeFingerprint: async (id, token) => {
+        const res = await fetch(`/api/v1/repositories/${id}/distribute`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Verteilen fehlgeschlagen");
+        }
+        return (await res.json()) as DistributeResult;
     },
 
     addRepository: async (repo, token) => {

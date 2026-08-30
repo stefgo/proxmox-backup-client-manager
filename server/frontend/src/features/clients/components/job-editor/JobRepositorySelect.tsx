@@ -47,6 +47,9 @@ export const JobRepositorySelect = ({
 
     const handleSelect = (repo: Repository) => {
         onSelect({
+            // Carried into the job so the server can tell which managed repository this
+            // copy came from — needed to push an updated fingerprint later.
+            repositoryId: String(repo.id),
             baseUrl: repo.baseUrl,
             datastore: repo.datastore,
             fingerprint: repo.fingerprint,
