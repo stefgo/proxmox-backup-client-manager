@@ -1,205 +1,201 @@
-# SSH-Reverse-Tunnel & Outbound-Clients
+# SSH Reverse Tunnel & Outbound Clients
 
-Wie Clients angebunden werden, die den Proxmox Backup Server nicht selbst erreichen.
+How to connect clients that cannot reach the Proxmox Backup Server themselves.
 
-## Überblick
+## Overview
 
-PBCM kennt zwei Verbindungsarten. Sie wird beim Anlegen eines Clients **einmalig festgelegt
-und ist danach nicht mehr änderbar**; sie bestimmt zugleich den Weg zum PBS:
+PBCM knows two connection modes. The mode is **fixed when a client is created and cannot be
+changed afterwards**; it also determines the route to the PBS:
 
-| `connection_mode` | WebSocket | Weg zum PBS |
+| `connection_mode` | WebSocket | Route to the PBS |
 |---|---|---|
-| `inbound` | Client verbindet sich zum Server (Standard) | direkt |
-| `outbound` | Server verbindet sich zum Client | **immer** über den SSH-Reverse-Tunnel |
+| `inbound` | client dials the server (default) | direct |
+| `outbound` | server dials the client | **always** through the SSH reverse tunnel |
 
 ```
-            ssh (Server ist SSH-Client)          Client-Host (sshd)
+            ssh (server is the SSH client)       client host (sshd)
  ┌───────────────┐  ──────────────────────────►  ┌──────────────────────┐
- │  PBCM-Server  │                               │  pbcm-client         │
+ │  PBCM server  │                               │  pbcm-client         │
  │               │  ws  ─────────────────────►   │  :3001 /ws/agent     │
  │               │                               │                      │
- │               │  ◄── Reverse-Forward ────────  │ 127.0.0.1:<dyn>      │  ← proxmox-backup-client
+ │               │  ◄── reverse forward ────────  │ 127.0.0.1:<dyn>      │  ← proxmox-backup-client
  └──────┬────────┘    (-R 127.0.0.1:0:pbs:8007)  └──────────────────────┘
         │ https
         ▼
    ┌──────────┐
-   │   PBS    │   (nur vom Server erreichbar)
+   │   PBS    │   (reachable from the server only)
    └──────────┘
 ```
 
-Der Client-Host braucht keine Route zum PBS. Der Tunnel steht **nicht dauerhaft**: Der Client
-fordert ihn unmittelbar vor einem Lauf an und gibt ihn danach wieder frei.
+The client host needs no route to the PBS. The tunnel is **not permanent**: the client
+requests it right before a run and releases it afterwards.
 
-## Einrichtung
+## Setup
 
-### 1. Client-Host vorbereiten
+### 1. Prepare the client host
 
-Der Wizard „Outbound-Client hinzufügen" unterstützt beides. Unter **Schlüssel** wählt man
-zwischen *Schlüssel erzeugen lassen* — ein ed25519-Schlüssel ohne Passphrase, weil der Server
-ihn unbeaufsichtigt nutzt — und *Eigenen Schlüssel einfügen*. Der private Schlüssel wird nur
-gespeichert, nie wieder ausgegeben; für einen Wechsel erzeugt man im Client-Editor einen neuen.
+The "Add Outbound Client" wizard supports both paths. Under **Key** you choose between
+*Generate a key* — an ed25519 key without a passphrase, because the server uses it unattended —
+and *Paste your own key*. The private key is only stored, never handed back out; to replace it,
+generate a new one in the client editor.
 
-Darunter liefert der optionale, zugeklappte Abschnitt **Einrichtung auf dem Client-Host** einen
-kopierbaren Befehlsblock — für beide Wege gleichermaßen, da der öffentliche Teil bei Bedarf aus
-dem eingetragenen Schlüssel abgeleitet wird. Er muss auf dem Client-Host ausgeführt sein,
-**bevor** „Verbindung testen" erfolgreich sein kann.
+Below that, the optional collapsed section **Client host setup** provides a copyable block of
+commands — the same for both paths, since the public part is derived from the stored key when
+needed. It must have been run on the client host **before** "Test Connection" can succeed.
 
-Manuell entspricht das folgendem Eintrag auf dem Client-Host:
+Done by hand, this is the following entry on the client host:
 
 ```
 # ~/.ssh/authorized_keys
 restrict,port-forwarding,permitlisten="127.0.0.1:*" ssh-ed25519 AAAA... pbcm-server
 ```
 
-- `restrict` schaltet Shell, PTY, Agent- und X11-Forwarding ab.
-- `permitlisten="127.0.0.1:*"` erlaubt Reverse-Forwards ausschließlich auf Loopback. Der
-  Port-Wildcard ist nötig, weil der Port dynamisch vergeben wird.
-- In der `sshd_config` muss `AllowTcpForwarding yes` gesetzt sein (Standard).
-  `GatewayPorts` wird **nicht** benötigt.
+- `restrict` disables shell, PTY, agent and X11 forwarding.
+- `permitlisten="127.0.0.1:*"` permits reverse forwards on loopback only. The port wildcard is
+  required because the port is assigned dynamically.
+- `sshd_config` needs `AllowTcpForwarding yes`, which is the default. `GatewayPorts` is
+  **not** required.
 
-### 2. Agent konfigurieren
+### 2. Configure the agent
 
-In der `config.yaml` des Agents ein Einmal-Secret setzen und **keine** `serverUrl` eintragen:
+Set a one-time secret in the agent's `config.yaml` and leave `serverUrl` **unset**:
 
 ```yaml
-registrationSecret: "<zufälliges Secret>"
-tunnelAcquireJitterSeconds: 30   # 0 schaltet die Verzögerung ab
+registrationSecret: "<random secret>"
+tunnelAcquireJitterSeconds: 30   # 0 disables the delay
 ```
 
-Der Agent erkennt daran den Outbound-Modus, verbindet sich nicht selbst zum Server und stellt
-stattdessen `/ws/register` und `/ws/agent` auf Port 3001 bereit. Nach erfolgreicher
-Registrierung wird das Secret aus der Konfiguration entfernt.
+From this the agent infers outbound mode: it does not dial the server, and instead serves
+`/ws/register` and `/ws/agent` on port 3001. The secret is removed from the configuration once
+registration succeeds.
 
-> **Agent im Container:** Der Reverse-Forward endet im Netzwerk-Namespace des sshd, also
-> auf dem Host. Ein Container mit Bridge-Netz hat ein eigenes `127.0.0.1` und erreicht den
-> Forward nicht — der Lauf scheitert mit `SSH-Tunnel nicht erreichbar … ECONNREFUSED`.
-> Deshalb `network_mode: host` verwenden (siehe `compose.yaml`). Ist Port 3001 auf dem Host
-> belegt, per `listenPort` bzw. `PBCM_CLIENT_PORT` einen freien wählen und denselben Port in
-> der Zieladresse des Clients eintragen.
+> **Agent in a container:** the reverse forward terminates in the sshd's network namespace,
+> that is, on the host. A container on a bridge network has its own `127.0.0.1` and cannot
+> reach the forward — the run then fails with `SSH tunnel not reachable … ECONNREFUSED`.
+> Use `network_mode: host` for this reason (see `compose.yaml`). If port 3001 is taken on the
+> host, pick a free one via `listenPort` or `PBCM_CLIENT_PORT` and enter that same port in the
+> client's target address.
 
-### 3. Client in der Oberfläche anlegen
+### 3. Create the client in the UI
 
-„Outbound-Client" im Client-Bereich. Zieladresse, Registrierungs-Secret und die SSH-Daten
-eingeben, dann **Verbindung testen**. Der Test zeigt den Host-Key-Fingerprint, der aktiv
-bestätigt werden muss — er wird gepinnt und künftig strikt geprüft.
+"Outbound Client" in the clients area. Enter the target address, the registration secret and
+the SSH details, then **Test Connection**. The test shows the host key fingerprint, which has
+to be confirmed explicitly — it is pinned and checked strictly from then on.
 
-Erst wenn Tunneltest **und** Registrierung erfolgreich waren, werden Client und Tunnel in einer
-Transaktion gespeichert. Schlägt einer von beiden fehl, bleibt die Datenbank unberührt.
+Client and tunnel are stored in a single transaction, and only once both the tunnel test **and**
+the registration have succeeded. If either fails, the database is left untouched.
 
-> Scheitert der Vorgang **nach** der Registrierung, hat der Agent das Secret bereits verbraucht.
-> Dann am Client-Host ein neues `registrationSecret` setzen und erneut anlegen.
+> If the process fails **after** registration, the agent has already consumed the secret. Set a
+> new `registrationSecret` on the client host and create the client again.
 
-### 4. Serverseitige Einstellungen (optional)
+### 4. Server-side settings (optional)
 
 ```yaml
 tunnel:
-  enabled: true                # Not-Aus: false blockiert JEDEN Tunnel
+  enabled: true                # kill switch: false blocks EVERY tunnel
   remoteBindHost: 127.0.0.1
   connectTimeoutMs: 10000
   keepaliveIntervalMs: 15000
-  idleGraceMs: 60000           # Nachlauf nach der letzten Freigabe
-  maxLeaseMs: 86400000         # Not-Aus gegen hängende Leases
+  idleGraceMs: 60000           # linger after the last release
+  maxLeaseMs: 86400000         # kill switch against stuck leases
   acquireTimeoutMs: 20000
-  maxConcurrentTunnels: 20     # darüber Warteschlange
+  maxConcurrentTunnels: 20     # queued beyond this
   retryDelaysMs: [2000, 5000, 10000]
-  minRequestIntervalMs: 3000   # Rate-Limit pro Client
-  keySecret: <auto-generiert>  # Verschlüsselung der SSH-Keys
+  minRequestIntervalMs: 3000   # rate limit per client
+  keySecret: <auto-generated>  # encrypts the SSH keys
 ```
 
-## Ablauf eines Laufs
+## Anatomy of a run
 
 ```
-Client (Executor)                        Server (TunnelService)
-      │  (Jitter 0–n s)
-      │  TUNNEL_ACQUIRE {jobId,runId} ───────►  Job → Client-Zuordnung prüfen
-      │                                         Repository des Jobs auflösen = Ziel
-      │                                         ggf. ssh2.connect + forwardIn(host, 0)
-      │                                         Zertifikat des PBS messen → fingerprint
+Client (executor)                        Server (TunnelService)
+      │  (jitter 0–n s)
+      │  TUNNEL_ACQUIRE {jobId,runId} ───────►  check the job → client mapping
+      │                                         resolve the job's repository = target
+      │                                         ssh2.connect + forwardIn(host, 0) if needed
+      │                                         measure the PBS certificate → fingerprint
       │  ◄──── TUNNEL_ACQUIRE_RESULT {leaseId, bindPort, fingerprint}
-      │  TCP-Preflight auf 127.0.0.1:bindPort
+      │  TCP preflight against 127.0.0.1:bindPort
       │  spawn proxmox-backup-client …
       │  TUNNEL_RELEASE {leaseId} ───────────►  refcount--
-      │                                         0 ► idleGraceMs ► Forwards + SSH schließen
+      │                                         0 ► idleGraceMs ► close forwards + SSH
 ```
 
-Der Client nennt **niemals ein Ziel** — nur die `jobId`. Der Server prüft, dass der Job diesem
-Client gehört, und leitet Host und Port aus dessen Repository ab. Für Restores, die keine
-`jobId` haben, autorisiert der Server das Ziel vorab beim Auslösen.
+The client **never names a target** — only the `jobId`. The server verifies that the job belongs
+to this client and derives host and port from its repository. For restores, which have no
+`jobId`, the server authorises the target up front when the restore is triggered.
 
-Die Job-Konfiguration auf dem Client enthält weiterhin die **echte PBS-URL** plus den Marker
-`tunnel: { required: true }`. Erst beim Start ersetzt der Agent Host und Port durch den
-Loopback-Endpunkt der Lease. Greift die Ersetzung nicht, scheitert der Lauf — er sichert nicht
-versehentlich am Tunnel vorbei.
+The job configuration on the client still holds the **real PBS URL** plus the marker
+`tunnel: { required: true }`. Only at start-up does the agent replace host and port with the
+lease's loopback endpoint. If that substitution does not take effect the run fails — it does not
+accidentally back up past the tunnel.
 
-## Betrieb
+## Operations
 
-- **Der Server muss zu den Backup-Zeiten laufen.** Ohne WebSocket keine Lease, ohne Lease kein
-  Tunnel, und einen Fallback auf Direktverbindung gibt es konstruktiv nicht. Geplante Backups
-  scheitern dann sofort mit klarer Meldung.
-- **Die Zieladresse ist änderbar, die Verbindungsart nicht.** Host und Port des Agents
-  lassen sich im Client-Editor anpassen; der Server verwirft daraufhin die offene
-  Agent-Verbindung und wählt sofort die neue Adresse.
-- **Ein Wechsel der Verbindungsart ist nicht vorgesehen.** Umstellen heißt löschen und neu
-  anlegen — die an der Client-ID hängende Job-Historie geht dabei verloren.
-- **`tunnel.keySecret` sichern.** Geht der Wert verloren, sind die hinterlegten SSH-Keys nicht
-  mehr entschlüsselbar und müssen neu eingetragen werden. Eine JWT-Rotation ist unkritisch:
-  Der Schlüssel ist bewusst von `jwtSecret` entkoppelt.
-- **PBS-Rechte begrenzen.** Pro Client ein eigener API-Token mit `Datastore.Backup` auf eigenem
-  Namespace und ohne `Datastore.Modify`/`Prune` — sonst kann ein übernommener Client genau die
-  Backups löschen, gegen die er absichern soll.
+- **The server has to be running at backup time.** No WebSocket means no lease, and no lease
+  means no tunnel; there is deliberately no fallback to a direct connection. Scheduled backups
+  fail immediately with a clear message.
+- **The target address can be changed, the connection mode cannot.** Host and port of the agent
+  can be adjusted in the client editor; the server then drops the open agent connection and
+  dials the new address right away.
+- **Switching the connection mode is not supported.** Changing it means delete and re-create —
+  and the job history, which hangs off the client ID, is lost in the process.
+- **Back up `tunnel.keySecret`.** If the value is lost, the stored SSH keys can no longer be
+  decrypted and have to be entered again. Rotating the JWT secret is harmless: the key is
+  deliberately decoupled from `jwtSecret`.
+- **Limit PBS permissions.** One API token per client, with `Datastore.Backup` on its own
+  namespace and without `Datastore.Modify`/`Prune` — otherwise a compromised client can delete
+  exactly the backups it is supposed to protect.
 
-## Manuelles Testprotokoll
+## Manual test protocol
 
-Das Projekt hat kein Testframework; diese Checkliste ist das Sicherungsnetz. Die ersten vier
-Punkte decken Fehler ab, die sonst **still** bleiben.
+The project has no test framework; this checklist is the safety net. The first four items cover
+failures that otherwise stay **silent**.
 
-1. **Lease-Leak nach Client-Absturz** — Client während eines Laufs hart beenden (`kill -9`).
-   Erwartung: Der WS-Disconnect verwirft alle Leases, der Tunnel schließt nach `idleGraceMs`.
-2. **Portwechsel nach Reconnect** — SSH-Verbindung während eines Laufs unterbrechen.
-   Erwartung: Lease wird verworfen, Lauf scheitert mit klarer Meldung, kein Zugriff auf einen
-   toten Port.
-3. **Atomares Anlegen mit Fehlschlag** — gültige SSH-Daten, falsches Registrierungs-Secret.
-   Erwartung: keine Zeile in `clients` und keine in `client_tunnels`; Meldung weist auf das
-   verbrauchte Secret hin.
-4. **Parallele Jobs** — zwei Jobs desselben Clients gleichzeitig starten.
-   Erwartung: genau **eine** SSH-Verbindung, ein Forward je Zielrepository, beide Läufe
-   erfolgreich, Tunnel schließt erst nach der zweiten Freigabe.
-5. **Mehrere Repositories** — zwei Jobs eines Clients gegen zwei PBS-Instanzen.
-   Erwartung: zwei Forwards mit verschiedenen Ports, beide Backups im richtigen Datastore.
-6. **Fremde `jobId`** — manipuliertes `TUNNEL_ACQUIRE` mit der `jobId` eines anderen Clients.
-   Erwartung: Ablehnung mit Logeintrag.
-7. **Obergrenze** — `maxConcurrentTunnels` auf 1 setzen, zwei Clients gleichzeitig starten.
-   Erwartung: Der zweite wartet und läuft danach durch, statt zu scheitern.
-8. **Inbound unberührt** — ein bestehender Inbound-Client sichert nach der Migration
-   unverändert direkt zum PBS.
+1. **Lease leak after a client crash** — kill the client hard during a run (`kill -9`).
+   Expected: the WS disconnect drops all leases, the tunnel closes after `idleGraceMs`.
+2. **Port change after reconnect** — interrupt the SSH connection during a run.
+   Expected: the lease is dropped, the run fails with a clear message, no access to a dead port.
+3. **Atomic creation with a failure** — valid SSH details, wrong registration secret.
+   Expected: no row in `clients` and none in `client_tunnels`; the message points at the
+   consumed secret.
+4. **Parallel jobs** — start two jobs of the same client at once.
+   Expected: exactly **one** SSH connection, one forward per target repository, both runs
+   succeed, the tunnel closes only after the second release.
+5. **Multiple repositories** — two jobs of one client against two PBS instances.
+   Expected: two forwards on different ports, both backups in the right datastore.
+6. **Foreign `jobId`** — a tampered `TUNNEL_ACQUIRE` carrying another client's `jobId`.
+   Expected: rejected, with a log entry.
+7. **Upper limit** — set `maxConcurrentTunnels` to 1, start two clients at once.
+   Expected: the second waits and then runs through, rather than failing.
+8. **Inbound untouched** — an existing inbound client backs up directly to the PBS after the
+   migration, unchanged.
 
-## Voraussetzung
+## Prerequisite
 
-Durch den dynamischen Port hat `PBS_REPOSITORY` bei getunnelten Läufen immer die Form
-`user!token@127.0.0.1:<port>:datastore`. Die eingesetzte `proxmox-backup-client`-Version muss
-die Port-Angabe in der Repository-Spec unterstützen.
+Because of the dynamic port, `PBS_REPOSITORY` always has the form
+`user!token@127.0.0.1:<port>:datastore` on tunnelled runs. The `proxmox-backup-client` version
+in use must support the port in the repository spec.
 
-Der Port des Tunnelziels stammt ausschließlich aus der Repository-URL
-(`parseRepositoryEndpoint` in `shared/`): ein ausdrücklich angegebener Port gilt, sonst der
-Standard des Protokolls (443 bzw. 80). **Ein PBS auf seinem eigenen API-Port muss als
-`https://pbs.example.com:8007` eingetragen werden** — 8007 wird nirgends stillschweigend
-angenommen. Aus demselben Grund enthält `PBS_REPOSITORY` auch bei direkten Läufen immer einen
-expliziten Port: Sonst würde `proxmox-backup-client` seinerseits 8007 annehmen und ein anderes
-Ziel ansprechen als der Server auflöst.
+The port of the tunnel target comes solely from the repository URL (`parseRepositoryEndpoint`
+in `shared/`): an explicitly given port wins, otherwise the protocol default (443 or 80).
+**A PBS on its own API port has to be entered as `https://pbs.example.com:8007`** — 8007 is
+never assumed silently. For the same reason `PBS_REPOSITORY` always carries an explicit port on
+direct runs too: otherwise `proxmox-backup-client` would assume 8007 itself and address a
+different target than the server resolved.
 
-Die Hostname-Prüfung wird über `PBS_FINGERPRINT` abgedeckt, sodass der Mismatch zwischen
-`127.0.0.1` und dem PBS-Zertifikat unkritisch ist.
+The hostname check is covered by `PBS_FINGERPRINT`, which makes the mismatch between `127.0.0.1`
+and the PBS certificate harmless.
 
-`proxmox-backup-client` wertet den Fingerprint allerdings nur aus, **wenn die reguläre
-Zertifikatsprüfung fehlschlägt** — bei getunnelten Läufen also immer, weil der Hostname niemals
-passen kann. Der Pin ist damit die einzige Vertrauensbasis des Laufs und muss aktuell sein: Ein
-im Job gespeicherter Wert veraltet, sobald der PBS sein Zertifikat erneuert, und bricht dann
-jeden getunnelten Backup — während direkt verbundene Clients unauffällig weiterlaufen, weil dort
-die CA-Prüfung greift.
+`proxmox-backup-client` only evaluates the fingerprint **when the regular certificate check
+fails** — so on tunnelled runs always, because the hostname can never match. The pin is
+therefore the run's only basis of trust and has to be current: a value stored in the job goes
+stale as soon as the PBS renews its certificate, and then breaks every tunnelled backup — while
+directly connected clients keep running unnoticed, because the CA check covers them.
 
-Deshalb **misst der Server den Fingerprint beim Gewähren des Leases** und liefert ihn im
-`TUNNEL_ACQUIRE_RESULT` mit; der Client kann das nicht selbst tun, da er den PBS nur als
-`127.0.0.1` sieht. Übernommen wird der gemessene Wert nur, wenn er die reguläre CA-Prüfung gegen
-den echten Hostnamen besteht — sonst gilt der im Repository hinterlegte, von Hand bestätigte
-Wert. Ist der PBS im Moment der Messung nicht erreichbar, wird der Lease trotzdem gewährt: Eine
-gestörte Messung darf keinen Backup verhindern.
+This is why **the server measures the fingerprint when granting the lease** and returns it in
+`TUNNEL_ACQUIRE_RESULT`; the client cannot do this itself, since it only ever sees the PBS as
+`127.0.0.1`. The measured value is adopted only if it passes the regular CA check against the
+real hostname — otherwise the value stored with the repository, confirmed by hand, applies. If
+the PBS is unreachable at the moment of measurement, the lease is granted anyway: a failed
+measurement must not prevent a backup.
