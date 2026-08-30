@@ -27,6 +27,12 @@ export interface ClientConfig {
      * schedule ("daily at 02:00") and would otherwise all ask in the same second.
      */
     tunnelAcquireJitterSeconds?: number;
+    /**
+     * TCP port for the local Web UI and — in outbound mode — for the /ws/register and
+     * /ws/agent endpoints the server dials. Must match the port in the client's
+     * "Zieladresse" on the server side.
+     */
+    listenPort: number;
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
@@ -34,6 +40,18 @@ export interface ClientConfig {
     retentionTime: number;
     preScript?: string;
     postScript?: string;
+}
+
+/**
+ * Accepts a port from YAML (number) or an environment variable (string) and rejects
+ * anything outside the valid TCP range, so a typo falls back to the default instead of
+ * making fastify.listen throw at startup.
+ */
+function parsePort(value: unknown): number | undefined {
+    if (value === undefined || value === null || value === "") return undefined;
+    const port = Number(value);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return undefined;
+    return port;
 }
 
 // Global Document state to preserve comments
@@ -44,6 +62,7 @@ export const config: ClientConfig = {
     executable: "proxmox-backup-client",
     clientId: randomUUID(),
     tunnelAcquireJitterSeconds: 30,
+    listenPort: parsePort(process.env.PBCM_CLIENT_PORT) ?? 3001,
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
@@ -151,6 +170,20 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (typeof loadedConfig.registrationSecret === "string") {
             config.registrationSecret = loadedConfig.registrationSecret;
+        }
+
+        // The environment variable wins: in a container it is set without touching the
+        // mounted config.yaml, which would otherwise have to differ per host.
+        if (process.env.PBCM_CLIENT_PORT === undefined) {
+            const port = parsePort(loadedConfig.listenPort);
+            if (port !== undefined) {
+                config.listenPort = port;
+            } else if (loadedConfig.listenPort !== undefined) {
+                logger.warn(
+                    "Ignoring invalid listenPort in config.yaml, using " +
+                        config.listenPort,
+                );
+            }
         }
 
         if (typeof loadedConfig.tunnelAcquireJitterSeconds === "number") {

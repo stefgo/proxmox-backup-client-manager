@@ -76,6 +76,21 @@ export class ClientRepository {
             .run(displayName, id);
     }
 
+    /**
+     * Changes the address the server dials for an outbound client. Only meaningful for
+     * those — an inbound client has no target address at all.
+     */
+    static updateOutboundTargetAddress(
+        id: string,
+        address: string,
+    ): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET outbound_target_address = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'outbound'",
+            )
+            .run(address, id);
+    }
+
     static updateAuthSuccess(
         id: string,
         ipAddress: string,

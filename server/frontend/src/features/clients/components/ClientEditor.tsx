@@ -6,22 +6,33 @@ import { ClientTunnelSettings } from './ClientTunnelSettings';
 
 interface ClientEditorProps {
     client: Client;
-    onSave: (id: string, data: { displayName?: string }) => Promise<void>;
+    onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
     onCancel: () => void;
 }
 
 export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) => {
     const [displayName, setDisplayName] = useState(client.displayName || '');
+    const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
     const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const isOutbound = client.connectionMode === 'outbound';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
+        setError(null);
         try {
-            await onSave(client.id, { displayName: displayName.trim() });
+            await onSave(client.id, {
+                displayName: displayName.trim(),
+                // Only sent for outbound clients: the backend rejects the field for
+                // inbound ones, which have no target address to begin with.
+                outboundTargetAddress: isOutbound ? targetAddress.trim() : undefined,
+            });
             onCancel();
-        } catch (error) {
-            console.error(error);
+        } catch (e) {
+            console.error(e);
+            setError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsSaving(false);
         }
@@ -54,13 +65,26 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                     <div className="text-sm text-text-muted dark:text-text-muted-dark">
                         Verbindungsart:{' '}
                         <span className="font-mono text-text-primary dark:text-text-primary-dark">
-                            {client.connectionMode === 'outbound' ? 'Outbound (Server verbindet, PBS über SSH-Tunnel)' : 'Inbound (Client verbindet, PBS direkt)'}
+                            {isOutbound ? 'Outbound (Server verbindet, PBS über SSH-Tunnel)' : 'Inbound (Client verbindet, PBS direkt)'}
                         </span>
-                        {client.outboundTargetAddress && (
-                            <span className="ml-2 font-mono">· {client.outboundTargetAddress}</span>
-                        )}
                         <div className="text-xs mt-1">Nicht änderbar — ein Wechsel erfordert Löschen und Neuanlegen.</div>
                     </div>
+
+                    {/* The address itself stays editable: the agent's port may change. */}
+                    {isOutbound && (
+                        <Input
+                            label="Zieladresse"
+                            value={targetAddress}
+                            onChange={(e) => setTargetAddress(e.target.value)}
+                            placeholder="192.168.1.50:3001"
+                            disabled={isSaving}
+                            hint="Host und Port, unter denen der Agent erreichbar ist. Beim Speichern wird die Verbindung neu aufgebaut."
+                        />
+                    )}
+
+                    {error && (
+                        <div className="text-sm text-red-500">{error}</div>
+                    )}
 
                     {client.connectionMode === 'outbound' && (
                         <ClientTunnelSettings clientId={client.id} />

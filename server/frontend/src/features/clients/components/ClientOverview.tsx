@@ -129,14 +129,14 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     };
 
-    const handleUpdateClient = async (id: string, data: { displayName?: string }) => {
+    const handleUpdateClient = async (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => {
         if (!token) return;
         try {
             await updateClient(id, data, token);
             setIsEditing(false);
         } catch (e: unknown) {
             console.error("Failed to update client", e);
-            alert(getErrorMessage(e));
+            throw e;
         }
     };
 

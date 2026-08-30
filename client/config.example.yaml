@@ -25,6 +25,13 @@ registrationSecret:
 # Only relevant for outbound clients. Set to 0 to disable the delay.
 tunnelAcquireJitterSeconds: 30
 
+# TCP port for the local web UI and, in outbound mode, for the /ws/register and
+# /ws/agent endpoints the server dials. Change this if 3001 is already taken on the
+# host — the port must then also appear in the client's target address on the server
+# ("Zieladresse", editable in the client editor).
+# The environment variable PBCM_CLIENT_PORT overrides this value.
+listenPort: 3001
+
 # Executable name/path for proxmox-backup-client
 executable: "proxmox-backup-client"
 

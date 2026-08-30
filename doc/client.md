@@ -67,6 +67,10 @@ The client includes a micro-server (Fastify) for local management and initial se
 
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard.
+- **Port**: `listenPort` in `config.yaml` (default `3001`), overridden by the environment
+  variable `PBCM_CLIENT_PORT`. In outbound mode the same server also serves `/ws/register`
+  and `/ws/agent`, so a changed port must match the client's target address on the server —
+  editable in the client editor.
 
 ### 5. Event Handlers (`src/features/Handlers.ts`)
 
