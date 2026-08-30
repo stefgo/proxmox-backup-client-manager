@@ -1,0 +1,54 @@
+name: CI
+
+# Runs on every branch and pull request. build.yml calls this same job via
+# workflow_call, so the release path is gated by exactly these checks -- no
+# second copy that could drift.
+on:
+    # main is covered by build.yml, which calls this workflow itself -- listing it
+    # here too would run the checks twice for every push to it.
+    push:
+        branches-ignore: ["main"]
+    pull_request:
+    workflow_call:
+
+jobs:
+    verify:
+        name: Typecheck and lint
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            # .npmrc resolves the @stefgo scope from GitHub Packages.
+            packages: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node
+              uses: actions/setup-node@v4
+              with:
+                  # Matches the node:22 base image used by the Dockerfiles.
+                  node-version: "22"
+                  cache: npm
+
+            - name: Install dependencies
+              env:
+                  NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: npm ci
+
+            # package-lock.json is generated on macOS, so npm ci skips the native
+            # rollup binary for linux and the vite build fails. Same workaround as
+            # in docker/Dockerfile.server.
+            - name: Install native rollup binary
+              run: npm install --no-save @rollup/rollup-linux-x64-gnu
+
+            # Builds shared first, then every workspace -- this is the typecheck
+            # for shared, backend and client, and the vite build for the frontend.
+            - name: Build all workspaces
+              run: npm run build
+
+            - name: Typecheck frontend
+              run: npx tsc -p server/frontend --noEmit
+
+            - name: Lint frontend
+              run: npm run lint -w server/frontend
