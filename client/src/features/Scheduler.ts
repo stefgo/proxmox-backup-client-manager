@@ -9,6 +9,9 @@ import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
+/** Upper bound for the catch-up loop, so a pathological schedule cannot stall the tick. */
+const MAX_CATCHUP_STEPS = 1000;
+
 const UNIT_MULTIPLIERS: { [key: string]: number } = {
     seconds: 1000,
     minutes: 60 * 1000,
@@ -76,6 +79,41 @@ export class Scheduler {
         }
 
         return nextDate;
+    }
+
+    /**
+     * Moves next_run forward until it lies in the future.
+     *
+     * Advancing by a single interval is wrong after downtime: with an hourly job and
+     * a week offline, next_run is 168 intervals behind, and a one-interval step would
+     * leave it in the past — so the job would trigger again on the very next tick, and
+     * the one after that, for 168 minutes. The missed run is triggered exactly once by
+     * the caller; this puts the schedule back in sync in one go.
+     */
+    private static advancePastNow(
+        schedule: ScheduleConfig,
+        from: Date,
+        now: Date,
+        jobName: string,
+    ): Date {
+        let next = this.calculateNextRun(schedule, from);
+
+        for (let i = 0; next <= now && i < MAX_CATCHUP_STEPS; i++) {
+            next = this.calculateNextRun(schedule, next);
+        }
+
+        if (next <= now) {
+            // Only reachable for a very short interval combined with a very long
+            // outage (a 1s job offline for a day). Anchoring on now costs the exact
+            // phase of the schedule but always terminates.
+            logger.warn(
+                `Job ${jobName} is more than ${MAX_CATCHUP_STEPS} intervals behind; ` +
+                    `anchoring the next run on the current time.`,
+            );
+            next = this.calculateNextRun(schedule, now);
+        }
+
+        return next;
     }
 
     private static run() {
@@ -147,8 +185,12 @@ export class Scheduler {
                     const runId = randomUUID();
                     Executor.executeBackup(runId, job.id);
 
-                    const newNextRun = this.calculateNextRun(schedule, nextRun); // Base on intent time or actual time? Usually actual or intent.
-                    // Legacy code used nextRun (intent).
+                    const newNextRun = this.advancePastNow(
+                        schedule,
+                        nextRun,
+                        now,
+                        job.name,
+                    );
                     const nextDateStr = newNextRun.toISOString();
 
                     try {
