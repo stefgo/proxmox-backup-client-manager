@@ -106,7 +106,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         const res = await apiFetch(`/api/v1/repositories/${id}/certificate`);
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || "Zertifikatsprüfung fehlgeschlagen");
+            throw new Error(err.error || "Certificate check failed");
         }
         return (await res.json()) as CertificateCheck;
     },
@@ -117,7 +117,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || "Verteilen fehlgeschlagen");
+            throw new Error(err.error || "Distribution failed");
         }
         return (await res.json()) as DistributeResult;
     },

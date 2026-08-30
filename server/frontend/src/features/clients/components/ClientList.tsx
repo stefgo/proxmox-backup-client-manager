@@ -118,7 +118,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                             },
                             ...(client.connectionMode === 'outbound' && client.status !== 'online'
                                 ? [{
-                                    label: 'Jetzt verbinden',
+                                    label: 'Connect Now',
                                     icon: PlugZap,
                                     onClick: () => {
                                         reconnectClient(client);
@@ -202,7 +202,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                             },
                             ...(client.connectionMode === 'outbound' && client.status !== 'online'
                                 ? [{
-                                    label: 'Jetzt verbinden',
+                                    label: 'Connect Now',
                                     icon: PlugZap,
                                     onClick: () => {
                                         reconnectClient(client);

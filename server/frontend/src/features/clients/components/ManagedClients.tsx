@@ -53,7 +53,7 @@ export const ManagedClients = ({
     const handleDeleteClient = async (client: Client) => {
         const extra =
             client.connectionMode === "outbound"
-                ? "\n\nHinweis: Die Verbindungsart ist nicht änderbar. Beim Löschen geht die Job-Historie dieses Clients verloren."
+                ? "\n\nNote: the connection mode is fixed. Deleting this client also discards its job history."
                 : "";
         if (!confirm(`Delete this client?${extra}`)) return;
         onDelete(client.id);
@@ -68,7 +68,7 @@ export const ManagedClients = ({
             const data = await res.json();
             if (!data.connected) {
                 alert(
-                    "Verbindung zum Client konnte nicht hergestellt werden. Der Server versucht es weiterhin im Hintergrund.",
+                    "Could not reach the client. The server keeps retrying in the background.",
                 );
             }
             onRefresh();
