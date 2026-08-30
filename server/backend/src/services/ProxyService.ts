@@ -200,7 +200,6 @@ export class ProxyService {
                 client.connection_mode === "outbound"
                     ? TunnelService.getStatus(client.id)
                     : undefined,
-            publicKey: client.publickey,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));
