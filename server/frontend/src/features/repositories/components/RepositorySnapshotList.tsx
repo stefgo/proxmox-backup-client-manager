@@ -44,7 +44,6 @@ export const RepositorySnapshotList = ({
     }, [sortedSnapshots, searchQuery, getClientName]);
 
     const {
-        currentItems,
         currentPage,
         totalPages,
         itemsPerPage,
@@ -205,7 +204,7 @@ export const RepositorySnapshotList = ({
     return (
         <DataMultiView
             title={<><FileBox size={18} className="text-text-muted dark:text-text-muted-dark" /> Snapshots</>}
-            data={currentItems}
+            data={filteredSnapshots}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField={(snap) => snap.backupTime.toString()}
@@ -222,6 +221,9 @@ export const RepositorySnapshotList = ({
                 totalItems,
                 onPageChange: goToPage,
                 onItemsPerPageChange: setItemsPerPage,
+                // Hand over the full list: the table has to sort before it pages,
+                // otherwise a column sort only reorders the rows already on screen.
+                sliceInternally: true
             }}
         />
     );

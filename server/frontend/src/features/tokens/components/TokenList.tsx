@@ -14,7 +14,12 @@ interface TokenListProps {
 
 export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps) => {
     const {
-        currentItems: currentTokens,
+        currentPage,
+        totalPages,
+        itemsPerPage,
+        totalItems,
+        goToPage,
+        setItemsPerPage,
     } = usePagination(tokens, 10);
 
     const columns: DataTableDef<Token>[] = [
@@ -81,12 +86,23 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             noPadding
         >
             <DataTable
-                data={currentTokens}
+                data={tokens}
                 itemDef={columns}
                 defaultSort={{ colIndex: 1, direction: 'asc' }}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 containerClassName="rounded-b-xl border-0 shadow-none"
+                pagination={{
+                    currentPage,
+                    totalPages,
+                    itemsPerPage,
+                    totalItems,
+                    onPageChange: goToPage,
+                    onItemsPerPageChange: setItemsPerPage,
+                    // Without these props the list silently cut off after ten rows
+                    // and drew no controls, leaving every further token unreachable.
+                    sliceInternally: true,
+                }}
             />
         </DataCard>
     );
