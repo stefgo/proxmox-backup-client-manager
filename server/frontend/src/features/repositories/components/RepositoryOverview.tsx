@@ -79,6 +79,22 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                 }
             />
 
+            {/* Without this the snapshot fetch could fail and leave nothing but the
+                header card on screen, with no hint as to why. */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-md flex items-center gap-3">
+                    <AlertCircle size={18} className="shrink-0" />
+                    <span>{error}</span>
+                </div>
+            )}
+
+            {!isLoading && !error && repo.status !== 'online' && (
+                <div className="bg-app-bg dark:bg-card-dark border border-border dark:border-border-dark text-text-muted dark:text-text-muted-dark p-4 rounded-md flex items-center gap-3">
+                    <AlertCircle size={18} className="shrink-0" />
+                    <span>Repository is offline — snapshots cannot be listed.</span>
+                </div>
+            )}
+
             {/* Stat Cards & Details - Only when online and not loading */}
             {showDetails && (
                 <>

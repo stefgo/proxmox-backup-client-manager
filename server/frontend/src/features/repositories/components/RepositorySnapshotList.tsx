@@ -22,6 +22,14 @@ export const RepositorySnapshotList = ({
 }: RepositorySnapshotListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
 
+    /**
+     * backupTime alone is not unique: it has second resolution, and the repository-wide
+     * list puts snapshots of several clients side by side. Two taken in the same second
+     * would then share a React key and an action-menu identity.
+     */
+    const snapshotKey = (snap: Snapshot) =>
+        `${snap.backupType}/${snap.backupId}/${snap.backupTime}`;
+
     const sortedSnapshots = useMemo(
         () => [...snapshots].sort((a, b) => {
             if (showClientColumn && getClientName) {
@@ -117,7 +125,7 @@ export const RepositorySnapshotList = ({
         tableHeaderClassName: "text-right",
         tableItemRender: (snap) => (
             <DataAction
-                rowId={snap.backupTime.toString()}
+                rowId={snapshotKey(snap)}
                 actions={[
                     {
                         icon: ArchiveRestore,
@@ -183,7 +191,7 @@ export const RepositorySnapshotList = ({
             listItemRender: (snap) => (
                 <div className="flex justify-center mt-2">
                     <DataAction
-                        rowId={snap.backupTime.toString()}
+                        rowId={snapshotKey(snap)}
                         actions={[
                             {
                                 icon: ArchiveRestore,
@@ -207,7 +215,7 @@ export const RepositorySnapshotList = ({
             data={filteredSnapshots}
             tableDef={tableDef}
             listColumns={listColumns}
-            keyField={(snap) => snap.backupTime.toString()}
+            keyField={snapshotKey}
             defaultSort={{ colIndex: dateSortColIndex, direction: 'desc' }}
             viewModeStorageKey="snapshotListViewMode"
             searchable
