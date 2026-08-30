@@ -80,6 +80,27 @@ export class Executor {
     }
 
     /**
+     * Frees the concurrency slot of a job and hands it over to a run that queued up
+     * while this one was busy. Every exit path of executeBackup has to go through
+     * here: leaving jobId in runningJobs blocks all later runs of that job until the
+     * agent restarts, and dropping a pendingJobs entry leaves its history row on
+     * 'queued' forever.
+     */
+    private static releaseJobSlot(jobId: string) {
+        this.runningJobs.delete(jobId);
+
+        const queuedRunId = this.pendingJobs.get(jobId);
+        if (!queuedRunId) return;
+        this.pendingJobs.delete(jobId);
+
+        const delayMs = (config.queueDelaySeconds || 5) * 1000;
+        logger.info(`Restarting queued job ${jobId} in ${delayMs / 1000}s...`);
+        setTimeout(() => {
+            Executor.executeBackup(queuedRunId, jobId);
+        }, delayMs);
+    }
+
+    /**
      * Removes the temporary keyfile written for a run. The file holds the PBS
      * encryption key in plaintext, so it has to be dropped on every exit path --
      * success, failure and early abort alike.
@@ -516,6 +537,7 @@ export class Executor {
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
             this.removeTempKeyfile(tempKeyfilePath);
+            this.releaseJobSlot(jobId);
             return;
         }
 
@@ -543,6 +565,7 @@ export class Executor {
                 };
                 Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
                 this.removeTempKeyfile(tempKeyfilePath);
+                this.releaseJobSlot(jobId);
                 return;
             }
         }
@@ -597,7 +620,7 @@ export class Executor {
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             logger.error({ err: e }, "Tunnel acquisition failed");
-            this.runningJobs.delete(jobId);
+            this.releaseJobSlot(jobId);
             this.removeTempKeyfile(tempKeyfilePath);
             this.finishFailedRun(
                 runId,
@@ -683,8 +706,6 @@ export class Executor {
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
 
-            this.runningJobs.delete(jobId);
-
             // Post-Execution Script
             if (config.postScript) {
                 this.runScript(
@@ -730,23 +751,13 @@ export class Executor {
                 });
             }
 
-            if (this.pendingJobs.has(jobId)) {
-                const queuedRunId = this.pendingJobs.get(jobId)!;
-                this.pendingJobs.delete(jobId);
-                const delayMs = (config.queueDelaySeconds || 5) * 1000;
-                logger.info(
-                    `Restarting queued job ${jobId} in ${delayMs / 1000}s...`,
-                );
-                setTimeout(() => {
-                    Executor.executeBackup(queuedRunId, jobId);
-                }, delayMs);
-            }
+            this.releaseJobSlot(jobId);
         });
 
         child.on("error", (err: Error) => {
             TunnelClient.release(lease);
             lease = undefined;
-            this.runningJobs.delete(jobId);
+            this.releaseJobSlot(jobId);
             this.removeTempKeyfile(tempKeyfilePath);
             logger.error({ err: err }, "Spawn Error");
 
