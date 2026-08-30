@@ -13,6 +13,7 @@ import {
     deleteRegistrationSecret,
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
+import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
 import { logger } from "../core/logger.js";
 import { WS_EVENTS } from "@pbcm/shared";
 
@@ -107,11 +108,10 @@ export async function startWebServer() {
 
             if (checkUrl) {
                 try {
-                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-                    const checkRes = await fetch(`${checkUrl}/api/v1/ping`, {
-                        method: "GET",
-                        signal: AbortSignal.timeout(2000),
-                    });
+                    const checkRes = await requestAllowSelfSigned(
+                        `${checkUrl}/api/v1/ping`,
+                        { timeoutMs: 2000 },
+                    );
                     if (checkRes.ok) {
                         serverReachable = true;
                     }
@@ -175,22 +175,24 @@ export async function startWebServer() {
 
             logger.info(`Web UI Registration requested with ${url}...`);
 
-            // Allow self-signed certificates
-            process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
             try {
-                const response = await fetch(`${url}/api/v1/register`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        token,
-                        clientId: config.clientId,
-                        hostname: os.hostname(),
-                    }),
-                });
+                // Self-signed certificates are tolerated for this one call only —
+                // see requestAllowSelfSigned on why this is no longer process-wide.
+                const response = await requestAllowSelfSigned(
+                    `${url}/api/v1/register`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            token,
+                            clientId: config.clientId,
+                            hostname: os.hostname(),
+                        }),
+                    },
+                );
 
                 if (!response.ok) {
-                    const errorText = await response.text();
+                    const errorText = response.text;
                     let errorMsg = errorText;
                     try {
                         const errorJson = JSON.parse(errorText);
@@ -201,7 +203,7 @@ export async function startWebServer() {
                     return reply.status(400).send({ error: errorMsg });
                 }
 
-                const data = await response.json();
+                const data = JSON.parse(response.text);
 
                 if (data.token) {
                     config.authToken = data.token;

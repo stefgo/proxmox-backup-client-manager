@@ -11,6 +11,7 @@ import {
     JobNextRunUpdatePayloadSchema,
     TunnelAcquireSchema,
     TunnelReleaseSchema,
+    FingerprintObservedSchema,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
@@ -20,6 +21,12 @@ import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
+import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
+import { FingerprintObservations } from "../services/FingerprintObservations.js";
+import {
+    probeCertificate,
+    normalizeFingerprint,
+} from "../services/CertProbe.js";
 
 type AgentLogger = {
     info: (o: any) => void;
@@ -393,6 +400,12 @@ export class WebSocketController {
                 await this.handleTunnelAcquire(clientId, socket, data, log);
             }
 
+            if (data.type === WS_EVENTS.FINGERPRINT_OBSERVED) {
+                const parsed = FingerprintObservedSchema.safeParse(data.payload);
+                if (!parsed.success) return;
+                this.handleFingerprintObserved(clientId, parsed.data, log);
+            }
+
             if (data.type === WS_EVENTS.TUNNEL_RELEASE) {
                 const parsed = TunnelReleaseSchema.safeParse(data.payload);
                 if (!parsed.success) return;
@@ -447,6 +460,10 @@ export class WebSocketController {
                 return;
             }
 
+            // Measured here rather than taken from the job snapshot: the client will
+            // reach the PBS as 127.0.0.1 and can never validate the certificate itself.
+            const fingerprint = await this.resolveFingerprint(target, log);
+
             const lease = await TunnelService.acquire(
                 clientId,
                 target,
@@ -462,6 +479,7 @@ export class WebSocketController {
                         leaseId: lease.leaseId,
                         bindHost: lease.bindHost,
                         bindPort: lease.bindPort,
+                        fingerprint,
                     },
                 }),
             );
@@ -493,6 +511,74 @@ export class WebSocketController {
         if (!job?.repository?.baseUrl) return undefined;
 
         return this.repositoryTarget(job.repository.baseUrl);
+    }
+
+    /**
+     * Records a fingerprint a client measured. Logged and kept for the operator to look
+     * at — never written into the repository config, because a single compromised client
+     * must not be able to set the value every other client then trusts.
+     */
+    private static handleFingerprintObserved(
+        clientId: string,
+        payload: { repositoryId?: string; baseUrl: string; fingerprint: string; caValid: boolean },
+        log: AgentLogger,
+    ) {
+        const repo = payload.repositoryId
+            ? RepositoryConfigRepository.findById(payload.repositoryId)
+            : RepositoryConfigRepository.findAll().find(
+                  (r: any) => r.base_url === payload.baseUrl,
+              );
+
+        if (!repo) {
+            log.warn({
+                msg: "Fingerprint reported for an unknown repository",
+                clientId,
+                baseUrl: payload.baseUrl,
+            });
+            return;
+        }
+
+        FingerprintObservations.record(
+            repo.id,
+            clientId,
+            payload.fingerprint,
+            payload.caValid,
+        );
+    }
+
+    /**
+     * Determines which fingerprint a tunneled run should pin. A measured value is only
+     * used when the regular CA validation vouched for it; otherwise the stored value —
+     * which an operator confirmed by hand — stays authoritative.
+     */
+    private static async resolveFingerprint(
+        target: { host: string; port: number },
+        log: AgentLogger,
+    ): Promise<string | undefined> {
+        const repo = RepositoryConfigRepository.findAll().find((r: any) => {
+            const t = this.repositoryTarget(r.base_url);
+            return t?.host === target.host && t?.port === target.port;
+        });
+
+        const baseUrl = repo?.base_url ?? `https://${target.host}:${target.port}`;
+        const stored = normalizeFingerprint(repo?.fingerprint);
+
+        const probe = await probeCertificate(baseUrl);
+
+        if (probe.caValid && probe.fingerprint) {
+            if (stored && stored !== probe.fingerprint) {
+                log.warn({
+                    msg: "Stored fingerprint is outdated — using the measured one for this run",
+                    baseUrl,
+                    stored,
+                    measured: probe.fingerprint,
+                });
+            }
+            return probe.fingerprint;
+        }
+
+        // A failed probe must never block a backup: fall back to what is stored.
+        return repo?.fingerprint || undefined;
     }
 
     /** Turns a repository base URL into the host/port the tunnel must forward to. */

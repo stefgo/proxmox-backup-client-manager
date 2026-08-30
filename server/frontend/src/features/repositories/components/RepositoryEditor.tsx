@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { useAuth } from '../../auth/AuthContext';
+import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
+
+const normalizeFingerprint = (value?: string | null) => (value ?? '').replace(/\s+/g, '').toLowerCase();
 
 interface RepositoryEditorProps {
     repository?: Repository | null;
@@ -17,6 +21,49 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
     const [username, setUsername] = useState('');
     const [tokenName, setTokenName] = useState('');
     const [secret, setSecret] = useState('');
+
+    const { token } = useAuth();
+    const probeCertificate = useRepositoryStore((s) => s.probeCertificate);
+    const distributeFingerprint = useRepositoryStore((s) => s.distributeFingerprint);
+
+    const [check, setCheck] = useState<CertificateCheck | null>(null);
+    const [isChecking, setIsChecking] = useState(false);
+    const [checkError, setCheckError] = useState<string | null>(null);
+    const [distribution, setDistribution] = useState<DistributeResult | null>(null);
+    const [isDistributing, setIsDistributing] = useState(false);
+
+    // Distribution always rolls out the *saved* value. Offering it while the field
+    // differs would push something other than what is on screen.
+    const fingerprintDiffersFromSaved =
+        normalizeFingerprint(fingerprint) !== normalizeFingerprint(repository?.fingerprint);
+
+    const handleCheckCertificate = async () => {
+        if (!repository || !token) return;
+        setIsChecking(true);
+        setCheckError(null);
+        setDistribution(null);
+        try {
+            setCheck(await probeCertificate(repository.id, token));
+        } catch (e) {
+            setCheck(null);
+            setCheckError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsChecking(false);
+        }
+    };
+
+    const handleDistribute = async () => {
+        if (!repository || !token) return;
+        if (!confirm('Push the saved fingerprint to all connected clients?')) return;
+        setIsDistributing(true);
+        try {
+            setDistribution(await distributeFingerprint(repository.id, token));
+        } catch (e) {
+            setCheckError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsDistributing(false);
+        }
+    };
 
     useEffect(() => {
         if (repository) {
@@ -34,6 +81,9 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
             setTokenName('');
             setSecret('');
         }
+        setCheck(null);
+        setCheckError(null);
+        setDistribution(null);
     }, [repository]);
 
     const handleSubmit = async () => {
@@ -81,13 +131,116 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                         value={datastore}
                         onChange={(e) => setDatastore(e.target.value)}
                     />
-                    <Input
-                        label="Fingerprint"
-                        type="text"
-                        placeholder="Optional Fingerprint"
-                        value={fingerprint}
-                        onChange={(e) => setFingerprint(e.target.value)}
-                    />
+                    <div className="space-y-2">
+                        <Input
+                            label="Fingerprint"
+                            type="text"
+                            placeholder="Optional Fingerprint"
+                            value={fingerprint}
+                            onChange={(e) => setFingerprint(e.target.value)}
+                        />
+                        {repository && (
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="secondary" onClick={handleCheckCertificate} disabled={isChecking}>
+                                    {isChecking ? 'Checking...' : 'Check certificate'}
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleDistribute}
+                                    disabled={isDistributing || fingerprintDiffersFromSaved}
+                                    title={
+                                        fingerprintDiffersFromSaved
+                                            ? 'Save the repository first — distribution rolls out the stored value.'
+                                            : undefined
+                                    }
+                                >
+                                    <Send size={14} className="mr-1 inline" />
+                                    {isDistributing ? 'Distributing...' : 'Distribute to clients'}
+                                </Button>
+                            </div>
+                        )}
+
+                        {repository?.observed && (
+                            <div className="text-xs text-text-muted dark:text-text-muted-dark break-all">
+                                Last reported by a client: <span className="font-mono">{repository.observed.fingerprint}</span>
+                                {repository.observed.caValid ? ' (CA-validated)' : ' (not CA-validated)'}
+                            </div>
+                        )}
+
+                        {checkError && (
+                            <div className="text-sm text-red-600 dark:text-red-400 break-words">{checkError}</div>
+                        )}
+
+                        {check && (
+                            <div className="rounded border border-border dark:border-border-dark p-4 space-y-3 text-sm">
+                                {!check.reachable && (
+                                    <div className="text-text-muted dark:text-text-muted-dark">
+                                        PBS not reachable — the stored fingerprint was left untouched.
+                                        {check.error ? ` (${check.error})` : ''}
+                                    </div>
+                                )}
+
+                                {check.reachable && check.matches && (
+                                    <div className="flex items-center gap-2 text-green-600 dark:text-green-500">
+                                        <ShieldCheck size={16} />
+                                        Fingerprint is up to date
+                                        {check.notAfter ? ` — certificate valid until ${check.notAfter}` : ''}
+                                    </div>
+                                )}
+
+                                {check.reachable && !check.matches && (
+                                    <>
+                                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                                            <ShieldAlert size={16} />
+                                            The served certificate differs from the stored fingerprint
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-text-muted dark:text-text-muted-dark mb-1">
+                                                Measured (SHA256)
+                                            </div>
+                                            <div className="font-mono text-xs break-all text-text-primary dark:text-text-primary-dark">
+                                                {check.measuredFingerprint}
+                                            </div>
+                                        </div>
+                                        {check.caValid ? (
+                                            <div className="text-xs text-text-muted dark:text-text-muted-dark">
+                                                The certificate passed regular CA validation for this hostname, so it is
+                                                genuine — most likely a renewal.
+                                            </div>
+                                        ) : (
+                                            <div className="text-xs text-amber-600 dark:text-amber-500">
+                                                CA validation failed, so this certificate could not be confirmed as
+                                                genuine. Verify it out of band first
+                                                (<span className="font-mono">proxmox-backup-manager cert info</span>)
+                                                before adopting it.
+                                            </div>
+                                        )}
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => setFingerprint(check.measuredFingerprint || '')}
+                                            disabled={!check.measuredFingerprint}
+                                        >
+                                            Adopt measured fingerprint
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {distribution && (
+                            <div className="rounded border border-border dark:border-border-dark p-4 space-y-1 text-xs">
+                                <div className="text-text-primary dark:text-text-primary-dark">
+                                    {distribution.updated.length} job(s) updated
+                                    {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
+                                </div>
+                                {distribution.skippedOffline.length > 0 && (
+                                    <div className="text-text-muted dark:text-text-muted-dark">
+                                        Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <Input
                         label="Username"
                         required

@@ -998,6 +998,54 @@ _Same fields as [Create Repository](#create-repository)._
 }
 ```
 
+### Check Certificate
+
+`GET /v1/repositories/:repositoryId/certificate`
+
+**Description:** Measures the TLS certificate the PBS currently serves and compares it with the
+stored fingerprint. Read-only — adopting the measured value is a separate `PUT`.
+
+`caValid` reports whether the certificate passed regular validation (trusted chain **and**
+matching hostname). Only that makes an adoption safe: it is evidence from a source independent
+of the fingerprint itself. Without it the certificate cannot be told apart from one presented by
+someone in the middle, and the operator has to verify it out of band.
+
+**Example Response:**
+
+```json
+{
+    "storedFingerprint": "49:88:dc:...",
+    "measuredFingerprint": "ab:cd:ef:...",
+    "matches": false,
+    "caValid": true,
+    "reachable": true,
+    "notAfter": "Nov 27 10:00:00 2026 GMT",
+    "error": null
+}
+```
+
+### Distribute Fingerprint
+
+`POST /v1/repositories/:repositoryId/distribute`
+
+**Description:** Pushes the **stored** fingerprint to every connected client that runs a job
+against this repository, via `JOB_SAVE_CONFIG`. Jobs are matched by `repository.repositoryId`,
+falling back to base URL plus datastore for jobs stored before that id existed.
+
+An explicit operator action rather than an automatic fan-out on update: for a self-signed PBS
+the stored value is a human decision, and rolling it out should be one too. Offline clients are
+reported, not queued.
+
+**Example Response:**
+
+```json
+{
+    "updated": [{ "clientId": "uuid", "jobId": "uuid", "jobName": "daily" }],
+    "failed": [],
+    "skippedOffline": [{ "clientId": "uuid", "hostname": "zeus" }]
+}
+```
+
 ### List Snapshots
 
 `GET /v1/repositories/:repositoryId/snapshots`
@@ -1263,6 +1311,22 @@ the requesting client.
     "requestId": "uuid",
     "runId": "run-uuid",
     "jobId": "job-uuid"
+}
+```
+
+**`FINGERPRINT_OBSERVED`**
+**Description:** Reports a PBS certificate fingerprint the agent measured and that differs from
+the one it has stored. Purely informational: the server logs it and shows it in the repository
+editor, but **never** adopts it as the new target value — a single compromised client must not be
+able to set what every other client then trusts.
+**Payload:**
+
+```json
+{
+    "repositoryId": "uuid",
+    "baseUrl": "https://pbs.local:8007",
+    "fingerprint": "ab:cd:ef:...",
+    "caValid": true
 }
 ```
 

@@ -8,6 +8,12 @@ export interface TunnelLease {
     leaseId: string;
     bindHost: string;
     bindPort: number;
+    /**
+     * Fingerprint to pin for this run, measured by the server. A tunneled run reaches
+     * the PBS as 127.0.0.1, so the hostname check can never succeed and this pin is the
+     * only trust anchor left — it has to be current, which a stored copy would not be.
+     */
+    fingerprint?: string;
 }
 
 /**
@@ -68,6 +74,7 @@ export class TunnelClient {
             leaseId: result.leaseId,
             bindHost: result.bindHost || "127.0.0.1",
             bindPort: result.bindPort,
+            fingerprint: result.fingerprint,
         };
 
         // The forward is set up on the far side of the SSH connection, so the listener

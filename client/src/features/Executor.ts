@@ -10,6 +10,7 @@ import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 import { TunnelClient, TunnelLease } from "./TunnelClient.js";
+import { probeCertificate, normalizeFingerprint } from "../core/CertProbe.js";
 
 export interface JobHistoryRow {
     id: string;
@@ -217,6 +218,76 @@ export class Executor {
     }
 
     /**
+     * Determines which fingerprint to pin for a direct run.
+     *
+     * The stored value is a copy that ages: it is written when the job is saved and
+     * nothing updates it when the PBS renews its certificate. Measuring here keeps the
+     * client working on its own, including while the server is unreachable.
+     *
+     * A measured value is only adopted when regular CA validation vouched for it. That
+     * check is the whole point — it is evidence from a source independent of the
+     * fingerprint itself. Without it (a self-signed PBS) adopting whatever the peer
+     * presents would turn the pin into a rubber stamp, so the stored value stands and a
+     * genuine mismatch is left to fail the run, which is exactly what pinning is for.
+     */
+    private static async resolveFingerprint(
+        repo: any,
+        jobId?: string,
+    ): Promise<string | undefined> {
+        if (!repo?.baseUrl) return repo?.fingerprint;
+
+        const probe = await probeCertificate(repo.baseUrl);
+        if (!probe.reachable || !probe.fingerprint) return repo.fingerprint;
+
+        const stored = normalizeFingerprint(repo.fingerprint);
+        if (stored === probe.fingerprint) return repo.fingerprint;
+
+        // Worth telling the server about either way: with a valid chain it is a renewal
+        // the stored value has not caught up with, without one it may be worse.
+        Connection.send(WS_EVENTS.FINGERPRINT_OBSERVED, {
+            repositoryId: repo.repositoryId,
+            baseUrl: repo.baseUrl,
+            fingerprint: probe.fingerprint,
+            caValid: probe.caValid,
+        });
+
+        if (!probe.caValid) {
+            logger.warn(
+                { baseUrl: repo.baseUrl, measured: probe.fingerprint },
+                "Certificate differs from the pinned fingerprint and could not be validated — keeping the stored value",
+            );
+            return repo.fingerprint;
+        }
+
+        logger.info(
+            { baseUrl: repo.baseUrl, measured: probe.fingerprint },
+            "Certificate was renewed and validates against a trusted CA — adopting the new fingerprint",
+        );
+
+        if (jobId) this.persistFingerprint(jobId, probe.fingerprint);
+        return probe.fingerprint;
+    }
+
+    /** Writes an adopted fingerprint back so the next offline run has it too. */
+    private static persistFingerprint(jobId: string, fingerprint: string): void {
+        try {
+            const row = JobRepository.findById(jobId);
+            if (!row?.config) return;
+
+            const parsed = JSON.parse(row.config as string);
+            if (!parsed.repository) return;
+
+            parsed.repository.fingerprint = fingerprint;
+            JobRepository.updateConfig(jobId, JSON.stringify(parsed));
+        } catch (e) {
+            logger.warn(
+                { err: e, jobId },
+                "Failed to persist the updated fingerprint",
+            );
+        }
+    }
+
+    /**
      * Executes a backup job by spawning the proxmox-backup-client CLI tool.
      * Resolves the job configuration from the local database, mounts repository
      * credentials, processes encryption keys, and pipes live log streams back
@@ -369,8 +440,15 @@ export class Executor {
                     env.PBS_PASSWORD_FD = "3";
                     pbsPassword = repo.secret;
 
-                    if (repo.fingerprint) {
-                        env.PBS_FINGERPRINT = repo.fingerprint;
+                    // Tunneled runs skip this: they reach the PBS as 127.0.0.1, where a
+                    // CA check can never succeed. There the server measures instead and
+                    // hands the value over with the lease, further down.
+                    const fingerprint = jobConfigData.tunnel?.required
+                        ? repo.fingerprint
+                        : await this.resolveFingerprint(repo, jobId);
+
+                    if (fingerprint) {
+                        env.PBS_FINGERPRINT = fingerprint;
                     }
                 } catch (e) {
                     logger.error(
@@ -486,6 +564,11 @@ export class Executor {
                     jobConfigData.repository,
                     lease,
                 );
+                // Measured by the server moments ago; the copy in the job config may be
+                // months old and is only the fallback if the server could not measure.
+                if (lease.fingerprint) {
+                    env.PBS_FINGERPRINT = lease.fingerprint;
+                }
             }
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
@@ -709,8 +792,12 @@ export class Executor {
                     env.PBS_PASSWORD_FD = "3";
                     pbsPassword = repository.secret;
 
-                    if (repository.fingerprint) {
-                        env.PBS_FINGERPRINT = repository.fingerprint;
+                    const fingerprint = payload?.tunnel?.required
+                        ? repository.fingerprint
+                        : await this.resolveFingerprint(repository);
+
+                    if (fingerprint) {
+                        env.PBS_FINGERPRINT = fingerprint;
                     }
                 } catch (e) {
                     logger.error(
@@ -794,6 +881,9 @@ export class Executor {
                     repository,
                     lease,
                 );
+                if (lease.fingerprint) {
+                    env.PBS_FINGERPRINT = lease.fingerprint;
+                }
             }
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
