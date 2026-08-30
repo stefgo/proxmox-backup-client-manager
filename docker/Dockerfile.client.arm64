@@ -27,9 +27,10 @@ RUN npm run build -w client
 ARG APP_VERSION=unknown
 RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/VERSION
 
-# Prune dev dependencies for production
-RUN --mount=type=secret,id=npm_token \
-    NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci --omit=dev
+# Prune dev dependencies.
+# `npm prune` works purely on the existing node_modules tree - no registry round
+# trip and no rebuild of native modules (better-sqlite3), unlike `npm ci --omit=dev`.
+RUN npm prune --omit=dev
 
 # Runner Stage
 FROM debian:trixie-slim AS runner
