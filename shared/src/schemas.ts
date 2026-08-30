@@ -46,9 +46,14 @@ export const TunnelConfigSchema = z.object({
 });
 
 export const ScheduleConfigSchema = z.object({
-    interval: z.number().min(1),
+    // .finite() matters because this is also the gate for schedules read back out of
+    // SQLite: JSON.parse('{"interval":1e999}') yields Infinity, which would turn the
+    // computed next run into an Invalid Date.
+    interval: z.number().finite().min(1),
     unit: z.enum(["seconds", "minutes", "hours", "days", "weeks"]),
-    weekdays: z.array(z.string()),
+    // Defaulted rather than required, so a row written before weekdays existed still
+    // parses instead of silently disabling its job.
+    weekdays: z.array(z.string()).default([]),
 });
 
 export const ArchiveSchema = z.object({

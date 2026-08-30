@@ -5,7 +5,7 @@ import {
     StateRow,
 } from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
-import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
+import { ScheduleConfig, ScheduleConfigSchema, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
@@ -27,18 +27,42 @@ export class Scheduler {
     private static invalidScheduleWarned = new Set<string>();
 
     /**
-     * A schedule only works if it moves next_run forward. An unknown unit or a
-     * non-positive interval yields a step of 0ms, which would pin next_run to the
-     * current value and make the job fire on every single tick, forever.
+     * Parses the schedule blob stored in SQLite against the same schema the API
+     * validates against. A row that fails here could not have been written by a
+     * current client — it is legacy or corrupt data, and running it would mean
+     * guessing at the interval.
+     *
+     * This also keeps calculateNextRun honest: the schema guarantees a known unit
+     * and a finite interval >= 1, so the step is always positive and next_run always
+     * moves forward. Without it, an unknown unit yields a 0ms step and the job fires
+     * on every single tick, forever.
      */
-    private static isRunnableSchedule(schedule: ScheduleConfig): boolean {
-        const multiplier = UNIT_MULTIPLIERS[schedule.unit];
-        return (
-            typeof multiplier === "number" &&
-            typeof schedule.interval === "number" &&
-            Number.isFinite(schedule.interval) &&
-            schedule.interval > 0
-        );
+    private static parseSchedule(
+        jobId: string,
+        jobName: string,
+        raw: string,
+    ): ScheduleConfig | null {
+        let json: unknown;
+        try {
+            json = JSON.parse(raw);
+        } catch {
+            json = undefined;
+        }
+
+        const parsed = ScheduleConfigSchema.safeParse(json);
+        if (parsed.success) {
+            this.invalidScheduleWarned.delete(jobId);
+            return parsed.data;
+        }
+
+        if (!this.invalidScheduleWarned.has(jobId)) {
+            this.invalidScheduleWarned.add(jobId);
+            logger.warn(
+                { issues: parsed.error.issues },
+                `Job ${jobName} (${jobId}) has an unusable schedule and is skipped by the scheduler.`,
+            );
+        }
+        return null;
     }
 
     /**
@@ -125,25 +149,12 @@ export class Scheduler {
                 if (!job.schedule_enabled) return;
                 if (!job.schedule) return;
 
-                let schedule: ScheduleConfig;
-                try {
-                    schedule = JSON.parse(job.schedule);
-                } catch (e) {
-                    return;
-                }
-
-                if (!this.isRunnableSchedule(schedule)) {
-                    if (!this.invalidScheduleWarned.has(job.id)) {
-                        this.invalidScheduleWarned.add(job.id);
-                        logger.warn(
-                            `Job ${job.name} (${job.id}) has an unusable schedule ` +
-                                `(interval=${schedule?.interval}, unit=${schedule?.unit}) ` +
-                                `and is skipped by the scheduler.`,
-                        );
-                    }
-                    return;
-                }
-                this.invalidScheduleWarned.delete(job.id);
+                const schedule = this.parseSchedule(
+                    job.id,
+                    job.name,
+                    job.schedule,
+                );
+                if (!schedule) return;
 
                 let state = JobScheduleStateRepository.findById(job.id);
 

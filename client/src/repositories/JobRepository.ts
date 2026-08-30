@@ -1,5 +1,5 @@
 import db from "../core/Database.js";
-import { BackupJob, ScheduleConfig } from "@pbcm/shared";
+import { BackupJob, ScheduleConfig, ScheduleConfigSchema } from "@pbcm/shared";
 
 export interface JobRow {
     id: string;
@@ -32,10 +32,19 @@ export class JobRepository {
                 config = row.config ? JSON.parse(row.config) : {};
             } catch (e) {}
             const archives: any[] = config.archives || [];
+
+            // Validated rather than cast: a legacy or corrupt row should surface as
+            // "no schedule" instead of a half-built object that the UI then renders
+            // and the scheduler cannot act on.
             let schedule: ScheduleConfig | null = null;
-            try {
-                if (row.schedule) schedule = JSON.parse(row.schedule);
-            } catch (e) {}
+            if (row.schedule) {
+                try {
+                    const parsed = ScheduleConfigSchema.safeParse(
+                        JSON.parse(row.schedule),
+                    );
+                    if (parsed.success) schedule = parsed.data;
+                } catch (e) {}
+            }
 
             return {
                 id: row.id,
