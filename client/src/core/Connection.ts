@@ -323,7 +323,7 @@ export class Connection {
 
         ws.on("close", (code: number, reason: Buffer) => {
             this.wsInstance = null;
-            this.rejectPending("Verbindung zum Server verloren");
+            this.rejectPending("Lost connection to the server");
             const reasonStr = reason.toString() || "No reason provided";
             logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
             opts.onClose?.(code, reasonStr);
@@ -378,7 +378,7 @@ export class Connection {
             const requestId = randomUUID();
             const timer = setTimeout(() => {
                 this.pending.delete(requestId);
-                reject(new Error("Zeitüberschreitung bei der Serveranfrage"));
+                reject(new Error("Server request timed out"));
             }, timeoutMs);
 
             this.pending.set(requestId, {
