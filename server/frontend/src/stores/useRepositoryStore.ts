@@ -93,7 +93,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
                     ),
                 }));
             }
-        } catch (e) {
+        } catch {
             set((state) => ({
                 repositories: state.repositories.map((r) =>
                     r.id === id ? { ...r, status: "offline" } : r,

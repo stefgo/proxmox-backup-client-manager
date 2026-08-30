@@ -23,7 +23,7 @@ export const HistoryOverview = () => {
                 } else {
                     setError("Failed to fetch history");
                 }
-            } catch (err) {
+            } catch {
                 setError("An error occurred while fetching history");
             } finally {
                 setLoading(false);
