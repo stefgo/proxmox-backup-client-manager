@@ -28,7 +28,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | `AuthController.ts`         | Local login, OIDC flow (login, callback, config endpoint).                 |
 | `ClientController.ts`       | Client list, update, delete, file system browsing, version, history.       |
 | `JobController.ts`          | Job CRUD, manual backup/restore triggers, encryption key generation.        |
-| `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing.                        |
+| `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing, certificate probe, fingerprint distribution. |
 | `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |
 | `SettingsController.ts`     | Cleanup settings read/write and manual maintenance trigger.                 |
@@ -42,6 +42,8 @@ Services contain the heavy business logic of the application. They are designed 
 - **`ProxyService.ts`**: The central communication hub. It manages active agent and dashboard connections, handles request/response correlation for agent commands, and maintains an in-memory job configuration cache.
 - **`AuthService.ts`**: Handles user authentication, OIDC flows, and JWT generation.
 - **`SettingsService.ts`**: Manages global application settings and persistence.
+- **`CertProbe.ts`**: Measures the TLS certificate of a PBS instance (`probeCertificate`). The endpoint comes from `parseRepositoryEndpoint` in `shared/`, the single place that maps a repository URL to host and port — an explicit port wins, otherwise the protocol default (443/80) applies and the PBS API port is never assumed. Reports `caValid` — whether the certificate passed regular validation against the real hostname. That flag is what decides whether a measured fingerprint may be adopted automatically: it is evidence from a CA, a source independent of the fingerprint itself. An identical copy exists in the client agent; it is not in `shared/` because `shared` must stay importable from the browser and `node:tls` is not.
+- **`FingerprintObservations.ts`**: In-memory record of fingerprints reported by agents (`FINGERPRINT_OBSERVED`). Deliberately never written into the repository config — a single compromised client must not be able to set the value every other client then trusts.
 - **`CleanupService.ts`**: Periodic tasks to prune old history logs (job history), inactive tokens, or old registration tokens. Supports retention by age and minimum count.
 
 ### 3. Routes (`src/routes/`)
@@ -58,6 +60,7 @@ The `WebSocketController` acts as the entry point, while `ProxyService` manages 
 - **Authentication**: Incoming agent connections are validated against tokens and IP restrictions.
 - **Connection Management**: `ProxyService` tracks online agents and active dashboard sessions.
 - **Job Caching**: When an agent connects, `ProxyService` automatically refreshes its local job cache to ensure high-speed retrieval of job configurations.
+- **Repository id backfill**: During that refresh, jobs whose embedded repository copy predates `repositoryId` are resolved by base URL plus datastore and stamped with the id (`backfillRepositoryIds`). Ambiguous or unmatched jobs are skipped with a warning rather than guessed. Without the id nothing can tell which managed repository a job belongs to, which is what fingerprint distribution needs.
 - **Broadcasting**: `ProxyService` multicasts events (like job progress or log updates) from agents to all connected dashboards.
 
 ## 🗄 Database Management

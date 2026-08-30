@@ -114,7 +114,8 @@ Client (Executor)                        Server (TunnelService)
       │  TUNNEL_ACQUIRE {jobId,runId} ───────►  Job → Client-Zuordnung prüfen
       │                                         Repository des Jobs auflösen = Ziel
       │                                         ggf. ssh2.connect + forwardIn(host, 0)
-      │  ◄──── TUNNEL_ACQUIRE_RESULT {leaseId, bindPort}
+      │                                         Zertifikat des PBS messen → fingerprint
+      │  ◄──── TUNNEL_ACQUIRE_RESULT {leaseId, bindPort, fingerprint}
       │  TCP-Preflight auf 127.0.0.1:bindPort
       │  spawn proxmox-backup-client …
       │  TUNNEL_RELEASE {leaseId} ───────────►  refcount--
@@ -178,6 +179,27 @@ Durch den dynamischen Port hat `PBS_REPOSITORY` bei getunnelten Läufen immer di
 `user!token@127.0.0.1:<port>:datastore`. Die eingesetzte `proxmox-backup-client`-Version muss
 die Port-Angabe in der Repository-Spec unterstützen.
 
-Die Hostname-Prüfung wird über `PBS_FINGERPRINT` abgedeckt: Der Fingerprint des Repositories
-wird unverändert übernommen, sodass der Mismatch zwischen `127.0.0.1` und dem PBS-Zertifikat
-unkritisch ist.
+Der Port des Tunnelziels stammt ausschließlich aus der Repository-URL
+(`parseRepositoryEndpoint` in `shared/`): ein ausdrücklich angegebener Port gilt, sonst der
+Standard des Protokolls (443 bzw. 80). **Ein PBS auf seinem eigenen API-Port muss als
+`https://pbs.example.com:8007` eingetragen werden** — 8007 wird nirgends stillschweigend
+angenommen. Aus demselben Grund enthält `PBS_REPOSITORY` auch bei direkten Läufen immer einen
+expliziten Port: Sonst würde `proxmox-backup-client` seinerseits 8007 annehmen und ein anderes
+Ziel ansprechen als der Server auflöst.
+
+Die Hostname-Prüfung wird über `PBS_FINGERPRINT` abgedeckt, sodass der Mismatch zwischen
+`127.0.0.1` und dem PBS-Zertifikat unkritisch ist.
+
+`proxmox-backup-client` wertet den Fingerprint allerdings nur aus, **wenn die reguläre
+Zertifikatsprüfung fehlschlägt** — bei getunnelten Läufen also immer, weil der Hostname niemals
+passen kann. Der Pin ist damit die einzige Vertrauensbasis des Laufs und muss aktuell sein: Ein
+im Job gespeicherter Wert veraltet, sobald der PBS sein Zertifikat erneuert, und bricht dann
+jeden getunnelten Backup — während direkt verbundene Clients unauffällig weiterlaufen, weil dort
+die CA-Prüfung greift.
+
+Deshalb **misst der Server den Fingerprint beim Gewähren des Leases** und liefert ihn im
+`TUNNEL_ACQUIRE_RESULT` mit; der Client kann das nicht selbst tun, da er den PBS nur als
+`127.0.0.1` sieht. Übernommen wird der gemessene Wert nur, wenn er die reguläre CA-Prüfung gegen
+den echten Hostnamen besteht — sonst gilt der im Repository hinterlegte, von Hand bestätigte
+Wert. Ist der PBS im Moment der Messung nicht erreichbar, wird der Lease trotzdem gewährt: Eine
+gestörte Messung darf keinen Backup verhindern.

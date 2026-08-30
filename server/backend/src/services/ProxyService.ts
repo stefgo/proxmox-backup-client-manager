@@ -3,6 +3,7 @@ import crypto, { randomUUID } from "crypto";
 import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { TunnelService } from "./TunnelService.js";
 
 export class ProxyService {
@@ -51,6 +52,7 @@ export class ProxyService {
                 { requestId: randomUUID() },
             );
             this.jobCache.set(clientId, payload.jobs);
+            await this.backfillRepositoryIds(clientId, payload.jobs);
             // Optional: Broadcast a separate JOB cache update if frontend listens for it
         } catch (e: unknown) {
             logger.error(
@@ -82,6 +84,87 @@ export class ProxyService {
             type: "JOB_NEXT_RUN_UPDATE",
             payload: { clientId, jobId, nextRunAt },
         });
+    }
+
+    /**
+     * Stamps the repository id onto jobs that predate it.
+     *
+     * Jobs carry an anonymous copy of the repository, so without an id nothing can tell
+     * which managed repository a job belongs to. Runs on every cache refresh, i.e. on
+     * every client connect, and goes idle once every job has been stamped. The cached
+     * entries are patched in place rather than triggering another refresh, which would
+     * recurse.
+     */
+    private static async backfillRepositoryIds(
+        clientId: string,
+        jobs: BackupJob[],
+    ): Promise<void> {
+        const pending = jobs.filter(
+            (j) => j.id && j.repository && !j.repository.repositoryId,
+        );
+        if (pending.length === 0) return;
+
+        const repositories = RepositoryConfigRepository.findAll();
+
+        for (const job of pending) {
+            const matches = repositories.filter(
+                (r) =>
+                    r.base_url === job.repository.baseUrl &&
+                    r.datastore === job.repository.datastore,
+            );
+
+            if (matches.length !== 1) {
+                logger.warn(
+                    {
+                        clientId,
+                        jobId: job.id,
+                        baseUrl: job.repository.baseUrl,
+                        candidates: matches.length,
+                    },
+                    matches.length === 0
+                        ? "Backfill skipped: no repository matches this job"
+                        : "Backfill skipped: repository is ambiguous for this job",
+                );
+                continue;
+            }
+
+            const patched = {
+                ...job,
+                repository: {
+                    ...job.repository,
+                    repositoryId: matches[0].id,
+                },
+            };
+
+            try {
+                const result = await this.sendRequest(
+                    clientId,
+                    WS_EVENTS.JOB_SAVE_CONFIG,
+                    { requestId: randomUUID(), job: patched },
+                );
+                if (result.success) {
+                    job.repository.repositoryId = matches[0].id;
+                    logger.info(
+                        { clientId, jobId: job.id, repositoryId: matches[0].id },
+                        "Backfilled repository id for job",
+                    );
+                } else {
+                    logger.warn(
+                        { clientId, jobId: job.id, error: result.error },
+                        "Backfill of repository id was rejected by the client",
+                    );
+                }
+            } catch (e: unknown) {
+                logger.warn(
+                    {
+                        clientId,
+                        jobId: job.id,
+                        err: e instanceof Error ? e.message : String(e),
+                    },
+                    "Backfill of repository id failed",
+                );
+            }
+        }
     }
 
     static getAllCachedJobs(): { clientId: string; jobs: BackupJob[] }[] {

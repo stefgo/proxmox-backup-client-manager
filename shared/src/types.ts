@@ -41,6 +41,7 @@ import {
     RegistrationResultSchema,
     TunnelAcquireSchema,
     TunnelAcquireResultSchema,
+    FingerprintObservedSchema,
     TunnelReleaseSchema,
 } from "./schemas.js";
 
@@ -55,6 +56,13 @@ export type Repository = z.infer<typeof RepositorySchema>;
 export interface ManagedRepository extends Repository {
     id: string | number;
     status: "online" | "offline" | "unknown" | "loading";
+    /** Last fingerprint a client reported for this repository. Informational only. */
+    observed?: {
+        fingerprint: string;
+        caValid: boolean;
+        clientId: string;
+        at: string;
+    };
 }
 
 export type Client = z.infer<typeof ClientSchema> & {
@@ -109,6 +117,7 @@ export type RegistrationRequest = z.infer<typeof RegistrationRequestSchema>;
 export type RegistrationResult = z.infer<typeof RegistrationResultSchema>;
 export type TunnelAcquire = z.infer<typeof TunnelAcquireSchema>;
 export type TunnelAcquireResult = z.infer<typeof TunnelAcquireResultSchema>;
+export type FingerprintObserved = z.infer<typeof FingerprintObservedSchema>;
 export type TunnelRelease = z.infer<typeof TunnelReleaseSchema>;
 
 /** Tunnel runtime state as broadcast to the dashboard (never persisted). */
@@ -189,6 +198,10 @@ export interface ProtocolMap {
     };
     JOB_NEXT_RUN_UPDATE: {
         req: JobNextRunUpdatePayload;
+        res: void;
+    };
+    FINGERPRINT_OBSERVED: {
+        req: FingerprintObserved;
         res: void;
     };
     TUNNEL_ACQUIRE: {
