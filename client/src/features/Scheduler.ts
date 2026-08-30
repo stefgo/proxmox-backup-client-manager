@@ -9,8 +9,34 @@ import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
+const UNIT_MULTIPLIERS: { [key: string]: number } = {
+    seconds: 1000,
+    minutes: 60 * 1000,
+    hours: 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000,
+    weeks: 7 * 24 * 60 * 60 * 1000,
+};
+
 export class Scheduler {
     private static interval: NodeJS.Timeout | null = null;
+
+    /** Job ids already reported as unschedulable, so the loop warns once, not per tick. */
+    private static invalidScheduleWarned = new Set<string>();
+
+    /**
+     * A schedule only works if it moves next_run forward. An unknown unit or a
+     * non-positive interval yields a step of 0ms, which would pin next_run to the
+     * current value and make the job fire on every single tick, forever.
+     */
+    private static isRunnableSchedule(schedule: ScheduleConfig): boolean {
+        const multiplier = UNIT_MULTIPLIERS[schedule.unit];
+        return (
+            typeof multiplier === "number" &&
+            typeof schedule.interval === "number" &&
+            Number.isFinite(schedule.interval) &&
+            schedule.interval > 0
+        );
+    }
 
     /**
      * Starts the client-side scheduling loop. Checks the database every minute
@@ -32,15 +58,7 @@ export class Scheduler {
         schedule: ScheduleConfig,
         fromDate: Date,
     ): Date {
-        const unitMultipliers: { [key: string]: number } = {
-            seconds: 1000,
-            minutes: 60 * 1000,
-            hours: 60 * 60 * 1000,
-            days: 24 * 60 * 60 * 1000,
-            weeks: 7 * 24 * 60 * 60 * 1000,
-        };
-        const intervalMs =
-            schedule.interval * (unitMultipliers[schedule.unit] || 0);
+        const intervalMs = schedule.interval * UNIT_MULTIPLIERS[schedule.unit];
         let nextDate = new Date(fromDate.getTime() + intervalMs);
 
         if (schedule.weekdays && schedule.weekdays.length > 0) {
@@ -75,6 +93,19 @@ export class Scheduler {
                 } catch (e) {
                     return;
                 }
+
+                if (!this.isRunnableSchedule(schedule)) {
+                    if (!this.invalidScheduleWarned.has(job.id)) {
+                        this.invalidScheduleWarned.add(job.id);
+                        logger.warn(
+                            `Job ${job.name} (${job.id}) has an unusable schedule ` +
+                                `(interval=${schedule?.interval}, unit=${schedule?.unit}) ` +
+                                `and is skipped by the scheduler.`,
+                        );
+                    }
+                    return;
+                }
+                this.invalidScheduleWarned.delete(job.id);
 
                 let state = JobScheduleStateRepository.findById(job.id);
 
