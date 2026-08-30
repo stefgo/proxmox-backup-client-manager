@@ -22,6 +22,9 @@ const EMPTY_CLIENTS: Client[] = [];
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
     const { token } = useAuth();
     const [selectedClientId, setSelectedClientId] = useState<string>('');
+    // ClientSelect only opens its list when it is told to. Without this state the
+    // "Set Client" button had nothing to call and the preselected client was final.
+    const [isSelectingClient, setIsSelectingClient] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
     const [selectedArchives, setSelectedArchives] = useState<string[]>([]);
@@ -54,6 +57,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             setSelectedTarget('');
             setBrowserPath('/');
+            setIsSelectingClient(false);
             // Pre-select all archives by default
             const initialArchives = snapshot.files
                 .map(f => f.filename)
@@ -193,6 +197,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         <ClientSelect
                             clients={clients}
                             selectedClientId={selectedClientId}
+                            isSelecting={isSelectingClient}
+                            onSetIsSelecting={setIsSelectingClient}
                             onSelect={(id) => {
                                 setSelectedClientId(id);
                                 setBrowserPath('/');
