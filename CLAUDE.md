@@ -35,7 +35,7 @@ There are no automated tests in this project.
 
 ### Docker (development)
 ```bash
-docker compose -f compose.dev.yml up --build
+docker compose -f compose.dev.yaml up --build
 # server-dev on :3000, client-dev on :3001
 ```
 
@@ -52,7 +52,7 @@ Agent ────WS /ws/agent────────────────�
 
 - The **`ProxyService`** in the backend is the central hub: it manages active agent WebSocket connections, caches job states, and broadcasts updates to dashboard clients.
 - The **client agent** runs completely offline-capable: it stores downloaded job configs in its own SQLite DB and runs backups via `node-cron` independently of the server connection.
-- Both server and client use **SQLite** (`better-sqlite3`) with **umzug** migrations. DB files live at `server/backend/data/pbcm.db` and `client/data/pbcm.db`.
+- Both server and client use **SQLite** (`better-sqlite3`) with **umzug** migrations. DB files live at `server/backend/data/server.db` and `client/data/client.db`.
 
 ### Frontend State Management
 
