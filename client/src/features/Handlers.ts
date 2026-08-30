@@ -44,13 +44,13 @@ export class Handlers {
                 size: entry.isDirectory() ? 0 : 0,
             }));
 
-            Connection.send(WS_EVENTS.FS_LIST, { requestId, files } as any);
+            Connection.respond(WS_EVENTS.FS_LIST, { requestId, files });
         } catch (err: unknown) {
             logger.error({ err: err }, "FS List Error");
-            Connection.send(WS_EVENTS.FS_LIST, {
+            Connection.respond(WS_EVENTS.FS_LIST, {
                 requestId,
                 error: err instanceof Error ? err.message : String(err),
-            } as any);
+            });
         }
     }
 
@@ -83,33 +83,33 @@ export class Handlers {
                                   ? data
                                   : JSON.stringify(data));
 
-                    Connection.send(WS_EVENTS.GET_VERSION, {
+                    Connection.respond(WS_EVENTS.GET_VERSION, {
                         requestId,
                         version: String(version),
-                    } as any);
+                    });
                 } catch (e) {
-                    Connection.send(WS_EVENTS.GET_VERSION, {
+                    Connection.respond(WS_EVENTS.GET_VERSION, {
                         requestId,
                         version: "",
                         error: "Failed to parse version JSON",
-                    } as any);
+                    });
                 }
             } else {
-                Connection.send(WS_EVENTS.GET_VERSION, {
+                Connection.respond(WS_EVENTS.GET_VERSION, {
                     requestId,
                     version: "",
                     error: "Failed to retrieve version: " + stderr,
-                } as any);
+                });
             }
         });
 
         child.on("error", (err) => {
             logger.error({ err: err }, "Version Check Error");
-            Connection.send(WS_EVENTS.GET_VERSION, {
+            Connection.respond(WS_EVENTS.GET_VERSION, {
                 requestId,
                 version: "",
                 error: err instanceof Error ? err.message : String(err),
-            } as any);
+            });
         });
     }
 
@@ -118,10 +118,10 @@ export class Handlers {
             const jobs: BackupJob[] =
                 await JobRepository.getAllWithScheduleState();
 
-            Connection.send(WS_EVENTS.JOB_LIST_CONFIG, {
+            Connection.respond(WS_EVENTS.JOB_LIST_CONFIG, {
                 requestId: payload.requestId,
                 jobs,
-            } as any);
+            });
         } catch (err: unknown) {
             logger.error({ err: err }, "Job List Error");
         }
@@ -173,17 +173,17 @@ export class Handlers {
                 }
             }
 
-            Connection.send(WS_EVENTS.JOB_SAVE_CONFIG, {
+            Connection.respond(WS_EVENTS.JOB_SAVE_CONFIG, {
                 requestId: payload.requestId,
                 success: true,
-            } as any);
+            });
         } catch (err: unknown) {
             logger.error({ err: err }, "Job Save Error");
-            Connection.send(WS_EVENTS.JOB_SAVE_CONFIG, {
+            Connection.respond(WS_EVENTS.JOB_SAVE_CONFIG, {
                 requestId: payload.requestId,
                 success: false,
                 error: err instanceof Error ? err.message : String(err),
-            } as any);
+            });
         }
     }
 
@@ -191,10 +191,10 @@ export class Handlers {
         try {
             JobRepository.delete(payload.jobId);
             JobScheduleStateRepository.delete(payload.jobId);
-            Connection.send(WS_EVENTS.JOB_DELETE_CONFIG, {
+            Connection.respond(WS_EVENTS.JOB_DELETE_CONFIG, {
                 requestId: payload.requestId,
                 success: true,
-            } as any);
+            });
         } catch (err: unknown) {
             logger.error({ err: err }, "Job Delete Error");
         }
@@ -230,41 +230,41 @@ export class Handlers {
         child.on("error", (err: Error) => {
             hasErrored = true;
             logger.error({ err: err }, "Generate Key Error");
-            Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
+            Connection.respond(WS_EVENTS.GENERATE_KEY_CONFIG, {
                 requestId,
                 success: false,
                 error: "Failed to start proxmox-backup-client: " + err.message,
-            } as any);
+            });
         });
 
         child.on("close", (code: number | null) => {
             if (hasErrored) return;
 
             if (code !== 0) {
-                Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
+                Connection.respond(WS_EVENTS.GENERATE_KEY_CONFIG, {
                     requestId,
                     success: false,
                     error: "proxmox-backup-client key create failed: " + stderr,
-                } as any);
+                });
                 return;
             }
 
             try {
                 const keyContent = fs.readFileSync(tempFilePath, "utf-8");
                 fs.unlinkSync(tempFilePath);
-                Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
+                Connection.respond(WS_EVENTS.GENERATE_KEY_CONFIG, {
                     requestId,
                     success: true,
                     keyContent,
-                } as any);
+                });
             } catch (e: unknown) {
-                Connection.send(WS_EVENTS.GENERATE_KEY_CONFIG, {
+                Connection.respond(WS_EVENTS.GENERATE_KEY_CONFIG, {
                     requestId,
                     success: false,
                     error:
                         "Failed to read generated key: " +
                         (e instanceof Error ? e.message : String(e)),
-                } as any);
+                });
             }
         });
     }
@@ -279,10 +279,10 @@ export class Handlers {
                 endTime: h.end_time,
                 exitCode: h.exit_code,
             }));
-            Connection.send(WS_EVENTS.HISTORY, {
+            Connection.respond(WS_EVENTS.HISTORY, {
                 requestId: payload.requestId,
                 history,
-            } as any);
+            });
         } catch (err: unknown) {
             logger.error({ err: err }, "History Error");
         }

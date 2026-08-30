@@ -250,7 +250,11 @@ export const HistoryRequestSchema = z.object({
 
 export const HistoryEntrySchema = z.object({
     id: z.string(),
-    name: z.string().optional(),
+    // job_history.name is a nullable TEXT column, so a row genuinely can carry null.
+    // Declaring it optional-only meant a single such row failed SyncHistoryPayloadSchema
+    // on the server, which drops the whole payload — the client's entire delta history
+    // sync, on every reconnect. Widened to match what the table can actually hold.
+    name: z.string().nullable().optional(),
     jobConfigId: z.string().nullable(),
     type: z.string(),
     status: z.string(),

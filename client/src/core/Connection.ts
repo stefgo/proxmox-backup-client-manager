@@ -44,6 +44,24 @@ export class Connection {
     }
 
     /**
+     * Answers a request the server sent us. Identical on the wire to send(), but
+     * typed against the other half of the ProtocolMap entry.
+     *
+     * An event name carries a different shape in each direction, so replying through
+     * send() meant casting every answer to `any` — right at the boundary where two
+     * separately deployed processes agree on their payloads, and therefore the worst
+     * possible place to switch type checking off.
+     */
+    static respond<T extends keyof ProtocolMap>(
+        type: T,
+        payload: ProtocolMap[T]["res"],
+    ): void {
+        if (this.wsInstance && this.wsInstance.readyState === WebSocket.OPEN) {
+            this.wsInstance.send(JSON.stringify({ type, payload }));
+        }
+    }
+
+    /**
      * Establishes a WebSocket connection to the central backend server using the
      * configured URL and authentication token. Implements automatic reconnection,
      * handles incoming messages and routes them to the appropriate Handlers.
