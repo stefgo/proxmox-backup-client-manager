@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { KeyRound, Check } from 'lucide-react';
 import { Button, Input } from '@stefgo/react-ui-components';
+import { apiFetch } from '../../../lib/apiFetch';
 
 export type SshKeyMode = 'keep' | 'generate' | 'manual';
 
@@ -22,7 +23,6 @@ interface SshKeyFieldsProps {
  * chosen one are shown — a generated key has no passphrase, and a pasted one needs no button.
  */
 export const SshKeyFields = ({
-    token,
     mode,
     onModeChange,
     privateKey,
@@ -42,9 +42,9 @@ export const SshKeyFields = ({
         setBusy(true);
         setError(null);
         try {
-            const res = await fetch('/api/v1/tunnel/keypair', {
+            const res = await apiFetch('/api/v1/tunnel/keypair', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             });
             const raw = await res.text();

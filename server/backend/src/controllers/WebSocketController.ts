@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { WebSocket } from "ws";
 import {
     WS_EVENTS,
+    JOB_STATUS,
     WsMessage,
     ProtocolMap,
     AuthPayloadSchema,
@@ -35,6 +36,17 @@ type AgentLogger = {
     error: (o: any) => void;
 };
 
+/**
+ * A run that reached one of these is over and belongs in the history table. Typed as
+ * string[] on purpose: the payload's status stays a plain string on the wire, so an
+ * agent on an older build is never dropped for reporting something unfamiliar.
+ */
+const TERMINAL_JOB_STATUSES: string[] = [
+    JOB_STATUS.SUCCESS,
+    JOB_STATUS.FAILED,
+    JOB_STATUS.ABORTED,
+];
+
 export class WebSocketController {
     static async handleDashboardConnection(
         connection: any,
@@ -56,6 +68,12 @@ export class WebSocketController {
             (socket as any).isAlive = false;
             socket.ping();
         }, 30000);
+
+        // Registered before the auth checks below: those close the socket and return
+        // early, and without this handler their ping interval would never be cleared.
+        socket.on("close", () => {
+            clearInterval(pingInterval);
+        });
 
         const token = (req.query as any).token;
         if (!token) {
@@ -79,7 +97,6 @@ export class WebSocketController {
         );
 
         socket.on("close", () => {
-            clearInterval(pingInterval);
             ProxyService.removeDashboardClient(socket);
         });
     }
@@ -295,11 +312,7 @@ export class WebSocketController {
                 const statusPayload = parsed.data;
 
                 // If job has ended, save to history
-                if (
-                    ["success", "failed", "abort"].includes(
-                        statusPayload.status,
-                    )
-                ) {
+                if (TERMINAL_JOB_STATUSES.includes(statusPayload.status)) {
                     try {
                         JobHistoryRepository.upsertStatus(
                             clientId,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
+import { apiFetch } from '../../../lib/apiFetch';
 
 export const UserOverview = () => {
     const { token } = useAuth();
@@ -17,9 +18,7 @@ export const UserOverview = () => {
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/v1/users', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await apiFetch('/api/v1/users');
             if (res.ok) {
                 setUsers(await res.json());
             }
@@ -42,10 +41,8 @@ export const UserOverview = () => {
 
     const handleDeleteUser = async (user: UserData) => {
         try {
-            const res = await fetch(`/api/v1/users/${user.id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await apiFetch(`/api/v1/users/${user.id}`, {
+                method: 'DELETE'});
             if (res.ok) {
                 fetchUsers();
             } else {
@@ -62,10 +59,9 @@ export const UserOverview = () => {
         const url = editingUser ? `/api/v1/users/${editingUser.id}` : '/api/v1/users';
         const method = editingUser ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
+        const res = await apiFetch(url, {
             method,
             headers: {
-                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(data)

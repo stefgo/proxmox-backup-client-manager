@@ -5,12 +5,65 @@ import {
     StateRow,
 } from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
-import { ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
+import { ScheduleConfig, ScheduleConfigSchema, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 
+/** Upper bound for the catch-up loop, so a pathological schedule cannot stall the tick. */
+const MAX_CATCHUP_STEPS = 1000;
+
+const UNIT_MULTIPLIERS: { [key: string]: number } = {
+    seconds: 1000,
+    minutes: 60 * 1000,
+    hours: 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000,
+    weeks: 7 * 24 * 60 * 60 * 1000,
+};
+
 export class Scheduler {
     private static interval: NodeJS.Timeout | null = null;
+
+    /** Job ids already reported as unschedulable, so the loop warns once, not per tick. */
+    private static invalidScheduleWarned = new Set<string>();
+
+    /**
+     * Parses the schedule blob stored in SQLite against the same schema the API
+     * validates against. A row that fails here could not have been written by a
+     * current client — it is legacy or corrupt data, and running it would mean
+     * guessing at the interval.
+     *
+     * This also keeps calculateNextRun honest: the schema guarantees a known unit
+     * and a finite interval >= 1, so the step is always positive and next_run always
+     * moves forward. Without it, an unknown unit yields a 0ms step and the job fires
+     * on every single tick, forever.
+     */
+    private static parseSchedule(
+        jobId: string,
+        jobName: string,
+        raw: string,
+    ): ScheduleConfig | null {
+        let json: unknown;
+        try {
+            json = JSON.parse(raw);
+        } catch {
+            json = undefined;
+        }
+
+        const parsed = ScheduleConfigSchema.safeParse(json);
+        if (parsed.success) {
+            this.invalidScheduleWarned.delete(jobId);
+            return parsed.data;
+        }
+
+        if (!this.invalidScheduleWarned.has(jobId)) {
+            this.invalidScheduleWarned.add(jobId);
+            logger.warn(
+                { issues: parsed.error.issues },
+                `Job ${jobName} (${jobId}) has an unusable schedule and is skipped by the scheduler.`,
+            );
+        }
+        return null;
+    }
 
     /**
      * Starts the client-side scheduling loop. Checks the database every minute
@@ -32,15 +85,7 @@ export class Scheduler {
         schedule: ScheduleConfig,
         fromDate: Date,
     ): Date {
-        const unitMultipliers: { [key: string]: number } = {
-            seconds: 1000,
-            minutes: 60 * 1000,
-            hours: 60 * 60 * 1000,
-            days: 24 * 60 * 60 * 1000,
-            weeks: 7 * 24 * 60 * 60 * 1000,
-        };
-        const intervalMs =
-            schedule.interval * (unitMultipliers[schedule.unit] || 0);
+        const intervalMs = schedule.interval * UNIT_MULTIPLIERS[schedule.unit];
         let nextDate = new Date(fromDate.getTime() + intervalMs);
 
         if (schedule.weekdays && schedule.weekdays.length > 0) {
@@ -60,6 +105,41 @@ export class Scheduler {
         return nextDate;
     }
 
+    /**
+     * Moves next_run forward until it lies in the future.
+     *
+     * Advancing by a single interval is wrong after downtime: with an hourly job and
+     * a week offline, next_run is 168 intervals behind, and a one-interval step would
+     * leave it in the past — so the job would trigger again on the very next tick, and
+     * the one after that, for 168 minutes. The missed run is triggered exactly once by
+     * the caller; this puts the schedule back in sync in one go.
+     */
+    private static advancePastNow(
+        schedule: ScheduleConfig,
+        from: Date,
+        now: Date,
+        jobName: string,
+    ): Date {
+        let next = this.calculateNextRun(schedule, from);
+
+        for (let i = 0; next <= now && i < MAX_CATCHUP_STEPS; i++) {
+            next = this.calculateNextRun(schedule, next);
+        }
+
+        if (next <= now) {
+            // Only reachable for a very short interval combined with a very long
+            // outage (a 1s job offline for a day). Anchoring on now costs the exact
+            // phase of the schedule but always terminates.
+            logger.warn(
+                `Job ${jobName} is more than ${MAX_CATCHUP_STEPS} intervals behind; ` +
+                    `anchoring the next run on the current time.`,
+            );
+            next = this.calculateNextRun(schedule, now);
+        }
+
+        return next;
+    }
+
     private static run() {
         try {
             const jobs = JobRepository.findAll();
@@ -69,12 +149,12 @@ export class Scheduler {
                 if (!job.schedule_enabled) return;
                 if (!job.schedule) return;
 
-                let schedule: ScheduleConfig;
-                try {
-                    schedule = JSON.parse(job.schedule);
-                } catch (e) {
-                    return;
-                }
+                const schedule = this.parseSchedule(
+                    job.id,
+                    job.name,
+                    job.schedule,
+                );
+                if (!schedule) return;
 
                 let state = JobScheduleStateRepository.findById(job.id);
 
@@ -116,8 +196,12 @@ export class Scheduler {
                     const runId = randomUUID();
                     Executor.executeBackup(runId, job.id);
 
-                    const newNextRun = this.calculateNextRun(schedule, nextRun); // Base on intent time or actual time? Usually actual or intent.
-                    // Legacy code used nextRun (intent).
+                    const newNextRun = this.advancePastNow(
+                        schedule,
+                        nextRun,
+                        now,
+                        job.name,
+                    );
                     const nextDateStr = newNextRun.toISOString();
 
                     try {

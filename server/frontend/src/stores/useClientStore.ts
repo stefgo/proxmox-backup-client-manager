@@ -1,18 +1,18 @@
 import { create } from "zustand";
 import { Client, TunnelState } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 interface ClientsState {
     clients: Client[];
     isLoading: boolean;
     error: string | null;
 
-    fetchClients: (token: string) => Promise<void>;
-    deleteClient: (clientId: string, token: string) => Promise<void>;
+    fetchClients: () => Promise<void>;
+    deleteClient: (clientId: string) => Promise<void>;
     updateClient: (
         clientId: string,
         data: { displayName?: string; outboundTargetAddress?: string },
-        token: string,
     ) => Promise<void>;
     setClients: (clients: Client[]) => void;
     setTunnelState: (state: TunnelState) => void;
@@ -26,14 +26,11 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     /**
      * Fetches the complete list of registered clients from the backend.
      * Updates loading and error states during the network request.
-     * @param token - The JWT bearer token for authentication
      */
-    fetchClients: async (token) => {
+    fetchClients: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await fetch("/api/v1/clients", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch("/api/v1/clients");
             if (!res.ok) throw new Error("Failed to fetch clients");
             const data = await res.json();
             set({ clients: data });
@@ -48,17 +45,15 @@ export const useClientStore = create<ClientsState>((set, get) => ({
      * Deletes a client by ID. Uses optimistic UI updates to instantly remove
      * the client from the list, reverting if the API call fails.
      * @param clientId - The UUID of the client to delete
-     * @param token - The JWT bearer token for authentication
      */
-    deleteClient: async (clientId, token) => {
+    deleteClient: async (clientId) => {
         // Optimistic update not strictly necessary if we refetch, but good for UX
         const oldClients = get().clients;
         set({ clients: oldClients.filter((c) => c.id !== clientId) });
 
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (!res.ok) {
@@ -72,7 +67,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         }
     },
 
-    updateClient: async (clientId, data, token) => {
+    updateClient: async (clientId, data) => {
         const oldClients = get().clients;
         // Optimistic update
         set({
@@ -82,10 +77,9 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         });
 
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}`, {
                 method: "PUT",
                 headers: {
-                    Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(data),

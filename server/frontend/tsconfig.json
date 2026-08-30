@@ -39,7 +39,6 @@
         }
     },
     "include": [
-        "src",
-        "../src/types.ts"
+        "src"
     ]
 }

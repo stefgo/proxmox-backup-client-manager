@@ -46,9 +46,14 @@ export const TunnelConfigSchema = z.object({
 });
 
 export const ScheduleConfigSchema = z.object({
-    interval: z.number().min(1),
+    // .finite() matters because this is also the gate for schedules read back out of
+    // SQLite: JSON.parse('{"interval":1e999}') yields Infinity, which would turn the
+    // computed next run into an Invalid Date.
+    interval: z.number().finite().min(1),
     unit: z.enum(["seconds", "minutes", "hours", "days", "weeks"]),
-    weekdays: z.array(z.string()),
+    // Defaulted rather than required, so a row written before weekdays existed still
+    // parses instead of silently disabling its job.
+    weekdays: z.array(z.string()).default([]),
 });
 
 export const ArchiveSchema = z.object({
@@ -167,6 +172,11 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
+    // JobController sends this for tunneled restores and the executor reads it to
+    // decide whether to acquire a lease. It was missing here, which went unnoticed
+    // while nobody validated the payload — parsing would have stripped it and left
+    // every tunneled restore trying to reach the PBS directly.
+    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({
@@ -245,7 +255,11 @@ export const HistoryRequestSchema = z.object({
 
 export const HistoryEntrySchema = z.object({
     id: z.string(),
-    name: z.string().optional(),
+    // job_history.name is a nullable TEXT column, so a row genuinely can carry null.
+    // Declaring it optional-only meant a single such row failed SyncHistoryPayloadSchema
+    // on the server, which drops the whole payload — the client's entire delta history
+    // sync, on every reconnect. Widened to match what the table can actually hold.
+    name: z.string().nullable().optional(),
     jobConfigId: z.string().nullable(),
     type: z.string(),
     status: z.string(),

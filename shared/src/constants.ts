@@ -41,7 +41,7 @@ export const JOB_STATUS = {
     ABORTED: "abort",
     SKIPPED: "skipped",
     QUEUED: "queued",
-};
+} as const;
 
 export const CONNECTION_MODE = {
     INBOUND: "inbound",
@@ -59,4 +59,4 @@ export const CLIENT_STATUS = {
     ONLINE: "online",
     OFFLINE: "offline",
     BUSY: "busy",
-};
+} as const;

@@ -11,6 +11,7 @@ import { useClientFileSystemStore } from "../../../stores/useClientFileSystemSto
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 import { getErrorMessage } from "../../../utils";
+import { apiFetch } from "../../../lib/apiFetch";
 
 export const ManagedJobs = () => {
     const { token } = useAuth();
@@ -24,26 +25,25 @@ export const ManagedJobs = () => {
 
     useEffect(() => {
         if (token) {
-            fetchAllJobs(token);
-            if (clients.length === 0) fetchClients(token);
-            if (repositories.length === 0) fetchRepositories(token);
+            fetchAllJobs();
+            if (clients.length === 0) fetchClients();
+            if (repositories.length === 0) fetchRepositories();
         }
     }, [token]);
 
     useGlobalSubscription();
 
     const handleRefresh = () => {
-        if (token) fetchAllJobs(token);
+        if (token) fetchAllJobs();
     };
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
         if (!token) return;
         try {
-            const res = await fetch(
+            const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
                 {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${token}` },
                 },
             );
             if (!res.ok) throw new Error("Failed to trigger job");
@@ -55,11 +55,10 @@ export const ManagedJobs = () => {
     const handleDeleteJob = async (clientId: string, jobId: string) => {
         if (!token) return;
         try {
-            const res = await fetch(
+            const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,
                 {
                     method: "DELETE",
-                    headers: { Authorization: `Bearer ${token}` },
                 },
             );
             if (!res.ok) throw new Error("Failed to delete job");
@@ -164,7 +163,7 @@ const JobsEditorWrapper = ({
 
     useEffect(() => {
         if (token && job.clientId) {
-            fetchFileList(job.clientId, jobForm.fileBrowserPath, token);
+            fetchFileList(job.clientId, jobForm.fileBrowserPath);
         }
     }, [jobForm.fileBrowserPath, token]);
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { JOB_STATUS, CLIENT_STATUS } from "./constants.js";
 import {
     ClientSchema,
     BackupJobSchema,
@@ -47,6 +48,14 @@ import {
 
 export type ConnectionMode = "inbound" | "outbound";
 export type TunnelStatus = "idle" | "connecting" | "up" | "error";
+
+/**
+ * Derived from the constants so the two can never drift apart. Note that the wire
+ * schemas keep `status` as a plain string: an agent running an older build must not
+ * have its STATUS_UPDATE dropped just because it reports a status we do not know yet.
+ */
+export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
+export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;

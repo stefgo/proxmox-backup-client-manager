@@ -7,6 +7,7 @@ import { FileBrowser } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { getErrorMessage } from '../../../utils';
+import { apiFetch } from '../../../lib/apiFetch';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -65,7 +66,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     // Fetch files when path or client changes
     useEffect(() => {
         if (selectedClientId && token) {
-            fetchFileList(selectedClientId, browserPath, token);
+            fetchFileList(selectedClientId, browserPath);
         }
     }, [selectedClientId, browserPath, token]);
 
@@ -89,10 +90,9 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             // Remove .didx, .fidx, .blob suffix
             const sanitizedArchives = selectedArchives.map(a => a.replace(/\.(didx|fidx|blob)$/, ''));
 
-            const res = await fetch(`/api/v1/clients/${selectedClientId}/restore`, {
+            const res = await apiFetch(`/api/v1/clients/${selectedClientId}/restore`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({

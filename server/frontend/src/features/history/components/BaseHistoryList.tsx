@@ -2,8 +2,20 @@ import { Activity, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
+import { JOB_STATUS } from "@pbcm/shared";
 import { Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
+
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+    [JOB_STATUS.RUNNING]: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    [JOB_STATUS.SUCCESS]: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    [JOB_STATUS.FAILED]: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    [JOB_STATUS.ABORTED]: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+};
+
+// Covers idle, queued, skipped and anything an older agent might report.
+const STATUS_BADGE_FALLBACK =
+    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
 
 export interface BaseHistoryItem {
     id: string;
@@ -100,15 +112,7 @@ export const BaseHistoryList = ({
                                     </span>
                                 </div>
                                 <span
-                                    className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.status === "running"
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                        : item.status === "success"
-                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                            : item.status === "failed"
-                                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                : item.status === "abort"
-                                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                    className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE_CLASSES[item.status] ?? STATUS_BADGE_FALLBACK
                                         }`}
                                 >
                                     {item.status}
@@ -121,7 +125,7 @@ export const BaseHistoryList = ({
                         </div>
                         {isExpanded && (
                             <div onClick={(e) => e.stopPropagation()}>
-                                {item.status === "running" &&
+                                {item.status === JOB_STATUS.RUNNING &&
                                     liveLogs[item.id] &&
                                     liveLogs[item.id].length > 0 ? (
                                     <div
@@ -131,7 +135,7 @@ export const BaseHistoryList = ({
                                     </div>
                                 ) : item.error || item.stderr ? (
                                     <div
-                                        className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === "failed"
+                                        className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED
                                             ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
                                             : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                                             }`}

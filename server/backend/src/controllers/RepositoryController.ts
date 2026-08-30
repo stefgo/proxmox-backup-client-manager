@@ -50,6 +50,11 @@ export class RepositoryController {
 
         if (!repo)
             return reply.code(404).send({ error: "Repository not found" });
+        if (!repo.base_url) {
+            return reply
+                .code(500)
+                .send({ error: "Repository record is incomplete" });
+        }
 
         const probe = await probeCertificate(repo.base_url);
         const stored = normalizeFingerprint(repo.fingerprint);
@@ -102,7 +107,7 @@ export class RepositoryController {
                     repository: {
                         ...job.repository,
                         repositoryId: repo.id,
-                        fingerprint: repo.fingerprint,
+                        fingerprint: repo.fingerprint ?? undefined,
                     },
                 };
 
@@ -166,6 +171,12 @@ export class RepositoryController {
 
         if (!repo)
             return reply.code(404).send({ error: "Repository not found" });
+
+        if (!repo.base_url || !repo.datastore) {
+            return reply
+                .code(500)
+                .send({ error: "Repository record is incomplete" });
+        }
 
         try {
             let baseUrl = repo.base_url;
@@ -244,6 +255,12 @@ export class RepositoryController {
 
         if (!repo)
             return reply.code(404).send({ error: "Repository not found" });
+
+        if (!repo.base_url || !repo.datastore) {
+            return reply
+                .code(500)
+                .send({ error: "Repository record is incomplete" });
+        }
 
         try {
             let baseUrl = repo.base_url;

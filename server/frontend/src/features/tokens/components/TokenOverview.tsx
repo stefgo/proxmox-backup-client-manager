@@ -3,6 +3,7 @@ import { Token } from '@pbcm/shared';
 import { TokenList } from './TokenList';
 import { useAuth } from '../../auth/AuthContext';
 import { TokenModal } from './TokenModal';
+import { apiFetch } from '../../../lib/apiFetch';
 
 export const TokenOverview = () => {
     const { token } = useAuth();
@@ -16,27 +17,23 @@ export const TokenOverview = () => {
 
     const fetchTokens = async () => {
         try {
-            const res = await fetch('/api/v1/tokens', { headers: { 'Authorization': `Bearer ${token}` } });
+            const res = await apiFetch('/api/v1/tokens');
             if (res.ok) setTokens(await res.json());
         } catch (e) { console.error(e); }
     };
 
     const deleteToken = async (tokenStr: string) => {
         try {
-            const res = await fetch(`/api/v1/tokens/${tokenStr}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await apiFetch(`/api/v1/tokens/${tokenStr}`, {
+                method: 'DELETE'});
             if (res.ok) fetchTokens();
         } catch (e) { console.error(e); }
     };
 
     const generateToken = async () => {
         try {
-            const res = await fetch('/api/v1/tokens', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await apiFetch('/api/v1/tokens', {
+                method: 'POST'});
             if (res.ok) {
                 const newToken = await res.json();
                 setCreatedToken(newToken);

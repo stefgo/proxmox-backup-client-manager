@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ManagedRepository as Repository, Snapshot } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 interface RepositorySnapshotsState {
     snapshots: Snapshot[];
@@ -8,7 +9,7 @@ interface RepositorySnapshotsState {
     error: string | null;
     selectedRepository: Repository | null;
 
-    fetchSnapshots: (repo: Repository, token: string) => Promise<void>;
+    fetchSnapshots: (repo: Repository) => Promise<void>;
     selectRepository: (repo: Repository | null) => void;
 }
 
@@ -22,13 +23,12 @@ export const useRepositorySnapshotStore = create<RepositorySnapshotsState>(
         selectRepository: (repo) =>
             set({ selectedRepository: repo, snapshots: [], error: null }),
 
-        fetchSnapshots: async (repo, token) => {
+        fetchSnapshots: async (repo) => {
             set({ isLoading: true, error: null });
             try {
-                const res = await fetch(
+                const res = await apiFetch(
                     `/api/v1/repositories/${repo.id}/snapshots`,
                     {
-                        headers: { Authorization: `Bearer ${token}` },
                     },
                 );
                 if (res.ok) {

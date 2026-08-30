@@ -6,7 +6,12 @@ import { randomUUID } from "crypto";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { config } from "../core/Config.js";
-import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    ProtocolMap,
+    JOB_STATUS,
+    RestoreSnapshotPayload,
+} from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 import { TunnelClient, TunnelLease } from "./TunnelClient.js";
@@ -80,9 +85,52 @@ export class Executor {
     }
 
     /**
+     * Frees the concurrency slot of a job and hands it over to a run that queued up
+     * while this one was busy. Every exit path of executeBackup has to go through
+     * here: leaving jobId in runningJobs blocks all later runs of that job until the
+     * agent restarts, and dropping a pendingJobs entry leaves its history row on
+     * 'queued' forever.
+     */
+    private static releaseJobSlot(jobId: string) {
+        this.runningJobs.delete(jobId);
+
+        const queuedRunId = this.pendingJobs.get(jobId);
+        if (!queuedRunId) return;
+        this.pendingJobs.delete(jobId);
+
+        const delayMs = (config.queueDelaySeconds || 5) * 1000;
+        logger.info(`Restarting queued job ${jobId} in ${delayMs / 1000}s...`);
+        setTimeout(() => {
+            Executor.executeBackup(queuedRunId, jobId);
+        }, delayMs);
+    }
+
+    /**
+     * Removes the temporary keyfile written for a run. The file holds the PBS
+     * encryption key in plaintext, so it has to be dropped on every exit path --
+     * success, failure and early abort alike.
+     */
+    private static removeTempKeyfile(keyfilePath: string | undefined) {
+        if (!keyfilePath) return;
+        try {
+            fs.rmSync(keyfilePath, { force: true });
+        } catch (e) {
+            logger.error(
+                { err: e, keyfilePath },
+                "Failed to delete temp keyfile",
+            );
+        }
+    }
+
+    /**
      * Runs a pre- or post-execution script if configured.
      * The script is executed with two arguments: the operation type (backup/restore) and the job name.
      * Script output (stdout/stderr) is streamed to the server via WebSocket.
+     *
+     * scriptPath is executed directly, without a shell. It must therefore be an
+     * executable file (shebang plus +x); a config value containing shell syntax
+     * ("bash foo.sh", pipes, redirects) is not interpreted. Running it through a
+     * shell would splice the server-supplied job name into the command line.
      *
      * @param scriptPath - The path to the script to execute.
      * @param type - The operation type ('backup' or 'restore').
@@ -108,7 +156,7 @@ export class Executor {
         return new Promise((resolve) => {
             try {
                 const child = spawn(scriptPath, [type, jobName], {
-                    shell: true,
+                    shell: false,
                     env: { ...process.env },
                 });
 
@@ -193,7 +241,7 @@ export class Executor {
         try {
             JobHistoryRepository.finishJob(
                 runId,
-                "failed",
+                JOB_STATUS.FAILED,
                 new Date().toISOString(),
                 null,
                 null,
@@ -208,7 +256,7 @@ export class Executor {
             jobId: jobId,
             name,
             startTime,
-            status: "failed",
+            status: JOB_STATUS.FAILED,
             endTime: new Date().toISOString(),
             error: message,
             stderr: message,
@@ -288,10 +336,272 @@ export class Executor {
     }
 
     /**
-     * Executes a backup job by spawning the proxmox-backup-client CLI tool.
-     * Resolves the job configuration from the local database, mounts repository
-     * credentials, processes encryption keys, and pipes live log streams back
-     * to the backend server via WebSocket.
+     * Everything a run needs once its command line is built. The two entry points
+     * below differ only in how they fill this in — from here on backup and restore
+     * are the same procedure, which is the point: the keyfile cleanup that this
+     * class lost once already went missing because there were two copies of it.
+     */
+    private static async runProxmoxClient(spec: {
+        runId: string;
+        /** Backup only. Restores are authorised per run and carry no job id. */
+        jobId?: string;
+        jobType: "backup" | "restore";
+        jobName: string;
+        startTime: string;
+        command: string;
+        args: string[];
+        env: NodeJS.ProcessEnv;
+        password?: string;
+        keyfilePath?: string;
+        repository?: any;
+        tunnelRequired: boolean;
+        /** Backup only: this run holds a concurrency slot that must be handed back. */
+        releaseSlot: boolean;
+    }): Promise<void> {
+        const {
+            runId,
+            jobId,
+            jobType,
+            jobName,
+            startTime,
+            command,
+            args,
+            env,
+            password,
+            keyfilePath,
+            repository,
+            tunnelRequired,
+            releaseSlot,
+        } = spec;
+
+        const releaseSlotIfHeld = () => {
+            if (releaseSlot && jobId) this.releaseJobSlot(jobId);
+        };
+
+        logger.info(
+            `Starting ${jobType} ${runId}: ${command} ${args.join(" ")}`,
+        );
+
+        try {
+            JobHistoryRepository.startRunningJob(
+                runId,
+                jobId ?? null,
+                jobType,
+                startTime,
+                jobName,
+            );
+        } catch (e) {
+            logger.error({ err: e }, "DB Log Error");
+        }
+
+        const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+            id: runId,
+            jobId: jobId,
+            name: jobName,
+            startTime: startTime,
+            status: JOB_STATUS.RUNNING,
+            type: jobType,
+        };
+        Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
+
+        let stdoutBuffer = "";
+        let stderrBuffer = "";
+
+        // Outbound clients reach the PBS only through the SSH reverse tunnel. The lease is
+        // requested here, immediately before the spawn, and released again in every exit
+        // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
+        let lease: TunnelLease | undefined;
+        try {
+            TunnelClient.assertModeMatches(tunnelRequired);
+
+            if (tunnelRequired && repository) {
+                lease = await TunnelClient.acquire(runId, jobId);
+                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
+                    repository,
+                    lease,
+                );
+                // Measured by the server moments ago; the copy in the job config may be
+                // months old and is only the fallback if the server could not measure.
+                if (lease.fingerprint) {
+                    env.PBS_FINGERPRINT = lease.fingerprint;
+                }
+            }
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.error({ err: e }, `Tunnel acquisition failed (${jobType})`);
+            releaseSlotIfHeld();
+            this.removeTempKeyfile(keyfilePath);
+            this.finishFailedRun(
+                runId,
+                jobId,
+                jobName,
+                startTime,
+                jobType,
+                message,
+            );
+            return;
+        }
+
+        const child = spawn(command, args, {
+            shell: false,
+            env: env,
+            // Standard IO pipes: [stdin, stdout, stderr, pipe3 (repository password)]
+            stdio: ["pipe", "pipe", "pipe", "pipe"],
+        });
+
+        if (password) {
+            const passwordPipe = child.stdio[3] as any;
+            passwordPipe.on("error", () => {});
+            passwordPipe.write(password);
+            passwordPipe.end();
+        }
+
+        const pipeOutput = (
+            source: NodeJS.ReadableStream,
+            local: NodeJS.WritableStream,
+            channel: "stdout" | "stderr",
+        ) => {
+            source.on("data", (data: Buffer) => {
+                const chunk = data.toString();
+                local.write(chunk);
+                if (channel === "stdout") stdoutBuffer += chunk;
+                else stderrBuffer += chunk;
+                logger.debug({ output: chunk }, channel);
+                Connection.send(WS_EVENTS.LOG_UPDATE, {
+                    jobId: runId,
+                    output: chunk,
+                    stream: channel,
+                });
+            });
+        };
+        pipeOutput(child.stdout, process.stdout, "stdout");
+        pipeOutput(child.stderr, process.stderr, "stderr");
+
+        child.on("close", (code: number | null) => {
+            TunnelClient.release(lease);
+            lease = undefined;
+            this.removeTempKeyfile(keyfilePath);
+
+            const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
+            const endTime = new Date().toISOString();
+            logger.info(`${jobType} ${runId} finished with code ${code}`);
+
+            try {
+                JobHistoryRepository.finishJob(
+                    runId,
+                    status,
+                    endTime,
+                    code,
+                    stdoutBuffer || null,
+                    stderrBuffer || null,
+                );
+            } catch (e) {
+                logger.error({ err: e }, "DB Update Error");
+            }
+
+            const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+                id: runId,
+                jobId: jobId,
+                name: jobName,
+                startTime: startTime,
+                status: status,
+                exitCode: code ?? undefined,
+                endTime: endTime,
+                stdout: stdoutBuffer,
+                stderr: stderrBuffer,
+                type: jobType,
+            };
+            Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
+
+            // Post-Execution Script. The run is already recorded as finished; a
+            // failing post-script downgrades a successful run to failed after the
+            // fact, per the requirement that any error aborts the whole operation.
+            if (config.postScript) {
+                this.runScript(
+                    config.postScript,
+                    jobType,
+                    jobName,
+                    runId,
+                ).then((success) => {
+                    if (success || status !== JOB_STATUS.SUCCESS) return;
+
+                    logger.error("Post-execution script failed.");
+                    const stderrWithScript =
+                        (stderrBuffer || "") + "\nPost-execution script failed.";
+
+                    const downgraded: ProtocolMap["STATUS_UPDATE"]["req"] = {
+                        id: runId,
+                        jobId: jobId,
+                        name: jobName,
+                        startTime: startTime,
+                        status: JOB_STATUS.FAILED,
+                        exitCode: code ?? undefined,
+                        endTime: endTime,
+                        stdout: stdoutBuffer,
+                        stderr: stderrWithScript,
+                        type: jobType,
+                    };
+                    Connection.send(WS_EVENTS.STATUS_UPDATE, downgraded);
+
+                    try {
+                        JobHistoryRepository.failJob(runId, stderrWithScript);
+                    } catch (e) {
+                        logger.error(
+                            { err: e },
+                            "DB Update Error (Post-Script Failure)",
+                        );
+                    }
+                });
+            }
+
+            releaseSlotIfHeld();
+        });
+
+        child.on("error", (err: Error) => {
+            TunnelClient.release(lease);
+            lease = undefined;
+            releaseSlotIfHeld();
+            this.removeTempKeyfile(keyfilePath);
+            logger.error({ err: err }, "Spawn Error");
+
+            const errorMsg = err.message;
+            const endTime = new Date().toISOString();
+            stderrBuffer += "\nSpawn Error: " + errorMsg;
+
+            const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
+                id: runId,
+                jobId: jobId,
+                name: jobName,
+                startTime: startTime,
+                status: JOB_STATUS.FAILED,
+                endTime: endTime,
+                error: errorMsg,
+                stderr: stderrBuffer,
+                type: jobType,
+            };
+            Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
+
+            try {
+                // finishJob rather than failJob: it also writes end_time, which the
+                // backup path left empty on a spawn error.
+                JobHistoryRepository.finishJob(
+                    runId,
+                    JOB_STATUS.FAILED,
+                    endTime,
+                    null,
+                    null,
+                    stderrBuffer || null,
+                );
+            } catch (e) {
+                logger.error({ err: e }, "DB Update Error (Spawn Failure)");
+            }
+        });
+    }
+
+    /**
+     * Executes a backup job. Resolves the job configuration from the local database,
+     * mounts repository credentials and processes encryption keys, then hands the
+     * finished command line to runProxmoxClient.
      *
      * @param runId - A unique identifier for this specific execution run.
      * @param jobId - The database ID of the job configuration to execute.
@@ -302,7 +612,7 @@ export class Executor {
         let tempKeyfilePath: string | undefined;
         let command = config.executable || "proxmox-backup-client";
         let args: string[] = [];
-        let env: any = { ...process.env };
+        let env: NodeJS.ProcessEnv = { ...process.env };
         let jobConfigData: any = {};
 
         try {
@@ -322,7 +632,7 @@ export class Executor {
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: new Date().toISOString(),
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
@@ -394,7 +704,10 @@ export class Executor {
 
         this.runningJobs.add(jobId);
 
+        const jobType = "backup";
+        const displayName = jobName || "Unknown Backup";
         const startTime = new Date().toISOString();
+
         try {
             // Encryption: write keyContent to a temp file and configure --keyfile
             if (jobConfigData.encryption?.keyContent) {
@@ -483,27 +796,27 @@ export class Executor {
             const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
                 jobId: jobId,
-                name: jobName || "Unknown Backup",
+                name: displayName,
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
                 stderr: e instanceof Error ? e.message : String(e),
-                type: "backup",
+                type: jobType,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            this.removeTempKeyfile(tempKeyfilePath);
+            this.releaseJobSlot(jobId);
             return;
         }
-
-        const jobType = "backup";
 
         // Pre-Execution Script
         if (config.preScript) {
             const success = await this.runScript(
                 config.preScript,
                 jobType,
-                jobName || "Unknown",
+                displayName,
                 runId,
             );
             if (!success) {
@@ -511,255 +824,57 @@ export class Executor {
                 const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                     id: runId,
                     jobId: jobId,
-                    name: jobName || "Unknown Backup",
+                    name: displayName,
                     startTime: startTime,
-                    status: "failed",
+                    status: JOB_STATUS.FAILED,
                     error: "Pre-execution script failed. Operation aborted.",
                     stderr: "Pre-execution script failed. Operation aborted.",
                     type: jobType,
                 };
                 Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+                this.removeTempKeyfile(tempKeyfilePath);
+                this.releaseJobSlot(jobId);
                 return;
             }
         }
 
-        logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
-
-        try {
-            JobHistoryRepository.startRunningJob(
-                runId,
-                jobId,
-                jobType,
-                startTime,
-                jobName || null,
-            );
-        } catch (e) {
-            logger.error({ err: e }, "DB Log Error");
-        }
-
-        const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-            id: runId,
-            jobId: jobId,
-            name: jobName || "Unknown Backup",
-            startTime: startTime,
-            status: "running",
-            type: jobType,
-        };
-        Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
-
-        let stdoutBuffer = "";
-        let stderrBuffer = "";
-
-        // Outbound clients reach the PBS only through the SSH reverse tunnel. The lease is
-        // requested here, immediately before the spawn, and released again in every exit
-        // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
-        let lease: TunnelLease | undefined;
-        try {
-            const tunnelRequired = !!jobConfigData.tunnel?.required;
-            TunnelClient.assertModeMatches(tunnelRequired);
-
-            if (tunnelRequired && jobConfigData.repository) {
-                lease = await TunnelClient.acquire(runId, jobId);
-                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
-                    jobConfigData.repository,
-                    lease,
-                );
-                // Measured by the server moments ago; the copy in the job config may be
-                // months old and is only the fallback if the server could not measure.
-                if (lease.fingerprint) {
-                    env.PBS_FINGERPRINT = lease.fingerprint;
-                }
-            }
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : String(e);
-            logger.error({ err: e }, "Tunnel acquisition failed");
-            this.runningJobs.delete(jobId);
-            this.finishFailedRun(
-                runId,
-                jobId,
-                jobName || "Unknown Backup",
-                startTime,
-                jobType,
-                message,
-            );
-            return;
-        }
-
-        const child = spawn(command, args, {
-            shell: false,
-            env: env,
-            // Standard IO pipes: [stdin, stdout, stderr, pipe3 (repository password)]
-            stdio: ["pipe", "pipe", "pipe", "pipe"],
-        });
-
-        if (pbsPassword) {
-            const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => {});
-            passwordPipe.write(pbsPassword);
-            passwordPipe.end();
-        }
-
-        child.stdout.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            process.stdout.write(chunk);
-            stdoutBuffer += chunk;
-            logger.debug({ err: chunk }, "stdout");
-            Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId: runId,
-                output: chunk,
-                stream: "stdout",
-            });
-        });
-
-        child.stderr.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            process.stderr.write(chunk);
-            stderrBuffer += chunk;
-            logger.debug({ err: chunk }, "stderr");
-            Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId: runId,
-                output: chunk,
-                stream: "stderr",
-            });
-        });
-
-        child.on("close", (code: number | null) => {
-            TunnelClient.release(lease);
-            lease = undefined;
-            const status = code === 0 ? "success" : "failed";
-            const endTime = new Date().toISOString();
-            logger.info(`Job ${jobId} finished with code ${code}`);
-
-            try {
-                JobHistoryRepository.finishJob(
-                    runId,
-                    status,
-                    endTime,
-                    code,
-                    stdoutBuffer || null,
-                    stderrBuffer || null,
-                );
-            } catch (e) {
-                logger.error({ err: e }, "DB Update Error");
-            }
-
-            const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                jobId: jobId,
-                name: jobName || "Unknown Backup",
-                startTime: startTime,
-                status: status,
-                exitCode: code ?? undefined,
-                endTime: endTime,
-                stdout: stdoutBuffer,
-                stderr: stderrBuffer,
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
-
-            this.runningJobs.delete(jobId);
-
-            // Post-Execution Script
-            if (config.postScript) {
-                this.runScript(
-                    config.postScript,
-                    jobType,
-                    jobName || "Unknown",
-                    runId,
-                ).then((success) => {
-                    if (!success && status === "success") {
-                        // If backup succeeded but post-script failed, we still mark it as failed (as per requirement: "bei einem Fehler wird der gesamte Vorgang abgebrochen")
-                        // Well, it's already "finished", but we can update the status.
-                        logger.error("Post-execution script failed.");
-                        const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
-                            {
-                                id: runId,
-                                jobId: jobId,
-                                name: jobName || "Unknown Backup",
-                                startTime: startTime,
-                                status: "failed",
-                                exitCode: code ?? undefined,
-                                endTime: endTime,
-                                stdout: stdoutBuffer,
-                                stderr:
-                                    (stderrBuffer || "") +
-                                    "\nPost-execution script failed.",
-                                type: jobType,
-                            };
-                        Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
-
-                        try {
-                            JobHistoryRepository.failJob(
-                                runId,
-                                (stderrBuffer || "") +
-                                    "\nPost-execution script failed.",
-                            );
-                        } catch (e) {
-                            logger.error(
-                                { err: e },
-                                "DB Update Error (Post-Script Failure)",
-                            );
-                        }
-                    }
-                });
-            }
-
-            if (this.pendingJobs.has(jobId)) {
-                const queuedRunId = this.pendingJobs.get(jobId)!;
-                this.pendingJobs.delete(jobId);
-                const delayMs = (config.queueDelaySeconds || 5) * 1000;
-                logger.info(
-                    `Restarting queued job ${jobId} in ${delayMs / 1000}s...`,
-                );
-                setTimeout(() => {
-                    Executor.executeBackup(queuedRunId, jobId);
-                }, delayMs);
-            }
-        });
-
-        child.on("error", (err: Error) => {
-            TunnelClient.release(lease);
-            lease = undefined;
-            this.runningJobs.delete(jobId);
-            logger.error({ err: err }, "Spawn Error");
-
-            const errorMsg = err.message;
-            stderrBuffer += "\nSpawn Error: " + errorMsg;
-            const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                jobId: jobId,
-                name: jobName || "Unknown Backup",
-                startTime: startTime,
-                status: "failed",
-                error: errorMsg,
-                stderr: stderrBuffer,
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
-
-            try {
-                JobHistoryRepository.failJob(runId, stderrBuffer || "");
-            } catch (e) {}
+        await this.runProxmoxClient({
+            runId,
+            jobId,
+            jobType,
+            jobName: displayName,
+            startTime,
+            command,
+            args,
+            env,
+            password: pbsPassword,
+            keyfilePath: tempKeyfilePath,
+            repository: jobConfigData.repository,
+            tunnelRequired: !!jobConfigData.tunnel?.required,
+            releaseSlot: true,
         });
     }
 
     /**
-     * Executes a restore operation by spawning the proxmox-backup-client CLI tool.
-     * Automatically handles downloading and decrypting a snapshot archive into a
-     * specified local directory, while streaming logs back to the server.
+     * Executes a restore operation. Resolves the snapshot, target path and encryption
+     * key into a command line, then hands it to runProxmoxClient.
      *
      * @param runId - A unique identifier for this specific restore run.
      * @param payload - Payload containing restore configuration (snapshot, targetPath, etc.).
      */
-    static async executeRestore(runId: string, payload: any) {
+    static async executeRestore(
+        runId: string,
+        payload: RestoreSnapshotPayload,
+    ) {
         const { snapshot, targetPath, repository, archives, encryption } =
             payload;
         let pbsPassword: string | undefined;
         let tempKeyfilePath: string | undefined;
         let command = config.executable || "proxmox-backup-client";
         let args: string[] = [];
-        let env = { ...process.env };
-        let jobName = `Restore: ${snapshot}`;
+        let env: NodeJS.ProcessEnv = { ...process.env };
+        const jobType = "restore";
+        const jobName = `Restore: ${snapshot}`;
 
         const startTime = new Date().toISOString();
         try {
@@ -829,229 +944,31 @@ export class Executor {
                 id: runId,
                 name: jobName,
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
                 stderr: e instanceof Error ? e.message : String(e),
-                type: "restore",
+                type: jobType,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            this.removeTempKeyfile(tempKeyfilePath);
             return;
         }
 
-        logger.info(`Starting restore ${runId}: ${command} ${args.join(" ")}`);
-
-        const jobType = "restore";
-
-        try {
-            JobHistoryRepository.startRunningJob(
-                runId,
-                null,
-                jobType,
-                startTime,
-                jobName,
-            );
-        } catch (e) {
-            logger.error({ err: e }, "DB Log Error");
-        }
-
-        const runningPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-            id: runId,
-            name: jobName,
-            startTime: startTime,
-            status: "running",
-            type: jobType,
-        };
-        Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
-
-        let stdoutBuffer = "";
-        let stderrBuffer = "";
-
-        // Same tunnel handling as for backups. A restore carries no jobId — the server
-        // authorised the target for this runId when it triggered the restore.
-        let lease: TunnelLease | undefined;
-        try {
-            const tunnelRequired = !!payload?.tunnel?.required;
-            TunnelClient.assertModeMatches(tunnelRequired);
-
-            if (tunnelRequired && repository) {
-                lease = await TunnelClient.acquire(runId);
-                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
-                    repository,
-                    lease,
-                );
-                if (lease.fingerprint) {
-                    env.PBS_FINGERPRINT = lease.fingerprint;
-                }
-            }
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : String(e);
-            logger.error({ err: e }, "Tunnel acquisition failed (restore)");
-            this.finishFailedRun(
-                runId,
-                undefined,
-                jobName,
-                startTime,
-                jobType,
-                message,
-            );
-            return;
-        }
-
-        const child = spawn(command, args, {
-            shell: false,
-            env: env,
-            stdio: ["pipe", "pipe", "pipe", "pipe"],
-        });
-
-        if (pbsPassword) {
-            const passwordPipe = child.stdio[3] as any;
-            passwordPipe.on("error", () => {});
-            passwordPipe.write(pbsPassword);
-            passwordPipe.end();
-        }
-
-        child.stdout.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            process.stdout.write(chunk);
-            stdoutBuffer += chunk;
-            Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId: runId,
-                output: chunk,
-                stream: "stdout",
-            });
-        });
-
-        child.stderr.on("data", (data: Buffer) => {
-            const chunk = data.toString();
-            process.stderr.write(chunk);
-            stderrBuffer += chunk;
-            Connection.send(WS_EVENTS.LOG_UPDATE, {
-                jobId: runId,
-                output: chunk,
-                stream: "stderr",
-            });
-        });
-        const cleanup = () => {
-            if (tempKeyfilePath && fs.existsSync(tempKeyfilePath)) {
-                try {
-                    fs.unlinkSync(tempKeyfilePath);
-                } catch (e) {
-                    logger.error(
-                        { err: e },
-                        "Failed to delete temp restore keyfile",
-                    );
-                }
-            }
-        };
-
-        child.on("close", (code: number | null) => {
-            TunnelClient.release(lease);
-            lease = undefined;
-            const status = code === 0 ? "success" : "failed";
-            const endTime = new Date().toISOString();
-            logger.info(`Restore ${runId} finished with code ${code}`);
-
-            try {
-                JobHistoryRepository.finishJob(
-                    runId,
-                    status,
-                    endTime,
-                    code,
-                    stdoutBuffer || null,
-                    stderrBuffer || null,
-                );
-            } catch (e) {
-                logger.error({ err: e }, "DB Update Error");
-            }
-
-            const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                name: jobName,
-                startTime: startTime,
-                status: status,
-                exitCode: code ?? undefined,
-                endTime: endTime,
-                stdout: stdoutBuffer,
-                stderr: stderrBuffer,
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
-
-            // Post-Execution Script
-            if (config.postScript) {
-                this.runScript(
-                    config.postScript,
-                    jobType,
-                    jobName || "Unknown",
-                    runId,
-                ).then((success) => {
-                    if (!success && status === "success") {
-                        logger.error("Post-execution script failed.");
-                        const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
-                            {
-                                id: runId,
-                                name: jobName,
-                                startTime: startTime,
-                                status: "failed",
-                                exitCode: code ?? undefined,
-                                endTime: endTime,
-                                stdout: stdoutBuffer,
-                                stderr:
-                                    (stderrBuffer || "") +
-                                    "\nPost-execution script failed.",
-                                type: jobType,
-                            };
-                        Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
-
-                        try {
-                            JobHistoryRepository.failJob(
-                                runId,
-                                (stderrBuffer || "") +
-                                    "\nPost-execution script failed.",
-                            );
-                        } catch (e) {
-                            logger.error(
-                                { err: e },
-                                "DB Update Error (Post-Script Failure)",
-                            );
-                        }
-                    }
-                });
-            }
-
-            cleanup();
-        });
-
-        child.on("error", (err: Error) => {
-            TunnelClient.release(lease);
-            lease = undefined;
-            const errorMsg = err.message;
-            stderrBuffer += "\nSpawn Error: " + errorMsg;
-            const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                name: jobName,
-                startTime: startTime,
-                status: "failed",
-                error: errorMsg,
-                stderr: stderrBuffer,
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
-
-            try {
-                JobHistoryRepository.finishJob(
-                    runId,
-                    "failed",
-                    new Date().toISOString(),
-                    null,
-                    null,
-                    stderrBuffer || null,
-                );
-            } catch (e) {}
-
-            cleanup();
+        await this.runProxmoxClient({
+            runId,
+            jobType,
+            jobName,
+            startTime,
+            command,
+            args,
+            env,
+            password: pbsPassword,
+            keyfilePath: tempKeyfilePath,
+            repository,
+            tunnelRequired: !!payload?.tunnel?.required,
+            releaseSlot: false,
         });
     }
 }

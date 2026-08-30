@@ -200,7 +200,6 @@ export class ProxyService {
                 client.connection_mode === "outbound"
                     ? TunnelService.getStatus(client.id)
                     : undefined,
-            publicKey: client.publickey,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));
@@ -297,10 +296,24 @@ export class ProxyService {
         const finalPayload = { ...payload, requestId };
 
         return new Promise((resolve, reject) => {
-            const timeout = setTimeout(
-                () => reject(new Error("Timeout")),
-                5000,
-            );
+            // Every exit path runs through cleanup(). Detaching the listener only on
+            // success used to leave one behind per timed-out or aborted request, which
+            // both grew unboundedly and re-parsed every later message once per corpse.
+            const cleanup = () => {
+                clearTimeout(timeout);
+                socket.off("message", listener);
+                socket.off("close", onClose);
+            };
+
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error("Timeout"));
+            }, 5000);
+
+            const onClose = () => {
+                cleanup();
+                reject(new Error("Client disconnected"));
+            };
 
             const listener = (msg: Buffer) => {
                 try {
@@ -309,10 +322,9 @@ export class ProxyService {
                     // Check if message matches the expected type and requestId
                     if (
                         data.type === type &&
-                        data.payload.requestId === requestId
+                        data.payload?.requestId === requestId
                     ) {
-                        clearTimeout(timeout);
-                        socket.off("message", listener);
+                        cleanup();
                         if (data.payload.error) {
                             reject(new Error(data.payload.error));
                         } else {
@@ -322,6 +334,7 @@ export class ProxyService {
                 } catch (e) {}
             };
             socket.on("message", listener);
+            socket.on("close", onClose);
             socket.send(JSON.stringify({ type, payload: finalPayload }));
         });
     }

@@ -120,3 +120,21 @@ const shutdown = () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+// Registered only after listen() succeeded, so a failed startup (migration,
+// OIDC, port already taken) still fails fast instead of being swallowed here.
+
+// A rejected promise must not take the control plane down: agents would lose
+// their WebSocket and every scheduled run would report as offline.
+process.on("unhandledRejection", (reason) => {
+    server.log.error({ err: reason }, "Unhandled promise rejection");
+});
+
+// An uncaught exception leaves the process in an unknown state. Log it and let
+// the supervisor restart us (compose.yaml: restart: unless-stopped).
+process.on("uncaughtException", (err) => {
+    server.log.fatal({ err }, "Uncaught exception, terminating");
+    TunnelService.shutdown();
+    // Give the pino transport worker a moment to flush before we go.
+    setTimeout(() => process.exit(1), 250);
+});

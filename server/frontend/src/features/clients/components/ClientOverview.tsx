@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard } from '@stefgo/react-ui-components';
-import { Client } from '@pbcm/shared';
+import { Client, JOB_STATUS } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
@@ -57,36 +57,36 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { repositories, fetchRepositories } = useRepositoryStore();
 
     const refreshCurrentClient = () => {
-        if (token) fetchClientData(client.id, token);
+        if (token) fetchClientData(client.id);
     };
 
     const deleteJob = (clientId: string, jobId: string) => {
-        if (token) return storeDeleteJob(clientId, jobId, token);
+        if (token) return storeDeleteJob(clientId, jobId);
         return Promise.reject('No token');
     };
 
     const triggerJob = (clientId: string, jobId: string) => {
-        if (token) return storeTriggerJob(clientId, jobId, token);
+        if (token) return storeTriggerJob(clientId, jobId);
         return Promise.reject('No token');
     };
 
     // Init Data & Subscriptions
     useEffect(() => {
         if (client && token) {
-            fetchClientData(client.id, token);
-            fetchRepositories(token);
+            fetchClientData(client.id);
+            fetchRepositories();
         }
     }, [client, token]);
 
     useEffect(() => {
         if (client && token && repositories.length > 0) {
-            fetchClientSnapshots(client.id, repositories, token);
+            fetchClientSnapshots(client.id, repositories);
         }
     }, [client, token, repositories]);
 
     useClientSubscription(client.id, (job) => {
-        if (job.status === 'success' && token) {
-            fetchClientSnapshots(client.id, repositories, token);
+        if (job.status === JOB_STATUS.SUCCESS && token) {
+            fetchClientSnapshots(client.id, repositories);
         }
     });
 
@@ -101,7 +101,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // store.fetchFileList is available.
     useEffect(() => {
         if (jobForm.isCreatingJob && client && token) {
-            fetchFileList(client.id, jobForm.fileBrowserPath, token);
+            fetchFileList(client.id, jobForm.fileBrowserPath);
         }
     }, [jobForm.isCreatingJob, jobForm.fileBrowserPath, client, token]);
 
@@ -132,7 +132,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const handleUpdateClient = async (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => {
         if (!token) return;
         try {
-            await updateClient(id, data, token);
+            await updateClient(id, data);
             setIsEditing(false);
         } catch (e: unknown) {
             console.error("Failed to update client", e);

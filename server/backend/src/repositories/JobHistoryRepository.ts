@@ -1,4 +1,8 @@
 import db from "../core/Database.js";
+import { StatusUpdatePayload, HistoryEntry } from "@pbcm/shared";
+
+// The two writers below take payloads the WebSocketController has already run through
+// their Zod schemas, so they can be typed instead of taking `any`.
 
 export class JobHistoryRepository {
     static findLatestSyncTime(clientId: string): string | null {
@@ -10,7 +14,10 @@ export class JobHistoryRepository {
         return lastSyncRecord?.updated_at || null;
     }
 
-    static upsertStatus(clientId: string, payload: any): void {
+    static upsertStatus(
+        clientId: string,
+        payload: StatusUpdatePayload,
+    ): void {
         db.prepare(
             `
             INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
@@ -38,7 +45,10 @@ export class JobHistoryRepository {
         );
     }
 
-    static upsertHistoryBatch(clientId: string, historyEntries: any[]): void {
+    static upsertHistoryBatch(
+        clientId: string,
+        historyEntries: HistoryEntry[],
+    ): void {
         const insertStmt = db.prepare(`
             INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -51,7 +61,7 @@ export class JobHistoryRepository {
                 updated_at=CURRENT_TIMESTAMP
         `);
 
-        const transaction = db.transaction((entries: any[]) => {
+        const transaction = db.transaction((entries: HistoryEntry[]) => {
             for (const entry of entries) {
                 insertStmt.run(
                     entry.id,
