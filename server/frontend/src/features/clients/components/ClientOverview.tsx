@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard } from '@stefgo/react-ui-components';
-import { Client } from '@pbcm/shared';
+import { Client, JOB_STATUS } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
@@ -85,7 +85,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     }, [client, token, repositories]);
 
     useClientSubscription(client.id, (job) => {
-        if (job.status === 'success' && token) {
+        if (job.status === JOB_STATUS.SUCCESS && token) {
             fetchClientSnapshots(client.id, repositories, token);
         }
     });

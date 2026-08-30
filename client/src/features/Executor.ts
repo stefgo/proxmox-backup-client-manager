@@ -236,7 +236,7 @@ export class Executor {
         try {
             JobHistoryRepository.finishJob(
                 runId,
-                "failed",
+                JOB_STATUS.FAILED,
                 new Date().toISOString(),
                 null,
                 null,
@@ -251,7 +251,7 @@ export class Executor {
             jobId: jobId,
             name,
             startTime,
-            status: "failed",
+            status: JOB_STATUS.FAILED,
             endTime: new Date().toISOString(),
             error: message,
             stderr: message,
@@ -365,7 +365,7 @@ export class Executor {
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: new Date().toISOString(),
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
@@ -528,7 +528,7 @@ export class Executor {
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
@@ -558,7 +558,7 @@ export class Executor {
                     jobId: jobId,
                     name: jobName || "Unknown Backup",
                     startTime: startTime,
-                    status: "failed",
+                    status: JOB_STATUS.FAILED,
                     error: "Pre-execution script failed. Operation aborted.",
                     stderr: "Pre-execution script failed. Operation aborted.",
                     type: jobType,
@@ -589,7 +589,7 @@ export class Executor {
             jobId: jobId,
             name: jobName || "Unknown Backup",
             startTime: startTime,
-            status: "running",
+            status: JOB_STATUS.RUNNING,
             type: jobType,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
@@ -675,7 +675,7 @@ export class Executor {
             TunnelClient.release(lease);
             lease = undefined;
             this.removeTempKeyfile(tempKeyfilePath);
-            const status = code === 0 ? "success" : "failed";
+            const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
             const endTime = new Date().toISOString();
             logger.info(`Job ${jobId} finished with code ${code}`);
 
@@ -714,7 +714,7 @@ export class Executor {
                     jobName || "Unknown",
                     runId,
                 ).then((success) => {
-                    if (!success && status === "success") {
+                    if (!success && status === JOB_STATUS.SUCCESS) {
                         // If backup succeeded but post-script failed, we still mark it as failed (as per requirement: "bei einem Fehler wird der gesamte Vorgang abgebrochen")
                         // Well, it's already "finished", but we can update the status.
                         logger.error("Post-execution script failed.");
@@ -724,7 +724,7 @@ export class Executor {
                                 jobId: jobId,
                                 name: jobName || "Unknown Backup",
                                 startTime: startTime,
-                                status: "failed",
+                                status: JOB_STATUS.FAILED,
                                 exitCode: code ?? undefined,
                                 endTime: endTime,
                                 stdout: stdoutBuffer,
@@ -768,7 +768,7 @@ export class Executor {
                 jobId: jobId,
                 name: jobName || "Unknown Backup",
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error: errorMsg,
                 stderr: stderrBuffer,
                 type: jobType,
@@ -867,7 +867,7 @@ export class Executor {
                 id: runId,
                 name: jobName,
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error:
                     "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
@@ -898,7 +898,7 @@ export class Executor {
             id: runId,
             name: jobName,
             startTime: startTime,
-            status: "running",
+            status: JOB_STATUS.RUNNING,
             type: jobType,
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
@@ -974,7 +974,7 @@ export class Executor {
         child.on("close", (code: number | null) => {
             TunnelClient.release(lease);
             lease = undefined;
-            const status = code === 0 ? "success" : "failed";
+            const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
             const endTime = new Date().toISOString();
             logger.info(`Restore ${runId} finished with code ${code}`);
 
@@ -1012,14 +1012,14 @@ export class Executor {
                     jobName || "Unknown",
                     runId,
                 ).then((success) => {
-                    if (!success && status === "success") {
+                    if (!success && status === JOB_STATUS.SUCCESS) {
                         logger.error("Post-execution script failed.");
                         const finalPayload: ProtocolMap["STATUS_UPDATE"]["req"] =
                             {
                                 id: runId,
                                 name: jobName,
                                 startTime: startTime,
-                                status: "failed",
+                                status: JOB_STATUS.FAILED,
                                 exitCode: code ?? undefined,
                                 endTime: endTime,
                                 stdout: stdoutBuffer,
@@ -1058,7 +1058,7 @@ export class Executor {
                 id: runId,
                 name: jobName,
                 startTime: startTime,
-                status: "failed",
+                status: JOB_STATUS.FAILED,
                 error: errorMsg,
                 stderr: stderrBuffer,
                 type: jobType,
@@ -1068,7 +1068,7 @@ export class Executor {
             try {
                 JobHistoryRepository.finishJob(
                     runId,
-                    "failed",
+                    JOB_STATUS.FAILED,
                     new Date().toISOString(),
                     null,
                     null,
