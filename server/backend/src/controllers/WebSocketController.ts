@@ -12,6 +12,7 @@ import {
     TunnelAcquireSchema,
     TunnelReleaseSchema,
     FingerprintObservedSchema,
+    parseRepositoryEndpoint,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
@@ -581,19 +582,18 @@ export class WebSocketController {
         return repo?.fingerprint || undefined;
     }
 
-    /** Turns a repository base URL into the host/port the tunnel must forward to. */
+    /**
+     * Turns a repository base URL into the host/port the tunnel must forward to.
+     * The port is whatever the URL says — see parseRepositoryEndpoint; a PBS on its own
+     * API port has to be written as `https://pbs.example.com:8007`.
+     */
     static repositoryTarget(
         baseUrl: string,
     ): { host: string; port: number } | undefined {
-        try {
-            const url = new URL(baseUrl);
-            return {
-                host: url.hostname,
-                port: url.port ? Number(url.port) : 8007,
-            };
-        } catch {
-            return undefined;
-        }
+        const endpoint = parseRepositoryEndpoint(baseUrl);
+        return endpoint
+            ? { host: endpoint.host, port: endpoint.port }
+            : undefined;
     }
 
     /**

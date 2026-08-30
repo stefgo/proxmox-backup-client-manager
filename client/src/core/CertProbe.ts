@@ -1,9 +1,7 @@
 import tls from "node:tls";
 import net from "node:net";
+import { parseRepositoryEndpoint } from "@pbcm/shared";
 import { logger } from "./logger.js";
-
-/** Default port of the PBS API, used when the base URL does not name one. */
-const PBS_DEFAULT_PORT = 8007;
 
 export interface CertProbeResult {
     /** A TLS handshake was completed at all — with or without a valid chain. */
@@ -90,20 +88,15 @@ export async function probeCertificate(
     baseUrl: string,
     timeoutMs = 5000,
 ): Promise<CertProbeResult> {
-    let host: string;
-    let port: number;
-
-    try {
-        const url = new URL(baseUrl);
-        host = url.hostname;
-        port = url.port ? Number(url.port) : PBS_DEFAULT_PORT;
-    } catch {
+    const endpoint = parseRepositoryEndpoint(baseUrl);
+    if (!endpoint) {
         return {
             reachable: false,
             caValid: false,
             error: `Ungültige Repository-Adresse: ${baseUrl}`,
         };
     }
+    const { host, port } = endpoint;
 
     try {
         const res = await handshake(host, port, true, timeoutMs);

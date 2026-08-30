@@ -179,6 +179,14 @@ Durch den dynamischen Port hat `PBS_REPOSITORY` bei getunnelten Läufen immer di
 `user!token@127.0.0.1:<port>:datastore`. Die eingesetzte `proxmox-backup-client`-Version muss
 die Port-Angabe in der Repository-Spec unterstützen.
 
+Der Port des Tunnelziels stammt ausschließlich aus der Repository-URL
+(`parseRepositoryEndpoint` in `shared/`): ein ausdrücklich angegebener Port gilt, sonst der
+Standard des Protokolls (443 bzw. 80). **Ein PBS auf seinem eigenen API-Port muss als
+`https://pbs.example.com:8007` eingetragen werden** — 8007 wird nirgends stillschweigend
+angenommen. Aus demselben Grund enthält `PBS_REPOSITORY` auch bei direkten Läufen immer einen
+expliziten Port: Sonst würde `proxmox-backup-client` seinerseits 8007 annehmen und ein anderes
+Ziel ansprechen als der Server auflöst.
+
 Die Hostname-Prüfung wird über `PBS_FINGERPRINT` abgedeckt, sodass der Mismatch zwischen
 `127.0.0.1` und dem PBS-Zertifikat unkritisch ist.
 

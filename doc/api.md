@@ -920,7 +920,7 @@ _Same structure as [Get Client History](#get-client-history)._
 
 | Field         | Type   | Required | Description                                      |
 | :------------ | :----- | :------- | :----------------------------------------------- |
-| `baseUrl`     | string | **Yes**  | URL of the PBS (e.g., `https://pbs:8007`).       |
+| `baseUrl`     | string | **Yes**  | URL of the PBS, **including the port** (e.g., `https://pbs:8007`). Without one the protocol default applies (443 for https, 80 for http) — the PBS API port is never assumed. |
 | `datastore`   | string | **Yes**  | Data store name.                                 |
 | `fingerprint` | string | No       | SHA256 fingerprint for self-signed certificates. |
 | `username`    | string | **Yes**  | API User/Token ID (e.g., `user@pbs`).            |
