@@ -70,6 +70,13 @@ Der Agent erkennt daran den Outbound-Modus, verbindet sich nicht selbst zum Serv
 stattdessen `/ws/register` und `/ws/agent` auf Port 3001 bereit. Nach erfolgreicher
 Registrierung wird das Secret aus der Konfiguration entfernt.
 
+> **Agent im Container:** Der Reverse-Forward endet im Netzwerk-Namespace des sshd, also
+> auf dem Host. Ein Container mit Bridge-Netz hat ein eigenes `127.0.0.1` und erreicht den
+> Forward nicht — der Lauf scheitert mit `SSH-Tunnel nicht erreichbar … ECONNREFUSED`.
+> Deshalb `network_mode: host` verwenden (siehe `compose.yaml`). Ist Port 3001 auf dem Host
+> belegt, per `listenPort` bzw. `PBCM_CLIENT_PORT` einen freien wählen und denselben Port in
+> der Zieladresse des Clients eintragen.
+
 ### 3. Client in der Oberfläche anlegen
 
 „Outbound-Client" im Client-Bereich. Zieladresse, Registrierungs-Secret und die SSH-Daten
@@ -128,6 +135,9 @@ versehentlich am Tunnel vorbei.
 - **Der Server muss zu den Backup-Zeiten laufen.** Ohne WebSocket keine Lease, ohne Lease kein
   Tunnel, und einen Fallback auf Direktverbindung gibt es konstruktiv nicht. Geplante Backups
   scheitern dann sofort mit klarer Meldung.
+- **Die Zieladresse ist änderbar, die Verbindungsart nicht.** Host und Port des Agents
+  lassen sich im Client-Editor anpassen; der Server verwirft daraufhin die offene
+  Agent-Verbindung und wählt sofort die neue Adresse.
 - **Ein Wechsel der Verbindungsart ist nicht vorgesehen.** Umstellen heißt löschen und neu
   anlegen — die an der Client-ID hängende Job-Historie geht dabei verloren.
 - **`tunnel.keySecret` sichern.** Geht der Wert verloren, sind die hinterlegten SSH-Keys nicht

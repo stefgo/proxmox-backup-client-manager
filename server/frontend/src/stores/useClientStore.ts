@@ -11,7 +11,7 @@ interface ClientsState {
     deleteClient: (clientId: string, token: string) => Promise<void>;
     updateClient: (
         clientId: string,
-        data: { displayName?: string },
+        data: { displayName?: string; outboundTargetAddress?: string },
         token: string,
     ) => Promise<void>;
     setClients: (clients: Client[]) => void;

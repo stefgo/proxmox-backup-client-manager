@@ -23,6 +23,23 @@ interface OutboundBody {
     };
 }
 
+/**
+ * Accepts "host:port" (also IPv6 in brackets) and rejects anything carrying a scheme,
+ * path or credentials — the value is interpolated into `ws://<address>/ws/agent`, so a
+ * stray slash would silently redirect the agent connection.
+ */
+function normaliseTargetAddress(value: string): string | undefined {
+    const trimmed = value.trim();
+    if (!trimmed || /[\s/@\\?#]/.test(trimmed)) return undefined;
+    try {
+        const url = new URL(`ws://${trimmed}`);
+        if (!url.hostname || !url.port) return undefined;
+        return `${url.host}`;
+    } catch {
+        return undefined;
+    }
+}
+
 export class ClientController {
     /**
      * Creates an outbound client together with its SSH tunnel — deliberately one atomic
@@ -171,9 +188,10 @@ export class ClientController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const parsed = ClientSchema.pick({ displayName: true }).safeParse(
-            request.body,
-        );
+        const parsed = ClientSchema.pick({
+            displayName: true,
+            outboundTargetAddress: true,
+        }).safeParse(request.body);
         if (!parsed.success) {
             return reply
                 .code(400)
@@ -181,10 +199,48 @@ export class ClientController {
         }
         const body = parsed.data;
 
+        const client = ClientRepository.findById(clientId);
+        if (!client) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+
+        let address: string | undefined;
+        if (body.outboundTargetAddress !== undefined) {
+            if (client.connection_mode !== "outbound") {
+                return reply.code(400).send({
+                    error: "Nur Outbound-Clients haben eine Zieladresse",
+                });
+            }
+            address = normaliseTargetAddress(body.outboundTargetAddress);
+            if (!address) {
+                return reply.code(400).send({
+                    error: "Zieladresse muss die Form host:port haben",
+                });
+            }
+        }
+
         try {
-            const updated = ProxyService.updateClient(clientId, body);
+            const updated = ProxyService.updateClient(clientId, {
+                displayName: body.displayName,
+                outboundTargetAddress: address,
+            });
             if (!updated) {
                 return reply.code(404).send({ error: "Client not found" });
+            }
+
+            // An open agent socket still points at the old endpoint, and reconnect logic
+            // re-reads the row — so drop it and dial the new address right away.
+            if (address && address !== client.outbound_target_address) {
+                ProxyService.disconnectClient(
+                    clientId,
+                    "Target address changed",
+                );
+                ClientConnector.reconnectNow(clientId).catch((e) =>
+                    logger.warn(
+                        { err: e, clientId },
+                        "Reconnect after address change failed",
+                    ),
+                );
             }
             return { success: true };
         } catch (e: unknown) {

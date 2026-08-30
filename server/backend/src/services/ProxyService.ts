@@ -123,18 +123,42 @@ export class ProxyService {
         }));
     }
 
-    static updateClient(id: string, data: { displayName?: string }) {
+    static updateClient(
+        id: string,
+        data: { displayName?: string; outboundTargetAddress?: string },
+    ) {
+        let changed = false;
+
         if (data.displayName !== undefined) {
             const info = ClientRepository.updateDisplayName(
                 id,
                 data.displayName,
             );
-            if (info.changes > 0) {
-                this.broadcastClientUpdate();
-                return true;
-            }
+            changed = changed || info.changes > 0;
         }
-        return false;
+
+        if (data.outboundTargetAddress !== undefined) {
+            const info = ClientRepository.updateOutboundTargetAddress(
+                id,
+                data.outboundTargetAddress,
+            );
+            changed = changed || info.changes > 0;
+        }
+
+        if (changed) this.broadcastClientUpdate();
+        return changed;
+    }
+
+    /**
+     * Drops the agent connection so it is rebuilt from the current database row — used
+     * after the target address changed, where the open socket still points at the old
+     * endpoint.
+     */
+    static disconnectClient(clientId: string, reason: string): void {
+        const socket = this.connectedClients.get(clientId);
+        if (!socket) return;
+        logger.info({ clientId, reason }, "ProxyService: dropping agent connection");
+        socket.close(4000, reason);
     }
 
     /**

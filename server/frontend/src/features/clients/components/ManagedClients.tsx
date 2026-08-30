@@ -13,7 +13,7 @@ interface ManagedClientsProps {
     onDelete: (clientId: string) => void;
     onUpdate: (
         clientId: string,
-        data: { displayName?: string },
+        data: { displayName?: string; outboundTargetAddress?: string },
     ) => Promise<void>;
 }
 
@@ -80,7 +80,7 @@ export const ManagedClients = ({
 
     const handleSaveClient = async (
         id: string,
-        data: { displayName?: string },
+        data: { displayName?: string; outboundTargetAddress?: string },
     ) => {
         await onUpdate(id, data);
         setEditingClient(null);

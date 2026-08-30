@@ -24,6 +24,11 @@ services:
     image: pbcm-client:latest
     ports:
       - "3001:3001"
+    # Outbound clients: the SSH reverse tunnel terminates in the network namespace of
+    # the sshd, i.e. on the host. A bridged container has its own loopback and cannot
+    # reach the forward, so host networking is required. The ports: block above is then
+    # ignored — pick a free port via PBCM_CLIENT_PORT if 3001 is taken on the host.
+    # network_mode: host
     volumes:
       # Persist client configuration
       - ./client-config.yaml:/app/client/config.yaml

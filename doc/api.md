@@ -296,7 +296,8 @@
 
 `PUT /v1/clients/:clientId`
 
-**Description:** Updates client metadata such as the display name.
+**Description:** Updates client metadata such as the display name, and — for outbound
+clients — the address the server dials.
 
 #### Path Parameters
 
@@ -306,15 +307,17 @@
 
 #### Request Body
 
-| Field         | Type   | Required | Description                              |
-| :------------ | :----- | :------- | :--------------------------------------- |
-| `displayName` | string | No       | A custom display name for the client.    |
+| Field                   | Type   | Required | Description                                                                                              |
+| :---------------------- | :----- | :------- | :------------------------------------------------------------------------------------------------------- |
+| `displayName`           | string | No       | A custom display name for the client.                                                                      |
+| `outboundTargetAddress` | string | No       | `host:port` of the agent. Outbound clients only (400 otherwise); the agent connection is rebuilt on change. |
 
 **Example Request:**
 
 ```json
 {
-    "displayName": "Production Server"
+    "displayName": "Production Server",
+    "outboundTargetAddress": "192.168.1.50:3101"
 }
 ```
 
