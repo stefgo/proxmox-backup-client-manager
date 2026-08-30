@@ -44,3 +44,21 @@ const shutdown = async () => {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+// Registered only after initialization completed, so a failed startup (migration,
+// config) still fails fast instead of being swallowed here.
+
+// The agent has to survive a stray rejection: it is the only thing triggering the
+// scheduled backups on this machine, and nobody is watching it interactively.
+process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "Unhandled promise rejection");
+});
+
+// An uncaught exception leaves the process in an unknown state. Log it and exit so
+// a supervisor restarts us; cleanupRunningJobs() then tidies up the history rows of
+// any run that was cut short.
+process.on("uncaughtException", (err) => {
+    logger.fatal({ err }, "Uncaught exception, terminating");
+    // Give the pino transport worker a moment to flush before we go.
+    setTimeout(() => process.exit(1), 250);
+});
