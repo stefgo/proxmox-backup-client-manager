@@ -4,6 +4,7 @@ import { Button, Input } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
+import { apiFetch } from '../../../lib/apiFetch';
 
 interface ClientTunnelSettingsProps {
     clientId: string;
@@ -45,9 +46,7 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await fetch(`/api/v1/clients/${clientId}/tunnel`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`);
                 if (!res.ok) return;
                 const data: TunnelInfo = await res.json();
                 setInfo(data);
@@ -66,9 +65,8 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
         setError(null);
         setMessage(null);
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}/tunnel/test`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel/test`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
             if (data.ok) {
@@ -98,9 +96,9 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 body.passphrase = keyMode === 'manual' && passphrase ? passphrase : null;
             }
 
-            const res = await fetch(`/api/v1/clients/${clientId}/tunnel`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
                 method: 'PUT',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
             const data = await res.json();

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { BackupJob, HistoryEntry } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -12,7 +13,7 @@ interface GlobalJobsState {
     isLoading: boolean;
     error: string | null;
 
-    fetchAllJobs: (token: string) => Promise<void>;
+    fetchAllJobs: () => Promise<void>;
     updateSession: (job: HistoryEntry) => void;
     updateJobNextRunAt: (
         clientId: string,
@@ -27,16 +28,12 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     isLoading: false,
     error: null,
 
-    fetchAllJobs: async (token) => {
+    fetchAllJobs: async () => {
         set({ isLoading: true, error: null });
         try {
             const [jobsRes, historyRes] = await Promise.all([
-                fetch("/api/v1/jobs", {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
-                fetch("/api/v1/history", {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
+                apiFetch("/api/v1/jobs"),
+                apiFetch("/api/v1/history"),
             ]);
 
             if (!jobsRes.ok) throw new Error("Failed to fetch jobs");

@@ -31,14 +31,14 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     // Fetch Snapshots on mount or repo change
     useEffect(() => {
         if (repo && token) {
-            fetchSnapshots(repo, token);
+            fetchSnapshots(repo);
         }
     }, [repo, token]);
 
     // Fetch Clients needed for restore if not already loaded
     useEffect(() => {
         if (clients.length === 0 && token) {
-            fetchClients(token);
+            fetchClients();
         }
     }, [clients.length, token, fetchClients]);
 

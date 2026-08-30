@@ -1,4 +1,5 @@
-import { createContext, useContext, ReactNode, useState } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
+import { setUnauthorizedHandler, TOKEN_STORAGE_KEY } from '../../lib/apiFetch';
 
 interface AuthContextType {
     token: string | null;
@@ -21,17 +22,25 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+    const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_STORAGE_KEY));
 
     const login = (newToken: string) => {
         setToken(newToken);
-        localStorage.setItem('token', newToken);
+        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
     };
 
-    const logout = () => {
+    const logout = useCallback(() => {
         setToken(null);
-        localStorage.removeItem('token');
-    };
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }, []);
+
+    // apiFetch is a plain module and cannot read this context, so it gets handed the
+    // one thing it needs: what to do when the server says the session is over.
+    // Clearing the token re-renders the router into the login route.
+    useEffect(() => {
+        setUnauthorizedHandler(logout);
+        return () => setUnauthorizedHandler(null);
+    }, [logout]);
 
     return (
         <AuthContext.Provider value={{ token, login, logout }}>

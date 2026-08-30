@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { FsFile } from "@stefgo/react-ui-components";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 interface ClientFileSystemState {
     fileList: FsFile[];
@@ -10,7 +11,6 @@ interface ClientFileSystemState {
     fetchFileList: (
         clientId: string,
         path: string,
-        token: string,
     ) => Promise<void>;
 }
 
@@ -20,13 +20,12 @@ export const useClientFileSystemStore = create<ClientFileSystemState>(
         isLoadingFiles: false,
         error: null,
 
-        fetchFileList: async (clientId, path, token) => {
+        fetchFileList: async (clientId, path) => {
             set({ isLoadingFiles: true, error: null });
             try {
-                const res = await fetch(
+                const res = await apiFetch(
                     `/api/v1/clients/${clientId}/fs?path=${encodeURIComponent(path)}`,
                     {
-                        headers: { Authorization: `Bearer ${token}` },
                     },
                 );
                 if (res.ok) {

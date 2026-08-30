@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { BackupJob, HistoryEntry, Snapshot } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 interface ClientDataState {
     history: HistoryEntry[];
@@ -10,11 +11,10 @@ interface ClientDataState {
     isLoading: boolean;
     error: string | null;
 
-    fetchClientData: (clientId: string, token: string) => Promise<void>;
+    fetchClientData: (clientId: string) => Promise<void>;
     fetchClientSnapshots: (
         clientId: string,
         repositories: any[],
-        token: string,
     ) => Promise<void>;
 
     // Configured Job Actions
@@ -26,12 +26,10 @@ interface ClientDataState {
     deleteBackupJob: (
         clientId: string,
         jobId: string,
-        token: string,
     ) => Promise<void>;
     triggerBackupJob: (
         clientId: string,
         jobId: string,
-        token: string,
     ) => Promise<void>;
 
     // Realtime Updates
@@ -47,16 +45,12 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchClientData: async (clientId: string, token: string) => {
+    fetchClientData: async (clientId: string) => {
         set({ isLoading: true, error: null, lastHistory: [] });
         try {
             const [historyRes, backupJobsRes] = await Promise.all([
-                fetch(`/api/v1/clients/${clientId}/history`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
-                fetch(`/api/v1/clients/${clientId}/jobs`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                }),
+                apiFetch(`/api/v1/clients/${clientId}/history`),
+                apiFetch(`/api/v1/clients/${clientId}/jobs`),
             ]);
 
             const history = historyRes.ok ? await historyRes.json() : [];
@@ -89,13 +83,10 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     fetchClientSnapshots: async (
         clientId: string,
         repositories: any[],
-        token: string,
     ) => {
         try {
             const promises = repositories.map((repo) =>
-                fetch(`/api/v1/repositories/${repo.id}/snapshots`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                })
+                apiFetch(`/api/v1/repositories/${repo.id}/snapshots`)
                     .then((res) => (res.ok ? res.json() : []))
                     .then((snaps) =>
                         snaps.map((s: any) => ({ ...s, repository: repo })),
@@ -120,14 +111,12 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     deleteBackupJob: async (
         clientId: string,
         jobId: string | null,
-        token: string,
     ) => {
         try {
-            const res = await fetch(
+            const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,
                 {
                     method: "DELETE",
-                    headers: { Authorization: `Bearer ${token}` },
                 },
             );
             if (res.ok) {
@@ -145,15 +134,13 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     triggerBackupJob: async (
         clientId: string,
         jobId: string | null,
-        token: string,
     ) => {
         try {
-            const res = await fetch(
+            const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
                 {
                     method: "POST",
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         "Content-Type": "application/json",
                     },
                     body: JSON.stringify({}),

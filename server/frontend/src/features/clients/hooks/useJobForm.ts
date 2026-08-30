@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useAuth } from '../../auth/AuthContext';
 import { Archive, BackupJob } from '@pbcm/shared';
+import { apiFetch } from '../../../lib/apiFetch';
 
 interface UseJobFormProps {
     clientId: string | null;
@@ -8,7 +8,6 @@ interface UseJobFormProps {
 }
 
 export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
-    const { token } = useAuth();
 
     // Editor State
     const [isCreatingJob, setIsCreatingJob] = useState(false);
@@ -207,10 +206,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
                 } : undefined
             };
 
-            const res = await fetch(`/api/v1/clients/${clientId}/jobs`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}/jobs`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
@@ -230,9 +228,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const generateKey = async (): Promise<boolean> => {
         if (!clientId) return false;
         try {
-            const res = await fetch(`/api/v1/clients/${clientId}/key`, {
+            const res = await apiFetch(`/api/v1/clients/${clientId}/key`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
             });
             if (res.ok) {

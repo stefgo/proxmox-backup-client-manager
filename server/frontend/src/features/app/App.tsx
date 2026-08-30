@@ -86,9 +86,9 @@ function AppLayout() {
 
   useEffect(() => {
     if (token) {
-      fetchClients(token);
-      refreshRepos(token);
-      fetchAllJobs(token);
+      fetchClients();
+      refreshRepos();
+      fetchAllJobs();
     }
   }, [token, fetchClients, refreshRepos, fetchAllJobs]);
 
@@ -172,13 +172,13 @@ function AppLayout() {
               clients={clients}
               onSelect={(c) => c ? navigate(`/client/${c.id}`) : navigate("/")}
               onRefresh={() => {
-                if (token) fetchClients(token);
+                if (token) fetchClients();
               }}
               onDelete={(id) => {
-                if (token) deleteClient(id, token);
+                if (token) deleteClient(id);
               }}
               onUpdate={(id, data) =>
-                token ? updateClient(id, data, token) : Promise.reject()
+                token ? updateClient(id, data) : Promise.reject()
               }
             />
           )}
@@ -217,9 +217,9 @@ function AppLayout() {
             <ManagedRepositories
               repositories={repos}
               onSelect={(r) => r ? navigate(`/repository/${r.id}`) : navigate("/")}
-              onAdd={(r) => token ? addRepository(r, token) : Promise.reject()}
-              onUpdate={(id, r) => token ? updateRepository(id, r, token) : Promise.reject()}
-              onDelete={(id) => token ? deleteRepository(id, token) : Promise.reject()}
+              onAdd={(r) => token ? addRepository(r) : Promise.reject()}
+              onUpdate={(id, r) => token ? updateRepository(id, r) : Promise.reject()}
+              onDelete={(id) => token ? deleteRepository(id) : Promise.reject()}
             />
           )}
         </>

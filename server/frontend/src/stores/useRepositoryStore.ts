@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ManagedRepository as Repository } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
+import { apiFetch } from "../lib/apiFetch";
 
 export interface CertificateCheck {
     storedFingerprint: string | null;
@@ -23,25 +24,21 @@ interface RepositoriesState {
     isLoading: boolean;
     error: string | null;
 
-    fetchRepositories: (token: string) => Promise<void>;
-    addRepository: (repo: Partial<Repository>, token: string) => Promise<void>; // Partial for creation
+    fetchRepositories: () => Promise<void>;
+    addRepository: (repo: Partial<Repository>) => Promise<void>; // Partial for creation
     updateRepository: (
         id: string | number,
         repo: Partial<Repository>,
-        token: string,
     ) => Promise<void>;
-    deleteRepository: (id: string | number, token: string) => Promise<void>;
+    deleteRepository: (id: string | number) => Promise<void>;
     checkRepositoryStatus: (
         id: string | number,
-        token: string,
     ) => Promise<void>;
     probeCertificate: (
         id: string | number,
-        token: string,
     ) => Promise<CertificateCheck>;
     distributeFingerprint: (
         id: string | number,
-        token: string,
     ) => Promise<DistributeResult>;
 }
 
@@ -50,19 +47,17 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     isLoading: false,
     error: null,
 
-    fetchRepositories: async (token) => {
+    fetchRepositories: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await fetch("/api/v1/repositories", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch("/api/v1/repositories");
             if (res.ok) {
                 const data = await res.json();
                 set({ repositories: data });
 
                 // Check status for all
                 data.forEach((repo: Repository) => {
-                    get().checkRepositoryStatus(repo.id, token);
+                    get().checkRepositoryStatus(repo.id);
                 });
             } else {
                 throw new Error("Failed to fetch repositories");
@@ -74,7 +69,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         }
     },
 
-    checkRepositoryStatus: async (id, token) => {
+    checkRepositoryStatus: async (id) => {
         set((state) => ({
             repositories: state.repositories.map((r) =>
                 r.id === id ? { ...r, status: "loading" } : r,
@@ -82,9 +77,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         }));
 
         try {
-            const res = await fetch(`/api/v1/repositories/${id}/status`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
+            const res = await apiFetch(`/api/v1/repositories/${id}/status`);
 
             if (res.ok) {
                 const { status } = await res.json();
@@ -109,10 +102,8 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         }
     },
 
-    probeCertificate: async (id, token) => {
-        const res = await fetch(`/api/v1/repositories/${id}/certificate`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+    probeCertificate: async (id) => {
+        const res = await apiFetch(`/api/v1/repositories/${id}/certificate`);
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || "Zertifikatsprüfung fehlgeschlagen");
@@ -120,10 +111,9 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         return (await res.json()) as CertificateCheck;
     },
 
-    distributeFingerprint: async (id, token) => {
-        const res = await fetch(`/api/v1/repositories/${id}/distribute`, {
+    distributeFingerprint: async (id) => {
+        const res = await apiFetch(`/api/v1/repositories/${id}/distribute`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
@@ -132,13 +122,12 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         return (await res.json()) as DistributeResult;
     },
 
-    addRepository: async (repo, token) => {
+    addRepository: async (repo) => {
         try {
-            const res = await fetch("/api/v1/repositories", {
+            const res = await apiFetch("/api/v1/repositories", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify(repo),
             });
@@ -149,19 +138,18 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
             }
 
             // Refresh
-            await get().fetchRepositories(token);
+            await get().fetchRepositories();
         } catch (e: unknown) {
             throw e;
         }
     },
 
-    updateRepository: async (id, repo, token) => {
+    updateRepository: async (id, repo) => {
         try {
-            const res = await fetch(`/api/v1/repositories/${id}`, {
+            const res = await apiFetch(`/api/v1/repositories/${id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify(repo),
             });
@@ -172,17 +160,16 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
             }
 
             // Refresh
-            await get().fetchRepositories(token);
+            await get().fetchRepositories();
         } catch (e: unknown) {
             throw e;
         }
     },
 
-    deleteRepository: async (id, token) => {
+    deleteRepository: async (id) => {
         try {
-            const res = await fetch(`/api/v1/repositories/${id}`, {
+            const res = await apiFetch(`/api/v1/repositories/${id}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
             });
 
             if (!res.ok) {

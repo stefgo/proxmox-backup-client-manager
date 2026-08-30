@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { TokenModal } from "../../tokens/components/TokenModal";
 import { OutboundClientWizard } from "./OutboundClientWizard";
+import { apiFetch } from "../../../lib/apiFetch";
 
 interface ManagedClientsProps {
     clients: Client[];
@@ -35,9 +36,8 @@ export const ManagedClients = ({
 
     const handleGenerateToken = async () => {
         try {
-            const res = await fetch("/api/v1/tokens", {
+            const res = await apiFetch("/api/v1/tokens", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const data = await res.json();
@@ -62,9 +62,8 @@ export const ManagedClients = ({
     /** Immediate reconnect attempt for an outbound client, bypassing the backoff. */
     const handleReconnect = async (client: Client) => {
         try {
-            const res = await fetch(`/api/v1/clients/${client.id}/reconnect`, {
+            const res = await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
             if (!data.connected) {

@@ -43,7 +43,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
         setCheckError(null);
         setDistribution(null);
         try {
-            setCheck(await probeCertificate(repository.id, token));
+            setCheck(await probeCertificate(repository.id));
         } catch (e) {
             setCheck(null);
             setCheckError(e instanceof Error ? e.message : String(e));
@@ -57,7 +57,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
         if (!confirm('Push the saved fingerprint to all connected clients?')) return;
         setIsDistributing(true);
         try {
-            setDistribution(await distributeFingerprint(repository.id, token));
+            setDistribution(await distributeFingerprint(repository.id));
         } catch (e) {
             setCheckError(e instanceof Error ? e.message : String(e));
         } finally {

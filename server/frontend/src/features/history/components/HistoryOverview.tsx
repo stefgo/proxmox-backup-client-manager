@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
+import { apiFetch } from "../../../lib/apiFetch";
 
 export const HistoryOverview = () => {
     const { token } = useAuth();
@@ -12,9 +13,8 @@ export const HistoryOverview = () => {
         const fetchHistory = async () => {
             if (!token) return;
             try {
-                const response = await fetch("/api/v1/history?limit=1000", {
+                const response = await apiFetch("/api/v1/history?limit=1000", {
                     headers: {
-                        Authorization: `Bearer ${token}`,
                     },
                 });
                 const result = await response.json();

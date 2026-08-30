@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
 import { Button } from '@stefgo/react-ui-components';
+import { apiFetch } from '../../../lib/apiFetch';
 
 interface SshHostSetupSnippetProps {
     token: string | null;
@@ -18,7 +19,6 @@ const COPY_FEEDBACK_MS = 2000;
  * alike — and the private key is only sent once the operator actually opens the section.
  */
 export const SshHostSetupSnippet = ({
-    token,
     privateKey,
     passphrase,
     sshUser,
@@ -35,9 +35,9 @@ export const SshHostSetupSnippet = ({
         setBusy(true);
         setError(null);
         try {
-            const res = await fetch('/api/v1/tunnel/pubkey', {
+            const res = await apiFetch('/api/v1/tunnel/pubkey', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ privateKey, passphrase: passphrase || undefined }),
             });
             const raw = await res.text();

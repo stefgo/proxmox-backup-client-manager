@@ -3,6 +3,7 @@ import { Plug, X, ShieldCheck, PlugZap } from 'lucide-react';
 import { Card, Button, Input } from '@stefgo/react-ui-components';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
+import { apiFetch } from '../../../lib/apiFetch';
 
 interface OutboundClientWizardProps {
     token: string | null;
@@ -50,9 +51,9 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
         setTesting(true);
         setError(null);
         try {
-            const res = await fetch('/api/v1/tunnel/test', {
+            const res = await apiFetch('/api/v1/tunnel/test', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sshHost,
                     sshPort: Number(sshPort) || 22,
@@ -76,9 +77,9 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
         setCreating(true);
         setError(null);
         try {
-            const res = await fetch('/api/v1/clients/outbound', {
+            const res = await apiFetch('/api/v1/clients/outbound', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     hostname: hostname.trim() || undefined,
                     outboundTargetAddress: targetAddress.trim(),

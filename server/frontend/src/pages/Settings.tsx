@@ -6,6 +6,7 @@ import { DataCard } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 export default function Settings() {
     const { token } = useAuth();
@@ -36,9 +37,8 @@ export default function Settings() {
     const fetchSettings = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch('/api/v1/settings/cleanup', {
+            const response = await apiFetch('/api/v1/settings/cleanup', {
                 headers: {
-                    'Authorization': `Bearer ${token}`
                 }
             });
             if (response.ok) {
@@ -55,11 +55,10 @@ export default function Settings() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const response = await fetch('/api/v1/settings/cleanup', {
+            const response = await apiFetch('/api/v1/settings/cleanup', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(settings)
             });
@@ -76,10 +75,9 @@ export default function Settings() {
     const handleCleanup = async () => {
         setIsCleaning(true);
         try {
-            const response = await fetch('/api/v1/settings/cleanup', {
+            const response = await apiFetch('/api/v1/settings/cleanup', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`
                 }
             });
             if (response.ok) {
