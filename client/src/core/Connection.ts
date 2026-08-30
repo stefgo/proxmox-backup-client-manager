@@ -3,12 +3,47 @@ import { randomUUID } from "crypto";
 
 import os from "os";
 import { config } from "./Config.js";
-import { WS_EVENTS, WsMessage, ProtocolMap } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    WsMessage,
+    ProtocolMap,
+    RunJobPayloadSchema,
+    RestoreSnapshotPayloadSchema,
+    FsListRequestSchema,
+    GetVersionRequestSchema,
+    JobListRequestSchema,
+    JobSaveRequestSchema,
+    JobDeleteRequestSchema,
+    GenerateKeyRequestSchema,
+    HistoryRequestSchema,
+} from "@pbcm/shared";
+import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
 import db from "./Database.js";
 
 import { logger } from "./logger.js";
 import { VERSION } from "./Version.js";
+
+/**
+ * Schemas for everything the server pushes at us. The server has always validated
+ * the agent's messages; this is the missing other half — and it matters more in this
+ * direction, because RUN_BACKUP and RUN_RESTORE end up as arguments to a subprocess.
+ *
+ * Note that zod strips unknown keys, so an event listed here must have every field
+ * the handlers actually read declared in its schema, or validation would quietly
+ * remove it.
+ */
+const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
+    [WS_EVENTS.RUN_BACKUP]: RunJobPayloadSchema,
+    [WS_EVENTS.RUN_RESTORE]: RestoreSnapshotPayloadSchema,
+    [WS_EVENTS.FS_LIST]: FsListRequestSchema,
+    [WS_EVENTS.GET_VERSION]: GetVersionRequestSchema,
+    [WS_EVENTS.JOB_LIST_CONFIG]: JobListRequestSchema,
+    [WS_EVENTS.JOB_SAVE_CONFIG]: JobSaveRequestSchema,
+    [WS_EVENTS.JOB_DELETE_CONFIG]: JobDeleteRequestSchema,
+    [WS_EVENTS.GENERATE_KEY_CONFIG]: GenerateKeyRequestSchema,
+    [WS_EVENTS.HISTORY]: HistoryRequestSchema,
+};
 
 export class Connection {
     private static wsInstance: WebSocket | null = null;
@@ -179,6 +214,22 @@ export class Connection {
                 const message = JSON.parse(data.toString()) as WsMessage;
                 if (message.type !== WS_EVENTS.LOG_UPDATE) {
                     logger.debug("Received: " + message.type);
+                }
+
+                const schema = INBOUND_SCHEMAS[message.type];
+                if (schema) {
+                    const parsed = schema.safeParse(message.payload);
+                    if (!parsed.success) {
+                        logger.warn(
+                            {
+                                type: message.type,
+                                issues: parsed.error.issues,
+                            },
+                            "Discarding malformed message from server",
+                        );
+                        return;
+                    }
+                    message.payload = parsed.data;
                 }
 
                 // Route messages to appropriate handlers based on event type

@@ -6,7 +6,12 @@ import { randomUUID } from "crypto";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { config } from "../core/Config.js";
-import { WS_EVENTS, ProtocolMap, JOB_STATUS } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    ProtocolMap,
+    JOB_STATUS,
+    RestoreSnapshotPayload,
+} from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { Connection } from "../core/Connection.js";
 import { TunnelClient, TunnelLease } from "./TunnelClient.js";
@@ -857,7 +862,10 @@ export class Executor {
      * @param runId - A unique identifier for this specific restore run.
      * @param payload - Payload containing restore configuration (snapshot, targetPath, etc.).
      */
-    static async executeRestore(runId: string, payload: any) {
+    static async executeRestore(
+        runId: string,
+        payload: RestoreSnapshotPayload,
+    ) {
         const { snapshot, targetPath, repository, archives, encryption } =
             payload;
         let pbsPassword: string | undefined;

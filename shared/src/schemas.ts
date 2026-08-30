@@ -172,6 +172,11 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
+    // JobController sends this for tunneled restores and the executor reads it to
+    // decide whether to acquire a lease. It was missing here, which went unnoticed
+    // while nobody validated the payload — parsing would have stripped it and left
+    // every tunneled restore trying to reach the PBS directly.
+    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({
