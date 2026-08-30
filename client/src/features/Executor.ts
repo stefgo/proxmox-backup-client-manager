@@ -80,6 +80,23 @@ export class Executor {
     }
 
     /**
+     * Removes the temporary keyfile written for a run. The file holds the PBS
+     * encryption key in plaintext, so it has to be dropped on every exit path --
+     * success, failure and early abort alike.
+     */
+    private static removeTempKeyfile(keyfilePath: string | undefined) {
+        if (!keyfilePath) return;
+        try {
+            fs.rmSync(keyfilePath, { force: true });
+        } catch (e) {
+            logger.error(
+                { err: e, keyfilePath },
+                "Failed to delete temp keyfile",
+            );
+        }
+    }
+
+    /**
      * Runs a pre- or post-execution script if configured.
      * The script is executed with two arguments: the operation type (backup/restore) and the job name.
      * Script output (stdout/stderr) is streamed to the server via WebSocket.
@@ -493,6 +510,7 @@ export class Executor {
                 type: "backup",
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            this.removeTempKeyfile(tempKeyfilePath);
             return;
         }
 
@@ -519,6 +537,7 @@ export class Executor {
                     type: jobType,
                 };
                 Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+                this.removeTempKeyfile(tempKeyfilePath);
                 return;
             }
         }
@@ -574,6 +593,7 @@ export class Executor {
             const message = e instanceof Error ? e.message : String(e);
             logger.error({ err: e }, "Tunnel acquisition failed");
             this.runningJobs.delete(jobId);
+            this.removeTempKeyfile(tempKeyfilePath);
             this.finishFailedRun(
                 runId,
                 jobId,
@@ -626,6 +646,7 @@ export class Executor {
         child.on("close", (code: number | null) => {
             TunnelClient.release(lease);
             lease = undefined;
+            this.removeTempKeyfile(tempKeyfilePath);
             const status = code === 0 ? "success" : "failed";
             const endTime = new Date().toISOString();
             logger.info(`Job ${jobId} finished with code ${code}`);
@@ -721,6 +742,7 @@ export class Executor {
             TunnelClient.release(lease);
             lease = undefined;
             this.runningJobs.delete(jobId);
+            this.removeTempKeyfile(tempKeyfilePath);
             logger.error({ err: err }, "Spawn Error");
 
             const errorMsg = err.message;
@@ -933,19 +955,6 @@ export class Executor {
                 stream: "stderr",
             });
         });
-        const cleanup = () => {
-            if (tempKeyfilePath && fs.existsSync(tempKeyfilePath)) {
-                try {
-                    fs.unlinkSync(tempKeyfilePath);
-                } catch (e) {
-                    logger.error(
-                        { err: e },
-                        "Failed to delete temp restore keyfile",
-                    );
-                }
-            }
-        };
-
         child.on("close", (code: number | null) => {
             TunnelClient.release(lease);
             lease = undefined;
@@ -1021,7 +1030,7 @@ export class Executor {
                 });
             }
 
-            cleanup();
+            this.removeTempKeyfile(tempKeyfilePath);
         });
 
         child.on("error", (err: Error) => {
@@ -1051,7 +1060,7 @@ export class Executor {
                 );
             } catch (e) {}
 
-            cleanup();
+            this.removeTempKeyfile(tempKeyfilePath);
         });
     }
 }
