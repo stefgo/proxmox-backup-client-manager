@@ -57,6 +57,12 @@ export class WebSocketController {
             socket.ping();
         }, 30000);
 
+        // Registered before the auth checks below: those close the socket and return
+        // early, and without this handler their ping interval would never be cleared.
+        socket.on("close", () => {
+            clearInterval(pingInterval);
+        });
+
         const token = (req.query as any).token;
         if (!token) {
             socket.close(4001, "Unauthorized");
@@ -79,7 +85,6 @@ export class WebSocketController {
         );
 
         socket.on("close", () => {
-            clearInterval(pingInterval);
             ProxyService.removeDashboardClient(socket);
         });
     }
