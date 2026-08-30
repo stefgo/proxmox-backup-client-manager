@@ -73,7 +73,15 @@ export class TunnelClient {
         // The forward is set up on the far side of the SSH connection, so the listener
         // may not accept connections the instant the lease is granted. Probing here turns
         // a sporadic first-run failure into a clean, explanatory error.
-        await this.preflight(lease);
+        try {
+            await this.preflight(lease);
+        } catch (e) {
+            // The lease exists on the server from here on. Without this release it would
+            // linger until maxLeaseMs and keep the unusable forward alive, so every retry
+            // would be handed the very same dead port.
+            this.release(lease);
+            throw e;
+        }
         logger.info(
             `Tunnel lease ${lease.leaseId} active on ${lease.bindHost}:${lease.bindPort}`,
         );
