@@ -1,5 +1,5 @@
-import { ReactNode, useMemo, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useMatch } from 'react-router-dom';
+import { ReactNode, Suspense, lazy, useMemo, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Monitor,
   HardDrive,
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // Library Components
-import { Dashboard, DashboardNavGroup, DashboardPage } from "@stefgo/react-ui-components";
+import { Dashboard, DashboardNavGroup, DashboardPage, Card } from "@stefgo/react-ui-components";
 
 import Login from '../../pages/Login';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -24,16 +24,16 @@ import { useRepositoryStore } from "../../stores/useRepositoryStore";
 import { useGlobalJobsStore } from "../../stores/useGlobalJobsStore";
 import { useUIStore } from "../../stores/useUIStore";
 
-// Components
-import { TokenOverview } from "../tokens/components/TokenOverview";
-import { ManagedClients } from "../clients/components/ManagedClients";
-import { ManagedRepositories } from "../repositories/components/ManagedRepositories";
-import { ManagedJobs } from "../jobs/components/ManagedJobs";
-import { HistoryOverview } from "../history/components/HistoryOverview";
-import { ClientOverview } from "../clients/components/ClientOverview";
-import { RepositoryOverview } from "../repositories/components/RepositoryOverview";
-import { UserOverview } from "../users/components/UserOverview";
-import Settings from "../../pages/Settings";
+// Page components – loaded on demand, so a chunk only arrives when its route does.
+const TokenOverview = lazy(() => import("../tokens/components/TokenOverview").then(m => ({ default: m.TokenOverview })));
+const ManagedClients = lazy(() => import("../clients/components/ManagedClients").then(m => ({ default: m.ManagedClients })));
+const ManagedRepositories = lazy(() => import("../repositories/components/ManagedRepositories").then(m => ({ default: m.ManagedRepositories })));
+const ManagedJobs = lazy(() => import("../jobs/components/ManagedJobs").then(m => ({ default: m.ManagedJobs })));
+const HistoryOverview = lazy(() => import("../history/components/HistoryOverview").then(m => ({ default: m.HistoryOverview })));
+const ClientOverview = lazy(() => import("../clients/components/ClientOverview").then(m => ({ default: m.ClientOverview })));
+const RepositoryOverview = lazy(() => import("../repositories/components/RepositoryOverview").then(m => ({ default: m.RepositoryOverview })));
+const UserOverview = lazy(() => import("../users/components/UserOverview").then(m => ({ default: m.UserOverview })));
+const Settings = lazy(() => import("../../pages/Settings"));
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -47,43 +47,107 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   return <>{children}</>;
 };
 
+// ---------------------------------------------------------------------------
+// Routes
+//
+// Each route pulls what it needs from the stores itself. AppLayout used to hold
+// the selected client and repository for every page at once; now only the route
+// that shows them does.
+// ---------------------------------------------------------------------------
+
+function ClientsRoute() {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const { clients, fetchClients, deleteClient, updateClient } = useClientStore();
+
+  return (
+    <ManagedClients
+      clients={clients}
+      onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate("/"))}
+      onRefresh={() => {
+        if (token) fetchClients();
+      }}
+      onDelete={(id) => {
+        if (token) deleteClient(id);
+      }}
+      onUpdate={(id, data) => (token ? updateClient(id, data) : Promise.reject())}
+    />
+  );
+}
+
+function ClientDetailRoute() {
+  const { clientId } = useParams();
+  const { clients } = useClientStore();
+
+  const client = clients.find((c) => c.id === clientId);
+  if (!client) return <Navigate to="/clients" replace />;
+
+  return <ClientOverview client={client} />;
+}
+
+function RepositoriesRoute() {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const { repositories, addRepository, updateRepository, deleteRepository } = useRepositoryStore();
+
+  return (
+    <ManagedRepositories
+      repositories={repositories}
+      onSelect={(r) => (r ? navigate(`/repository/${r.id}`) : navigate("/"))}
+      onAdd={(r) => (token ? addRepository(r) : Promise.reject())}
+      onUpdate={(id, r) => (token ? updateRepository(id, r) : Promise.reject())}
+      onDelete={(id) => (token ? deleteRepository(id) : Promise.reject())}
+    />
+  );
+}
+
+function RepositoryDetailRoute() {
+  const { repoId } = useParams();
+  const { repositories } = useRepositoryStore();
+
+  const repo = repositories.find((r) => String(r.id) === repoId);
+  if (!repo) return <Navigate to="/repositories" replace />;
+
+  return <RepositoryOverview repo={repo} />;
+}
+
+function NotFound() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  return (
+    <Card title="Page not found">
+      <div className="p-6 space-y-4">
+        <p className="text-text-secondary dark:text-text-secondary-dark">
+          There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/clients")}
+          className="text-primary hover:text-primary-hover font-medium"
+        >
+          Back to clients
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function AppLayout() {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const matchClient = useMatch("/client/:clientId");
-  const matchRepo = useMatch("/repository/:repoId");
 
   const { theme, toggleTheme } = useTheme();
   const { isSidebarCollapsed, toggleSidebarCollapsed } = useUIStore();
 
-  // Routing Helpers
   const path = location.pathname;
 
-  // Client Store
-  const { clients, fetchClients, deleteClient, updateClient } =
-    useClientStore();
-  const selectedClientId = matchClient?.params.clientId;
-  const selectedClient = selectedClientId
-    ? clients.find((c) => c.id === selectedClientId) || null
-    : null;
-
-  // Repository Store
-  const {
-    repositories: repos,
-    fetchRepositories: refreshRepos,
-    addRepository,
-    updateRepository,
-    deleteRepository,
-  } = useRepositoryStore();
-  const selectedRepoId = matchRepo?.params.repoId;
-  const selectedRepo = selectedRepoId
-    ? repos.find((r) => String(r.id) === selectedRepoId) || null
-    : null;
-
-  // Initial Fetch
+  const { clients, fetchClients } = useClientStore();
+  const { repositories: repos, fetchRepositories: refreshRepos } = useRepositoryStore();
   const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
 
+  // Initial Fetch
   useEffect(() => {
     if (token) {
       fetchClients();
@@ -114,7 +178,6 @@ function AppLayout() {
     [clients, repos, globalJobs],
   );
 
-  // Dashboard Props
   let username = "User";
   try {
     if (token) {
@@ -152,6 +215,7 @@ function AppLayout() {
     { id: "administration", title: "Administration" },
   ];
 
+  // Navigation only – the routes below decide what is rendered.
   const pages: DashboardPage[] = useMemo(() => [
     {
       id: "clients",
@@ -163,27 +227,6 @@ function AppLayout() {
         badge: `${stats.clients.active} / ${stats.clients.total}`,
         onClick: () => navigate("/clients"),
       },
-      content: (
-        <>
-          {path.startsWith("/client/") && selectedClient ? (
-            <ClientOverview client={selectedClient} />
-          ) : (
-            <ManagedClients
-              clients={clients}
-              onSelect={(c) => c ? navigate(`/client/${c.id}`) : navigate("/")}
-              onRefresh={() => {
-                if (token) fetchClients();
-              }}
-              onDelete={(id) => {
-                if (token) deleteClient(id);
-              }}
-              onUpdate={(id, data) =>
-                token ? updateClient(id, data) : Promise.reject()
-              }
-            />
-          )}
-        </>
-      )
     },
     {
       id: "jobs",
@@ -195,13 +238,10 @@ function AppLayout() {
         badge: `${stats.jobs.active} / ${stats.jobs.total}`,
         onClick: () => navigate("/jobs"),
       },
-      content: (
-        <ManagedJobs />
-      )
     },
     {
       id: "repositories",
-      path: ["/repositories", "/repository/:repositoryId"],
+      path: ["/repositories", "/repository/:repoId"],
       nav: {
         groupId: "resources",
         label: "Repositories",
@@ -209,21 +249,6 @@ function AppLayout() {
         badge: `${stats.repositories.active} / ${stats.repositories.total}`,
         onClick: () => navigate("/repositories"),
       },
-      content: (
-        <>
-          {path.startsWith("/repository/") && selectedRepo ? (
-            <RepositoryOverview repo={selectedRepo} />
-          ) : (
-            <ManagedRepositories
-              repositories={repos}
-              onSelect={(r) => r ? navigate(`/repository/${r.id}`) : navigate("/")}
-              onAdd={(r) => token ? addRepository(r) : Promise.reject()}
-              onUpdate={(id, r) => token ? updateRepository(id, r) : Promise.reject()}
-              onDelete={(id) => token ? deleteRepository(id) : Promise.reject()}
-            />
-          )}
-        </>
-      )
     },
     {
       id: "history",
@@ -234,9 +259,6 @@ function AppLayout() {
         icon: Activity,
         onClick: () => navigate("/history"),
       },
-      content: (
-        <HistoryOverview />
-      )
     },
     {
       id: "users",
@@ -248,9 +270,6 @@ function AppLayout() {
         icon: Users,
         onClick: () => navigate("/users"),
       },
-      content: (
-        <UserOverview />
-      )
     },
     {
       id: "tokens",
@@ -262,9 +281,6 @@ function AppLayout() {
         icon: Key,
         onClick: () => navigate("/tokens"),
       },
-      content: (
-        <TokenOverview />
-      )
     },
     {
       id: "settings",
@@ -276,26 +292,8 @@ function AppLayout() {
         icon: SettingsIcon,
         onClick: () => navigate("/settings"),
       },
-      content: (
-        <Settings />
-      )
-    }
-  ], [
-    path,
-    selectedClient,
-    selectedRepo,
-    clients,
-    repos,
-    stats,
-    token,
-    navigate,
-    fetchClients,
-    deleteClient,
-    updateClient,
-    addRepository,
-    updateRepository,
-    deleteRepository
-  ]);
+    },
+  ], [stats, navigate]);
 
   return (
     <Dashboard
@@ -310,7 +308,23 @@ function AppLayout() {
       pages={pages}
       navGroups={navGroups}
       currentPath={path}
-    />
+    >
+      <Suspense fallback={<div className="p-6 text-text-muted dark:text-text-muted-dark">Loading…</div>}>
+        <Routes>
+          <Route path="/" element={<ClientsRoute />} />
+          <Route path="/clients" element={<ClientsRoute />} />
+          <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+          <Route path="/jobs" element={<ManagedJobs />} />
+          <Route path="/repositories" element={<RepositoriesRoute />} />
+          <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />
+          <Route path="/history" element={<HistoryOverview />} />
+          <Route path="/users" element={<UserOverview />} />
+          <Route path="/tokens" element={<TokenOverview />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+    </Dashboard>
   );
 }
 
