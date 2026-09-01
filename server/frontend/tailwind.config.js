@@ -17,11 +17,8 @@ export default {
     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", ...localUiContent],
     theme: {
         extend: {
-            colors: {
-                app: {
-                    "text-footer": "#444444",
-                },
-            },
+            // No colours here on purpose: every role is defined once in the
+            // library preset and redefined per theme in its .dark block.
             fontFamily: {
                 sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
             },

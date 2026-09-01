@@ -119,7 +119,7 @@ export default function Settings() {
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-white">
+                    <div className="flex-1 flex flex-col bg-card">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
                                 <div className="max-w-3xl space-y-8">
@@ -128,7 +128,7 @@ export default function Settings() {
                                             <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of invalid client tokens
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
+                                            <p className="text-sm text-text-muted">
                                                 Define how long registration tokens are kept after they become invalid.
                                             </p>
                                         </div>
@@ -162,7 +162,7 @@ export default function Settings() {
                                             <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of global job history
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
+                                            <p className="text-sm text-text-muted">
                                                 Define how long job execution history records are kept on the server.
                                             </p>
                                         </div>
