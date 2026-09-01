@@ -8,12 +8,11 @@ import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ClientHistoryList } from './ClientHistoryList';
-import { useClientDetailStore } from '../../../stores/useClientDetailStore';
+import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
-import { Snapshot } from '@pbcm/shared';
 
 import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
@@ -121,7 +120,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     ]);
 
 
-    const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
+    const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
 
     // Header / Edit Logic
     const [isEditing, setIsEditing] = useState(false);
@@ -285,7 +284,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     restoreSnapshot ? (
                                         <SnapshotRestoreEditor
                                             snapshot={restoreSnapshot}
-                                            repo={(restoreSnapshot as any).repository}
+                                            repo={restoreSnapshot.repository}
                                             selectedClient={client}
                                             onCancel={() => setRestoreSnapshot(null)}
                                         />
