@@ -116,19 +116,17 @@ function NotFound() {
   const { pathname } = useLocation();
 
   return (
-    <Card title="Page not found">
-      <div className="p-6 space-y-4">
-        <p className="text-text-secondary">
-          There is nothing at <code className="font-mono text-sm">{pathname}</code>.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate("/clients")}
-          className="text-primary hover:text-primary-hover font-medium"
-        >
-          Back to clients
-        </button>
-      </div>
+    <Card title="Page not found" classNames={{ content: "space-y-4" }}>
+      <p className="text-text-secondary">
+        There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+      </p>
+      <button
+        type="button"
+        onClick={() => navigate("/clients")}
+        className="text-primary hover:text-primary-hover font-medium"
+      >
+        Back to clients
+      </button>
     </Card>
   );
 }

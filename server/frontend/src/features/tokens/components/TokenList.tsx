@@ -3,7 +3,7 @@ import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
-import { DataCard } from '@stefgo/react-ui-components';
+import { Card } from '@stefgo/react-ui-components';
 import { Badge } from '@stefgo/react-ui-components';
 
 interface TokenListProps {
@@ -64,7 +64,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
     ];
 
     return (
-        <DataCard
+        <Card
             title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
             action={
                 <button
@@ -74,7 +74,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
                     <Plus size={12} className="inline mr-1" />Generate New Token
                 </button>
             }
-            noPadding
+            padding="none"
         >
             <DataTable
                 data={tokens}
@@ -91,6 +91,6 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
                     hideOnSinglePage: true,
                 }}
             />
-        </DataCard>
+        </Card>
     );
 };
