@@ -18,8 +18,5 @@
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w shared && npm run build --workspaces",
     "clean": "rimraf shared/dist client/dist server/backend/dist server/dist/public"
-  },
-  "dependencies": {
-    "@stefgo/react-ui-components": "2.16.1"
   }
 }
