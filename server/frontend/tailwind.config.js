@@ -12,9 +12,19 @@ const localUiContent =
 
 /** @type {import('tailwindcss').Config} */
 export default {
-    // `darkMode` and the library's own dist glob come from the preset.
+    // `darkMode` and `safelist` come from the preset -- Tailwind merges those.
+    // `content` it does NOT merge: a `content` here replaces the preset's
+    // entirely, so the library's own dist glob has to be spread back in by
+    // hand. Without it every class only the library uses (`w-64` for the
+    // sidebar, its grid and positioning utilities) is missing from the output
+    // and the layout collapses.
     presets: [preset],
-    content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", ...localUiContent],
+    content: [
+        "./index.html",
+        "./src/**/*.{js,ts,jsx,tsx}",
+        ...preset.content,
+        ...localUiContent,
+    ],
     theme: {
         extend: {
             // No colours here on purpose: every role is defined once in the
