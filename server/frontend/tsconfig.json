@@ -18,21 +18,7 @@
         "strict": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "noFallthroughCasesInSwitch": true,
-        "paths": {
-            "react": [
-                "../../node_modules/react"
-            ],
-            "react/*": [
-                "../../node_modules/react/*"
-            ],
-            "lucide-react": [
-                "../../node_modules/lucide-react"
-            ],
-            "lucide-react/*": [
-                "../../node_modules/lucide-react/*"
-            ]
-        }
+        "noFallthroughCasesInSwitch": true
     },
     "include": [
         "src"

@@ -25,9 +25,14 @@ npm run clean        # Remove all build artifacts
 
 ### Per-workspace
 ```bash
-npm run lint -w server/frontend    # ESLint (frontend only)
-npm run build -w shared            # Rebuild shared types after changes
+npm run lint -w server/frontend            # ESLint (frontend only)
+npm run typecheck -w server/frontend       # tsc against the installed UI library
+npm run typecheck:local-ui -w server/frontend  # ... against a sibling checkout
+npm run build -w shared                    # Rebuild shared types after changes
 ```
+
+Since there are no tests, `typecheck` is the primary safety net — run it after any
+change that touches the UI library's API.
 
 ### Testing
 
@@ -82,14 +87,26 @@ Both the backend and client are configured via a `config.yaml` file (auto-genera
 Environment variables of note:
 - `LOG_LEVEL` / `LOG_FORMAT` (both)
 - `NODE_ENV`
-- `VITE_USE_LOCAL_UI` / `VITE_UI_COMPONENTS_PATH` (frontend, for local development with the UI component library)
+- `VITE_USE_LOCAL_UI` / `VITE_UI_COMPONENTS_PATH` (frontend) — set `VITE_USE_LOCAL_UI=true`
+  to build against a sibling checkout of the UI library instead of the installed
+  package. **Off by default**: a build must not depend on a checkout that CI and
+  containers do not have. When you set it, use `tsconfig.local-ui.json` with it
+  (`npm run typecheck:local-ui`), or the compiler and the bundler check two
+  different versions of the same module.
 
 ## Code Style
 
 - **Indentation**: 4 spaces in all workspaces, no tabs. No formatter is configured — match the surrounding file.
 - **TypeScript**: strict mode everywhere
 - **Frontend linting**: ESLint with `react-hooks` and `react-refresh` plugins
-- **UI components**: `@stefgo/react-ui-components` – custom external library; styles are resolved via `tailwind.config.js` using `VITE_UI_COMPONENTS_PATH`
+- **UI components**: `@stefgo/react-ui-components` (3.x) – custom external library,
+  published to GitHub Packages; `npm install` needs `NPM_TOKEN` in the environment.
+- **Colours**: pick the *role*, never the palette — `bg-success`, `text-error`,
+  `bg-badge-info-bg`. The library defines each role once and redefines it inside
+  its `.dark` block, so a colour is one class and never needs a `dark:` twin.
+  Status pills are the `Badge` component, not hand-built spans.
+- **Icons**: passed as components (`icon={Save}`), never as elements — the
+  surface sets the size and `aria-hidden` itself.
 
 ## Key Docs
 
