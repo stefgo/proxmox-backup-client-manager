@@ -1,7 +1,6 @@
 import { Key, Trash2, Plus } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { usePagination } from '@stefgo/react-ui-components';
 import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataCard } from '@stefgo/react-ui-components';
@@ -13,20 +12,11 @@ interface TokenListProps {
 }
 
 export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps) => {
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage,
-    } = usePagination(tokens, 10);
-
     const columns: DataTableDef<Token>[] = [
         {
             tableHeader: "Token",
             tableItemRender: (t) => (
-                <span className={`font-mono text-sm text-text-primary dark:text-text-primary-dark ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
+                <span className={`font-mono text-sm text-text-primary ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
                     {t.token}
                 </span>
             ),
@@ -47,7 +37,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             sortable: true,
             sortValue: (t) => t.usedAt ? 2 : new Date(t.expiresAt) < new Date() ? 1 : 0,
             tableItemRender: (t) => {
-                if (t.usedAt) return <span className="text-xs bg-border text-text-muted dark:text-text-muted-dark dark:bg-card-dark px-2 py-0.5 rounded">Used</span>;
+                if (t.usedAt) return <span className="text-xs bg-border text-text-muted px-2 py-0.5 rounded">Used</span>;
                 if (new Date(t.expiresAt) < new Date()) return <span className="text-xs bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-500 px-2 py-0.5 rounded">Expired</span>;
                 return <span className="text-xs bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-2 py-0.5 rounded">Active</span>;
             }
@@ -74,7 +64,7 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
 
     return (
         <DataCard
-            title={<><Key size={18} className="text-text-muted dark:text-text-muted-dark" /> Client Tokens</>}
+            title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
             action={
                 <button
                     onClick={generateToken}
@@ -88,20 +78,16 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             <DataTable
                 data={tokens}
                 itemDef={columns}
-                defaultSort={{ colIndex: 1, direction: 'asc' }}
+                sort={{ defaultValue: [{ colIndex: 1, direction: 'asc' }] }}
                 keyField="token"
                 emptyMessage="No tokens generated"
-                containerClassName="rounded-b-xl border-0 shadow-none"
+                className="rounded-b-xl border-0 shadow-none"
                 pagination={{
-                    currentPage,
-                    totalPages,
-                    itemsPerPage,
-                    totalItems,
-                    onPageChange: goToPage,
-                    onItemsPerPageChange: setItemsPerPage,
-                    // Without these props the list silently cut off after ten rows
-                    // and drew no controls, leaving every further token unreachable.
-                    sliceInternally: true,
+                    // The view owns the page state and does the slicing; it sorts across
+                    // the whole set first, so a column sort is never limited to the rows
+                    // that happen to be on screen.
+                    defaultValue: { pageSize: 10 },
+                    hideOnSinglePage: true,
                 }}
             />
         </DataCard>

@@ -68,7 +68,7 @@ export const SshKeyFields = ({
 
     return (
         <div className="space-y-3">
-            <div className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
+            <div className="text-sm font-medium text-text-primary">
                 Key
             </div>
 
@@ -76,7 +76,7 @@ export const SshKeyFields = ({
                 {options.map((o) => (
                     <label
                         key={o.value}
-                        className="flex items-center gap-2 text-sm text-text-primary dark:text-text-primary-dark cursor-pointer"
+                        className="flex items-center gap-2 text-sm text-text-primary cursor-pointer"
                     >
                         <input
                             type="radio"
@@ -91,7 +91,7 @@ export const SshKeyFields = ({
             </div>
 
             {mode === 'keep' && (
-                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                <p className="text-xs text-text-muted">
                     The stored key stays unchanged.
                 </p>
             )}
@@ -104,7 +104,7 @@ export const SshKeyFields = ({
                         onClick={handleGenerate}
                         disabled={busy}
                         isLoading={busy}
-                        icon={<KeyRound size={16} />}
+                        icon={KeyRound}
                     >
                         {generated ? 'Regenerate' : 'Generate Key Pair'}
                     </Button>
@@ -114,7 +114,7 @@ export const SshKeyFields = ({
                             ed25519 key generated
                         </div>
                     )}
-                    <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                    <p className="text-xs text-text-muted">
                         No passphrase — the server uses the key unattended. It is only stored,
                         never handed back out.
                     </p>
@@ -129,7 +129,7 @@ export const SshKeyFields = ({
                         rows={5}
                         spellCheck={false}
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                        className="w-full font-mono text-xs p-2 rounded border border-border dark:border-border-dark bg-card dark:bg-card-dark text-text-primary dark:text-text-primary-dark"
+                        className="w-full font-mono text-xs p-2 rounded border border-border bg-card text-text-primary"
                     />
                     <Input
                         label="Passphrase (optional)"

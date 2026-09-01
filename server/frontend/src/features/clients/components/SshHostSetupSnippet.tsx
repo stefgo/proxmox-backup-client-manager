@@ -80,28 +80,28 @@ export const SshHostSetupSnippet = ({
     };
 
     return (
-        <div className="rounded border border-border dark:border-border-dark">
+        <div className="rounded border border-border">
             <button
                 type="button"
                 onClick={handleToggle}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary dark:text-text-primary-dark"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary"
             >
-                <span className="text-text-muted dark:text-text-muted-dark">
+                <span className="text-text-muted">
                     {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </span>
                 Einrichtung auf dem Client-Host (optional)
             </button>
 
             {open && (
-                <div className="px-4 pb-4 space-y-3 border-t border-border dark:border-border-dark pt-3">
+                <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
                     {!privateKey && (
-                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                        <p className="text-xs text-text-muted">
                             Generate or paste a key above first.
                         </p>
                     )}
 
                     {busy && (
-                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                        <p className="text-xs text-text-muted">
                             Deriving public key …
                         </p>
                     )}
@@ -112,18 +112,18 @@ export const SshHostSetupSnippet = ({
 
                     {publicKey && (
                         <>
-                            <pre className="overflow-x-auto rounded bg-card dark:bg-card-dark p-3 font-mono text-xs text-text-primary dark:text-text-primary-dark">
+                            <pre className="overflow-x-auto rounded bg-card p-3 font-mono text-xs text-text-primary">
                                 {snippet}
                             </pre>
                             <Button
                                 type="button"
                                 variant="secondary"
                                 onClick={handleCopy}
-                                icon={copied ? <Check size={16} /> : <Copy size={16} />}
+                                icon={copied ? Check : Copy}
                             >
                                 {copied ? 'Copied' : 'Copy Snippet'}
                             </Button>
-                            <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                            <p className="text-xs text-text-muted">
                                 <span className="font-mono">sshd_config</span> needs{' '}
                                 <span className="font-mono">AllowTcpForwarding yes</span>, which is the
                                 default. <span className="font-mono">GatewayPorts</span> is not required.

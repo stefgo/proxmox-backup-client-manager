@@ -45,7 +45,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const getStatusColor = () => {
         if (isLoading) return 'bg-yellow-500 animate-pulse shadow-glow-accent';
         if (repo?.status === 'online') return 'bg-green-500 shadow-glow-online';
-        return 'bg-border dark:bg-border-dark';
+        return 'bg-border';
     };
 
     if (!repo) {
@@ -71,7 +71,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             <h2 className="text-2xl font-bold">
                                 {repo.baseUrl}:{repo.datastore}
                             </h2>
-                            <div className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+                            <div className="text-sm font-mono text-text-muted">
                                 {repo.id}
                             </div>
                         </div>
@@ -89,7 +89,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             )}
 
             {!isLoading && !error && repo.status !== 'online' && (
-                <div className="bg-app-bg dark:bg-card-dark border border-border dark:border-border-dark text-text-muted dark:text-text-muted-dark p-4 rounded-md flex items-center gap-3">
+                <div className="bg-app-bg border border-border text-text-muted p-4 rounded-md flex items-center gap-3">
                     <AlertCircle size={18} className="shrink-0" />
                     <span>Repository is offline — snapshots cannot be listed.</span>
                 </div>
@@ -104,7 +104,8 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                                 label="Snapshots"
                                 value={snapshots.length.toString()}
                                 sub="Available Backups"
-                                icon={<FileBox className="text-text-muted dark:text-text-muted-dark" />}
+                                icon={FileBox}
+                                classNames={{ icon: "text-text-muted" }}
                                 onClick={() => setActiveTab('snapshots')}
                             />
                         </div>

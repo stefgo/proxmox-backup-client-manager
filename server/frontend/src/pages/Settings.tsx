@@ -106,26 +106,26 @@ export default function Settings() {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <DataCard
-                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted dark:text-text-muted-dark" /> System Settings</span>}
+                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted" /> System Settings</span>}
                 className="p-0 overflow-visible"
                 noPadding={true}
             >
                 <Tabs className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 bg-app-bg dark:bg-app-bg-dark border-r border-border dark:border-border-dark py-4 flex flex-col gap-1">
+                    <TabList className="w-full md:w-64 bg-app-bg border-r border-border py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Sliders size={18} /> Common
                         </Tab>
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-white dark:bg-card-dark">
+                    <div className="flex-1 flex flex-col bg-white">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of invalid client tokens
                                             </h3>
                                             <p className="text-sm text-text-muted dark:text-app-text-footer">
@@ -155,11 +155,11 @@ export default function Settings() {
                                         </div>
                                     </section>
 
-                                    <hr className="border-border dark:border-border-dark" />
+                                    <hr className="border-border" />
 
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of global job history
                                             </h3>
                                             <p className="text-sm text-text-muted dark:text-app-text-footer">
@@ -191,15 +191,15 @@ export default function Settings() {
                                         </div>
                                     </section>
 
-                                    <hr className="border-border dark:border-border-dark" />
+                                    <hr className="border-border" />
 
                                     {/* One block, below both sections: the endpoint runs
                                         cleanupTokens() and cleanupJobHistory() together,
                                         so there is no such thing as a separate run. */}
-                                    <div className="p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                    <div className="p-4 bg-app-bg rounded-xl border border-border flex items-center justify-between gap-4">
                                         <div>
-                                            <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
-                                            <p className="text-xs text-text-muted dark:text-text-muted-dark">Apply both retention rules above right now, using the settings as last saved.</p>
+                                            <h4 className="text-sm font-bold text-text-primary">Manual Run</h4>
+                                            <p className="text-xs text-text-muted">Apply both retention rules above right now, using the settings as last saved.</p>
                                         </div>
                                         <Button
                                             variant="secondary"
@@ -222,7 +222,7 @@ export default function Settings() {
                     </div>
                 </Tabs>
                 {/* Sticky Action Footer */}
-                <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark rounded-b-xl">
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg rounded-b-xl">
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}

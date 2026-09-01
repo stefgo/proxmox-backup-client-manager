@@ -7,7 +7,6 @@ import {
     Plus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
@@ -76,23 +75,14 @@ export const BaseJobList = <T extends BaseJobItem>({
         );
     }, [sortedJobs, searchQuery, getClientName]);
 
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage,
-    } = usePagination(filteredJobs, 10);
-
     const formatNextRun = (nextRunAt: string | undefined, isOnline: boolean) => {
-        if (!nextRunAt) return <span className="text-text-muted dark:text-text-muted-dark">not defined</span>;
+        if (!nextRunAt) return <span className="text-text-muted">not defined</span>;
         const date = new Date(nextRunAt);
         const now = new Date();
 
         if (!isOnline) {
             return (
-                <span className="text-text-muted dark:text-text-muted-dark grayscale">
+                <span className="text-text-muted grayscale">
                     {date < now ? "Pending" : formatDate(date)}
                 </span>
             );
@@ -128,11 +118,11 @@ export const BaseJobList = <T extends BaseJobItem>({
                             <div
                                 className={`w-2 h-2 rounded-full shrink-0 ${online
                                     ? "bg-green-500 shadow-glow-online"
-                                    : "bg-border dark:bg-border-dark"
+                                    : "bg-border"
                                     }`}
                             />
                             <div
-                                className={`text-sm ${online ? "text-text-primary dark:text-text-primary-dark" : ""
+                                className={`text-sm ${online ? "text-text-primary" : ""
                                     } max-w-[150px] truncate`}
                                 title={
                                     job.clientId && getClientName
@@ -159,12 +149,12 @@ export const BaseJobList = <T extends BaseJobItem>({
                 return (
                     <>
                         <div
-                            className={`text-sm ${online ? "font-medium text-text-primary dark:text-text-primary-dark" : ""
+                            className={`text-sm ${online ? "font-medium text-text-primary" : ""
                                 }`}
                         >
                             {job.name}
                         </div>
-                        <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark truncate opacity-70 mt-0.5">
+                        <div className="text-xs font-mono text-text-muted truncate opacity-70 mt-0.5">
                             {job.id}
                         </div>
                     </>
@@ -179,7 +169,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
-                    <div className={`text-sm ${online ? "text-text-primary dark:text-text-primary-dark" : ""}`}>
+                    <div className={`text-sm ${online ? "text-text-primary" : ""}`}>
                         {job.archives?.length || 0}
                     </div>
                 );
@@ -193,11 +183,11 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableItemRender: (job) => {
                 const online = getStatus(job) === "online";
                 return (
-                    <div className={`text-sm ${online ? "text-text-muted dark:text-text-muted-dark" : ""}`}>
+                    <div className={`text-sm ${online ? "text-text-muted" : ""}`}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, online)
                         ) : (
-                            <span className={online ? "text-text-muted dark:text-text-muted-dark" : ""}>
+                            <span className={online ? "text-text-muted" : ""}>
                                 Manual Only
                             </span>
                         )}
@@ -217,8 +207,8 @@ export const BaseJobList = <T extends BaseJobItem>({
                         size={16}
                         className={
                             online
-                                ? "text-text-muted dark:text-text-muted-dark"
-                                : "text-text-muted dark:text-text-muted-dark"
+                                ? "text-text-muted"
+                                : "text-text-muted"
                         }
                     />
                 ) : null;
@@ -286,7 +276,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                             />
                             <span
                                 className={`${isOnline
-                                    ? "text-text-primary dark:text-text-primary-dark"
+                                    ? "text-text-primary"
                                     : "text-inherit"
                                     }`}
                             >
@@ -310,7 +300,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-text-primary dark:text-text-primary-dark" : "text-inherit"}>
+                    <span className={isOnline ? "text-text-primary" : "text-inherit"}>
                         {job.name}
                     </span>
                 );
@@ -322,7 +312,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-text-primary dark:text-text-primary-dark" : "text-inherit"}>
+                    <span className={isOnline ? "text-text-primary" : "text-inherit"}>
                         {job.archives?.length || 0}
                     </span>
                 );
@@ -334,11 +324,11 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={isOnline ? "text-text-muted dark:text-text-muted-dark" : "text-inherit"}>
+                    <span className={isOnline ? "text-text-muted" : "text-inherit"}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, isOnline)
                         ) : (
-                            <span className={isOnline ? "text-text-muted dark:text-text-muted-dark" : "text-inherit"}>
+                            <span className={isOnline ? "text-text-muted" : "text-inherit"}>
                                 Manual Only
                             </span>
                         )}
@@ -354,7 +344,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 if (!job.encryption?.enabled) return null;
                 const isOnline = getStatus(job) === "online";
                 return (
-                    <span className={`${isOnline ? "text-text-muted dark:text-text-muted-dark" : "text-inherit"} flex items-center gap-1`}>
+                    <span className={`${isOnline ? "text-text-muted" : "text-inherit"} flex items-center gap-1`}>
                         <KeyRound size={14} className={isOnline ? "" : "text-inherit"} /> Yes
                     </span>
                 );
@@ -423,10 +413,10 @@ export const BaseJobList = <T extends BaseJobItem>({
 
     return (
         <DataMultiView
-            title={<><HardDrive size={18} className="text-text-muted dark:text-text-muted-dark" />{title}</>}
+            title={<><HardDrive size={18} className="text-text-muted" />{title}</>}
             extraActions={newJobButton || undefined}
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey={viewModeStorageKey}
+            sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
+            viewMode={{ storageKey: viewModeStorageKey }}
             data={filteredJobs}
             tableDef={tableItems}
             listColumns={listItems}
@@ -435,23 +425,19 @@ export const BaseJobList = <T extends BaseJobItem>({
             }
             searchable
             searchPlaceholder="Search Jobs ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No jobs configured."
             rowClassName={(job) =>
                 getStatus(job) === "online"
                     ? "align-top"
-                    : "bg-app-bg dark:bg-card-dark text-text-muted dark:text-text-muted-dark opacity-75"
+                    : "bg-app-bg text-text-muted opacity-75"
             }
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-                // Hand over the full list: the table has to sort before it pages,
-                // otherwise a column sort only reorders the rows already on screen.
-                sliceInternally: true
+                // The view owns the page state and does the slicing; it sorts across
+                // the whole set first, so a column sort is never limited to the rows
+                // that happen to be on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

@@ -117,12 +117,12 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
     if (!info) return null;
 
     return (
-        <div className="space-y-4 border-t border-border dark:border-border-dark pt-6">
-            <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary-dark">
+        <div className="space-y-4 border-t border-border pt-6">
+            <h3 className="text-sm font-semibold text-text-primary">
                 SSH Reverse Tunnel
             </h3>
 
-            <div className="text-xs text-text-muted dark:text-text-muted-dark space-y-1">
+            <div className="text-xs text-text-muted space-y-1">
                 <div>
                     Status: <span className="font-mono">{info.state?.status ?? 'idle'}</span>
                     {!!info.state?.activeLeases && ` · ${info.state.activeLeases} active lease(s)`}
@@ -167,10 +167,10 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
             {error && <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>}
 
             <div className="flex gap-3">
-                <Button type="button" variant="secondary" onClick={handleTest} disabled={busy} icon={<PlugZap size={16} />}>
+                <Button type="button" variant="secondary" onClick={handleTest} disabled={busy} icon={PlugZap}>
                     Test Connection
                 </Button>
-                <Button type="button" variant="secondary" onClick={handleSave} disabled={busy} icon={<Save size={16} />}>
+                <Button type="button" variant="secondary" onClick={handleSave} disabled={busy} icon={Save}>
                     Save Credentials
                 </Button>
             </div>

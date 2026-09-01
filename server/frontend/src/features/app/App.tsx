@@ -118,7 +118,7 @@ function NotFound() {
   return (
     <Card title="Page not found">
       <div className="p-6 space-y-4">
-        <p className="text-text-secondary dark:text-text-secondary-dark">
+        <p className="text-text-secondary">
           There is nothing at <code className="font-mono text-sm">{pathname}</code>.
         </p>
         <button
@@ -203,8 +203,8 @@ function AppLayout() {
 
   const title = (
     <div className="flex flex-col">
-      <h1 className="text-xl font-bold text-text-primary dark:text-text-primary-dark leading-tight">P<span className="text-primary">BC</span>M</h1>
-      <span className="pt-1 text-[10px] font-mono text-text-muted dark:text-text-muted-dark -mt-1 leading-none">
+      <h1 className="text-xl font-bold text-text-primary leading-tight">P<span className="text-primary">BC</span>M</h1>
+      <span className="pt-1 text-[10px] font-mono text-text-muted -mt-1 leading-none">
         {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'}
       </span>
     </div>
@@ -309,7 +309,7 @@ function AppLayout() {
       navGroups={navGroups}
       currentPath={path}
     >
-      <Suspense fallback={<div className="p-6 text-text-muted dark:text-text-muted-dark">Loading…</div>}>
+      <Suspense fallback={<div className="p-6 text-text-muted">Loading…</div>}>
         <Routes>
           <Route path="/" element={<ClientsRoute />} />
           <Route path="/clients" element={<ClientsRoute />} />

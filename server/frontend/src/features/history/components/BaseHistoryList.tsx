@@ -1,6 +1,5 @@
 import { Activity, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
-import { usePagination } from "@stefgo/react-ui-components";
 import { formatDate } from "../../../utils";
 import { JOB_STATUS } from "@pbcm/shared";
 import { Card } from '@stefgo/react-ui-components';
@@ -47,16 +46,6 @@ export const BaseHistoryList = ({
     showClientName = false,
     emptyMessage = "No history available",
 }: BaseHistoryListProps) => {
-    const {
-        currentItems,
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage,
-    } = usePagination(items, 10);
-
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
 
@@ -106,7 +95,7 @@ export const BaseHistoryList = ({
                                     >
                                         <ChevronRight size={14} className="text-text-muted" />
                                     </span>
-                                    <span className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
+                                    <span className="text-sm font-medium text-text-primary">
                                         {showClientName && `${item.displayName || item.hostname || "Unknown Client"} : `}
                                         {item.name || item.jobId || "Unknown Job"}
                                     </span>
@@ -172,20 +161,19 @@ export const BaseHistoryList = ({
             }
         >
             <DataList
-                data={currentItems}
+                data={items}
                 keyField="id"
                 columns={[{ fields: itemDef }]}
                 onRowClick={(item) => toggleExpand(item.id)}
-                containerClassName="rounded-b-xl border-0 shadow-none flex-1"
+                className="rounded-b-xl border-0 shadow-none flex-1"
                 emptyMessage={emptyMessage}
                 rowClassName="!px-5 !py-3"
                 pagination={{
-                    currentPage,
-                    totalPages,
-                    itemsPerPage,
-                    totalItems,
-                    onPageChange: goToPage,
-                    onItemsPerPageChange: setItemsPerPage,
+                    // The view owns the page state and does the slicing; it sorts across
+                    // the whole set first, so a column sort is never limited to the rows
+                    // that happen to be on screen.
+                    defaultValue: { pageSize: 10 },
+                    hideOnSinglePage: true,
                 }}
             />
         </Card>

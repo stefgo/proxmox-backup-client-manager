@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client } from '@pbcm/shared';
-import { usePagination } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
@@ -26,7 +25,7 @@ const ConnectionBadge = ({ client }: { client: Client }) => {
         ? 'text-red-600 dark:text-red-400'
         : tunnel?.status === 'up'
             ? 'text-green-600 dark:text-green-500'
-            : 'text-text-muted dark:text-text-muted-dark';
+            : 'text-text-muted';
     return (
         <span className={`inline-flex items-center gap-1 text-xs ${tone}`} title={tunnel?.lastError || undefined}>
             <Network size={12} />
@@ -54,15 +53,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         );
     }, [sortedClients, searchQuery]);
 
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage
-    } = usePagination(filteredClients, 10);
-
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
 
@@ -73,14 +63,14 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border dark:bg-border-dark'}`} />
-                        <div className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`text-sm text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
-                            {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
+                            {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                         </div>
                         <ConnectionBadge client={client} />
                     </div>
-                    <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
                         {client.id}
                     </div>
                 </>
@@ -150,10 +140,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border dark:bg-border-dark'}`} />
-                    <div className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
+                    <div className={`font-inherit text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
-                        {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
+                        {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                     </div>
                     <ConnectionBadge client={client} />
                 </div>
@@ -168,7 +158,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         contentFields.push({
             listItemRender: (client) => (
-                <span className="text-sm text-text-primary dark:text-text-primary-dark">
+                <span className="text-sm text-text-primary">
                     {client.version}
                 </span>
             ),
@@ -178,7 +168,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 client.status !== 'online' ? (
-                    <span className="text-sm text-text-muted dark:text-text-muted-dark">
+                    <span className="text-sm text-text-muted">
                         {formatDate(client.lastSeen)}
                     </span>
                 ) : <span className="text-green-600 dark:text-green-500 text-sm">Online</span>
@@ -236,12 +226,12 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
     return (
         <DataMultiView
-            title={<><Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients</>}
+            title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
                 <div className="flex gap-2">
                     <button
                         onClick={addOutboundClient}
-                        className="px-3 py-1 bg-card dark:bg-card-dark border border-border dark:border-border-dark text-text-primary dark:text-text-primary-dark text-xs rounded hover:bg-hover dark:hover:bg-hover-dark"
+                        className="px-3 py-1 bg-card border border-border text-text-primary text-xs rounded hover:bg-hover"
                     >
                         <Plus size={12} className="inline mr-1" />Outbound-Client
                     </button>
@@ -253,28 +243,24 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     </button>
                 </div>
             }
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="clientViewMode"
+            sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
+            viewMode={{ storageKey: "clientViewMode" }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-                // Hand over the full list: the table has to sort before it pages,
-                // otherwise a column sort only reorders the rows already on screen.
-                sliceInternally: true
+                // The view owns the page state and does the slicing; it sorts across
+                // the whole set first, so a column sort is never limited to the rows
+                // that happen to be on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

@@ -43,14 +43,14 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
             className="flex flex-col"
             title="Edit Client"
             action={
-                <button onClick={onCancel} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover dark:hover:bg-hover-dark">
+                <button onClick={onCancel} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover">
                     <X size={20} />
                 </button>
             }
             classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
         >
 
-            <div className="p-7 bg-card dark:bg-card-dark">
+            <div className="p-7 bg-card">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <Input
                         label="Display Name"
@@ -62,9 +62,9 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                     />
 
                     {/* Connection mode is fixed at creation time and shown read-only. */}
-                    <div className="text-sm text-text-muted dark:text-text-muted-dark">
+                    <div className="text-sm text-text-muted">
                         Connection mode:{' '}
-                        <span className="font-mono text-text-primary dark:text-text-primary-dark">
+                        <span className="font-mono text-text-primary">
                             {isOutbound ? 'Outbound (server dials in, PBS through an SSH tunnel)' : 'Inbound (client dials in, PBS directly)'}
                         </span>
                         <div className="text-xs mt-1">Fixed at creation — switching requires deleting and re-adding the client.</div>
@@ -96,7 +96,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                             variant="secondary"
                             onClick={onCancel}
                             disabled={isSaving}
-                            icon={<X size={16} />}
+                            icon={X}
                         >
                             Cancel
                         </Button>
@@ -104,7 +104,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                             type="submit"
                             variant="primary"
                             isLoading={isSaving}
-                            icon={<Save size={16} />}
+                            icon={Save}
                             className="shadow-glow-accent"
                         >
                             {isSaving ? 'Saving...' : 'Save Changes'}

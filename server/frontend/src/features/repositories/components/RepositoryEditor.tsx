@@ -107,7 +107,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
             className="flex flex-col"
             title={repository ? 'Edit Repository' : 'Add Repository'}
             action={
-                <button onClick={onCancel} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover dark:hover:bg-hover-dark">
+                <button onClick={onCancel} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover">
                     <X size={20} />
                 </button>
             }
@@ -161,7 +161,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                         )}
 
                         {repository?.observed && (
-                            <div className="text-xs text-text-muted dark:text-text-muted-dark break-all">
+                            <div className="text-xs text-text-muted break-all">
                                 Last reported by a client: <span className="font-mono">{repository.observed.fingerprint}</span>
                                 {repository.observed.caValid ? ' (CA-validated)' : ' (not CA-validated)'}
                             </div>
@@ -172,9 +172,9 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                         )}
 
                         {check && (
-                            <div className="rounded border border-border dark:border-border-dark p-4 space-y-3 text-sm">
+                            <div className="rounded border border-border p-4 space-y-3 text-sm">
                                 {!check.reachable && (
-                                    <div className="text-text-muted dark:text-text-muted-dark">
+                                    <div className="text-text-muted">
                                         PBS not reachable — the stored fingerprint was left untouched.
                                         {check.error ? ` (${check.error})` : ''}
                                     </div>
@@ -195,15 +195,15 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                                             The served certificate differs from the stored fingerprint
                                         </div>
                                         <div>
-                                            <div className="text-xs text-text-muted dark:text-text-muted-dark mb-1">
+                                            <div className="text-xs text-text-muted mb-1">
                                                 Measured (SHA256)
                                             </div>
-                                            <div className="font-mono text-xs break-all text-text-primary dark:text-text-primary-dark">
+                                            <div className="font-mono text-xs break-all text-text-primary">
                                                 {check.measuredFingerprint}
                                             </div>
                                         </div>
                                         {check.caValid ? (
-                                            <div className="text-xs text-text-muted dark:text-text-muted-dark">
+                                            <div className="text-xs text-text-muted">
                                                 The certificate passed regular CA validation for this hostname, so it is
                                                 genuine — most likely a renewal.
                                             </div>
@@ -228,13 +228,13 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                         )}
 
                         {distribution && (
-                            <div className="rounded border border-border dark:border-border-dark p-4 space-y-1 text-xs">
-                                <div className="text-text-primary dark:text-text-primary-dark">
+                            <div className="rounded border border-border p-4 space-y-1 text-xs">
+                                <div className="text-text-primary">
                                     {distribution.updated.length} job(s) updated
                                     {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
                                 </div>
                                 {distribution.skippedOffline.length > 0 && (
-                                    <div className="text-text-muted dark:text-text-muted-dark">
+                                    <div className="text-text-muted">
                                         Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
                                     </div>
                                 )}

@@ -25,7 +25,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         return (
             <div className="flex gap-1">
                 {methods.includes('local') && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:bg-card-dark dark:text-text-muted border border-border dark:border-border-dark">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-hover text-text-primary dark:text-text-muted border border-border">
                         <Key size={10} /> Local
                     </span>
                 )}
@@ -88,7 +88,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
 
     return (
         <DataCard
-            title={<><User size={18} className="text-text-muted dark:text-text-muted-dark" /> Users</>}
+            title={<><User size={18} className="text-text-muted" /> Users</>}
             action={
                 <button
                     onClick={onCreateUser}
@@ -102,12 +102,12 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
             <DataTable
                 data={users}
                 itemDef={columns}
-                defaultSort={{ colIndex: 0, direction: 'asc' }}
+                sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
                 keyField="id"
                 isLoading={isLoading}
                 loadingMessage="Loading users..."
                 emptyMessage="No users found"
-                containerClassName="rounded-b-xl border-0 shadow-none"
+                className="rounded-b-xl border-0 shadow-none"
             />
         </DataCard>
     );

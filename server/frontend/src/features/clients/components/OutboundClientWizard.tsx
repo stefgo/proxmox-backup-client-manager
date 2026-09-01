@@ -116,19 +116,19 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                 className="max-w-2xl w-full max-h-[calc(100vh-2rem)] flex flex-col animate-fade-in"
                 classNames={{ header: 'shrink-0' }}
                 action={
-                    <button onClick={onClose} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors p-1 rounded-full">
+                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full">
                         <X size={20} />
                     </button>
                 }
             >
                 <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
-                    <p className="text-sm text-text-muted dark:text-text-muted-dark">
+                    <p className="text-sm text-text-muted">
                         The server dials this client and gives it a route to the PBS through an SSH
                         reverse tunnel. <strong>The connection mode cannot be changed afterwards.</strong>
                     </p>
 
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary-dark">Client</h3>
+                        <h3 className="text-sm font-semibold text-text-primary">Client</h3>
                         <Input
                             label="Target Address (host:port of the agent)"
                             value={targetAddress}
@@ -150,7 +150,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-text-primary dark:text-text-primary-dark">SSH Reverse Tunnel</h3>
+                        <h3 className="text-sm font-semibold text-text-primary">SSH Reverse Tunnel</h3>
                         <div className="grid grid-cols-3 gap-3">
                             <div className="col-span-2">
                                 <Input
@@ -200,28 +200,28 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                             onClick={handleTest}
                             disabled={!canTest}
                             isLoading={testing}
-                            icon={<PlugZap size={16} />}
+                            icon={PlugZap}
                         >
                             Test Connection
                         </Button>
                     </div>
 
                     {test?.ok && test.hostKeySha256 && (
-                        <div className="rounded border border-border dark:border-border-dark p-4 space-y-3">
+                        <div className="rounded border border-border p-4 space-y-3">
                             <div className="flex items-center gap-2 text-green-600 dark:text-green-500 text-sm">
                                 <ShieldCheck size={16} />
                                 SSH connection and reverse forward succeeded
                                 {test.boundPort ? ` (test port ${test.boundPort})` : ''}
                             </div>
                             <div>
-                                <div className="text-xs text-text-muted dark:text-text-muted-dark mb-1">
+                                <div className="text-xs text-text-muted mb-1">
                                     Host Key Fingerprint (SHA256)
                                 </div>
-                                <div className="font-mono text-xs break-all text-text-primary dark:text-text-primary-dark">
+                                <div className="font-mono text-xs break-all text-text-primary">
                                     {test.hostKeySha256}
                                 </div>
                             </div>
-                            <label className="flex items-start gap-2 text-sm text-text-primary dark:text-text-primary-dark">
+                            <label className="flex items-start gap-2 text-sm text-text-primary">
                                 <input
                                     type="checkbox"
                                     checked={fingerprintConfirmed}
@@ -241,8 +241,8 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                     )}
                 </div>
 
-                <div className="shrink-0 flex justify-end gap-3 border-t border-border dark:border-border-dark px-6 py-4">
-                    <Button type="button" variant="secondary" onClick={onClose} disabled={creating} icon={<X size={16} />}>
+                <div className="shrink-0 flex justify-end gap-3 border-t border-border px-6 py-4">
+                    <Button type="button" variant="secondary" onClick={onClose} disabled={creating} icon={X}>
                         Cancel
                     </Button>
                     <Button
@@ -251,7 +251,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                         onClick={handleCreate}
                         disabled={!canCreate}
                         isLoading={creating}
-                        icon={<Plug size={16} />}
+                        icon={Plug}
                     >
                         Create Client
                     </Button>

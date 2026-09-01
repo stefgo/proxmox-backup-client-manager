@@ -14,15 +14,15 @@ export const JobScheduleSettings = () => {
     return (
         <div className="space-y-1">
             <label className="field-label">Schedule</label>
-            <div className="p-2 border border-border dark:border-border-dark rounded bg-app-bg dark:bg-card-dark">
+            <div className="p-2 border border-border rounded bg-app-bg">
                 <div
                     className="flex items-center gap-2 cursor-pointer"
                     onClick={() => setScheduleEnabled(!scheduleEnabled)}
                 >
-                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${scheduleEnabled ? 'bg-primary' : 'bg-border dark:bg-border-dark'}`}>
+                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${scheduleEnabled ? 'bg-primary' : 'bg-border'}`}>
                         <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${scheduleEnabled ? 'translate-x-4' : ''}`} />
                     </div>
-                    <label className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase cursor-pointer">
+                    <label className="text-xs font-bold text-text-muted uppercase cursor-pointer">
                         {scheduleEnabled ? 'Enabled' : 'Disabled'}
                     </label>
                 </div>
@@ -46,7 +46,7 @@ export const JobScheduleSettings = () => {
                                     fullWidth={false}
                                 />
                             </div>
-                            <div className="text-[10px] text-text-muted dark:text-text-muted-dark mt-1">If set, the job will not run before this time.</div>
+                            <div className="text-[10px] text-text-muted mt-1">If set, the job will not run before this time.</div>
                         </div>
 
                         <div>
@@ -78,7 +78,7 @@ export const JobScheduleSettings = () => {
                             <label className="field-label">Detailed Weekdays</label>
                             <div className="flex flex-wrap gap-2">
                                 {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => (
-                                    <button key={day} onClick={() => { if (scheduleWeekdays.includes(day)) { if (scheduleWeekdays.length > 1) setScheduleWeekdays(scheduleWeekdays.filter(d => d !== day)); } else { setScheduleWeekdays([...scheduleWeekdays, day]); } }} className={`px-2 py-1 text-[10px] uppercase font-bold rounded border transition-colors ${scheduleWeekdays.includes(day) ? 'bg-primary/20 border-primary text-primary shadow-glow-accent' : 'bg-white dark:bg-card-dark border-border dark:border-border-dark text-text-muted dark:text-text-muted-dark opacity-60'}`}>
+                                    <button key={day} onClick={() => { if (scheduleWeekdays.includes(day)) { if (scheduleWeekdays.length > 1) setScheduleWeekdays(scheduleWeekdays.filter(d => d !== day)); } else { setScheduleWeekdays([...scheduleWeekdays, day]); } }} className={`px-2 py-1 text-[10px] uppercase font-bold rounded border transition-colors ${scheduleWeekdays.includes(day) ? 'bg-primary/20 border-primary text-primary shadow-glow-accent' : 'bg-white border-border text-text-muted opacity-60'}`}>
                                         {day}
                                     </button>
                                 ))}

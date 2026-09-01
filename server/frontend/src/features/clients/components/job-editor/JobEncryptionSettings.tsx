@@ -47,17 +47,17 @@ export const JobEncryptionSettings: React.FC = () => {
 
     return (
         <div className="space-y-1">
-            <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase">Encryption</label>
-            <div className="p-2 border dark:border-border-dark rounded bg-app-bg dark:bg-card-dark">
+            <label className="block text-xs font-bold text-text-muted uppercase">Encryption</label>
+            <div className="p-2 border rounded bg-app-bg">
                 {/* Toggle header */}
                 <div
                     className={`flex items-center gap-2 ${isGenerating ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                     onClick={handleToggle}
                 >
-                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-accent' : 'dark:bg-border-dark'}`}>
+                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-accent' : ''}`}>
                         <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
                     </div>
-                    <label className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase cursor-pointer flex items-center gap-1">
+                    <label className="text-xs font-bold text-text-muted uppercase cursor-pointer flex items-center gap-1">
                         {encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
                     </label>
                 </div>
@@ -77,7 +77,7 @@ export const JobEncryptionSettings: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleDropKey}
-                                className="flex items-center justify-center py-2 px-3 border dark:border-border-dark text-text-muted dark:text-text-muted-dark hover:border-error hover:text-error rounded font-bold transition-colors"
+                                className="flex items-center justify-center py-2 px-3 border text-text-muted hover:border-error hover:text-error rounded font-bold transition-colors"
                             >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Drop

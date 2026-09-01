@@ -3,7 +3,6 @@ import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { usePagination } from '@stefgo/react-ui-components';
 
 interface RepositorySnapshotListProps {
     snapshots: Snapshot[];
@@ -51,15 +50,6 @@ export const RepositorySnapshotList = ({
         });
     }, [sortedSnapshots, searchQuery, getClientName]);
 
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage,
-    } = usePagination(filteredSnapshots, 10);
-
     const getStatus = (snap: Snapshot): "online" | "offline" => {
         if (!showClientColumn || !getClientStatus || !snap.backupId) return "online";
         return getClientStatus(snap.backupId);
@@ -82,11 +72,11 @@ export const RepositorySnapshotList = ({
                         <div
                             className={`w-2 h-2 rounded-full shrink-0 ${online
                                 ? "bg-green-500 shadow-glow-online"
-                                : "bg-border dark:bg-border-dark"
+                                : "bg-border"
                                 }`}
                         />
                         <div
-                            className={`text-sm ${online ? "text-text-primary dark:text-text-primary-dark" : ""
+                            className={`text-sm ${online ? "text-text-primary" : ""
                                 } max-w-[150px] truncate`}
                             title={name}
                         >
@@ -103,7 +93,7 @@ export const RepositorySnapshotList = ({
         sortable: true,
         sortValue: (snap) => snap.backupTime,
         tableItemRender: (snap) => (
-            <div className="text-sm text-text-muted dark:text-text-muted-dark flex items-center gap-2">
+            <div className="text-sm text-text-muted flex items-center gap-2">
                 {formatDate(snap.backupTime * 1000)}
             </div>
         )
@@ -114,7 +104,7 @@ export const RepositorySnapshotList = ({
         sortable: true,
         sortValue: (snap) => snap.size ?? 0,
         tableItemRender: (snap) => (
-            <div className="text-sm text-text-muted dark:text-text-muted-dark">
+            <div className="text-sm text-text-muted">
                 {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
             </div>
         )
@@ -156,7 +146,7 @@ export const RepositorySnapshotList = ({
                         />
                         <span
                             className={`${isOnline
-                                ? "text-text-primary dark:text-text-primary-dark"
+                                ? "text-text-primary"
                                 : "text-inherit"
                                 }`}
                         >
@@ -211,27 +201,23 @@ export const RepositorySnapshotList = ({
 
     return (
         <DataMultiView
-            title={<><FileBox size={18} className="text-text-muted dark:text-text-muted-dark" /> Snapshots</>}
+            title={<><FileBox size={18} className="text-text-muted" /> Snapshots</>}
             data={filteredSnapshots}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField={snapshotKey}
-            defaultSort={{ colIndex: dateSortColIndex, direction: 'desc' }}
-            viewModeStorageKey="snapshotListViewMode"
+            sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
+            viewMode={{ storageKey: "snapshotListViewMode" }}
             searchable
             searchPlaceholder="Search Snapshots ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No snapshots found in this repository."
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-                // Hand over the full list: the table has to sort before it pages,
-                // otherwise a column sort only reorders the rows already on screen.
-                sliceInternally: true
+                // The view owns the page state and does the slicing; it sorts across
+                // the whole set first, so a column sort is never limited to the rows
+                // that happen to be on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

@@ -149,18 +149,18 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     };
 
     return (
-        <div className="dark:bg-card-dark rounded-xl border border-border dark:border-border-dark shadow-premium flex flex-col h-full overflow-hidden">
+        <div className=" rounded-xl border border-border shadow-premium flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-border dark:border-border-dark flex justify-between items-center bg-app-bg dark:bg-card-dark">
+            <div className="p-4 border-b border-border flex justify-between items-center bg-app-bg">
                 <div>
-                    <h3 className="font-semibold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
-                        <Folder size={20} className="text-text-muted dark:text-text-muted-dark" /> Restore Snapshot
+                    <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                        <Folder size={20} className="text-text-muted" /> Restore Snapshot
                     </h3>
-                    <div className="text-xs text-text-muted dark:text-text-muted-dark font-mono mt-1">
+                    <div className="text-xs text-text-muted font-mono mt-1">
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
                     </div>
                 </div>
-                <button onClick={onCancel} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary p-1 rounded hover:bg-hover dark:hover:bg-hover-dark transition-colors">
+                <button onClick={onCancel} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-hover transition-colors">
                     <X size={20} />
                 </button>
             </div>
@@ -186,26 +186,26 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
                     {/* Step 1: Archives Selection */}
                     <div>
-                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Select Archives</label>
+                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Select Archives</label>
 
                         {availableArchives.length > 0 ? (
-                            <div className="border border-border dark:border-border-dark rounded overflow-hidden">
+                            <div className="border border-border rounded overflow-hidden">
                                 {availableArchives.map(arch => (
-                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-hover dark:hover:bg-hover-dark cursor-pointer border-b last:border-0 border-border dark:border-border-dark">
+                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-hover cursor-pointer border-b last:border-0 border-border">
                                         <input
                                             type="checkbox"
                                             checked={selectedArchives.includes(arch)}
                                             onChange={() => toggleArchive(arch)}
-                                            className="custom-checkbox h-4 w-4 bg-hover dark:bg-card-dark border-border dark:border-border-dark rounded text-primary focus:ring-primary"
+                                            className="custom-checkbox h-4 w-4 bg-hover border-border rounded text-primary focus:ring-primary"
                                         />
-                                        <span className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+                                        <span className="text-sm font-mono text-text-muted">
                                             {formatArchiveName(arch)}
                                         </span>
                                     </label>
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-3 text-sm text-text-muted dark:text-text-muted-dark bg-app-bg dark:bg-card-dark rounded border border-border dark:border-border-dark flex items-center gap-2">
+                            <div className="p-3 text-sm text-text-muted bg-app-bg rounded border border-border flex items-center gap-2">
                                 <AlertCircle size={16} /> No archives found in this snapshot.
                             </div>
                         )}
@@ -232,7 +232,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 {/* Step 3: Directory Selection */}
                 {selectedClientId && (
                     <div className="flex flex-col">
-                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
                         <FileBrowser
                             currentPath={browserPath}
                             onNavigate={setBrowserPath}
@@ -249,8 +249,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark">
-                <button onClick={onCancel} className="px-4 py-2 rounded bg-border dark:bg-card-dark hover:bg-hover dark:hover:bg-hover-dark text-text-primary dark:text-text-primary-dark font-medium transition-colors">
+            <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg">
+                <button onClick={onCancel} className="px-4 py-2 rounded bg-border hover:bg-hover text-text-primary font-medium transition-colors">
                     Cancel
                 </button>
                 <button

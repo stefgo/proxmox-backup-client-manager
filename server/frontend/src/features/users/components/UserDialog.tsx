@@ -84,7 +84,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
             <Card
                 title={editingUser ? 'Edit User' : 'New User'}
                 action={
-                    <button onClick={onClose} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary transition-colors">
+                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
                         <X size={20} />
                     </button>
                 }
@@ -114,18 +114,18 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
                                     type="checkbox"
                                     checked={authMethods.includes('local')}
                                     onChange={() => toggleAuthMethod('local')}
-                                    className="rounded border-border dark:border-border-dark text-primary focus:ring-primary bg-white dark:bg-card-dark"
+                                    className="rounded border-border text-primary focus:ring-primary bg-white"
                                 />
-                                <span className="text-sm text-text-muted dark:text-text-muted-dark">Local (Password)</span>
+                                <span className="text-sm text-text-muted">Local (Password)</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={authMethods.includes('oidc')}
                                     onChange={() => toggleAuthMethod('oidc')}
-                                    className="rounded border-border dark:border-border-dark text-primary focus:ring-primary bg-white dark:bg-card-dark"
+                                    className="rounded border-border text-primary focus:ring-primary bg-white"
                                 />
-                                <span className="text-sm text-text-muted dark:text-text-muted-dark">OIDC (SSO)</span>
+                                <span className="text-sm text-text-muted">OIDC (SSO)</span>
                             </label>
                         </div>
                     </div>

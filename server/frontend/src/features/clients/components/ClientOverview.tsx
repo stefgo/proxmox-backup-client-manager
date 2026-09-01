@@ -171,12 +171,12 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border dark:bg-border-dark'}`} />
+                        <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
                         <div>
                             <h2 className="text-2xl font-bold">
                                 {client.displayName || client.hostname}
                             </h2>
-                            <div className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+                            <div className="text-sm font-mono text-text-muted">
                                 {client.id}
                             </div>
                         </div>
@@ -186,28 +186,28 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                     <div className="flex items-center gap-4">
                         {client.status !== 'online' && (
                             <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted dark:text-text-muted-dark uppercase tracking-wider font-bold mb-1">Last Seen</div>
-                                <div className="text-sm text-text-primary dark:text-text-primary-dark font-mono">{formatDate(client.lastSeen)}</div>
+                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Last Seen</div>
+                                <div className="text-sm text-text-primary font-mono">{formatDate(client.lastSeen)}</div>
                             </div>
                         )}
                         <div className="relative">
                             <button
                                 onClick={(e) => openMenu(e, client.id)}
-                                className="p-2 hover:bg-hover dark:hover:bg-hover-dark rounded-full transition-colors text-text-muted dark:text-text-muted-dark"
+                                className="p-2 hover:bg-hover rounded-full transition-colors text-text-muted"
                             >
                                 <MoreVertical size={20} />
                             </button>
                             <ActionMenu
                                 isOpen={menuState?.id === client.id}
                                 onClose={closeMenu}
-                                position={menuState || { x: 0, y: 0 }}
+                                anchor={menuState?.anchor ?? null}
                             >
                                 <button
                                     onClick={() => {
                                         setIsEditing(true);
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary dark:text-text-primary-dark hover:bg-hover dark:hover:bg-hover-dark flex items-center gap-2"
+                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
                                 >
                                     <Edit size={16} /> Edit Client
                                 </button>
@@ -235,7 +235,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         label="Backup Jobs"
                                         value={configuredJobs.length.toString()}
                                         sub="Configurations"
-                                        icon={<HardDrive className="text-text-muted dark:text-text-muted-dark" />}
+                                        icon={HardDrive}
+                                        classNames={{ icon: "text-text-muted" }}
                                         onClick={() => setActiveTab('jobs')}
                                     />
                                 </div>
@@ -244,7 +245,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         label="Snapshots"
                                         value={clientSnapshots.length.toString()}
                                         sub="Available Backups"
-                                        icon={<FileBox className="text-text-muted dark:text-text-muted-dark" />}
+                                        icon={FileBox}
+                                        classNames={{ icon: "text-text-muted" }}
                                         onClick={() => setActiveTab('snapshots')}
                                     />
                                 </div>
@@ -253,7 +255,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         label="Job History"
                                         value={backupJobs.length.toString()}
                                         sub="Recorded Runs"
-                                        icon={<Activity className="text-text-muted dark:text-text-muted-dark" />}
+                                        icon={Activity}
+                                        classNames={{ icon: "text-text-muted" }}
                                         onClick={() => setActiveTab('history')}
                                     />
                                 </div>
