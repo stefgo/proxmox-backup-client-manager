@@ -230,36 +230,33 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <>
                             {/* Client Stats Row */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                <div className={activeTab === 'jobs' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Backup Jobs"
-                                        value={configuredJobs.length.toString()}
-                                        sub="Configurations"
-                                        icon={HardDrive}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('jobs')}
-                                    />
-                                </div>
-                                <div className={activeTab === 'snapshots' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Snapshots"
-                                        value={clientSnapshots.length.toString()}
-                                        sub="Available Backups"
-                                        icon={FileBox}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('snapshots')}
-                                    />
-                                </div>
-                                <div className={activeTab === 'history' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Job History"
-                                        value={backupJobs.length.toString()}
-                                        sub="Recorded Runs"
-                                        icon={Activity}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('history')}
-                                    />
-                                </div>
+                                <StatCard
+                                    label="Backup Jobs"
+                                    value={configuredJobs.length.toString()}
+                                    sub="Configurations"
+                                    icon={HardDrive}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    className={activeTab === 'jobs' ? 'ring-2 ring-primary' : ''}
+                                    onClick={() => setActiveTab('jobs')}
+                                />
+                                <StatCard
+                                    label="Snapshots"
+                                    value={clientSnapshots.length.toString()}
+                                    sub="Available Backups"
+                                    icon={FileBox}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    className={activeTab === 'snapshots' ? 'ring-2 ring-primary' : ''}
+                                    onClick={() => setActiveTab('snapshots')}
+                                />
+                                <StatCard
+                                    label="Job History"
+                                    value={backupJobs.length.toString()}
+                                    sub="Recorded Runs"
+                                    icon={Activity}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    className={activeTab === 'history' ? 'ring-2 ring-primary' : ''}
+                                    onClick={() => setActiveTab('history')}
+                                />
                             </div>
 
                             <div className="space-y-6">
