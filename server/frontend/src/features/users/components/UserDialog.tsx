@@ -92,7 +92,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
             >
                 <form onSubmit={handleSubmit} className="space-y-4 p-6">
                     {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm">
+                        <div className="bg-error-bg text-error p-3 rounded-lg text-sm">
                             {error}
                         </div>
                     )}

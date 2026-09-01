@@ -109,7 +109,7 @@ export const SshKeyFields = ({
                         {generated ? 'Regenerate' : 'Generate Key Pair'}
                     </Button>
                     {generated && (
-                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
+                        <div className="flex items-center gap-2 text-sm text-success">
                             <Check size={16} />
                             ed25519 key generated
                         </div>
@@ -140,7 +140,7 @@ export const SshKeyFields = ({
                 </div>
             )}
 
-            {error && <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>}
+            {error && <div className="text-sm text-error break-words">{error}</div>}
         </div>
     );
 };

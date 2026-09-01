@@ -129,7 +129,7 @@ export const JobRepositorySelect = ({
         return (
             <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                    <label className="block text-xs font-bold text-text-muted uppercase">{label} <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-text-muted uppercase">{label} <span className="text-error">*</span></label>
                     <button onClick={() => onSetIsSelecting(true)} className="text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors">
                         {selectedRepository ? 'Change Repository' : 'Set Repository'}
                     </button>

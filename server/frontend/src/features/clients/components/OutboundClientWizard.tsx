@@ -208,7 +208,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
 
                     {test?.ok && test.hostKeySha256 && (
                         <div className="rounded border border-border p-4 space-y-3">
-                            <div className="flex items-center gap-2 text-green-600 dark:text-green-500 text-sm">
+                            <div className="flex items-center gap-2 text-success text-sm">
                                 <ShieldCheck size={16} />
                                 SSH connection and reverse forward succeeded
                                 {test.boundPort ? ` (test port ${test.boundPort})` : ''}
@@ -237,7 +237,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                     )}
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>
+                        <div className="text-sm text-error break-words">{error}</div>
                     )}
                 </div>
 

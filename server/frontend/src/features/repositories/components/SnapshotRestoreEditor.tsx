@@ -166,7 +166,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             </div>
 
             {message && (
-                <div className="mx-6 mt-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-green-700 dark:text-green-400 text-sm flex items-center gap-2">
+                <div className="mx-6 mt-6 p-3 bg-badge-success-bg border border-success rounded text-success text-sm flex items-center gap-2">
                     <ShieldCheck size={16} className="shrink-0" />
                     {message}
                 </div>
@@ -174,7 +174,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             {/* Error Message */}
             {error && (
-                <div className="mx-6 mt-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+                <div className="mx-6 mt-6 p-3 bg-error-bg border border-error rounded text-error text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
                     {error}
                 </div>
@@ -232,7 +232,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 {/* Step 3: Directory Selection */}
                 {selectedClientId && (
                     <div className="flex flex-col">
-                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Target Directory <span className="text-error">*</span></label>
                         <FileBrowser
                             currentPath={browserPath}
                             onNavigate={setBrowserPath}

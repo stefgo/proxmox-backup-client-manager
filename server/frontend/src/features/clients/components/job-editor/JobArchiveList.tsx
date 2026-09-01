@@ -17,7 +17,7 @@ export const JobArchiveList = () => {
     return (
         <div className="flex-1 flex flex-col gap-1 min-h-[200px]">
             <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-text-muted uppercase">Archives <span className="text-red-500">*</span></label>
+                <label className="text-xs font-bold text-text-muted uppercase">Archives <span className="text-error">*</span></label>
                 <button onClick={() => { setIsAddingArchive(true); setEditingArchiveIndex(null); setNewItemName(''); setNewItemPath(''); setFileBrowserPath('/'); }} className="text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors">
                     <Plus size={12} /> Add Archive
                 </button>

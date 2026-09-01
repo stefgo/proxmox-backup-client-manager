@@ -44,7 +44,7 @@ export const HistoryOverview = () => {
     if (error) {
         return (
             <div className="p-6">
-                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-md">
+                <div className="bg-error-bg text-error p-4 rounded-md">
                     {error}
                 </div>
             </div>

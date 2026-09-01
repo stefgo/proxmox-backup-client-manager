@@ -107,7 +107,7 @@ export const SshHostSetupSnippet = ({
                     )}
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>
+                        <div className="text-sm text-error break-words">{error}</div>
                     )}
 
                     {publicKey && (

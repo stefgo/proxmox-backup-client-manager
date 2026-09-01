@@ -93,13 +93,13 @@ export const ManagedJobs = () => {
 
     if (isLoading && globalJobs.length === 0) {
         return (
-            <div className="p-8 text-center text-gray-500">Loading jobs...</div>
+            <div className="p-8 text-center text-text-muted">Loading jobs...</div>
         );
     }
 
     if (error) {
         return (
-            <div className="p-8 text-center text-red-500">Error: {error}</div>
+            <div className="p-8 text-center text-error">Error: {error}</div>
         );
     }
 

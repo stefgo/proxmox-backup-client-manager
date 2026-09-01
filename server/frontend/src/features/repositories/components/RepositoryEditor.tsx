@@ -168,7 +168,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                         )}
 
                         {checkError && (
-                            <div className="text-sm text-red-600 dark:text-red-400 break-words">{checkError}</div>
+                            <div className="text-sm text-error break-words">{checkError}</div>
                         )}
 
                         {check && (
@@ -181,7 +181,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                                 )}
 
                                 {check.reachable && check.matches && (
-                                    <div className="flex items-center gap-2 text-green-600 dark:text-green-500">
+                                    <div className="flex items-center gap-2 text-success">
                                         <ShieldCheck size={16} />
                                         Fingerprint is up to date
                                         {check.notAfter ? ` — certificate valid until ${check.notAfter}` : ''}
@@ -190,7 +190,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
 
                                 {check.reachable && !check.matches && (
                                     <>
-                                        <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                                        <div className="flex items-center gap-2 text-warning">
                                             <ShieldAlert size={16} />
                                             The served certificate differs from the stored fingerprint
                                         </div>
@@ -208,7 +208,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
                                                 genuine — most likely a renewal.
                                             </div>
                                         ) : (
-                                            <div className="text-xs text-amber-600 dark:text-amber-500">
+                                            <div className="text-xs text-warning">
                                                 CA validation failed, so this certificate could not be confirmed as
                                                 genuine. Verify it out of band first
                                                 (<span className="font-mono">proxmox-backup-manager cert info</span>)

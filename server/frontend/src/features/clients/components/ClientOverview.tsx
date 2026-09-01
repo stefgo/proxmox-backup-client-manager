@@ -171,7 +171,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                         <div>
                             <h2 className="text-2xl font-bold">
                                 {client.displayName || client.hostname}

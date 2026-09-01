@@ -83,7 +83,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                     )}
 
                     {error && (
-                        <div className="text-sm text-red-500">{error}</div>
+                        <div className="text-sm text-error">{error}</div>
                     )}
 
                     {client.connectionMode === 'outbound' && (

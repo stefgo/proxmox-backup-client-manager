@@ -22,9 +22,9 @@ const ConnectionBadge = ({ client }: { client: Client }) => {
     if (client.connectionMode !== 'outbound') return null;
     const tunnel = (client as any).tunnel;
     const tone = tunnel?.status === 'error'
-        ? 'text-red-600 dark:text-red-400'
+        ? 'text-error'
         : tunnel?.status === 'up'
-            ? 'text-green-600 dark:text-green-500'
+            ? 'text-success'
             : 'text-text-muted';
     return (
         <span className={`inline-flex items-center gap-1 text-xs ${tone}`} title={tunnel?.lastError || undefined}>
@@ -63,7 +63,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                         <div className={`text-sm text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
                             {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
@@ -140,7 +140,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border'}`} />
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                     <div className={`font-inherit text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
@@ -171,7 +171,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
                     <span className="text-sm text-text-muted">
                         {formatDate(client.lastSeen)}
                     </span>
-                ) : <span className="text-green-600 dark:text-green-500 text-sm">Online</span>
+                ) : <span className="text-success text-sm">Online</span>
             ),
             listLabel: 'Status',
         });

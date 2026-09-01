@@ -133,7 +133,7 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                     </div>
                 ))}
                 {info.state?.lastError && (
-                    <div className="text-red-600 dark:text-red-400">{info.state.lastError}</div>
+                    <div className="text-error">{info.state.lastError}</div>
                 )}
                 <div className="font-mono break-all">Host key: {info.hostKeySha256}</div>
             </div>
@@ -163,8 +163,8 @@ export const ClientTunnelSettings = ({ clientId }: ClientTunnelSettingsProps) =>
                 sshUser={sshUser}
             />
 
-            {message && <div className="text-sm text-green-600 dark:text-green-500">{message}</div>}
-            {error && <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>}
+            {message && <div className="text-sm text-success">{message}</div>}
+            {error && <div className="text-sm text-error break-words">{error}</div>}
 
             <div className="flex gap-3">
                 <Button type="button" variant="secondary" onClick={handleTest} disabled={busy} icon={PlugZap}>

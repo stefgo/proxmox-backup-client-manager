@@ -43,17 +43,17 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     }, [clients.length, token, fetchClients]);
 
     const getStatusColor = () => {
-        if (isLoading) return 'bg-yellow-500 animate-pulse shadow-glow-accent';
-        if (repo?.status === 'online') return 'bg-green-500 shadow-glow-online';
+        if (isLoading) return 'bg-warning animate-pulse shadow-glow-accent';
+        if (repo?.status === 'online') return 'bg-success shadow-glow-success';
         return 'bg-border';
     };
 
     if (!repo) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-red-500 gap-4">
+            <div className="flex flex-col items-center justify-center h-full text-error gap-4">
                 <AlertCircle size={48} />
                 <p>Repository not found</p>
-                <button onClick={() => navigate('/')} className="text-blue-500 hover:underline">Go Back</button>
+                <button onClick={() => navigate('/')} className="text-info hover:underline">Go Back</button>
             </div>
         );
     }
@@ -82,7 +82,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {/* Without this the snapshot fetch could fail and leave nothing but the
                 header card on screen, with no hint as to why. */}
             {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-md flex items-center gap-3">
+                <div className="bg-error-bg text-error p-4 rounded-md flex items-center gap-3">
                     <AlertCircle size={18} className="shrink-0" />
                     <span>{error}</span>
                 </div>

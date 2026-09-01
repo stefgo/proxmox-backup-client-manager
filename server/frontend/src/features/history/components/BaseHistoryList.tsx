@@ -1,20 +1,21 @@
 import { Activity, ChevronRight } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentProps } from "react";
 import { formatDate } from "../../../utils";
 import { JOB_STATUS } from "@pbcm/shared";
-import { Card } from '@stefgo/react-ui-components';
+import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 
-const STATUS_BADGE_CLASSES: Record<string, string> = {
-    [JOB_STATUS.RUNNING]: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    [JOB_STATUS.SUCCESS]: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    [JOB_STATUS.FAILED]: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    [JOB_STATUS.ABORTED]: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-};
+// The status maps to a role, not to a colour -- Badge owns what each role
+// looks like, in both themes. "neutral" covers idle, queued, skipped and
+// anything an older agent might report.
+type BadgeVariant = ComponentProps<typeof Badge>['variant'];
 
-// Covers idle, queued, skipped and anything an older agent might report.
-const STATUS_BADGE_FALLBACK =
-    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
+    [JOB_STATUS.RUNNING]: 'info',
+    [JOB_STATUS.SUCCESS]: 'success',
+    [JOB_STATUS.FAILED]: 'error',
+    [JOB_STATUS.ABORTED]: 'warning',
+};
 
 export interface BaseHistoryItem {
     id: string;
@@ -100,12 +101,13 @@ export const BaseHistoryList = ({
                                         {item.name || item.jobId || "Unknown Job"}
                                     </span>
                                 </div>
-                                <span
-                                    className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${STATUS_BADGE_CLASSES[item.status] ?? STATUS_BADGE_FALLBACK
-                                        }`}
+                                <Badge
+                                    variant={STATUS_BADGE_VARIANT[item.status] ?? 'neutral'}
+                                    size="sm"
+                                    className="uppercase font-bold"
                                 >
                                     {item.status}
-                                </span>
+                                </Badge>
                             </div>
                             <div className="flex justify-between text-xs text-text-muted font-mono mt-0.5 pl-6">
                                 <span>{item.id}</span>
@@ -118,22 +120,22 @@ export const BaseHistoryList = ({
                                     liveLogs[item.id] &&
                                     liveLogs[item.id].length > 0 ? (
                                     <div
-                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-blue-50 dark:bg-blue-900/10 text-blue-800 dark:text-blue-300"
+                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-badge-info-bg text-badge-info-text"
                                     >
                                         {liveLogs[item.id].join("")}
                                     </div>
                                 ) : item.error || item.stderr ? (
                                     <div
                                         className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED
-                                            ? "bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400"
-                                            : "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                                            ? "bg-error-bg text-error"
+                                            : "bg-hover text-text-muted"
                                             }`}
                                     >
                                         {item.error || item.stderr}
                                     </div>
                                 ) : item.stdout ? (
                                     <div
-                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-hover text-text-muted"
                                     >
                                         {item.stdout}
                                     </div>

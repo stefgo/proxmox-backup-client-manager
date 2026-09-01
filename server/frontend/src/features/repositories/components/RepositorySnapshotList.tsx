@@ -71,7 +71,7 @@ export const RepositorySnapshotList = ({
                     <div className="flex items-center gap-3">
                         <div
                             className={`w-2 h-2 rounded-full shrink-0 ${online
-                                ? "bg-green-500 shadow-glow-online"
+                                ? "bg-success shadow-glow-success"
                                 : "bg-border"
                                 }`}
                         />
@@ -142,7 +142,7 @@ export const RepositorySnapshotList = ({
                 return (
                     <div className="flex items-center gap-2 py-1">
                         <span
-                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-border"}`}
+                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-border"}`}
                         />
                         <span
                             className={`${isOnline

@@ -33,7 +33,7 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                         <button
                             onClick={handleCopy}
                             className={`px-3 py-3 border rounded-lg text-sm transition-colors ${copied
-                                ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400'
+                                ? 'bg-badge-success-bg border-success text-badge-success-text'
                                 : 'bg-hover hover:bg-hover border-border text-text-muted'
                                 }`}
                             title={copied ? 'Copied!' : 'Copy to clipboard'}

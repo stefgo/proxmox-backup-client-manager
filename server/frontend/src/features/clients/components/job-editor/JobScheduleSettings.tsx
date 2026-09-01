@@ -31,7 +31,7 @@ export const JobScheduleSettings = () => {
                     <div className="space-y-2 mt-2">
                         {/* Start Time Selection */}
                         <div>
-                            <label className="field-label">Next Run (Start At) <span className="text-red-500">*</span></label>
+                            <label className="field-label">Next Run (Start At) <span className="text-error">*</span></label>
                             <div className="flex gap-2">
                                 <Input
                                     type="date"
