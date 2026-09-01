@@ -116,7 +116,7 @@ function NotFound() {
   const { pathname } = useLocation();
 
   return (
-    <Card title="Page not found" classNames={{ content: "space-y-4" }}>
+    <Card title="Page not found" padding="md" classNames={{ content: "space-y-4" }}>
       <p className="text-text-secondary">
         There is nothing at <code className="font-mono text-sm">{pathname}</code>.
       </p>

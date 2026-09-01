@@ -20,7 +20,7 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <Card title="New Registration Token" className="max-w-lg w-full animate-fade-in" classNames={{ content: 'space-y-4' }}>
+            <Card title="New Registration Token" className="max-w-lg w-full animate-fade-in" padding="md" classNames={{ content: 'space-y-4' }}>
                 <div className="flex items-center gap-2">
                     <input
                         type="text"
