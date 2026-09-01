@@ -236,7 +236,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     sub="Configurations"
                                     icon={HardDrive}
                                     classNames={{ icon: "text-text-muted" }}
-                                    className={activeTab === 'jobs' ? 'ring-2 ring-primary' : ''}
+                                    selected={activeTab === 'jobs'}
                                     onClick={() => setActiveTab('jobs')}
                                 />
                                 <StatCard
@@ -245,7 +245,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     sub="Available Backups"
                                     icon={FileBox}
                                     classNames={{ icon: "text-text-muted" }}
-                                    className={activeTab === 'snapshots' ? 'ring-2 ring-primary' : ''}
+                                    selected={activeTab === 'snapshots'}
                                     onClick={() => setActiveTab('snapshots')}
                                 />
                                 <StatCard
@@ -254,7 +254,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     sub="Recorded Runs"
                                     icon={Activity}
                                     classNames={{ icon: "text-text-muted" }}
-                                    className={activeTab === 'history' ? 'ring-2 ring-primary' : ''}
+                                    selected={activeTab === 'history'}
                                     onClick={() => setActiveTab('history')}
                                 />
                             </div>

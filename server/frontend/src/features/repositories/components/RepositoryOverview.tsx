@@ -105,7 +105,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             sub="Available Backups"
                             icon={FileBox}
                             classNames={{ icon: "text-text-muted" }}
-                            className={activeTab === 'snapshots' ? 'ring-2 ring-primary' : ''}
+                            selected={activeTab === 'snapshots'}
                             onClick={() => setActiveTab('snapshots')}
                         />
                     </div>
