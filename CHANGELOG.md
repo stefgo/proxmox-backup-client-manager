@@ -1,3 +1,10 @@
+# [1.4.0-beta.2](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.1...v1.4.0-beta.2) (2026-09-01)
+
+
+### Bug Fixes
+
+* **tailwind:** update content configuration to include preset's content ([c4ae653](https://github.com/stefgo/proxmox-backup-client-manager/commit/c4ae653246612507ce9939e94ac2eb9fbe30afff))
+
 # [1.4.0-beta.1](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.3.2...v1.4.0-beta.1) (2026-09-01)
 
 
