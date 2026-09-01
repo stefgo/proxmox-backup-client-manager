@@ -94,6 +94,34 @@ Environment variables of note:
   (`npm run typecheck:local-ui`), or the compiler and the bundler check two
   different versions of the same module.
 
+## Versioning and Releases
+
+`semantic-release` owns the version. It runs from
+[`release.yml`](.github/workflows/release.yml) on every push to `main` (stable)
+and `dev` (prerelease on the `beta` channel), derives the next number from the
+commit types since the last tag, writes `CHANGELOG.md` and the root
+`package.json`, and pushes the tag. **Never bump a version or create a `v*` tag
+by hand.**
+
+- **The commit message is the only input the version comes from**, so it is
+  checked like code: commitlint (`@commitlint/config-conventional`) fails a PR
+  whose commits are not Conventional Commits. A `Fix:` instead of `fix:`
+  produces no release at all and nothing else would go red. `subject-case` is
+  deliberately off -- the subjects are German and capitalise nouns.
+- The **root `package.json` is the single source of truth** for the version.
+  The workspace manifests keep their own `1.0.0`; they are private and never
+  published, and nothing reads them.
+- The tag is what produces images: `build.yml` reacts to `v*.*.*`, so a release
+  and its container images cannot drift apart. Pushing to `dev` also publishes a
+  rolling `:dev` image.
+- Everything that needs the version string derives it in the same order --
+  build argument, then root `package.json`, then git. That order lives in
+  [`scripts/generate-version.sh`](scripts/generate-version.sh) and, mirrored, in
+  `server/frontend/vite.config.js`. Only the client agent ships a `dist/VERSION`
+  file; the backend has none, because nothing reads it.
+
+See `doc/development.md` for the workflow details.
+
 ## Code Style
 
 - **Indentation**: 4 spaces in all workspaces, no tabs. No formatter is configured — match the surrounding file.

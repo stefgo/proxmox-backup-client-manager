@@ -46,40 +46,125 @@ These files ensure that all TypeScript modules (`shared`, `client`, `server/fron
 ### Architectures (Multi-Arch)
 
 - **Server**: Supports both `linux/amd64` and `linux/arm64`. This is enabled because the server relies solely on Node.js.
-- **Client**: Supports **only** `linux/amd64`, as the official Proxmox repository primarily provides the `proxmox-backup-client` as a Debian package for this architecture.
+- **Client**: Built per architecture from its own Dockerfile (`Dockerfile.client` for `linux/amd64`, `Dockerfile.client.arm64` for `linux/arm64`) and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package.
+
+## Release
+
+`semantic-release` owns the version number; nobody tags by hand.
+[`release.yml`](../.github/workflows/release.yml) runs on every push to `main`
+and `dev`, gated by the same `ci.yml` checks a pull request gets:
+
+```
+push to main
+  └─► release.yml → semantic-release
+        ├─ commits CHANGELOG.md + package.json   [skip ci]  (no second build)
+        └─ pushes tag v1.4.0
+              └─► build.yml (on: tags v*.*.*) → images to GHCR
+```
+
+- **`main`** produces a stable release: `v1.4.0`, images tagged `1.4.0`, `1.4`
+  and `latest`.
+- **`dev`** produces a prerelease on the `beta` channel: `v1.4.0-beta.1`, images
+  tagged `1.4.0-beta.1`. A prerelease never moves `latest`. Every push to `dev`
+  additionally publishes a rolling `:dev` image, whether or not it releases.
+- The version comes solely from the commit types since the last tag: `fix:`
+  bumps the patch, `feat:` the minor, a `!` or a `BREAKING CHANGE:` footer the
+  major. Commits typed `docs:`, `chore:`, `refactor:` or `build:` release
+  nothing.
+- commitlint enforces that in `ci.yml` on every pull request, because a
+  malformed type silently produces no release.
+
+`package.json` in the repository root carries the released version. The
+workspace manifests are private, never published and keep their own `1.0.0`.
+
+To build an image from any other branch, dispatch the build manually -- it is
+tagged with the branch name and the short SHA, never with `latest`:
+
+```bash
+gh workflow run build.yml --ref feat/my-branch
+```
 
 ## Deployment
 
-The project uses a Bash script (`scripts/deploy-registry.sh`) to distribute images to an internal registry.
+Images are built and published by GitHub Actions, not from a developer machine.
+[`build.yml`](../.github/workflows/build.yml) runs on every push to `dev`, on
+`v*.*.*` tags (including the prereleases from `dev`) and on manual dispatch, and
+pushes to GHCR:
 
-The script uses `docker buildx build` to compile the images directly for the targeted architectures and push them.
+- `ghcr.io/<owner>/pbcm-server` – a real multi-arch manifest (`linux/amd64`,
+  `linux/arm64`), built natively per architecture and merged afterwards
+- `ghcr.io/<owner>/pbcm-client` – `linux/amd64`
+- `ghcr.io/<owner>/pbcm-client-arm64` – `linux/arm64`, a separate image name
+  rather than a manifest entry
 
-### Configuration (`.env`)
+A stable tag publishes `<version>`, `<major>.<minor>` and `latest`; a prerelease
+tag publishes `<version>` only and leaves `latest` where it is. A branch push or
+a manual dispatch publishes `<branch>` and `sha-<short>`.
 
-The deployment script evaluates variables from the `.env` file in the root directory:
+### Registry authentication
 
-```env
-REGISTRY=registry.internal.g4l-online.de
-TAG=latest
-PLATFORMS_SERVER=linux/amd64,linux/arm64
-PLATFORMS_CLIENT=linux/amd64
+The builds install `@stefgo/react-ui-components` from GitHub Packages, which
+refuses anonymous reads even for public packages. The Dockerfiles therefore
+expect a BuildKit secret named `npm_token`:
+
+```dockerfile
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN=$(cat /run/secrets/npm_token) npm ci
 ```
 
-### Running the Deployment
+Where the value comes from:
 
-To rebuild the images and push them to the registry, run the script from the root directory:
+- **CI** – the `NPM_TOKEN` repository secret, a classic PAT with `read:packages`
+  (see `build.yml`). `ci.yml` gets by with the automatic `GITHUB_TOKEN`, which
+  is enough to read a public package.
+- **Local builds** – `NPM_TOKEN` in the environment or in the root `.env`; both
+  `compose.yaml` and `compose.dev.yaml` declare the secret as
+  `environment: NPM_TOKEN`.
+
+Without it `npm ci` fails with `401 Unauthorized` on the `@stefgo` scope.
+
+### Building locally
 
 ```bash
-./scripts/deploy-registry.sh
+NPM_TOKEN=ghp_… docker compose build
 ```
 
-The script automatically creates a new `buildx` builder instance (`pbcm-builder`) if needed, then sequentially executes the builds and pushes the images.
+This builds the images under their GHCR names (`ghcr.io/stefgo/pbcm-server:latest`
+and `ghcr.io/stefgo/pbcm-client:latest`) for the local architecture only, which
+shadows a pulled image of the same tag until the next `docker compose pull`.
+
+For a multi-arch build use `docker buildx build` directly and pass the secret
+explicitly:
+
+```bash
+docker buildx build \
+    --platform linux/amd64,linux/arm64 \
+    --secret id=npm_token,env=NPM_TOKEN \
+    --file docker/Dockerfile.server \
+    --tag <registry>/pbcm-server:latest \
+    --push .
+```
 
 ### Usage in Production
 
-After a successful push, the updated images can be run on the target host using the production `compose.yaml`:
+`compose.yaml` points at the published images, so a target host needs nothing
+but the compose file, the two config files and a login to GHCR:
 
 ```bash
+echo $NPM_TOKEN | docker login ghcr.io -u <user> --password-stdin
 docker compose pull
 docker compose up -d
 ```
+
+The login is only required while the packages are private; public packages pull
+anonymously.
+
+Two things to keep in mind:
+
+- On an ARM host, point `pbcm-client` at `ghcr.io/stefgo/pbcm-client-arm64:latest`.
+  The client ships as two image names, not one multi-arch manifest, so Docker
+  cannot pick the right variant on its own. The server image is a real manifest
+  and needs no override.
+- The services keep their `build:` sections, so `docker compose build` still
+  works for a local test. It overwrites the GHCR tag in the local image store,
+  and the next `docker compose pull` restores the published one.

@@ -2,9 +2,20 @@ name: Build and Version Client and Server
 
 on:
     push:
-        branches: ["main"]
-        tags: ["v*.*.*"] # Reacts to tags like v1.0.2
-    workflow_dispatch: # Allows manual trigger in the Actions tab
+        # dev publishes a rolling :dev image on every push, so the current state
+        # of development is always pullable without waiting for a release.
+        # main is not listed: semantic-release tags every releasable commit
+        # seconds later, and that tag build would be the same code twice.
+        branches: ["dev"]
+        # Includes prereleases from the dev branch (v1.4.0-beta.1).
+        tags: ["v*.*.*"]
+    workflow_dispatch: # Allows manual trigger in the Actions tab, for any branch
+
+# Pushing twice in a row to dev makes the older build pointless. Tag builds are
+# never cancelled -- their image is the artefact of a release.
+concurrency:
+    group: build-${{ github.ref }}
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
     REGISTRY: ghcr.io
@@ -82,14 +93,19 @@ jobs:
               with:
                   images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
                   tags: |
-                      # For a push to main: Uses the branch name (main) and the SHA
+                      # For a push to dev or a manual dispatch: the branch name
+                      # (dev) plus the SHA
                       type=ref,event=branch
                       type=sha,prefix=sha-
 
-                      # For a git tag (v1.0.0): Creates version tags AND the latest tag
+                      # For a git tag (v1.0.0): version tags; {{major}}.{{minor}}
+                      # is skipped automatically for a prerelease
                       type=semver,pattern={{version}}
                       type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+                      # Only a stable release moves latest. A prerelease tag
+                      # carries a hyphen (v1.4.0-beta.1) and must not, or a beta
+                      # would land on every host that pulls latest.
+                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
             - name: Build and push Docker image
               uses: docker/build-push-action@v7
@@ -216,7 +232,10 @@ jobs:
                       type=sha,prefix=sha-
                       type=semver,pattern={{version}}
                       type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+                      # Only a stable release moves latest. A prerelease tag
+                      # carries a hyphen (v1.4.0-beta.1) and must not, or a beta
+                      # would land on every host that pulls latest.
+                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
             - name: Create manifest list and push
               working-directory: /tmp/digests
