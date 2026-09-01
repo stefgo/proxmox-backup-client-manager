@@ -99,16 +99,15 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {showDetails && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                label="Snapshots"
-                                value={snapshots.length.toString()}
-                                sub="Available Backups"
-                                icon={FileBox}
-                                classNames={{ icon: "text-text-muted" }}
-                                onClick={() => setActiveTab('snapshots')}
-                            />
-                        </div>
+                        <StatCard
+                            label="Snapshots"
+                            value={snapshots.length.toString()}
+                            sub="Available Backups"
+                            icon={FileBox}
+                            classNames={{ icon: "text-text-muted" }}
+                            selected={activeTab === 'snapshots'}
+                            onClick={() => setActiveTab('snapshots')}
+                        />
                     </div>
 
                     {/* Snapshots List OR Restore View */}

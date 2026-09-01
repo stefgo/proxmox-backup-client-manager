@@ -4,21 +4,23 @@ import { Snapshot } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 
-interface RepositorySnapshotListProps {
-    snapshots: Snapshot[];
-    onRestore: (snapshot: Snapshot) => void;
+interface RepositorySnapshotListProps<T extends Snapshot> {
+    snapshots: T[];
+    onRestore: (snapshot: T) => void;
     showClientColumn?: boolean;
     getClientStatus?: (clientId: string) => "online" | "offline";
     getClientName?: (clientId: string) => string | null;
 }
 
-export const RepositorySnapshotList = ({
+// Generic over the snapshot type so callers that carry extra fields (the client
+// view attaches the repository) get them back in onRestore instead of a cast.
+export const RepositorySnapshotList = <T extends Snapshot>({
     snapshots,
     onRestore,
     showClientColumn = false,
     getClientStatus,
     getClientName
-}: RepositorySnapshotListProps) => {
+}: RepositorySnapshotListProps<T>) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     /**
@@ -55,7 +57,7 @@ export const RepositorySnapshotList = ({
         return getClientStatus(snap.backupId);
     };
 
-    const tableDef: DataTableDef<Snapshot>[] = [];
+    const tableDef: DataTableDef<T>[] = [];
 
     if (showClientColumn) {
         tableDef.push({
@@ -128,8 +130,8 @@ export const RepositorySnapshotList = ({
         )
     });
 
-    const listColumns: DataListColumnDef<Snapshot>[] = [];
-    const fields: DataListDef<Snapshot>[] = [];
+    const listColumns: DataListColumnDef<T>[] = [];
+    const fields: DataListDef<T>[] = [];
 
     if (showClientColumn) {
         fields.push({

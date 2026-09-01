@@ -1,20 +1,32 @@
 import { create } from "zustand";
-import { BackupJob, HistoryEntry, Snapshot } from "@pbcm/shared";
+import {
+    BackupJob,
+    HistoryEntry,
+    ManagedRepository,
+    Snapshot,
+} from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
+
+/**
+ * The snapshot endpoint is per repository, so the repository a snapshot came from
+ * is only known while fetching. We attach it here; the restore editor needs it and
+ * would otherwise have to look it up again from the id.
+ */
+export type SnapshotWithRepository = Snapshot & { repository: ManagedRepository };
 
 interface ClientDataState {
     history: HistoryEntry[];
     configuredJobs: BackupJob[];
     lastHistory: HistoryEntry[];
-    clientSnapshots: Snapshot[];
+    clientSnapshots: SnapshotWithRepository[];
     isLoading: boolean;
     error: string | null;
 
     fetchClientData: (clientId: string) => Promise<void>;
     fetchClientSnapshots: (
         clientId: string,
-        repositories: any[],
+        repositories: ManagedRepository[],
     ) => Promise<void>;
 
     // Configured Job Actions
@@ -82,25 +94,29 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
 
     fetchClientSnapshots: async (
         clientId: string,
-        repositories: any[],
+        repositories: ManagedRepository[],
     ) => {
         try {
             const promises = repositories.map((repo) =>
                 apiFetch(`/api/v1/repositories/${repo.id}/snapshots`)
-                    .then((res) => (res.ok ? res.json() : []))
-                    .then((snaps) =>
-                        snaps.map((s: any) => ({ ...s, repository: repo })),
+                    .then((res) =>
+                        res.ok
+                            ? (res.json() as Promise<Snapshot[]>)
+                            : ([] as Snapshot[]),
                     )
-                    .catch(() => []),
+                    .then((snaps): SnapshotWithRepository[] =>
+                        snaps.map((s) => ({ ...s, repository: repo })),
+                    )
+                    .catch((): SnapshotWithRepository[] => []),
             );
 
             const results = await Promise.all(promises);
             const allSnapshots = results
                 .flat()
-                .filter((s: any) => s.backupId === clientId);
+                .filter((s) => s.backupId === clientId);
 
             // Sort by time desc
-            allSnapshots.sort((a: any, b: any) => b.backupTime - a.backupTime);
+            allSnapshots.sort((a, b) => b.backupTime - a.backupTime);
 
             set({ clientSnapshots: allSnapshots });
         } catch (e) {

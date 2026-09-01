@@ -8,12 +8,11 @@ import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ClientHistoryList } from './ClientHistoryList';
-import { useClientDetailStore } from '../../../stores/useClientDetailStore';
+import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
-import { Snapshot } from '@pbcm/shared';
 
 import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
@@ -121,7 +120,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     ]);
 
 
-    const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
+    const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
 
     // Header / Edit Logic
     const [isEditing, setIsEditing] = useState(false);
@@ -230,36 +229,33 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <>
                             {/* Client Stats Row */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                <div className={activeTab === 'jobs' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Backup Jobs"
-                                        value={configuredJobs.length.toString()}
-                                        sub="Configurations"
-                                        icon={HardDrive}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('jobs')}
-                                    />
-                                </div>
-                                <div className={activeTab === 'snapshots' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Snapshots"
-                                        value={clientSnapshots.length.toString()}
-                                        sub="Available Backups"
-                                        icon={FileBox}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('snapshots')}
-                                    />
-                                </div>
-                                <div className={activeTab === 'history' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                                    <StatCard
-                                        label="Job History"
-                                        value={backupJobs.length.toString()}
-                                        sub="Recorded Runs"
-                                        icon={Activity}
-                                        classNames={{ icon: "text-text-muted" }}
-                                        onClick={() => setActiveTab('history')}
-                                    />
-                                </div>
+                                <StatCard
+                                    label="Backup Jobs"
+                                    value={configuredJobs.length.toString()}
+                                    sub="Configurations"
+                                    icon={HardDrive}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    selected={activeTab === 'jobs'}
+                                    onClick={() => setActiveTab('jobs')}
+                                />
+                                <StatCard
+                                    label="Snapshots"
+                                    value={clientSnapshots.length.toString()}
+                                    sub="Available Backups"
+                                    icon={FileBox}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    selected={activeTab === 'snapshots'}
+                                    onClick={() => setActiveTab('snapshots')}
+                                />
+                                <StatCard
+                                    label="Job History"
+                                    value={backupJobs.length.toString()}
+                                    sub="Recorded Runs"
+                                    icon={Activity}
+                                    classNames={{ icon: "text-text-muted" }}
+                                    selected={activeTab === 'history'}
+                                    onClick={() => setActiveTab('history')}
+                                />
                             </div>
 
                             <div className="space-y-6">
@@ -288,7 +284,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     restoreSnapshot ? (
                                         <SnapshotRestoreEditor
                                             snapshot={restoreSnapshot}
-                                            repo={(restoreSnapshot as any).repository}
+                                            repo={restoreSnapshot.repository}
                                             selectedClient={client}
                                             onCancel={() => setRestoreSnapshot(null)}
                                         />

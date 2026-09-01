@@ -2,7 +2,7 @@ import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
 import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
-import { DataCard } from '@stefgo/react-ui-components';
+import { Card } from '@stefgo/react-ui-components';
 import { Badge } from '@stefgo/react-ui-components';
 
 export interface UserData {
@@ -88,7 +88,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
     ];
 
     return (
-        <DataCard
+        <Card
             title={<><User size={18} className="text-text-muted" /> Users</>}
             action={
                 <button
@@ -98,7 +98,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                     <Plus size={12} className="inline mr-1" /> New User
                 </button>
             }
-            noPadding
+            padding="none"
         >
             <DataTable
                 data={users}
@@ -110,6 +110,6 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                 emptyMessage="No users found"
                 className="rounded-b-xl border-0 shadow-none"
             />
-        </DataCard>
+        </Card>
     );
 };
