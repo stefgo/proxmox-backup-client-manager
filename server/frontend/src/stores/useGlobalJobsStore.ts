@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { BackupJob, HistoryEntry } from "@pbcm/shared";
+import {
+    BackupJob,
+    GlobalHistoryEntry,
+    GlobalHistoryResponseSchema,
+    HistoryEntry,
+} from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -7,9 +12,17 @@ export interface GlobalJob extends BackupJob {
     clientId: string;
 }
 
+/**
+ * lastHistory mixes two shapes: rows fetched from GET /api/v1/history and entries
+ * pushed over the WebSocket, which arrive in the agent's HistoryEntry form. Both
+ * satisfy the list's BaseHistoryItem contract; nothing reads the fields where they
+ * differ (jobId vs jobConfigId).
+ */
+export type SessionHistoryItem = GlobalHistoryEntry | HistoryEntry;
+
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
-    lastHistory: HistoryEntry[];
+    lastHistory: SessionHistoryItem[];
     isLoading: boolean;
     error: string | null;
 
@@ -42,8 +55,21 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             const data: { clientId: string; jobs: BackupJob[] }[] =
                 await jobsRes.json();
 
-            const historyData = await historyRes.json();
-            const allHistory = historyData.success ? historyData.data : [];
+            // res.json() is any, so the rows are validated here rather than being
+            // asserted downstream. A shape change is reported once and degrades to
+            // an empty list instead of throwing inside the store.
+            const parsedHistory = GlobalHistoryResponseSchema.safeParse(
+                await historyRes.json(),
+            );
+            if (!parsedHistory.success) {
+                console.error(
+                    "Unexpected /api/v1/history payload:",
+                    parsedHistory.error.issues,
+                );
+            }
+            const allHistory: GlobalHistoryEntry[] = parsedHistory.success
+                ? parsedHistory.data.data
+                : [];
 
             // Flatten the array of { clientId, jobs[] } into GlobalJob[]
             const flattenedJobs: GlobalJob[] = [];
@@ -58,7 +84,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
 
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const initLastHistory = allHistory
-                .filter((j: any) => {
+                .filter((j) => {
                     const timeToCheck = j.endTime
                         ? new Date(j.endTime).getTime()
                         : new Date(j.startTime).getTime();
@@ -79,7 +105,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     updateSession: (job: HistoryEntry) =>
         set((state) => {
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const isWithin24Hours = (j: HistoryEntry) => {
+            const isWithin24Hours = (j: SessionHistoryItem) => {
                 const timeToCheck = j.endTime
                     ? new Date(j.endTime).getTime()
                     : new Date(j.startTime).getTime();

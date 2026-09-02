@@ -1,4 +1,5 @@
 import { Input, Select } from '@stefgo/react-ui-components';
+import { ScheduleConfigSchema } from '@pbcm/shared';
 import { useJobFormContext } from '../../context/JobFormContext';
 
 export const JobScheduleSettings = () => {
@@ -62,7 +63,13 @@ export const JobScheduleSettings = () => {
                                 />
                                 <Select
                                     value={scheduleUnit}
-                                    onChange={(e) => setScheduleUnit(e.target.value)}
+                                    onChange={(e) => {
+                                        // e.target.value is a plain string; the
+                                        // options below are the schema's own values,
+                                        // so this narrows without asserting.
+                                        const unit = ScheduleConfigSchema.shape.unit.safeParse(e.target.value);
+                                        if (unit.success) setScheduleUnit(unit.data);
+                                    }}
                                     fullWidth={false}
                                     options={[
                                         { value: 'seconds', label: 'Seconds' },

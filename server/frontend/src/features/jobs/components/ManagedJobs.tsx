@@ -179,19 +179,17 @@ const JobsEditorWrapper = ({
         }
     }, [jobForm.fileBrowserPath, token, job.clientId, fetchFileList]);
 
-    const customSetIsCreatingJob = (
-        val: boolean | ((prevState: boolean) => boolean),
-    ) => {
-        const newValue =
-            typeof val === "function" ? val(jobForm.isCreatingJob) : val;
-        jobForm.setIsCreatingJob(newValue);
-        if (!newValue) onCancel();
+    // JobFormContextType types this prop as (val: boolean) => void, so the
+    // updater form was unreachable through it.
+    const customSetIsCreatingJob = (val: boolean) => {
+        jobForm.setIsCreatingJob(val);
+        if (!val) onCancel();
     };
 
     return (
         <ClientJobEditor
             {...jobForm}
-            setIsCreatingJob={customSetIsCreatingJob as any}
+            setIsCreatingJob={customSetIsCreatingJob}
             repositories={repositories}
             fileList={fileList}
             isLoadingFiles={isLoadingFiles}

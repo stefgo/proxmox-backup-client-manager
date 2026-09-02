@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, BackupJob } from '@pbcm/shared';
+import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
 import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
 
@@ -23,7 +23,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const [newItemPath, setNewItemPath] = useState('');
 
     // Config State
-    const [jobRepository, setJobRepository] = useState<any | null>(null);
+    const [jobRepository, setJobRepository] = useState<Repository | null>(null);
     const [isSelectingRepository, setIsSelectingRepository] = useState(false);
 
     // Encryption State
@@ -36,7 +36,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     // Scheduler State
     const [scheduleEnabled, setScheduleEnabled] = useState(false);
     const [scheduleInterval, setScheduleInterval] = useState(24);
-    const [scheduleUnit, setScheduleUnit] = useState<string>('hours');
+    const [scheduleUnit, setScheduleUnit] = useState<ScheduleConfig['unit']>('hours');
     const [scheduleWeekdays, setScheduleWeekdays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
     const [scheduleStartDate, setScheduleStartDate] = useState('');
     const [scheduleStartTime, setScheduleStartTime] = useState('');
@@ -177,16 +177,27 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
             return;
         }
 
+        // The editor button disables itself on the same condition, but saveBackupJob is
+        // exported through JobFormContextType and cannot rely on its caller for that.
+        // Without a repository the backend rejects the payload with a bare 400.
+        if (!jobRepository) {
+            alert("Please select a repository for this job.");
+            return;
+        }
+
         if (scheduleEnabled && (!scheduleStartDate || !scheduleStartTime)) {
             alert("Please provide a Start Date and Time for the schedule.");
             return;
         }
 
         try {
-            const payload = {
+            // Annotated so the payload is checked against the schema the backend
+            // parses it with. That requires a real boolean: the 1/0 sent before
+            // only survived because BackupJobSchema coerces it.
+            const payload: Partial<BackupJob> = {
                 name: newJobName,
                 archives: jobArchives,
-                scheduleEnabled: scheduleEnabled ? 1 : 0,
+                scheduleEnabled: scheduleEnabled,
                 nextRunAt: (scheduleStartDate && scheduleStartTime) ? new Date(`${scheduleStartDate}T${scheduleStartTime}`).toISOString() : undefined,
                 schedule: {
                     interval: scheduleInterval,

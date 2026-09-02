@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { Archive, Repository as JobRepository } from '@pbcm/shared';
+import { Archive, Repository as JobRepository, ScheduleConfig } from '@pbcm/shared';
 import { FsFile } from '@stefgo/react-ui-components';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 
@@ -36,8 +36,8 @@ export interface JobFormContextType {
     setScheduleEnabled: (val: boolean) => void;
     scheduleInterval: number;
     setScheduleInterval: (val: number) => void;
-    scheduleUnit: string;
-    setScheduleUnit: (val: string) => void;
+    scheduleUnit: ScheduleConfig['unit'];
+    setScheduleUnit: (val: ScheduleConfig['unit']) => void;
     scheduleWeekdays: string[];
     setScheduleWeekdays: (days: string[]) => void;
     scheduleStartDate: string;

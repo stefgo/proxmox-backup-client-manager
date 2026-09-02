@@ -275,6 +275,35 @@ export const HistoryResponseSchema = z.object({
     history: z.array(HistoryEntrySchema),
 });
 
+/**
+ * Row shape of GET /api/v1/history. Deliberately not a HistoryEntry: the global
+ * endpoint reports the history row's own job_id and LEFT JOINs the clients table
+ * for hostname/displayName, whereas an agent-sourced HistoryEntry carries
+ * jobConfigId and no client columns at all. Nullability follows the job_history
+ * DDL; hostname/displayName are null once a history row outlives its client.
+ */
+export const GlobalHistoryEntrySchema = z.object({
+    id: z.string(),
+    clientId: z.string(),
+    jobId: z.string().nullable(),
+    name: z.string().nullable(),
+    type: z.string(),
+    status: z.string(),
+    startTime: z.string(),
+    endTime: z.string().nullable(),
+    exitCode: z.number().nullable(),
+    stdout: z.string().nullable(),
+    stderr: z.string().nullable(),
+    hostname: z.string().nullable(),
+    displayName: z.string().nullable(),
+});
+
+export const GlobalHistoryResponseSchema = z.object({
+    success: z.boolean(),
+    count: z.number().optional(),
+    data: z.array(GlobalHistoryEntrySchema),
+});
+
 export const SyncHistoryPayloadSchema = z.object({
     history: z.array(HistoryEntrySchema),
 });

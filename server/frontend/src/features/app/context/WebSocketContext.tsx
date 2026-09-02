@@ -21,13 +21,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { setClients } = useClientStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
-    const reconnectTimeoutRef = useRef<any>(null);
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (!token) return;
 
         let isClosing = false;
-        let connectTimeout: any = null;
+        let connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
         const connect = () => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;

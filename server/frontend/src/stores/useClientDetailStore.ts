@@ -45,8 +45,8 @@ interface ClientDataState {
     ) => Promise<void>;
 
     // Realtime Updates
-    updateHistory: (job: any) => void;
-    updateLastHistory: (job: any) => void;
+    updateHistory: (job: HistoryEntry) => void;
+    updateLastHistory: (job: HistoryEntry) => void;
 }
 
 export const useClientDetailStore = create<ClientDataState>((set, get) => ({
@@ -65,14 +65,14 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                 apiFetch(`/api/v1/clients/${clientId}/jobs`),
             ]);
 
-            const history = historyRes.ok ? await historyRes.json() : [];
+            const history: HistoryEntry[] = historyRes.ok ? await historyRes.json() : [];
             const backupJobs = backupJobsRes.ok
                 ? await backupJobsRes.json()
                 : [];
 
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const initLastHistory = history
-                .filter((j: any) => {
+                .filter((j) => {
                     const timeToCheck = j.endTime
                         ? new Date(j.endTime).getTime()
                         : new Date(j.startTime).getTime();
@@ -189,12 +189,12 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             configuredJobs: state.configuredJobs.filter((j) => j.id !== jobId),
         })),
 
-    updateHistory: (job: any) =>
+    updateHistory: (job: HistoryEntry) =>
         set((state: ClientDataState) => {
-            const exists = state.history.find((j: any) => j.id === job.id);
+            const exists = state.history.find((j) => j.id === job.id);
             if (exists) {
                 return {
-                    history: state.history.map((j: any) =>
+                    history: state.history.map((j) =>
                         j.id === job.id ? { ...j, ...job } : j,
                     ),
                 };
@@ -203,10 +203,10 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             }
         }),
 
-    updateLastHistory: (job: any) =>
+    updateLastHistory: (job: HistoryEntry) =>
         set((state: ClientDataState) => {
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const isWithin24Hours = (j: any) => {
+            const isWithin24Hours = (j: HistoryEntry) => {
                 const timeToCheck = j.endTime
                     ? new Date(j.endTime).getTime()
                     : new Date(j.startTime).getTime();
@@ -214,9 +214,9 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             };
 
             let updatedHistory;
-            const exists = state.lastHistory.find((j: any) => j.id === job.id);
+            const exists = state.lastHistory.find((j) => j.id === job.id);
             if (exists) {
-                updatedHistory = state.lastHistory.map((j: any) =>
+                updatedHistory = state.lastHistory.map((j) =>
                     j.id === job.id ? { ...j, ...job } : j,
                 );
             } else {

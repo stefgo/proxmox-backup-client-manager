@@ -20,7 +20,7 @@ interface ClientListProps {
 /** Outbound clients reach the PBS only through the SSH tunnel — worth showing at a glance. */
 const ConnectionBadge = ({ client }: { client: Client }) => {
     if (client.connectionMode !== 'outbound') return null;
-    const tunnel = (client as any).tunnel;
+    const tunnel = client.tunnel;
     const tone = tunnel?.status === 'error'
         ? 'text-error'
         : tunnel?.status === 'up'

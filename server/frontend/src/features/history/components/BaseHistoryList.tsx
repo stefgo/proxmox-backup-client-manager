@@ -20,7 +20,10 @@ const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
 export interface BaseHistoryItem {
     id: string;
     clientId?: string;
-    jobId?: string;
+    // Nullable rather than merely absent: job_history.job_id may be NULL, and the
+    // global endpoint LEFT JOINs clients, so hostname/displayName are null once a
+    // history row outlives its client.
+    jobId?: string | null;
     name?: string | null;
     type: string;
     status: string;
@@ -30,7 +33,7 @@ export interface BaseHistoryItem {
     stdout?: string | null;
     stderr?: string | null;
     error?: string;
-    hostname?: string;
+    hostname?: string | null;
     displayName?: string | null;
 }
 

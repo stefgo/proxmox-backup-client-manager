@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
 
-const RepositoryInfo = ({ repo }: { repo: any }) => (
+const RepositoryInfo = ({ repo }: { repo: JobRepository }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">
         <div className="grid grid-cols-[80px_1fr] gap-2">
             <span className="text-text-muted">Base URL:</span>

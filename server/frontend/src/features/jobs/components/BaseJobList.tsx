@@ -13,17 +13,23 @@ import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 
+/**
+ * The structural contract this list needs -- deliberately closed. An index
+ * signature here would suppress TS2551 for every T that passes the constraint,
+ * so a misspelled `job.acrhives` would compile and yield undefined at runtime.
+ * A new job kind declares its field explicitly instead.
+ */
 export interface BaseJobItem {
     id: string | null;
     clientId?: string;
     name: string;
-    archives?: any[];
+    // Only the count is ever read, so the element type stays opaque.
+    archives?: unknown[];
     scheduleEnabled?: boolean;
     nextRunAt?: string;
     encryption?: {
         enabled?: boolean;
     };
-    [key: string]: any;
 }
 
 export interface BaseJobListProps<T extends BaseJobItem> {

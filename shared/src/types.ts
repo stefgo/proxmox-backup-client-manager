@@ -35,6 +35,8 @@ import {
     HistoryEntrySchema,
     HistoryResponseSchema,
     SyncHistoryPayloadSchema,
+    GlobalHistoryEntrySchema,
+    GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
     TunnelDescriptorSchema,
     TunnelConfigSchema,
@@ -116,6 +118,8 @@ export type HistoryRequest = z.infer<typeof HistoryRequestSchema>;
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
+export type GlobalHistoryEntry = z.infer<typeof GlobalHistoryEntrySchema>;
+export type GlobalHistoryResponse = z.infer<typeof GlobalHistoryResponseSchema>;
 export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;
