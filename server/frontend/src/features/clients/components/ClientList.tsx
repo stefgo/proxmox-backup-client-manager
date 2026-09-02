@@ -6,6 +6,7 @@ import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
+import { Button } from '@stefgo/react-ui-components';
 
 interface ClientListProps {
     clients: Client[];
@@ -229,18 +230,12 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
                 <div className="flex gap-2">
-                    <button
-                        onClick={addOutboundClient}
-                        className="px-3 py-1 bg-card border border-border text-text-primary text-xs rounded hover:bg-hover"
-                    >
-                        <Plus size={12} className="inline mr-1" />Outbound-Client
-                    </button>
-                    <button
-                        onClick={generateToken}
-                        className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                    >
-                        <Plus size={12} className="inline mr-1" />Generate New Token
-                    </button>
+                    <Button variant="secondary" size="sm" icon={Plus} onClick={addOutboundClient}>
+                        Outbound-Client
+                    </Button>
+                    <Button size="sm" icon={Plus} onClick={generateToken}>
+                        Generate New Token
+                    </Button>
                 </div>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
