@@ -11,24 +11,39 @@ export const TokenOverview = () => {
     const [createdToken, setCreatedToken] = useState<{ token: string; expiresAt: string } | null>(null);
     const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
 
-    // Declared before the effect that calls it: the other way round the effect read
-    // `fetchTokens` before its initialiser had run on that render.
-    const fetchTokens = async () => {
+    // Declared before the effect that uses it: the other way round the effect read
+    // `loadTokens` before its initialiser had run on that render. It returns the
+    // list rather than storing it, so the effect can discard a response that only
+    // arrived after `token` changed.
+    const loadTokens = async (): Promise<Token[] | null> => {
         try {
             const res = await apiFetch('/api/v1/tokens');
-            if (res.ok) setTokens(await res.json());
-        } catch (e) { console.error(e); }
+            return res.ok ? await res.json() : null;
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     };
 
     useEffect(() => {
-        fetchTokens();
+        let cancelled = false;
+        void (async () => {
+            const list = await loadTokens();
+            if (!cancelled && list) setTokens(list);
+        })();
+        return () => { cancelled = true; };
     }, [token]);
+
+    const refreshTokens = async () => {
+        const list = await loadTokens();
+        if (list) setTokens(list);
+    };
 
     const deleteToken = async (tokenStr: string) => {
         try {
             const res = await apiFetch(`/api/v1/tokens/${tokenStr}`, {
                 method: 'DELETE'});
-            if (res.ok) fetchTokens();
+            if (res.ok) refreshTokens();
         } catch (e) { console.error(e); }
     };
 
@@ -40,7 +55,7 @@ export const TokenOverview = () => {
                 const newToken = await res.json();
                 setCreatedToken(newToken);
                 setIsTokenModalOpen(true);
-                fetchTokens();
+                refreshTokens();
             }
         } catch (e) {
             console.error(e);
