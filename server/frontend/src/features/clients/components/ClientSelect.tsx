@@ -1,7 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import { Client } from '@pbcm/shared';
-import { Collapsible, Badge, ActionButton, cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING } from '../../../styles/focus';
+import { Collapsible, Badge, ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 const ClientInfo = ({ client }: { client: Client }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t">

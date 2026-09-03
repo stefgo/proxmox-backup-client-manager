@@ -18,8 +18,7 @@ import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { ClientEditor } from './ClientEditor';
 import { useClientStore } from '../../../stores/useClientStore';
-import { ActionMenu, Card, useActionMenu } from '@stefgo/react-ui-components';
-import { FOCUS_RING_NONE } from '../../../styles/focus';
+import { ActionMenu, Card, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 
 
 interface ClientOverviewProps {

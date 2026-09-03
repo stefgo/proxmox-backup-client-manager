@@ -1,7 +1,6 @@
 import { Plus, Pencil, Trash2, Folder } from 'lucide-react';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { ActionButton, cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING } from '../../../../styles/focus';
+import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 
 export const JobArchiveList = () => {

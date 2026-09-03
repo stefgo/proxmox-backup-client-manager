@@ -69,12 +69,6 @@ export const JobEncryptionSettings: React.FC = () => {
                                 bordered pair was being rebuilt by hand here and
                                 in the UI library's own consumers, which is what
                                 made it worth naming once.
-
-                                Needs a library release: the installed
-                                3.0.0-beta.2 has four variants, so `npm run
-                                typecheck` fails on these two lines until the
-                                dependency is bumped. `typecheck:local-ui` is
-                                the one that speaks for this branch meanwhile.
                             */}
                             <Button
                                 variant="outline"

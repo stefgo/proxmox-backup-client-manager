@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { FileBrowser, Input, Button, cn } from '@stefgo/react-ui-components';
+import { FileBrowser, Input, Button, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { FOCUS_RING } from '../../../../styles/focus';
 
 
 export const JobArchiveEditor = () => {

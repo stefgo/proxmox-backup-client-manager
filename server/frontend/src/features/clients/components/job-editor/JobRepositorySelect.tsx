@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
-import { ActionButton, cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING } from '../../../../styles/focus';
+import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 const RepositoryInfo = ({ repo }: { repo: JobRepository }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">

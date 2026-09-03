@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
-import { Button, cn } from '@stefgo/react-ui-components';
+import { Button, cn, FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
-import { FOCUS_RING_INSET } from '../../../styles/focus';
 
 interface SshHostSetupSnippetProps {
     token: string | null;

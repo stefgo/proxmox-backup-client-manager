@@ -6,7 +6,7 @@ import { Card } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING_INSET } from '../styles/focus';
+import { FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { getErrorMessage } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
 

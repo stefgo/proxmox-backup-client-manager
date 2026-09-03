@@ -1,7 +1,6 @@
-import { Input, Select, Switch, cn } from '@stefgo/react-ui-components';
+import { Input, Select, Switch, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { ScheduleConfigSchema } from '@pbcm/shared';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { FOCUS_RING } from '../../../../styles/focus';
 
 export const JobScheduleSettings = () => {
     const {

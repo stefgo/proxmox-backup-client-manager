@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { Card, Button, ActionButton, cn } from '@stefgo/react-ui-components';
+import { Card, Button, ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { FOCUS_RING } from '../../../styles/focus';
 
 interface TokenModalProps {
     token: string;
