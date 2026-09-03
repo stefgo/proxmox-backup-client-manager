@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { formatDate } from "../../../utils";
-import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
@@ -409,12 +409,9 @@ export const BaseJobList = <T extends BaseJobItem>({
     const listItems = buildListDefinitions();
 
     const newJobButton = showNewJobButton && onCreateJob && (
-        <button
-            onClick={onCreateJob}
-            className="px-3 py-1 text-white text-xs rounded transition-colors bg-primary hover:bg-primary-hover"
-        >
-            <Plus size={12} className="inline mr-1" /> New Job
-        </button>
+        <Button size="sm" icon={Plus} onClick={onCreateJob}>
+            New Job
+        </Button>
     );
 
     return (

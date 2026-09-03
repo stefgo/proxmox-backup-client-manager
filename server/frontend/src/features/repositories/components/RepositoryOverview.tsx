@@ -5,10 +5,11 @@ import { Snapshot } from '@pbcm/shared';
 import { useState, useEffect } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
-import { Card, StatCard } from '@stefgo/react-ui-components';
+import { Card, StatCard, cn } from '@stefgo/react-ui-components';
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
+import { FOCUS_RING } from '../../../styles/focus';
 
 
 interface RepositoryOverviewProps {
@@ -53,7 +54,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             <div className="flex flex-col items-center justify-center h-full text-error gap-4">
                 <AlertCircle size={48} />
                 <p>Repository not found</p>
-                <button onClick={() => navigate('/')} className="text-info hover:underline">Go Back</button>
+                <button onClick={() => navigate('/')} className={cn("text-info hover:underline rounded-sm", FOCUS_RING)}>Go Back</button>
             </div>
         );
     }

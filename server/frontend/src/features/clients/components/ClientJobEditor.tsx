@@ -5,7 +5,7 @@ import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
 import { JobArchiveList } from './job-editor/JobArchiveList';
 import { JobEncryptionSettings } from './job-editor/JobEncryptionSettings';
 import { JobFormProvider, JobFormContextType } from '../context/JobFormContext';
-import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 
 // ClientJobEditor now accepts the form state and provides it via context
 // It implements the "Compound Component" pattern by using Context
@@ -35,9 +35,7 @@ export const ClientJobEditor = (props: JobFormContextType) => {
                 className="flex flex-col"
                 title={editingJobId ? 'Edit Job' : 'New Backup Job'}
                 action={
-                    <button onClick={() => setIsCreatingJob(false)} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover">
-                        <X size={20} />
-                    </button>
+                    <ActionButton icon={X} tooltip="Close" onClick={() => setIsCreatingJob(false)} />
                 }
                 classNames={{
                     header: "py-6 px-7",

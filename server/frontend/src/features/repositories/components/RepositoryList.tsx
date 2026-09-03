@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
-import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
@@ -173,12 +173,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         <DataMultiView
             title={<><Server size={18} className="text-text-muted" /> Repositories</>}
             extraActions={
-                <button
-                    onClick={onAdd}
-                    className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" /> Add Repository
-                </button>
+                <Button size="sm" icon={Plus} onClick={onAdd}>
+                    Add Repository
+                </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ storageKey: "repositoryViewMode" }}

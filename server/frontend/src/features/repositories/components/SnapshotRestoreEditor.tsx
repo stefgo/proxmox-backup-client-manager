@@ -3,7 +3,7 @@ import { X, Folder, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { FileBrowser } from '@stefgo/react-ui-components';
+import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { getErrorMessage } from '../../../utils';
@@ -160,9 +160,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
                     </div>
                 </div>
-                <button onClick={onCancel} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-hover transition-colors">
-                    <X size={20} />
-                </button>
+                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             </div>
 
             {message && (
@@ -191,17 +189,19 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         {availableArchives.length > 0 ? (
                             <div className="border border-border rounded overflow-hidden">
                                 {availableArchives.map(arch => (
-                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-hover cursor-pointer border-b last:border-0 border-border">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedArchives.includes(arch)}
-                                            onChange={() => toggleArchive(arch)}
-                                            className="custom-checkbox h-4 w-4 bg-hover border-border rounded text-primary focus:ring-primary"
-                                        />
-                                        <span className="text-sm font-mono text-text-muted">
-                                            {formatArchiveName(arch)}
-                                        </span>
-                                    </label>
+                                    <Checkbox
+                                        key={arch}
+                                        className="p-2 hover:bg-hover border-b last:border-0 border-border"
+                                        // `flex-1` on the label, so the whole row toggles the box
+                                        // and not just the words. The row used to be one <label>
+                                        // with the padding on it; the label here is a sibling of
+                                        // the box inside a flex row, so it has to be told to take
+                                        // the rest of the width.
+                                        classNames={{ label: 'flex-1 text-sm font-mono text-text-muted' }}
+                                        label={formatArchiveName(arch)}
+                                        checked={selectedArchives.includes(arch)}
+                                        onChange={() => toggleArchive(arch)}
+                                    />
                                 ))}
                             </div>
                         ) : (
@@ -250,17 +250,16 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             {/* Footer */}
             <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg">
-                <button onClick={onCancel} className="px-4 py-2 rounded bg-border hover:bg-hover text-text-primary font-medium transition-colors">
+                <Button variant="secondary" onClick={onCancel}>
                     Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                     onClick={handleRestore}
                     disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!message}
                     title={message ? 'Change the selection to start another restore' : undefined}
-                    className="px-4 py-2 rounded bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent active:scale-[0.98]"
                 >
                     {message ? 'Restore Started' : 'Restore Content'}
-                </button>
+                </Button>
             </div>
         </div>
     );

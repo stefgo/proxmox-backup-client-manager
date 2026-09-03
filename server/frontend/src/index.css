@@ -37,12 +37,23 @@
     @apply border border-border rounded-full hover:bg-text-muted transition-colors;
   }
 
-  /* Global Transitions */
+  /*
+   * Global Transitions
+   *
+   * `transition`, not `transition-all`. `all` literally means
+   * `transition-property: all`, which includes `outline-color`,
+   * `outline-width` and `outline-offset` -- so the focus ring animated into
+   * place: its colour started at `currentColor` (near-white in dark mode) and
+   * swept to orange over 200ms, while the ring grew out of the field's edge.
+   * That is the flash you see when clicking a field. Tailwind's default
+   * `transition` lists its properties explicitly and outline is not among
+   * them, so colours and shadows still animate and the ring appears at once.
+   */
   a,
   button,
   input,
   select,
   textarea {
-    @apply transition-all duration-200 ease-out;
+    @apply transition duration-200 ease-out;
   }
 }

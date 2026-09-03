@@ -1,14 +1,30 @@
-import preset from "@stefgo/react-ui-components/tailwind-preset";
+import { createRequire } from "node:module";
+import installedPreset from "@stefgo/react-ui-components/tailwind-preset";
+
+const require = createRequire(import.meta.url);
 
 // Working against the library source instead of the installed package. Must be
 // set together with VITE_USE_LOCAL_UI, or Tailwind scans one copy of the
 // library while Vite bundles another and classes go missing from the output.
-const localUiContent =
-    process.env.VITE_USE_LOCAL_UI === "true"
-        ? [
-              `${process.env.VITE_UI_COMPONENTS_PATH || "../../../react-ui-components"}/src/**/*.{ts,tsx}`,
-          ]
-        : [];
+const localUiPath =
+    process.env.VITE_UI_COMPONENTS_PATH || "../../../react-ui-components";
+const useLocalUi = process.env.VITE_USE_LOCAL_UI === "true";
+
+/*
+ * The preset has to be swapped too, not just the content glob.
+ *
+ * It carries the theme -- the tokens, and `borderColor.DEFAULT`, which
+ * Tailwind's preflight paints on every element. Loading it from `node_modules`
+ * while bundling components from the sibling checkout meant a preset change
+ * was invisible in the local-UI build: the components were the new ones, the
+ * theme underneath them was the published one, and the difference showed up as
+ * a colour nobody could find in the source.
+ */
+const preset = useLocalUi
+    ? require(`${localUiPath}/tailwind-preset.js`)
+    : installedPreset;
+
+const localUiContent = useLocalUi ? [`${localUiPath}/src/**/*.{ts,tsx}`] : [];
 
 /** @type {import('tailwindcss').Config} */
 export default {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plug, X, ShieldCheck, PlugZap } from 'lucide-react';
-import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton, Checkbox } from '@stefgo/react-ui-components';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 import { apiFetch } from '../../../lib/apiFetch';
@@ -116,9 +116,7 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                 className="max-w-2xl w-full max-h-[calc(100vh-2rem)] flex flex-col animate-fade-in"
                 classNames={{ header: 'shrink-0' }}
                 action={
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full">
-                        <X size={20} />
-                    </button>
+                    <ActionButton icon={X} tooltip="Close" onClick={onClose} />
                 }
             >
                 <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
@@ -221,18 +219,12 @@ export const OutboundClientWizard = ({ token, onClose, onCreated }: OutboundClie
                                     {test.hostKeySha256}
                                 </div>
                             </div>
-                            <label className="flex items-start gap-2 text-sm text-text-primary">
-                                <input
-                                    type="checkbox"
-                                    checked={fingerprintConfirmed}
-                                    onChange={(e) => setFingerprintConfirmed(e.target.checked)}
-                                    className="mt-1"
-                                />
-                                <span>
-                                    I have verified this fingerprint. It will be pinned, and future connections
-                                    are checked strictly against it.
-                                </span>
-                            </label>
+                            <Checkbox
+                                checked={fingerprintConfirmed}
+                                onChange={(e) => setFingerprintConfirmed(e.target.checked)}
+                                label="I have verified this fingerprint. It will be pinned, and future connections are checked strictly against it."
+                                classNames={{ control: 'items-start pt-1' }}
+                            />
                         </div>
                     )}
 

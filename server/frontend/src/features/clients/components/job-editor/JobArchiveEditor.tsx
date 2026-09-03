@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { FileBrowser, Input } from '@stefgo/react-ui-components';
+import { FileBrowser, Input, Button, cn } from '@stefgo/react-ui-components';
 import { useJobFormContext } from '../../context/JobFormContext';
+import { FOCUS_RING } from '../../../../styles/focus';
 
 
 export const JobArchiveEditor = () => {
@@ -35,7 +36,7 @@ export const JobArchiveEditor = () => {
                     <label className="field-label">Add Directory</label>
                     <button
                         onClick={() => setIsAddingArchive(false)}
-                        className="text-xs text-primary font-bold hover:underline"
+                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
                     >
                         Back
                     </button>
@@ -65,9 +66,9 @@ export const JobArchiveEditor = () => {
                     placeholder="e.g. Database Dump"
                 />
 
-                <button onClick={addArchiveItem} disabled={!newItemPath} className="w-full py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 text-white rounded font-bold transition-colors shadow-glow-accent">
+                <Button onClick={addArchiveItem} disabled={!newItemPath} className="w-full shadow-glow-accent">
                     Confirm Archive
-                </button>
+                </Button>
             </div>
         </div>
     );

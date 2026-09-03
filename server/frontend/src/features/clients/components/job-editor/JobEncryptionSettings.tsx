@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useJobFormContext } from '../../context/JobFormContext';
 import { Download, Trash2 } from 'lucide-react';
+import { Switch, Button } from '@stefgo/react-ui-components';
 
 export const JobEncryptionSettings: React.FC = () => {
     const {
@@ -50,38 +51,46 @@ export const JobEncryptionSettings: React.FC = () => {
             <label className="block text-xs font-bold text-text-muted uppercase">Encryption</label>
             <div className="p-2 border rounded bg-app-bg">
                 {/* Toggle header */}
-                <div
-                    className={`flex items-center gap-2 ${isGenerating ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-                    onClick={handleToggle}
-                >
-                    <div className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${(encryptionEnabled || isGenerating) ? 'bg-accent' : ''}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${(encryptionEnabled || isGenerating) ? 'translate-x-4' : ''}`} />
-                    </div>
-                    <label className="text-xs font-bold text-text-muted uppercase cursor-pointer flex items-center gap-1">
-                        {encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
-                    </label>
-                </div>
+                <Switch
+                    value={encryptionEnabled || isGenerating}
+                    onChange={handleToggle}
+                    disabled={isGenerating}
+                    label={encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
+                    classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
+                />
 
                 {/* When a key exists and encryption is enabled: show download & drop buttons */}
                 {encryptionKeyContent && encryptionEnabled && (
                     <div className="space-y-3 mt-2">
                         <div className="flex gap-2 text-sm">
-                            <button
-                                type="button"
+                            {/*
+                                `outline` and `outline-danger` are library
+                                variants, not classes bolted onto `ghost`: the
+                                bordered pair was being rebuilt by hand here and
+                                in the UI library's own consumers, which is what
+                                made it worth naming once.
+
+                                Needs a library release: the installed
+                                3.0.0-beta.2 has four variants, so `npm run
+                                typecheck` fails on these two lines until the
+                                dependency is bumped. `typecheck:local-ui` is
+                                the one that speaks for this branch meanwhile.
+                            */}
+                            <Button
+                                variant="outline"
+                                icon={Download}
                                 onClick={handleDownloadKey}
-                                className="flex-1 flex items-center justify-center py-2 px-3 border border-primary text-primary hover:bg-primary/10 rounded font-bold transition-colors"
+                                className="flex-1"
                             >
-                                <Download className="h-4 w-4 mr-2" />
                                 Download Key (.json)
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
+                                variant="outline-danger"
+                                icon={Trash2}
                                 onClick={handleDropKey}
-                                className="flex items-center justify-center py-2 px-3 border text-text-muted hover:border-error hover:text-error rounded font-bold transition-colors"
                             >
-                                <Trash2 className="h-4 w-4 mr-2" />
                                 Drop
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}

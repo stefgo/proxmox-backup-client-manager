@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
 import { ManagedRepository as Repository } from '@pbcm/shared';
-import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
 
@@ -107,9 +107,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel, isSaving = fals
             className="flex flex-col"
             title={repository ? 'Edit Repository' : 'Add Repository'}
             action={
-                <button onClick={onCancel} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover">
-                    <X size={20} />
-                </button>
+                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             }
             classNames={{ headerTitle: "text-xl font-bold" }}
         >

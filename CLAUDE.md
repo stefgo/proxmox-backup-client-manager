@@ -92,7 +92,11 @@ Environment variables of note:
   package. **Off by default**: a build must not depend on a checkout that CI and
   containers do not have. When you set it, use `tsconfig.local-ui.json` with it
   (`npm run typecheck:local-ui`), or the compiler and the bundler check two
-  different versions of the same module.
+  different versions of the same module. The flag swaps three things that
+  have to move together — the bundler's module resolution, Tailwind's `content`
+  glob, and the **preset**. The preset was the one that used to stay behind: it
+  carries the theme, so a local build ran new components on the published
+  theme, and the mismatch surfaced as a colour that was in neither source tree.
 
 ## Versioning and Releases
 

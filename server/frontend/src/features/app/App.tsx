@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // Library Components
-import { Dashboard, DashboardNavGroup, DashboardPage, Card } from "@stefgo/react-ui-components";
+import { Dashboard, DashboardNavGroup, DashboardPage, Card, cn } from "@stefgo/react-ui-components";
 
 import Login from '../../pages/Login';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -23,6 +23,7 @@ import { useClientStore } from "../../stores/useClientStore";
 import { useRepositoryStore } from "../../stores/useRepositoryStore";
 import { useGlobalJobsStore } from "../../stores/useGlobalJobsStore";
 import { useUIStore } from "../../stores/useUIStore";
+import { FOCUS_RING } from '../../styles/focus';
 
 // Page components – loaded on demand, so a chunk only arrives when its route does.
 const TokenOverview = lazy(() => import("../tokens/components/TokenOverview").then(m => ({ default: m.TokenOverview })));
@@ -123,7 +124,7 @@ function NotFound() {
       <button
         type="button"
         onClick={() => navigate("/clients")}
-        className="text-primary hover:text-primary-hover font-medium"
+        className={cn("text-primary hover:text-primary-hover font-medium rounded-sm", FOCUS_RING)}
       >
         Back to clients
       </button>

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
-import { Card, Button } from '@stefgo/react-ui-components';
+import { Card, Button, ActionButton, cn } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
+import { FOCUS_RING } from '../../../styles/focus';
 
 interface TokenModalProps {
     token: string;
@@ -27,18 +28,28 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                         readOnly
                         value={token}
                         onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className="flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary outline-none"
+                        className={cn("flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary", FOCUS_RING)}
                     />
-                    <button
+                    {/*
+                        No shape classes: an ActionButton is a round icon button
+                        everywhere else in this app, and rebuilding it into a
+                        bordered square here is how the hand-written buttons this
+                        release removed got started. `lg` is the size that stands
+                        up next to the p-3 input beside it.
+
+                        The one class left is a state, not a shape: `color` sets
+                        the *hover* colour, so without it the green confirmation
+                        would only last as long as the pointer stays put.
+                    */}
+                    <ActionButton
+                        icon={copied ? Check : Copy}
+                        size="lg"
+                        variant="solid"
+                        color={copied ? 'green' : 'gray'}
+                        tooltip={copied ? 'Copied!' : 'Copy to clipboard'}
                         onClick={handleCopy}
-                        className={`px-3 py-3 border rounded-lg text-sm transition-colors ${copied
-                            ? 'bg-badge-success-bg border-success text-badge-success-text'
-                            : 'bg-hover hover:bg-hover border-border text-text-muted'
-                            }`}
-                        title={copied ? 'Copied!' : 'Copy to clipboard'}
-                    >
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
-                    </button>
+                        className={copied ? 'text-success' : undefined}
+                    />
                 </div>
 
                 <div className="text-xs text-text-muted">Expires: {formatDate(expiresAt)}</div>

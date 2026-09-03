@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
-import { Button } from '@stefgo/react-ui-components';
+import { Button, cn } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
+import { FOCUS_RING_INSET } from '../../../styles/focus';
 
 interface SshHostSetupSnippetProps {
     token: string | null;
@@ -84,7 +85,7 @@ export const SshHostSetupSnippet = ({
             <button
                 type="button"
                 onClick={handleToggle}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary"
+                className={cn("w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary rounded", FOCUS_RING_INSET)}
             >
                 <span className="text-text-muted">
                     {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}

@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { KeyRound, Check } from 'lucide-react';
-import { Button, Input } from '@stefgo/react-ui-components';
+import { Button, Input, RadioGroup, Radio, Textarea } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 
 export type SshKeyMode = 'keep' | 'generate' | 'manual';
@@ -68,27 +68,17 @@ export const SshKeyFields = ({
 
     return (
         <div className="space-y-3">
-            <div className="text-sm font-medium text-text-primary">
-                Key
-            </div>
-
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <RadioGroup
+                label="Key"
+                name={groupName}
+                orientation="horizontal"
+                value={mode}
+                onChange={(next) => { setError(null); onModeChange(next as SshKeyMode); }}
+            >
                 {options.map((o) => (
-                    <label
-                        key={o.value}
-                        className="flex items-center gap-2 text-sm text-text-primary cursor-pointer"
-                    >
-                        <input
-                            type="radio"
-                            name={groupName}
-                            value={o.value}
-                            checked={mode === o.value}
-                            onChange={() => { setError(null); onModeChange(o.value); }}
-                        />
-                        {o.label}
-                    </label>
+                    <Radio key={o.value} value={o.value} label={o.label} />
                 ))}
-            </div>
+            </RadioGroup>
 
             {mode === 'keep' && (
                 <p className="text-xs text-text-muted">
@@ -123,13 +113,14 @@ export const SshKeyFields = ({
 
             {mode === 'manual' && (
                 <div className="space-y-3">
-                    <textarea
+                    <Textarea
+                        label="Private Key"
                         value={privateKey}
                         onChange={(e) => onPrivateKeyChange(e.target.value)}
                         rows={5}
                         spellCheck={false}
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                        className="w-full font-mono text-xs p-2 rounded border border-border bg-card text-text-primary"
+                        classNames={{ textarea: 'font-mono text-xs' }}
                     />
                     <Input
                         label="Passphrase (optional)"

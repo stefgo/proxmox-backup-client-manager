@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Client } from '@pbcm/shared';
 import { Save, X } from 'lucide-react';
-import { Card, Button, Input } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 import { ClientTunnelSettings } from './ClientTunnelSettings';
 
 interface ClientEditorProps {
@@ -43,9 +43,7 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
             className="flex flex-col"
             title="Edit Client"
             action={
-                <button onClick={onCancel} className="text-text-muted hover:text-text-primary transition-colors p-1 rounded-full hover:bg-hover">
-                    <X size={20} />
-                </button>
+                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             }
             classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
         >

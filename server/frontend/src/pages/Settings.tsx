@@ -5,6 +5,8 @@ import { useAuth } from '../features/auth/AuthContext';
 import { Card } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
+import { cn } from '@stefgo/react-ui-components';
+import { FOCUS_RING_INSET } from '../styles/focus';
 import { getErrorMessage } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
 
@@ -100,7 +102,12 @@ export default function Settings() {
         );
     }
 
-    const tabBaseClass = "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer outline-none border-l-4 border-transparent";
+    // The tab fills the sidebar's width, so the ring is drawn inside it -- an
+    // outward one would be cut off by the panel border next to it.
+    const tabBaseClass = cn(
+        "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition duration-200 cursor-pointer border-l-4 border-transparent",
+        FOCUS_RING_INSET,
+    );
     const tabSelectedClass = "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
 
     return (
@@ -226,7 +233,7 @@ export default function Settings() {
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2 rounded bg-primary hover:bg-primary-hover text-white font-bold flex items-center gap-2 shadow-glow-accent"
+                        className="shadow-glow-accent"
                     >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>

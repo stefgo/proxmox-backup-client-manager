@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { Client } from '@pbcm/shared';
-import { Collapsible, Badge } from '@stefgo/react-ui-components';
+import { Collapsible, Badge, ActionButton, cn } from '@stefgo/react-ui-components';
+import { FOCUS_RING } from '../../../styles/focus';
 
 const ClientInfo = ({ client }: { client: Client }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t">
@@ -53,7 +54,7 @@ export const ClientSelect = ({
                     <label className="block text-xs font-bold text-text-muted uppercase">Select Client</label>
                     <button
                         onClick={() => onSetIsSelecting?.(false)}
-                        className="text-xs text-primary font-bold hover:underline"
+                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
                     >
                         Back
                     </button>
@@ -92,7 +93,7 @@ export const ClientSelect = ({
         <div className="space-y-1">
             <div className="flex justify-between items-center">
                 <label className="block text-xs font-bold text-text-muted uppercase">{label}</label>
-                <button onClick={() => onSetIsSelecting?.(true)} className="text-xs text-primary font-bold hover:underline flex items-center gap-1">
+                <button onClick={() => onSetIsSelecting?.(true)} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 rounded-sm", FOCUS_RING)}>
                     {selectedClient ? 'Change Client' : 'Set Client'}
                 </button>
             </div>
@@ -109,16 +110,14 @@ export const ClientSelect = ({
                                             {selectedClient.status}
                                         </Badge>
                                     </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onSelect('');
-                                        }}
-                                        className="p-1 text-text-muted hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Clear Selection"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <ActionButton
+                                        icon={Trash2}
+                                        size="sm"
+                                        color="orange"
+                                        tooltip="Clear Selection"
+                                        onClick={() => onSelect('')}
+                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                    />
                                 </div>
                             }
                         >

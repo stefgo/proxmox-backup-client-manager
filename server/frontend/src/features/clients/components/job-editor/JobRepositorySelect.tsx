@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
+import { ActionButton, cn } from '@stefgo/react-ui-components';
+import { FOCUS_RING } from '../../../../styles/focus';
 
 const RepositoryInfo = ({ repo }: { repo: JobRepository }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">
@@ -78,7 +80,7 @@ export const JobRepositorySelect = ({
                     <label className="block text-xs font-bold text-text-muted uppercase">Select Repository</label>
                     <button
                         onClick={() => onSetIsSelecting(false)}
-                        className="text-xs text-primary font-bold hover:underline"
+                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
                     >
                         Back
                     </button>
@@ -92,12 +94,12 @@ export const JobRepositorySelect = ({
                                 className="px-4 py-3 flex items-center justify-between hover:bg-hover cursor-pointer transition-colors"
                             >
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <button
+                                    <ActionButton
+                                        icon={expandedRepoId === repo.id ? ChevronDown : ChevronRight}
+                                        size="sm"
+                                        tooltip={expandedRepoId === repo.id ? 'Collapse' : 'Expand'}
                                         onClick={(e) => toggleExpand(e, repo.id)}
-                                        className="p-1 text-text-muted hover:text-text-secondary"
-                                    >
-                                        {expandedRepoId === repo.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                    </button>
+                                    />
 
                                     <div className="flex items-center gap-2 overflow-hidden">
                                         {isCurrentRepo(repo) ? (
@@ -130,7 +132,7 @@ export const JobRepositorySelect = ({
             <div className="space-y-1">
                 <div className="flex justify-between items-center">
                     <label className="block text-xs font-bold text-text-muted uppercase">{label} <span className="text-error">*</span></label>
-                    <button onClick={() => onSetIsSelecting(true)} className="text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors">
+                    <button onClick={() => onSetIsSelecting(true)} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
                         {selectedRepository ? 'Change Repository' : 'Set Repository'}
                     </button>
                 </div>
@@ -141,27 +143,24 @@ export const JobRepositorySelect = ({
                             <div className="flex flex-col">
                                 <div className="px-3 py-2 flex justify-between items-center gap-2">
                                     <div className="flex items-center gap-2 overflow-hidden">
-                                        <button
+                                        <ActionButton
+                                            icon={isSelectedRepoExpanded ? ChevronDown : ChevronRight}
+                                            size="sm"
+                                            tooltip={isSelectedRepoExpanded ? 'Collapse' : 'Expand'}
                                             onClick={() => setIsSelectedRepoExpanded(!isSelectedRepoExpanded)}
-                                            className="p-1 text-text-muted hover:text-text-secondary"
-                                        >
-                                            {isSelectedRepoExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                        </button>
+                                        />
                                         <div className="text-sm text-text-primary truncate font-mono tracking-tight opacity-90">
                                             {selectedRepository.username}@{selectedRepository.baseUrl}:{selectedRepository.datastore}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onSelect(null);
-                                            }}
-                                            className="p-1 text-text-muted hover:text-primary transition-colors"
-                                            title="Clear Selection"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        <ActionButton
+                                            icon={Trash2}
+                                            size="sm"
+                                            color="orange"
+                                            tooltip="Clear Selection"
+                                            onClick={() => onSelect(null)}
+                                        />
                                     </div>
                                 </div>
 

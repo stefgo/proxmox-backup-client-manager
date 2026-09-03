@@ -1,6 +1,6 @@
 import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
+import { DataTable, DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { Card } from '@stefgo/react-ui-components';
 import { Badge } from '@stefgo/react-ui-components';
@@ -91,12 +91,9 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
         <Card
             title={<><User size={18} className="text-text-muted" /> Users</>}
             action={
-                <button
-                    onClick={onCreateUser}
-                    className="px-3 py-1 text-white text-xs rounded transition-colors bg-primary hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" /> New User
-                </button>
+                <Button size="sm" icon={Plus} onClick={onCreateUser}>
+                    New User
+                </Button>
             }
             padding="none"
         >

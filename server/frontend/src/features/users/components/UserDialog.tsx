@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getErrorMessage } from '../../../utils';
-import { Card, Input, Button } from '@stefgo/react-ui-components';
+import { Card, Input, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
 
 interface UserDialogProps {
     isOpen: boolean;
@@ -84,9 +84,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
             <Card
                 title={editingUser ? 'Edit User' : 'New User'}
                 action={
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
-                        <X size={20} />
-                    </button>
+                    <ActionButton icon={X} tooltip="Close" onClick={onClose} />
                 }
                 className="max-w-lg w-full animate-fade-in"
             >
@@ -109,24 +107,16 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
                     <div>
                         <label className="field-label">Authentication Methods</label>
                         <div className="flex gap-4 mt-1">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={authMethods.includes('local')}
-                                    onChange={() => toggleAuthMethod('local')}
-                                    className="rounded border-border text-primary focus:ring-primary bg-white"
-                                />
-                                <span className="text-sm text-text-muted">Local (Password)</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={authMethods.includes('oidc')}
-                                    onChange={() => toggleAuthMethod('oidc')}
-                                    className="rounded border-border text-primary focus:ring-primary bg-white"
-                                />
-                                <span className="text-sm text-text-muted">OIDC (SSO)</span>
-                            </label>
+                            <Checkbox
+                                label="Local (Password)"
+                                checked={authMethods.includes('local')}
+                                onChange={() => toggleAuthMethod('local')}
+                            />
+                            <Checkbox
+                                label="OIDC (SSO)"
+                                checked={authMethods.includes('oidc')}
+                                onChange={() => toggleAuthMethod('oidc')}
+                            />
                         </div>
                     </div>
 

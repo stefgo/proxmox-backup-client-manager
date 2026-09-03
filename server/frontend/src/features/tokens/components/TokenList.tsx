@@ -1,7 +1,7 @@
 import { Key, Trash2, Plus } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
+import { DataTable, DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { Card } from '@stefgo/react-ui-components';
 import { Badge } from '@stefgo/react-ui-components';
@@ -67,12 +67,9 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
         <Card
             title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
             action={
-                <button
-                    onClick={generateToken}
-                    className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" />Generate New Token
-                </button>
+                <Button size="sm" icon={Plus} onClick={generateToken}>
+                    Generate New Token
+                </Button>
             }
             padding="none"
         >

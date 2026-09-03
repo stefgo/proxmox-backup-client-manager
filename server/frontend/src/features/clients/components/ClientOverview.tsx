@@ -2,7 +2,7 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard } from '@stefgo/react-ui-components';
+import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
 import { Client, JOB_STATUS } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
@@ -19,6 +19,7 @@ import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { ClientEditor } from './ClientEditor';
 import { useClientStore } from '../../../stores/useClientStore';
 import { ActionMenu, Card, useActionMenu } from '@stefgo/react-ui-components';
+import { FOCUS_RING_NONE } from '../../../styles/focus';
 
 
 interface ClientOverviewProps {
@@ -190,12 +191,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             </div>
                         )}
                         <div className="relative">
-                            <button
+                            <ActionButton
+                                icon={MoreVertical}
+                                tooltip="Client actions"
                                 onClick={(e) => openMenu(e, client.id)}
-                                className="p-2 hover:bg-hover rounded-full transition-colors text-text-muted"
-                            >
-                                <MoreVertical size={20} />
-                            </button>
+                            />
                             <ActionMenu
                                 isOpen={menuState?.id === client.id}
                                 onClose={closeMenu}
@@ -206,7 +206,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         setIsEditing(true);
                                         closeMenu();
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover flex items-center gap-2"
+                                    // A menu entry marks focus with its background, the way the
+                                    // menu's own entries do -- a ring inside the popover would be
+                                    // clipped by it.
+                                    className={cn(
+                                        "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+                                        FOCUS_RING_NONE,
+                                    )}
                                 >
                                     <Edit size={16} /> Edit Client
                                 </button>
