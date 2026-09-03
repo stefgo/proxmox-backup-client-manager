@@ -1,6 +1,6 @@
 {
   "name": "proxmox-backup-client-manager",
-  "version": "1.4.0-beta.2",
+  "version": "1.4.0-beta.3",
   "license": "MIT",
   "private": true,
   "packageManager": "npm@11.12.1",

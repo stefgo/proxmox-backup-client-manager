@@ -1,3 +1,10 @@
+# [1.4.0-beta.3](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.2...v1.4.0-beta.3) (2026-09-03)
+
+
+### Bug Fixes
+
+* **frontend:** Fokusring und Rahmenfarben in allen Ansichten korrigieren ([957ce52](https://github.com/stefgo/proxmox-backup-client-manager/commit/957ce52898532d9ec5e5fc3f0c6ae2fd2b103966))
+
 # [1.4.0-beta.2](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.1...v1.4.0-beta.2) (2026-09-01)
 
 
