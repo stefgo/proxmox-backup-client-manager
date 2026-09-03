@@ -201,7 +201,6 @@ CREATE TABLE client_tunnels (
   passphrase       TEXT,                    -- encrypted at rest
   host_key_sha256  TEXT NOT NULL,           -- pinning, confirmed at creation
   remote_bind_host TEXT NOT NULL DEFAULT '127.0.0.1',
-  last_error       TEXT,
   last_used_at     DATETIME,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -221,8 +220,12 @@ What deliberately is **not** in the table:
 - **No tunnel target:** the target follows per job from its repository (§B5) — a client can have jobs against
   several repositories. Nor a target "for tests", because the tunnel test works without a PBS (§B3).
 - **No `status`:** in on-demand operation the state changes constantly and is kept in memory only. Only
-  `last_used_at` and `last_error` are persisted. After a server restart there is therefore neither a tunnel nor a
-  lease nor a contradictory status value.
+  `last_used_at` is persisted. After a server restart there is therefore neither a tunnel nor a lease nor a
+  contradictory status value.
+- **No `last_error`** (dropped again in `06_drop_tunnel_last_error.ts`): the last error belongs to a connect
+  attempt, not to the client, and a persisted copy outlives the attempt that produced it — after a restart it
+  described a tunnel that no longer existed. It lives in the `TunnelService` entry alongside `status`, and both
+  vanish together.
 - **No password authentication:** key auth only. That saves a secret at rest, a UI branch, and a case distinction
   in `TunnelService`.
 
@@ -332,8 +335,7 @@ Client (executor)                        Server (TunnelService)
   logged (an anomaly signal).
 - Report a `forwardIn` rejection (`administratively prohibited`) cleanly → point at `AllowTcpForwarding`.
 - Status is kept **in memory** and distributed via
-  `ProxyService.broadcastToDashboard({ type: "TUNNEL_UPDATE", payload })`; only `last_used_at` and `last_error` go
-  into the DB.
+  `ProxyService.broadcastToDashboard({ type: "TUNNEL_UPDATE", payload })`; only `last_used_at` goes into the DB.
 
 ### B6 Dynamic port + runtime substitution (the core of it)
 
@@ -371,8 +373,8 @@ Consequences:
 
 ### B7 Visibility
 - Runtime state **in memory only** (`idle|connecting|up|error`, open forwards per target repository, active lease
-  count, waiters in the queue) → a `TUNNEL_UPDATE` broadcast to the dashboard. Only `last_used_at` and `last_error`
-  are persisted (§B2).
+  count, waiters in the queue, the last error) → a `TUNNEL_UPDATE` broadcast to the dashboard. Only `last_used_at`
+  is persisted (§B2).
 - A separate health probe event is unnecessary: the `Executor`'s TCP preflight after `TUNNEL_ACQUIRE_RESULT` is the
   proof of function, and it runs exactly when it is needed.
 - One log line per lease (`clientId`, `jobId`, `runId`, `leaseId`, target repository, duration, connections carried)
@@ -424,7 +426,8 @@ Consequences:
   for outbound clients only and there permits nothing but maintaining the SSH credentials. "Test connection" works
   without parameters against the stored SSH details. The currently open forwards (target repository → port) are
   shown as status information for as long as leases exist.
-- Status badge in `ClientList`/`ClientOverview`: `idle` (ready) / `up (n active)` / `error` + `last_error` +
+- Status badge in `ClientList`/`ClientOverview`: `idle` (ready) / `up (n active)` / `error` + the in-memory
+  `lastError` +
   "last used", fed from `TUNNEL_UPDATE` through a new slice in `useClientStore`.
 - A note in the job editor that the repository for this client goes through the on-demand tunnel.
 
