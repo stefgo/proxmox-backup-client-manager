@@ -16,6 +16,7 @@ import { migration03 } from "./migrations/03_job_history_timestamps.js";
 import { migration04 } from "./migrations/04_connection_mode.js";
 import { migration05 } from "./migrations/05_client_tunnels.js";
 import { migration06 } from "./migrations/06_drop_tunnel_last_error.js";
+import { migration07 } from "./migrations/07_token_registration_defaults.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -61,6 +62,11 @@ const migrator = new Umzug({
             name: "06_drop_tunnel_last_error",
             up: migration06.up,
             down: migration06.down,
+        },
+        {
+            name: "07_token_registration_defaults",
+            up: migration07.up,
+            down: migration07.down,
         },
     ],
     context: db,

@@ -103,11 +103,36 @@ export const RegistrationResponseSchema = z.object({
     clientId: z.string(),
 });
 
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation.
+ *
+ * Only v4: the pin is checked with `isIpInCidr` on the server, which works on
+ * 32-bit integers. Accepting a v6 literal here would store a value that check
+ * cannot evaluate.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
+
 export const TokenSchema = z.object({
     token: z.string(),
     createdAt: z.string(),
     expiresAt: z.string(),
     usedAt: z.string().optional(),
+    /** Applied to the client this token registers. */
+    displayName: z.string().optional(),
+    /** Where the token may be redeemed from, and what the client is pinned to afterwards. */
+    allowedIp: z.string().optional(),
+});
+
+/**
+ * The optional body of `POST /api/v1/tokens`.
+ *
+ * Both values are decisions only an operator can make, and the token is the one
+ * moment one is present: the agent registers unattended, so anything it is not
+ * told here has to be corrected by hand afterwards.
+ */
+export const CreateRegistrationTokenSchema = z.object({
+    displayName: z.string().trim().min(1).max(100).optional(),
+    allowedIp: Ipv4OrCidrSchema.optional(),
 });
 
 export const SnapshotSchema = z.object({

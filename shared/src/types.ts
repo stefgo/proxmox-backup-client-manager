@@ -12,6 +12,7 @@ import {
     EncryptionConfigSchema,
     ScheduleConfigSchema,
     TokenSchema,
+    CreateRegistrationTokenSchema,
     SnapshotSchema,
     AuthPayloadSchema,
     RunJobPayloadSchema,
@@ -82,6 +83,9 @@ export type Client = z.infer<typeof ClientSchema> & {
 };
 
 export type Token = z.infer<typeof TokenSchema>;
+export type CreateRegistrationToken = z.infer<
+    typeof CreateRegistrationTokenSchema
+>;
 
 export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type Archive = z.infer<typeof ArchiveSchema>;

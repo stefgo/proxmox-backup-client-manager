@@ -519,8 +519,8 @@ changed later. See `doc/tunnel.md`.
 }
 ```
 
-`hostKeySha256` is the fingerprint the operator confirmed in the wizard; the server verifies
-the host key actually presented matches it before pinning.
+`hostKeySha256` is the fingerprint the wizard's own tunnel test was offered moments earlier;
+the server verifies the host key actually presented matches it before pinning.
 
 ---
 
@@ -1104,6 +1104,8 @@ reported, not queued.
 | `createdAt` | string | ISO 8601 timestamp of creation.                 |
 | `expiresAt` | string | ISO 8601 timestamp of expiry.                   |
 | `usedAt`    | string | ISO 8601 timestamp of when it was used (optional). |
+| `displayName` | string | Name applied to the client this token registers (optional). |
+| `allowedIp` | string | IPv4 address or CIDR network the token may be redeemed from (optional). |
 
 **Example Response:**
 
@@ -1113,7 +1115,9 @@ reported, not queued.
         "token": "token-123",
         "createdAt": "2023-10-27T10:00:00Z",
         "expiresAt": "2023-10-27T14:00:00Z",
-        "usedAt": null
+        "usedAt": null,
+        "displayName": "pbs-node-01",
+        "allowedIp": "192.168.1.0/24"
     }
 ]
 ```
@@ -1124,6 +1128,23 @@ reported, not queued.
 
 **Description:** Generates a new short-lived token for client registration.
 
+#### Request Body (optional)
+
+Both fields carry a decision the agent cannot make for itself — it registers
+unattended, so anything not set here has to be corrected by hand afterwards.
+
+| Field         | Type   | Required | Description                                                        |
+| :------------ | :----- | :------- | :----------------------------------------------------------------- |
+| `displayName` | string | No       | Applied to the client on registration.                              |
+| `allowedIp`   | string | No       | IPv4 address or CIDR network. Registration is refused with **403** from anywhere else, and the client stays pinned to it afterwards. Without it the client is pinned to the address it registered from. |
+
+```json
+{
+    "displayName": "pbs-node-01",
+    "allowedIp": "192.168.1.0/24"
+}
+```
+
 #### Response
 
 **Example Response:**
@@ -1131,7 +1152,9 @@ reported, not queued.
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "expiresAt": "2023-10-27T14:45:00.000Z"
+    "expiresAt": "2023-10-27T14:45:00.000Z",
+    "displayName": "pbs-node-01",
+    "allowedIp": "192.168.1.0/24"
 }
 ```
 

@@ -12,9 +12,9 @@ interface ClientListProps {
     clients: Client[];
     setSelectedClient: (client: Client | null) => void;
     deleteClient: (client: Client) => void;
-    generateToken: () => void;
     editClient: (client: Client) => void;
-    addOutboundClient: () => void;
+    /** Opens the wizard. One entry point — the connection mode is its first step, not a button. */
+    addClient: () => void;
     reconnectClient: (client: Client) => void;
 }
 
@@ -36,7 +36,7 @@ const ConnectionBadge = ({ client }: { client: Client }) => {
     );
 };
 
-export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient, addOutboundClient, reconnectClient }: ClientListProps) => {
+export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     const sortedClients = useMemo(
@@ -229,14 +229,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         <DataMultiView
             title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
-                <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" icon={Plus} onClick={addOutboundClient}>
-                        Outbound-Client
-                    </Button>
-                    <Button size="sm" icon={Plus} onClick={generateToken}>
-                        Generate New Token
-                    </Button>
-                </div>
+                <Button size="sm" icon={Plus} onClick={addClient}>
+                    Add
+                </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ storageKey: "clientViewMode" }}

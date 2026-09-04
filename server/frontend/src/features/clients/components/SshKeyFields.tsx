@@ -115,6 +115,7 @@ export const SshKeyFields = ({
                 <div className="space-y-3">
                     <Textarea
                         label="Private Key"
+                        required
                         value={privateKey}
                         onChange={(e) => onPrivateKeyChange(e.target.value)}
                         rows={5}

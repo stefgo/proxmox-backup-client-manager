@@ -3,8 +3,7 @@ import { ClientList } from "./ClientList";
 import { ClientEditor } from "./ClientEditor";
 import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { TokenModal } from "../../tokens/components/TokenModal";
-import { OutboundClientWizard } from "./OutboundClientWizard";
+import { AddClientWizard } from "./add-client/AddClientWizard";
 import { apiFetch } from "../../../lib/apiFetch";
 
 interface ManagedClientsProps {
@@ -26,29 +25,8 @@ export const ManagedClients = ({
     onUpdate,
 }: ManagedClientsProps) => {
     const { token } = useAuth();
-    const [createdToken, setCreatedToken] = useState<{
-        token: string;
-        expiresAt: string;
-    } | null>(null);
-    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<Client | null>(null);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
-
-    const handleGenerateToken = async () => {
-        try {
-            const res = await apiFetch("/api/v1/tokens", {
-                method: "POST",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setCreatedToken(data);
-                setIsTokenModalOpen(true);
-                onRefresh();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    };
 
     const handleDeleteClient = async (client: Client) => {
         const extra =
@@ -85,9 +63,17 @@ export const ManagedClients = ({
         setEditingClient(null);
     };
 
+    // The list, the editor and the add wizard share the work area: one of the
+    // three is on screen at a time, none of them floats above the others.
     return (
         <div id="client-list-section">
-            {editingClient ? (
+            {isWizardOpen ? (
+                <AddClientWizard
+                    token={token}
+                    onClose={() => setIsWizardOpen(false)}
+                    onCreated={onRefresh}
+                />
+            ) : editingClient ? (
                 <ClientEditor
                     client={editingClient}
                     onSave={handleSaveClient}
@@ -98,27 +84,9 @@ export const ManagedClients = ({
                     clients={clients}
                     setSelectedClient={onSelect}
                     deleteClient={handleDeleteClient}
-                    generateToken={handleGenerateToken}
                     editClient={setEditingClient}
-                    addOutboundClient={() => setIsWizardOpen(true)}
+                    addClient={() => setIsWizardOpen(true)}
                     reconnectClient={handleReconnect}
-                />
-            )}
-
-            {isWizardOpen && (
-                <OutboundClientWizard
-                    token={token}
-                    onClose={() => setIsWizardOpen(false)}
-                    onCreated={onRefresh}
-                />
-            )}
-
-            {/* Token Modal */}
-            {isTokenModalOpen && createdToken && (
-                <TokenModal
-                    token={createdToken.token}
-                    expiresAt={createdToken.expiresAt}
-                    onClose={() => setIsTokenModalOpen(false)}
                 />
             )}
         </div>

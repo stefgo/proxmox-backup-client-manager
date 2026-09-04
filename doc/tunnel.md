@@ -34,14 +34,15 @@ requests it right before a run and releases it afterwards.
 
 ### 1. Prepare the client host
 
-The "Add Outbound Client" wizard supports both paths. Under **Key** you choose between
+The **SSH** step of the *Add Client* wizard supports both paths. Under **Key** you choose between
 *Generate a key* — an ed25519 key without a passphrase, because the server uses it unattended —
 and *Paste your own key*. The private key is only stored, never handed back out; to replace it,
 generate a new one in the client editor.
 
 Below that, the optional collapsed section **Client host setup** provides a copyable block of
 commands — the same for both paths, since the public part is derived from the stored key when
-needed. It must have been run on the client host **before** "Test Connection" can succeed.
+needed. It must have been run on the client host **before** the wizard's next step, "Test
+Connection", can succeed.
 
 Done by hand, this is the following entry on the client host:
 
@@ -78,9 +79,18 @@ registration succeeds.
 
 ### 3. Create the client in the UI
 
-"Outbound Client" in the clients area. Enter the target address, the registration secret and
-the SSH details, then **Test Connection**. The test shows the host key fingerprint, which has
-to be confirmed explicitly — it is pinned and checked strictly from then on.
+**+ Add** in the clients area, then **Outbound** in the wizard's first step — the connection
+mode is chosen there, before anything else, because it cannot be changed afterwards. The two
+steps that follow are *Agent* (target address, registration secret, display name) and *SSH*
+(host, user, key). *SSH* is the last one: **Test & Create** opens the connection, and only if
+it stands does it create the client.
+
+The host key that test is offered is what gets pinned, and every later connection is checked
+strictly against it. The two halves run back to back on purpose — the server verifies the
+fingerprint again against the key it is actually presented, so a host that changes its key in
+between fails the create instead of being pinned. Nobody confirms the fingerprint by hand any
+more; it is trusted on first use. On failure the wizard stays on *SSH* and reports what went
+wrong, with the fingerprint shown if the tunnel itself stood.
 
 Client and tunnel are stored in a single transaction, and only once both the tunnel test **and**
 the registration have succeeded. If either fails, the database is left untouched.

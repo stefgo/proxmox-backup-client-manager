@@ -111,9 +111,51 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
 
 - **Functionality**:
     - Displays list of clients.
-    - Generates registration tokens (calls `POST /api/v1/tokens`).
-    - Displays the token modal.
-    - Deletes clients.
+    - Opens the add-client wizard (one **+ Add** button; the connection mode is the wizard's first step). The wizard replaces the list in the work area — it is not a modal, just like `ClientEditor`.
+    - Deletes clients, reconnects outbound ones.
+
+### Add-Client Wizard (`features/clients/components/add-client/`)
+
+Built on `Wizard` and `Stepper` from `@stefgo/react-ui-components`. The flow forks
+after step 1:
+
+```
+1 Connection ┬─ inbound  → 2 Client (name, allowed IP/CIDR) → [Create] → token dialog
+             └─ outbound → 2 Agent → 3 SSH → [Test & Create]
+```
+
+The inbound branch ends *at* step 2: **Create** issues the registration token and
+shows it in a `Modal` (`InboundTokenDialog.tsx`), and closing that dialog leaves
+the wizard. The token is deliberately not a step — it exists on the server from
+the moment it appears, so there is nothing left to go back to, and a step that
+issued it on entry issued a second one on every remount.
+
+- `AddClientWizard.tsx` — the framing `Card`, the step lists per branch, and both
+  create requests (`POST /v1/tokens` for inbound, `POST /v1/clients/outbound` for
+  outbound). It renders inline in the dashboard work area (`ManagedClients`
+  swaps it in for `ClientList`); the outbound branch carries an SSH key, a
+  connection test and a fingerprint confirmation, which is more than a dialog
+  should hold. The step index is **controlled** here: swapping the step array is the
+  branch, and only this component knows it happened.
+- `useAddClientForm.ts` — all form state, one level above the steps. `Wizard`
+  renders the current step alone, so a step holding its own inputs would lose
+  them on the way back. Inbound and outbound are separate objects, so switching
+  the mode and switching back costs nothing.
+    - It also owns the rule that any change to an SSH field discards a completed
+      tunnel test: the fields and the fingerprint confirmation now sit two steps
+      apart, and without it one could confirm a fingerprint for one host and
+      create the client against another.
+- `InboundTokenDialog.tsx` — the issued token, in a modal. The backdrop does not
+  dismiss it: the token list stores the token hashed, so this is the only time it
+  is shown in full.
+- `steps/` — one file per step, all presentational. `StepOutboundSsh` is the
+  outbound branch's last one: **Test & Create** runs the tunnel test and the
+  create request back to back, and a failure of either is reported into the step
+  rather than moving the flow on.
+
+Inbound registration details (display name, allowed IP or CIDR network) are carried
+by the **registration token**, since the agent registers unattended — see
+`POST /api/v1/tokens` in `api.md`.
 
 ### ClientOverview (`features/clients`)
 

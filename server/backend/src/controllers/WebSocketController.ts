@@ -18,7 +18,7 @@ import {
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { isIpInNetworks } from "../utils/networkUtils.js";
+import { isIpInCidr, isIpInNetworks } from "../utils/networkUtils.js";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
@@ -46,6 +46,24 @@ const TERMINAL_JOB_STATUSES: string[] = [
     JOB_STATUS.FAILED,
     JOB_STATUS.ABORTED,
 ];
+
+/**
+ * Does an inbound client's connection come from the address it is pinned to?
+ *
+ * The pin is a single address for a client that registered without one being
+ * specified, and an IPv4 network for a client whose registration token carried
+ * one -- a machine on DHCP is one address today and another one tomorrow, and
+ * pinning it to the first was never the intent, only the default.
+ *
+ * A pin without a `/` keeps the exact comparison it always had. `isIpInCidr`
+ * works on 32-bit integers and maps everything it cannot parse -- every IPv6
+ * address -- to `0`, so routing a plain address through it would make any two
+ * IPv6 clients match each other.
+ */
+const matchesPin = (clientIp: string, pin: string | null): boolean => {
+    if (!pin) return false;
+    return pin.includes("/") ? isIpInCidr(clientIp, pin) : pin === clientIp;
+};
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -184,7 +202,7 @@ export class WebSocketController {
         // Outbound clients are dialed BY the server and have no registered IP to pin against.
         const isInbound = client.connection_mode !== "outbound";
 
-        if (isInbound && !isTrusted && client.inbound_registered_ip !== clientIp) {
+        if (isInbound && !isTrusted && !matchesPin(clientIp, client.inbound_registered_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
                 expected: client.inbound_registered_ip,

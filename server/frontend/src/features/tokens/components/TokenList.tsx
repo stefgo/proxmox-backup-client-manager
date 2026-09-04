@@ -23,6 +23,21 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             ),
         },
         {
+            // A token now carries decisions — the name the client will get and
+            // the network it may register from. Hiding them would leave two
+            // tokens looking identical while behaving differently.
+            tableHeader: "Client",
+            tableCellClassName: "text-sm",
+            tableItemRender: (t) => (
+                (t.displayName || t.allowedIp) ? (
+                    <div>
+                        {t.displayName && <div className="text-text-primary">{t.displayName}</div>}
+                        {t.allowedIp && <div className="font-mono text-xs text-text-muted">{t.allowedIp}</div>}
+                    </div>
+                ) : <span className="text-text-muted">—</span>
+            ),
+        },
+        {
             tableHeader: "Expires / Used",
             tableCellClassName: "text-sm text-text-muted",
             sortable: true,
@@ -76,7 +91,8 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
             <DataTable
                 data={tokens}
                 itemDef={columns}
-                sort={{ defaultValue: [{ colIndex: 1, direction: 'asc' }] }}
+                // colIndex 2 is "Expires / Used"; the Client column sits before it.
+                sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 className="rounded-b-xl border-0 shadow-none"

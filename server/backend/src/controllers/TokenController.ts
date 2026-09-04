@@ -1,7 +1,9 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
+import { CreateRegistrationTokenSchema } from "@pbcm/shared";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { isIpInCidr } from "../utils/networkUtils.js";
 
 import { ProxyService } from "../services/ProxyService.js";
 
@@ -13,14 +15,27 @@ export const TokenController = {
             createdAt: t.created_at,
             expiresAt: t.expires_at,
             usedAt: t.used_at,
+            displayName: t.display_name ?? undefined,
+            allowedIp: t.allowed_ip ?? undefined,
         }));
     },
 
     create: async (request: FastifyRequest, reply: FastifyReply) => {
+        // The body is optional: a token with neither value behaves exactly as
+        // it did before this endpoint learned about them.
+        const parsed = CreateRegistrationTokenSchema.safeParse(
+            request.body ?? {},
+        );
+        if (!parsed.success) {
+            return reply
+                .code(400)
+                .send({ error: parsed.error.issues[0].message });
+        }
+
         const token = crypto.randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        TokenRepository.create(token, expiresAt);
-        return { token, expiresAt };
+        TokenRepository.create(token, expiresAt, parsed.data);
+        return { token, expiresAt, ...parsed.data };
     },
 
     delete: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -44,15 +59,43 @@ export const TokenController = {
             if (!clientId)
                 return reply.code(400).send({ error: "Missing clientId" });
 
+            // A token bound to a network may only be redeemed from inside it.
+            // Checked before anything is written: the agent consumes its
+            // one-time secret on a successful call, so a rejection has to leave
+            // the token unused.
+            if (
+                tokenRow.allowed_ip &&
+                !isIpInCidr(request.ip, tokenRow.allowed_ip)
+            ) {
+                request.log.warn({
+                    msg: "Registration denied: address outside the token's network",
+                    ip: request.ip,
+                    expected: tokenRow.allowed_ip,
+                });
+                return reply.code(403).send({
+                    error: "Registration is not allowed from this address",
+                });
+            }
+
             // Generate Auth Token
             const authToken = crypto.randomBytes(64).toString("hex");
 
-            // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
-            const allowedIp = request.ip;
+            // The operator's choice wins over the address the agent happens to
+            // dial from: only the former is a decision. Without one, the
+            // registering address stays the pin, as before.
+            // (Requires trustProxy: true in Fastify config if behind proxy)
+            const allowedIp = tokenRow.allowed_ip ?? request.ip;
 
             TokenRepository.markUsed(token);
 
             ClientRepository.upsert(clientId, hostname, authToken, allowedIp);
+
+            if (tokenRow.display_name) {
+                ClientRepository.updateDisplayName(
+                    clientId,
+                    tokenRow.display_name,
+                );
+            }
 
             ProxyService.broadcastClientUpdate();
 
