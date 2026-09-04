@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { Client } from '@pbcm/shared';
-import { Save, X } from 'lucide-react';
-import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
-import { ClientTunnelSettings } from './ClientTunnelSettings';
+import { useClientStore } from '../../../stores/useClientStore';
+import { ClientIdentityCard } from './ClientIdentityCard';
+import { ClientTunnelCard } from './ClientTunnelCard';
 
 interface ClientEditorProps {
     client: Client;
@@ -10,106 +9,24 @@ interface ClientEditorProps {
     onCancel: () => void;
 }
 
+/**
+ * Edits a client: one card per resource the backend actually exposes.
+ *
+ * The split is not cosmetic. `PUT /clients/:id` and `PUT /clients/:id/tunnel` are separate
+ * endpoints with separate failure modes, and the previous single form gave them one
+ * prominent save button that submitted only the first — SSH edits were lost without a
+ * word. Two cards, two buttons, and no form spanning both.
+ */
 export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) => {
-    const [displayName, setDisplayName] = useState(client.displayName || '');
-    const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const isOutbound = client.connectionMode === 'outbound';
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        setError(null);
-        try {
-            await onSave(client.id, {
-                displayName: displayName.trim(),
-                // Only sent for outbound clients: the backend rejects the field for
-                // inbound ones, which have no target address to begin with.
-                outboundTargetAddress: isOutbound ? targetAddress.trim() : undefined,
-            });
-            onCancel();
-        } catch (e) {
-            console.error(e);
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
+    // over the socket afterwards, so read it from the store instead of the prop.
+    const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
+    const isOutbound = live.connectionMode === 'outbound';
 
     return (
-        <Card
-            className="flex flex-col"
-            title="Edit Client"
-            action={
-                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
-            }
-            classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
-        >
-
-            <div className="p-7 bg-card">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <Input
-                        label="Display Name"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder={client.hostname}
-                        disabled={isSaving}
-                        hint={`Leave empty to use hostname (${client.hostname})`}
-                    />
-
-                    {/* Connection mode is fixed at creation time and shown read-only. */}
-                    <div className="text-sm text-text-muted">
-                        Connection mode:{' '}
-                        <span className="font-mono text-text-primary">
-                            {isOutbound ? 'Outbound (server dials in, PBS through an SSH tunnel)' : 'Inbound (client dials in, PBS directly)'}
-                        </span>
-                        <div className="text-xs mt-1">Fixed at creation — switching requires deleting and re-adding the client.</div>
-                    </div>
-
-                    {/* The address itself stays editable: the agent's port may change. */}
-                    {isOutbound && (
-                        <Input
-                            label="Target Address"
-                            value={targetAddress}
-                            onChange={(e) => setTargetAddress(e.target.value)}
-                            placeholder="192.168.1.50:3001"
-                            disabled={isSaving}
-                            hint="Host and port the agent is reachable on. Saving reconnects."
-                        />
-                    )}
-
-                    {error && (
-                        <div className="text-sm text-error">{error}</div>
-                    )}
-
-                    {client.connectionMode === 'outbound' && (
-                        <ClientTunnelSettings clientId={client.id} />
-                    )}
-
-                    <div className="flex justify-end gap-3 pt-2">
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={onCancel}
-                            disabled={isSaving}
-                            icon={X}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            isLoading={isSaving}
-                            icon={Save}
-                            className="shadow-glow-accent"
-                        >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </div>
-                </form>
-            </div>
-        </Card>
+        <div className="space-y-6">
+            <ClientIdentityCard client={live} onSave={onSave} onClose={onCancel} />
+            {isOutbound && <ClientTunnelCard clientId={live.id} state={live.tunnel} />}
+        </div>
     );
 };

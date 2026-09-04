@@ -150,6 +150,12 @@ accidentally back up past the tunnel.
   dials the new address right away.
 - **Switching the connection mode is not supported.** Changing it means delete and re-create —
   and the job history, which hangs off the client ID, is lost in the process.
+- **A changed host key can be re-pinned.** The stored fingerprint is compared on every
+  connection, so a reinstalled client host fails until its new key is accepted. `Test
+  Connection` in the editor reports the fingerprint the host actually presented and offers
+  **Trust this host key**, which writes it via `PUT /api/v1/clients/:id/tunnel`. Verify the
+  fingerprint on the host itself first — the same symptom is what a hijacked address looks
+  like.
 - **Back up `tunnel.keySecret`.** If the value is lost, the stored SSH keys can no longer be
   decrypted and have to be entered again. Rotating the JWT secret is harmless: the key is
   deliberately decoupled from `jwtSecret`.
@@ -159,8 +165,11 @@ accidentally back up past the tunnel.
 
 ## Manual test protocol
 
-The project has no test framework; this checklist is the safety net. The first four items cover
-failures that otherwise stay **silent**.
+The project has no test framework; this checklist is the safety net. It is ordered by what
+fails silently, not by what is easy to check: items 1-4 cover lease and lifecycle faults that
+leave no trace, items 9-12 cover the editor, where a wrong answer *looks* like a right one.
+
+### Server and protocol
 
 1. **Lease leak after a client crash** — kill the client hard during a run (`kill -9`).
    Expected: the WS disconnect drops all leases, the tunnel closes after `idleGraceMs`.
@@ -180,6 +189,37 @@ failures that otherwise stay **silent**.
    Expected: the second waits and then runs through, rather than failing.
 8. **Inbound untouched** — an existing inbound client backs up directly to the PBS after the
    migration, unchanged.
+
+### The editor (`ClientEditor` / `ClientIdentityCard` / `ClientTunnelCard`)
+
+These four exist because the wizard and the editor reach the same tunnel through different
+endpoints and different key modes. Everything the wizard guarantees by construction — a key is
+always present, nothing is stored yet, one button ends the flow — is an open question here.
+
+The editor answers them by splitting into one card per endpoint: `ClientIdentityCard` owns
+`PUT /clients/:id`, `ClientTunnelCard` owns `PUT /clients/:id/tunnel`, and no form spans both.
+`POST /clients/:id/tunnel/test` accepts `sshHost`, `sshPort` and `sshUser` overrides so the
+test describes the fields on screen while the private key stays in the backend; a key entered
+in the form goes through the parameterised `POST /tunnel/test` instead, exactly as in the
+wizard.
+
+9. **Test after an edit** — open an outbound client's editor, change SSH host, user or key,
+   then press **Test Connection**.
+   Expected: the result refers to what is in the fields. A test that silently checks the
+   *stored* credentials reports success for a configuration nobody is running.
+10. **Both save paths** — change the display name *and* an SSH field, then use the editor's
+    primary save; repeat with <kbd>Enter</kbd> pressed inside an SSH field.
+    Expected: nothing is discarded without a word. Either one save covers both, or the screen
+    says plainly which action writes the SSH fields.
+11. **Setup snippet on the stored key** — open an existing outbound client (key mode
+    *Keep stored key*) and expand the host setup snippet.
+    Expected: a real public key, or no snippet at all — never a copyable `authorized_keys`
+    line with an empty key in it.
+12. **Host key after a client rebuild** — reinstall the client host, or replace its SSH host
+    key, then let the server reconnect.
+    Expected: the run fails with a clear fingerprint mismatch **and** the editor offers to pin
+    the new key after showing it. Deleting and re-adding the client must not be the only way
+    back, because that also drops its jobs and history.
 
 ## Prerequisite
 

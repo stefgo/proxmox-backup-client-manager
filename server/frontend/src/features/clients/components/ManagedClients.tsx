@@ -55,12 +55,13 @@ export const ManagedClients = ({
         }
     };
 
+    // Saving deliberately leaves the editor open: an outbound client usually has a tunnel
+    // to save or test right afterwards, and the two cards must behave the same way.
     const handleSaveClient = async (
         id: string,
         data: { displayName?: string; outboundTargetAddress?: string },
     ) => {
         await onUpdate(id, data);
-        setEditingClient(null);
     };
 
     // The list, the editor and the add wizard share the work area: one of the

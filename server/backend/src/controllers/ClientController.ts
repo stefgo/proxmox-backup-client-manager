@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, ClientSchema } from "@pbcm/shared";
+import { WS_EVENTS, ClientSchema, normaliseTargetAddress } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
@@ -21,23 +21,6 @@ interface OutboundBody {
         passphrase?: string;
         hostKeySha256?: string;
     };
-}
-
-/**
- * Accepts "host:port" (also IPv6 in brackets) and rejects anything carrying a scheme,
- * path or credentials — the value is interpolated into `ws://<address>/ws/agent`, so a
- * stray slash would silently redirect the agent connection.
- */
-function normaliseTargetAddress(value: string): string | undefined {
-    const trimmed = value.trim();
-    if (!trimmed || /[\s/@\\?#]/.test(trimmed)) return undefined;
-    try {
-        const url = new URL(`ws://${trimmed}`);
-        if (!url.hostname || !url.port) return undefined;
-        return `${url.host}`;
-    } catch {
-        return undefined;
-    }
 }
 
 export class ClientController {

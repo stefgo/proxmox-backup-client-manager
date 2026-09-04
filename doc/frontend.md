@@ -101,6 +101,36 @@ Most data-driven lists utilize a common base to provide consistent loading, erro
 - **`ActionMenu`**: "Kebab" menu (Three dots) for context-sensitive actions.
 - **`DataAction`**: Wrapper to group multiple actions for a specific data item.
 
+### Forms and Save Actions
+
+**One screen, one save, one resource.** A screen that writes to a second API resource has
+stopped being a form and has to be re-cut — it must not grow a second save button inside the
+same `<form>`.
+
+Two shapes are allowed:
+
+- **One submit that covers everything.** The handler issues both requests and reports one
+  result. Right when the parts are not independently useful.
+- **Two separate `Card`s, each with its own action.** Right when they are — a client's name and
+  its SSH credentials are edited on different occasions and fail for different reasons.
+
+What is never allowed is the middle ground: a nested section with its own save button sitting
+*above* the form's primary button. The primary button then silently ignores half the fields,
+and <kbd>Enter</kbd> in any nested input submits the outer form rather than the section the
+cursor is in. `ClientEditor` carried exactly this defect from the moment the SSH tunnel section
+was hung into its existing `<form>`; it now takes the second shape, one `Card` per endpoint.
+
+Two rules follow from the same reasoning:
+
+- **A "test" button must test what is on screen.** If it validates stored state instead, it
+  reports success for a configuration the operator has just replaced. Check which state the
+  endpoint reads — `POST /v1/tunnel/test` takes its parameters from the request, while
+  `POST /v1/clients/:id/tunnel/test` reads the database. They are not interchangeable.
+- **A new mode is a review of its siblings.** Adding a variant such as `SshKeyMode`'s `keep`
+  changes what the *neighbouring* components receive — `keep` leaves `privateKey` empty, which
+  is why `SshHostSetupSnippet` renders a command with a hole in it. When a mode is added, walk
+  every consumer of that state under the new value.
+
 ---
 
 ## 🧩 Feature Details
@@ -113,6 +143,25 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
     - Displays list of clients.
     - Opens the add-client wizard (one **+ Add** button; the connection mode is the wizard's first step). The wizard replaces the list in the work area — it is not a modal, just like `ClientEditor`.
     - Deletes clients, reconnects outbound ones.
+
+### Client Editor (`ClientEditor.tsx`)
+
+A container, not a form: it selects the live client from `useClientStore` by id and stacks
+one card per resource.
+
+- **`ClientIdentityCard`** — header (status dot, `Badge`s for status and connection mode,
+  id, agent version, last seen), display name, target address, `Save Client`. The address is
+  validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
+  function the backend uses, so a rejected address never has to make the round trip.
+- **`ClientTunnelCard`** — outbound only. Status `Badge`, forwards and `lastUsedAt` come from
+  `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the `GET /tunnel` call
+  supplies only the stored configuration. `Test Connection` sends the form's values,
+  `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host key**
+  block (see `doc/tunnel.md`).
+
+Saving does not close the editor — both cards behave alike, and `Cancel`/`X` is the only exit.
+The caller passes a client that may be a stale snapshot, which is why the live one is read
+from the store instead.
 
 ### Add-Client Wizard (`features/clients/components/add-client/`)
 

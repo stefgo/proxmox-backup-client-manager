@@ -146,8 +146,9 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const handleUpdateClient = async (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => {
         if (!token) return;
         try {
+            // The editor stays open — it closes only through Cancel, so the tunnel card
+            // below it survives a save of the client's name or address.
             await updateClient(id, data);
-            setIsEditing(false);
         } catch (e: unknown) {
             console.error("Failed to update client", e);
             throw e;

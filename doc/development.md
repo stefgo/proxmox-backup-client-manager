@@ -34,6 +34,38 @@ This starts two services:
 
 The `node_modules` folders are isolated as volumes within the container. This prevents conflicts between the host system (e.g., macOS or Windows) and the container (Linux) regarding platform-specific dependencies.
 
+## Review Before the Commit
+
+There is no test suite, so `npm run typecheck -w server/frontend` and a review of the diff are
+the only two gates that exist. Typecheck catches the API drift; the review has to catch
+everything else, and it is worth running at the points below rather than at random.
+
+Run `/code-review` in Claude Code on the working tree, or `/code-review <PR#>` on a pull
+request. The level decides the breadth: `medium` for a routine change, `high` when the diff
+crosses the frontend/backend boundary. `/code-review ultra` starts a multi-agent review in the
+cloud — reserve it for a whole feature branch, since it is the expensive one and has to be
+started by hand.
+
+**When it pays off:**
+
+- **A feature branch, before the PR.** This is the one that matters. Every defect found later
+  in `ClientEditor` was already visible in the diff of `c01d0d1`, where it was still a
+  one-line fix.
+- **A change that touches an existing screen additively.** Adding a section to a component
+  that already works produces a harmless-looking diff even when the addition breaks the
+  screen's underlying assumption — see *Forms and Save Actions* in `frontend.md`.
+- **A change that spans frontend and backend.** A route and its caller are usually written in
+  separate passes, and each is plausible alone. Whether the pair is right is only visible with
+  both sides on screen.
+- **A new mode, flag or enum variant.** The interesting part is never the variant itself, it is
+  the consumers that were written before it existed.
+
+**When it does not pay off:** a cross-cutting sweep — renaming colour roles, translating UI
+strings, migrating a library version. Those diffs touch many files through one narrow lens and
+a review of them finds only what that same lens sees. Do not mistake such a pass for a check of
+the files it touched: `ClientEditor` was modified five times after its defects were introduced,
+every time by a sweep of this kind, and none of them was ever going to notice.
+
 ## Build Management
 
 The production container images are based on multi-stage builds in the following files:

@@ -24,6 +24,13 @@ interface PublicKeyBody {
     passphrase?: string;
 }
 
+/** The subset of `TunnelTestBody` a stored-credentials test may override. */
+interface TunnelTestOverrideBody {
+    sshHost?: string;
+    sshPort?: number;
+    sshUser?: string;
+}
+
 interface TunnelTestBody {
     sshHost?: string;
     sshPort?: number;
@@ -171,9 +178,16 @@ export class TunnelController {
     /**
      * Same test against the stored credentials, so the private key never has to leave
      * the backend for a routine check from the client editor.
+     *
+     * Host, port and user may be overridden from the request: the editor has to be able
+     * to test what is on screen rather than what is in the database, or a green result
+     * would describe a configuration the operator is about to replace. The key is not
+     * overridable — it stays write-only, and an edited key goes through the parameterised
+     * `test` above instead.
      */
     static async testStored(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
+        const body = (request.body ?? {}) as TunnelTestOverrideBody;
         let creds;
 
         try {
@@ -191,11 +205,14 @@ export class TunnelController {
         }
 
         return TunnelService.testConnection({
-            sshHost: creds.sshHost,
-            sshPort: creds.sshPort,
-            sshUser: creds.sshUser,
+            sshHost: body.sshHost?.trim() || creds.sshHost,
+            sshPort: body.sshPort ?? creds.sshPort,
+            sshUser: body.sshUser?.trim() || creds.sshUser,
             privateKey: creds.privateKey,
             passphrase: creds.passphrase,
+            // Always the stored fingerprint: a host presenting a different key must fail
+            // here. `testConnection` still reports the key it saw, which is what lets the
+            // editor offer to re-pin it.
             expectedHostKeySha256: creds.hostKeySha256,
             remoteBindHost: creds.remoteBindHost,
         });
