@@ -3,6 +3,7 @@ import { TunnelState, TunnelStatus } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Save, ShieldAlert } from 'lucide-react';
 import { Badge, Button, Card, Input } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
+import { StatusDot, StatusTone } from './StatusDot';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 import { apiFetch } from '../../../lib/apiFetch';
@@ -12,6 +13,8 @@ interface ClientTunnelCardProps {
     clientId: string;
     /** Live state from the client store — kept current by TUNNEL_UPDATE over the socket. */
     state?: TunnelState;
+    /** Reported upwards so the editor's action bar can warn before the operator leaves. */
+    onDirtyChange?: (dirty: boolean) => void;
 }
 
 /** Stored tunnel configuration. The private key is write-only and never part of this. */
@@ -30,11 +33,16 @@ interface TestResult {
     error?: string;
 }
 
-const STATUS_VARIANT: Record<TunnelStatus, 'success' | 'warning' | 'error' | 'neutral'> = {
-    up: 'success',
-    connecting: 'warning',
+/**
+ * The tunnel has four states where a client has two, but they map onto the same indicator —
+ * the point of showing it the same way is that "is this connection up" is answered in one
+ * place and one idiom on every client surface.
+ */
+const STATUS_TONE: Record<TunnelStatus, StatusTone> = {
+    up: 'online',
+    connecting: 'connecting',
     error: 'error',
-    idle: 'neutral',
+    idle: 'offline',
 };
 
 const COPY_FEEDBACK_MS = 2000;
@@ -50,7 +58,7 @@ const COPY_FEEDBACK_MS = 2000;
  * test button sends the *form* values, not the stored ones, so a green result always
  * describes what is on screen.
  */
-export const ClientTunnelCard = ({ clientId, state }: ClientTunnelCardProps) => {
+export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunnelCardProps) => {
     const { token } = useAuth();
     const [info, setInfo] = useState<TunnelInfo | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -92,6 +100,12 @@ export const ClientTunnelCard = ({ clientId, state }: ClientTunnelCardProps) => 
             (keyMode !== 'keep' && !!privateKey.trim()));
 
     const canSave = isDirty && !!sshHost.trim() && !!sshUser.trim();
+
+    // Above the early returns for the loading and error states, so the hook order does not
+    // depend on whether the configuration has arrived yet.
+    useEffect(() => {
+        onDirtyChange?.(isDirty);
+    }, [isDirty, onDirtyChange]);
 
     const resetFeedback = () => {
         setMessage(null);
@@ -245,19 +259,22 @@ export const ClientTunnelCard = ({ clientId, state }: ClientTunnelCardProps) => 
 
     return (
         <Card
-            title="SSH Reverse Tunnel"
+            title={
+                /* Dot first, then the name — the same header shape the identity card above
+                   uses, so the two connections are read the same way. `span`s throughout:
+                   the title is rendered as an `h3`, which may not contain a `div`. */
+                <span className="flex items-center gap-4">
+                    <StatusDot tone={STATUS_TONE[status]} label={status} />
+                    <span>SSH Reverse Tunnel</span>
+                </span>
+            }
             titleAs="h3"
             action={
-                <div className="flex items-center gap-2">
-                    <Badge variant={STATUS_VARIANT[status]} size="sm">
-                        {status}
+                !!state?.activeLeases && (
+                    <Badge variant="info" size="sm">
+                        {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
                     </Badge>
-                    {!!state?.activeLeases && (
-                        <Badge variant="info" size="sm">
-                            {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
-                        </Badge>
-                    )}
-                </div>
+                )
             }
             classNames={{ header: 'py-5 px-7' }}
         >
@@ -322,7 +339,11 @@ export const ClientTunnelCard = ({ clientId, state }: ClientTunnelCardProps) => 
 
                 <div className="space-y-1">
                     <div className="text-xs text-text-muted">Pinned host key (SHA256)</div>
-                    <div className="flex items-start gap-2">
+                    {/* `items-center`, not `items-start`: the fingerprint may wrap on a
+                        narrow card, and the button belongs to the value as a whole rather
+                        than to its first line. `shrink-0` keeps it from being squeezed
+                        while the value takes the wrapping. */}
+                    <div className="flex items-center gap-2">
                         <span className="font-mono text-xs break-all text-text-primary">
                             {info.hostKeySha256}
                         </span>
@@ -330,6 +351,7 @@ export const ClientTunnelCard = ({ clientId, state }: ClientTunnelCardProps) => 
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="shrink-0"
                             onClick={handleCopyFingerprint}
                             icon={copied ? Check : Copy}
                         >

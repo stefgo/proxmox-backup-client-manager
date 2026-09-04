@@ -62,7 +62,7 @@ export const SshKeyFields = ({
 
     const options: { value: SshKeyMode; label: string }[] = [
         ...(allowKeep ? [{ value: 'keep' as const, label: 'Keep stored key' }] : []),
-        { value: 'generate', label: 'Generate a key' },
+        { value: 'generate', label: 'Generate a new key' },
         { value: 'manual', label: 'Paste your own key' },
     ];
 

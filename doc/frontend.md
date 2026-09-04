@@ -120,12 +120,19 @@ and <kbd>Enter</kbd> in any nested input submits the outer form rather than the 
 cursor is in. `ClientEditor` carried exactly this defect from the moment the SSH tunnel section
 was hung into its existing `<form>`; it now takes the second shape, one `Card` per endpoint.
 
-Two rules follow from the same reasoning:
+Three rules follow from the same reasoning:
 
 - **A "test" button must test what is on screen.** If it validates stored state instead, it
   reports success for a configuration the operator has just replaced. Check which state the
-  endpoint reads — `POST /v1/tunnel/test` takes its parameters from the request, while
-  `POST /v1/clients/:id/tunnel/test` reads the database. They are not interchangeable.
+  endpoint reads — `POST /v1/tunnel/test` takes every parameter from the request, while
+  `POST /v1/clients/:id/tunnel/test` reads the *key* from the database and takes host, port
+  and user from the request. That split is what lets the card test edited values without the
+  write-only key ever leaving the backend; it is not a licence to send one endpoint's body to
+  the other.
+- **The way out belongs to the container, not to its first child.** `ClientEditor`'s exit
+  used to hang off `ClientIdentityCard` because that card happened to be first. With a second
+  card below it, working the page top to bottom ended with no way out in reach. Closing is a
+  property of the editor, so the editor renders it — see the action bar below.
 - **A new mode is a review of its siblings.** Adding a variant such as `SshKeyMode`'s `keep`
   changes what the *neighbouring* components receive — `keep` leaves `privateKey` empty, which
   is why `SshHostSetupSnippet` renders a command with a hole in it. When a mode is added, walk
@@ -149,19 +156,39 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
 A container, not a form: it selects the live client from `useClientStore` by id and stacks
 one card per resource.
 
-- **`ClientIdentityCard`** — header (status dot, `Badge`s for status and connection mode,
-  id, agent version, last seen), display name, target address, `Save Client`. The address is
+- **`ClientIdentityCard`** — header (`StatusDot`, id, last seen), connection mode `Badge`,
+  agent version, display name, target address, `Save Client`. The address is
   validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
   function the backend uses, so a rejected address never has to make the round trip.
-- **`ClientTunnelCard`** — outbound only. Status `Badge`, forwards and `lastUsedAt` come from
-  `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the `GET /tunnel` call
+- **`ClientTunnelCard`** — outbound only. A `StatusDot` beside the title, exactly as in the
+  card above: whether a connection is up is answered in one idiom on every client surface,
+  and the tunnel's four states map onto the dot's four tones. Forwards and `lastUsedAt` come
+  from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the `GET /tunnel` call
   supplies only the stored configuration. `Test Connection` sends the form's values,
   `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host key**
   block (see `doc/tunnel.md`).
 
-Saving does not close the editor — both cards behave alike, and `Cancel`/`X` is the only exit.
-The caller passes a client that may be a stale snapshot, which is why the live one is read
-from the store instead.
+- **Action bar** — the editor's own, `sticky bottom-0` as the last child of the stack. As the
+  last child its resting place is the end of the editor, so it settles there once the operator
+  has scrolled all the way down and floats at the bottom of the viewport for the whole way
+  there. The page itself is the scroll container; nothing above it clips a sticky child. It
+  holds `Close`, and <kbd>Esc</kbd> does the same. Both cards report their dirty state upwards
+  through `onDirtyChange`, so the bar is the one place that can see an unsaved edit in either
+  and warn about it — neither card can, and the operator leaving is exactly when it matters.
+
+The bar and <kbd>Esc</kbd> are the *only* exits: neither card carries a close control of its
+own any more. That is the point — an exit inside a card is reachable only when that card is on
+screen. Closing discards unsaved edits without asking; the warning in the bar is the whole of
+the safety net, deliberately, because a confirm dialog exists nowhere else in this frontend.
+
+Saving does not close the editor — both cards behave alike. The caller passes a client that may
+be a stale snapshot, which is why the live one is read from the store instead.
+
+`StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately, because
+the domains name the same state differently — a client is `online`, a tunnel is `up`. The
+component knows four visual tones and no vocabulary; the caller brings its own word, which the
+dot carries in `aria-label`/`title` so no badge beside it has to repeat it. The dots still
+inlined in `ClientList` and `RepositoryList` predate it and are the obvious next callers.
 
 ### Add-Client Wizard (`features/clients/components/add-client/`)
 
