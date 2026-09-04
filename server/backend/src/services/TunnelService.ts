@@ -106,7 +106,7 @@ export class TunnelService {
     private static setStatus(
         clientId: string,
         status: TunnelStatus,
-        error?: string,
+        error?: string | null,
     ) {
         const e = this.entry(clientId);
         e.status = status;
@@ -245,13 +245,13 @@ export class TunnelService {
 
             e.ssh = ssh;
             e.connectPromise = null;
-            this.setStatus(clientId, "up", undefined);
+            this.setStatus(clientId, "up", null);
             return ssh;
         })().catch((err) => {
             e.connectPromise = null;
             e.ssh = null;
-            const message = err instanceof Error ? err.message : String(err);
-            ClientTunnelRepository.recordError(clientId, message);
+            const raw = err instanceof Error ? err.message : String(err);
+            const message = raw.slice(0, 500);
             this.setStatus(clientId, "error", message);
             throw err;
         });
@@ -477,7 +477,7 @@ export class TunnelService {
         forward.leases.add(leaseId);
 
         ClientTunnelRepository.recordUse(clientId);
-        this.setStatus(clientId, "up");
+        this.setStatus(clientId, "up", null);
 
         logger.info(
             { clientId, leaseId, runId, jobId, target: targetKeyOf(target), port: forward.port },
@@ -619,7 +619,7 @@ export class TunnelService {
             activeLeases,
             forwards,
             lastUsedAt: row?.last_used_at ?? null,
-            lastError: e?.lastError ?? row?.last_error ?? null,
+            lastError: e?.lastError ?? null,
         };
     }
 
