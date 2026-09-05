@@ -7,15 +7,15 @@ import { TunnelService } from "../services/TunnelService.js";
 import { WebSocketController } from "./WebSocketController.js";
 
 /**
- * Whether this client reaches the PBS through the SSH reverse tunnel.
+ * Whether a tunnel is available to this client's jobs at all.
  *
- * The tunnel is a property of the client, not of the connection mode — an inbound client
- * that cannot reach the PBS itself uses one, an outbound client that can does without.
- * The agent learns the flag in AUTH_SUCCESS and keeps it; jobs no longer carry it, so
- * switching the tunnel cannot leave a stale marker behind in a stored job config.
+ * Availability is the client's side of it — the stored SSH credentials — and it is
+ * independent of the connection mode: an inbound client that cannot reach the PBS itself
+ * has a tunnel, an outbound client that can does without. Which jobs actually take it is
+ * each job's own `tunnel` setting, stored with the job and pushed to the agent with it.
  */
-function isTunneled(clientId: string): boolean {
-    return ClientTunnelRepository.isEnabled(clientId);
+function tunnelAvailable(clientId: string): boolean {
+    return ClientTunnelRepository.isConfigured(clientId);
 }
 
 export class JobController {
@@ -53,6 +53,15 @@ export class JobController {
             return reply
                 .code(400)
                 .send({ error: parsed.error.issues[0].message });
+        }
+
+        // Refused here rather than at run time: a job asking for a route the client has
+        // no credentials for would be saved happily and then fail on every execution,
+        // with the cause two screens away from the setting that caused it.
+        if (parsed.data.tunnel?.required && !tunnelAvailable(clientId)) {
+            return reply.code(400).send({
+                error: "This client has no SSH tunnel configured — set one up in the client editor first.",
+            });
         }
 
         try {
@@ -150,7 +159,12 @@ export class JobController {
         const { snapshot, targetPath, repository, archives, encryption } =
             parsed.data;
         const runId = randomUUID();
-        const tunneled = isTunneled(clientId);
+        // OPEN QUESTION — a restore belongs to no job, so there is no job setting to read.
+        // This keeps the behaviour that has always applied: a client with a tunnel
+        // restores through it. It is wrong for a client that reaches some of its
+        // repositories directly; deriving the route from the jobs on the same repository
+        // is the obvious refinement and is deliberately left for later.
+        const tunneled = tunnelAvailable(clientId);
 
         try {
             if (tunneled) {
@@ -175,6 +189,7 @@ export class JobController {
                 repository,
                 archives,
                 encryption,
+                tunnel: tunneled ? { required: true } : undefined,
             });
             return { status: "triggered", runId };
         } catch (e: unknown) {

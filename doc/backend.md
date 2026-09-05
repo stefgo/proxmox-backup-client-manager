@@ -83,7 +83,9 @@ clients (registration through the agent's `/ws/register`, then a session over `/
 that is the connection mode. `TunnelService` establishes and tears down the SSH reverse tunnel
 on the client's request — that is the route to the PBS, optional and available in either mode.
 
-The one question the rest of the backend asks is `ClientTunnelRepository.isEnabled(clientId)`;
+Availability is `ClientTunnelRepository.isConfigured(clientId)` — credentials stored — and use
+is `tunnel.required` on the individual job, which is also what authorises a lease:
+`resolveTunnelTarget` returns nothing for a job not configured for the tunnel.
 `connection_mode` is only consulted where the WebSocket direction genuinely matters (dialling
 and reconnecting, IP pinning, the target address). Details, setup and test protocol:
 [tunnel.md](tunnel.md).

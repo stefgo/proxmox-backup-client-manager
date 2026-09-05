@@ -14,8 +14,6 @@ interface TunnelUpdateBody {
     privateKey?: string;
     passphrase?: string | null;
     hostKeySha256?: string;
-    /** Switches the route without touching the credentials. */
-    enabled?: boolean;
 }
 
 interface TunnelCreateBody {
@@ -25,8 +23,6 @@ interface TunnelCreateBody {
     privateKey?: string;
     passphrase?: string;
     hostKeySha256?: string;
-    /** Defaults to on — a tunnel is configured in order to be used. */
-    enabled?: boolean;
 }
 
 interface KeyPairBody {
@@ -71,7 +67,6 @@ export class TunnelController {
             sshHost: row.ssh_host,
             sshPort: row.ssh_port,
             sshUser: row.ssh_user,
-            enabled: !!row.enabled,
             hasPrivateKey: !!row.private_key,
             hasPassphrase: !!row.passphrase,
             hostKeySha256: row.host_key_sha256,
@@ -126,7 +121,6 @@ export class TunnelController {
                 .send({ error: `SSH tunnel test failed: ${test.error}` });
         }
 
-        const enabled = body.enabled !== false;
         ClientTunnelRepository.create(clientId, {
             sshHost: body.sshHost,
             sshPort: body.sshPort,
@@ -134,21 +128,19 @@ export class TunnelController {
             privateKey: body.privateKey,
             passphrase: body.passphrase,
             hostKeySha256: body.hostKeySha256,
-            enabled,
         });
 
-        // The agent's stored jobs carry no route of their own — it follows this flag,
-        // which it has to be told about before its next run.
-        ProxyService.pushTunnelMode(clientId, enabled);
+        // Stored means available, not in use: the jobs that are to take this route have
+        // to ask for it themselves, one by one, in the job editor.
         ProxyService.broadcastClientUpdate();
         return { status: "created" };
     }
 
     /**
-     * Updates the SSH credentials and switches the route on or off. Neither the
-     * connection mode nor the tunnel target nor the bind port are editable: the mode is
-     * fixed at creation time, the target follows from each job's repository and the port
-     * is allocated per forward.
+     * Updates the SSH credentials. Neither the connection mode nor the tunnel target nor
+     * the bind port are editable: the mode is fixed at creation time, the target follows
+     * from each job's repository and the port is allocated per forward. Whether the
+     * tunnel is used is not here either — that is each job's own setting.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
@@ -157,8 +149,7 @@ export class TunnelController {
         if (!ClientRepository.findById(clientId)) {
             return reply.code(404).send({ error: "Client not found" });
         }
-        const row = ClientTunnelRepository.findByClientId(clientId);
-        if (!row) {
+        if (!ClientTunnelRepository.findByClientId(clientId)) {
             return reply
                 .code(404)
                 .send({ error: "No SSH tunnel is configured for this client" });
@@ -169,23 +160,18 @@ export class TunnelController {
             return reply.code(400).send({ error: "No changes submitted" });
         }
 
-        // New credentials must not be used by an existing connection — and neither must
-        // a route that was just switched off. A run holding a lease at this moment fails
-        // with a clear error, which is the honest outcome: its remaining bytes would go
-        // to a port that is about to disappear.
+        // New credentials must not be used by an existing connection. A run holding a
+        // lease at this moment fails, which is the honest outcome: its remaining bytes
+        // would go through a connection nobody has checked.
         TunnelService.closeClient(clientId);
-
-        if (body.enabled !== undefined && body.enabled !== !!row.enabled) {
-            ProxyService.pushTunnelMode(clientId, body.enabled);
-            ProxyService.broadcastClientUpdate();
-        }
         return { status: "updated" };
     }
 
     /**
-     * Removes the tunnel entirely, credentials included. The client stays, and its runs
-     * go directly to the PBS from now on — which for a host without a route there means
-     * they will fail until a tunnel is set up again.
+     * Removes the tunnel entirely, credentials included. The client stays. Its jobs keep
+     * their own `tunnel` setting, and any that asks for the route now fails at the lease
+     * — deliberately loud: silently rerouting a backup past a tunnel it was configured
+     * for would send it out over a path the operator never chose.
      */
     static async remove(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
@@ -198,7 +184,6 @@ export class TunnelController {
         }
 
         TunnelService.closeClient(clientId);
-        ProxyService.pushTunnelMode(clientId, false);
         ProxyService.broadcastClientUpdate();
         return { status: "deleted" };
     }

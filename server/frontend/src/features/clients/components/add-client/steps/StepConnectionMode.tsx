@@ -61,8 +61,8 @@ export const StepConnectionMode = ({ mode, onModeChange }: StepConnectionModePro
 
         <p className="text-xs text-text-muted">
             This is only about who dials whom. How the client reaches the PBS is a separate
-            question — an SSH reverse tunnel can be used with either mode, and switched on
-            or off at any time.
+            question — an SSH reverse tunnel can be used with either mode, and each backup
+            job decides for itself whether to take it.
         </p>
         <p className="text-xs text-text-muted">
             The mode itself is fixed once the client exists. Changing it later means

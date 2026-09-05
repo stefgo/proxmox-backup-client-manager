@@ -3,7 +3,6 @@ import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
-import { AgentStateRepository } from "../repositories/AgentStateRepository.js";
 
 export interface TunnelLease {
     leaseId: string;
@@ -26,29 +25,6 @@ const ACQUIRE_TIMEOUT_MS = 25000;
 const PREFLIGHT_TIMEOUT_MS = 5000;
 
 export class TunnelClient {
-    /**
-     * Whether this agent's runs go through the SSH reverse tunnel.
-     *
-     * Deliberately unrelated to `isOutboundMode()`: that answers who dials the
-     * WebSocket, this answers how the PBS is reached, and the two are independent. The
-     * value is the server's to decide — it arrives in AUTH_SUCCESS and via TUNNEL_MODE
-     * and is persisted, so a scheduled run while the server is unreachable still uses
-     * the route it was last told about.
-     */
-    static isRequired(): boolean {
-        return AgentStateRepository.isTunnelRequired();
-    }
-
-    /** Stores what the server just told us. */
-    static setRequired(required: boolean): void {
-        if (required === this.isRequired()) return;
-        AgentStateRepository.setTunnelRequired(required);
-        logger.info(
-            { tunnelRequired: required },
-            "Route to the PBS changed by the server",
-        );
-    }
-
     /**
      * Requests a tunnel lease from the server and verifies the forward is usable.
      * The request carries no target: the server derives the PBS endpoint from the job

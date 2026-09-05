@@ -60,6 +60,13 @@ export interface JobFormContextType {
     encryptionKeyContent: string | null;
     setEncryptionKeyContent: (val: string | null) => void;
     generateKey: () => Promise<boolean>;
+
+    // Tunnel
+    /** Whether this job reaches its repository through the client's SSH reverse tunnel. */
+    tunnelRequired: boolean;
+    setTunnelRequired: (val: boolean) => void;
+    /** Whether the client has SSH credentials at all — without them there is no choice. */
+    tunnelAvailable: boolean;
 }
 
 const JobFormContext = createContext<JobFormContextType | null>(null);

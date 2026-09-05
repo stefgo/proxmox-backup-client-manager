@@ -19,11 +19,12 @@ interface ClientListProps {
 }
 
 /**
- * Whether this client reaches the PBS through the SSH tunnel — worth showing at a glance,
- * and keyed on the tunnel rather than the connection mode: either mode can have one.
+ * Whether a tunnel is available to this client's jobs — worth showing at a glance, and
+ * keyed on the tunnel rather than the connection mode: either mode can have one. Which
+ * jobs take it is per job and not something a client row can answer.
  */
 const ConnectionBadge = ({ client }: { client: Client }) => {
-    if (!client.tunnelEnabled) return null;
+    if (!client.tunnelConfigured) return null;
     const tunnel = client.tunnel;
     const tone = tunnel?.status === 'error'
         ? 'text-error'

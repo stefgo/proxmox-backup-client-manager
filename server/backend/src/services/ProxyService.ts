@@ -190,7 +190,6 @@ export class ProxyService {
         // Read once for the whole list rather than per client: this runs on every
         // dashboard broadcast.
         const configured = new Set(ClientTunnelRepository.findAllClientIds());
-        const tunnelled = new Set(ClientTunnelRepository.findEnabledClientIds());
         return clients.map((client) => ({
             id: client.id,
             hostname: client.hostname,
@@ -201,10 +200,10 @@ export class ProxyService {
             version: client.version,
             connectionMode: client.connection_mode || "inbound",
             outboundTargetAddress: client.outbound_target_address,
-            // Both keyed on the tunnel itself, not on the connection mode: a tunnel is
-            // optional in either mode, so an inbound client can have one and an outbound
-            // one can do without.
-            tunnelEnabled: tunnelled.has(client.id),
+            // Keyed on the tunnel itself, not on the connection mode: a tunnel is optional
+            // in either mode, so an inbound client can have one and an outbound one can do
+            // without. Whether a given run takes it is the job's own setting.
+            tunnelConfigured: configured.has(client.id),
             tunnel: configured.has(client.id)
                 ? TunnelService.getStatus(client.id)
                 : undefined,
@@ -357,22 +356,4 @@ export class ProxyService {
         socket.send(JSON.stringify({ type, payload }));
     }
 
-    /**
-     * Tells a connected agent which route its runs take from now on.
-     *
-     * The agent persists the flag, so an offline client is not a problem to correct
-     * later: AUTH_SUCCESS carries the same value on every reconnect. Sending it here
-     * only saves the wait — without it, a client switched while connected would keep
-     * running the old route until it happened to reconnect.
-     */
-    static pushTunnelMode(clientId: string, required: boolean): void {
-        const socket = this.connectedClients.get(clientId);
-        if (!socket) return;
-        socket.send(
-            JSON.stringify({
-                type: WS_EVENTS.TUNNEL_MODE,
-                payload: { required },
-            }),
-        );
-    }
 }

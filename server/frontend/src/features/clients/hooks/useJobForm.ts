@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
+import { useClientStore } from '../../../stores/useClientStore';
 import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
 
 interface UseJobFormProps {
@@ -25,6 +26,20 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     // Config State
     const [jobRepository, setJobRepository] = useState<Repository | null>(null);
     const [isSelectingRepository, setIsSelectingRepository] = useState(false);
+
+    // Tunnel State — whether this job reaches its repository through the client's SSH
+    // reverse tunnel. Per job, because a client can have one PBS it reaches directly and
+    // another only through the detour.
+    const [tunnelRequired, setTunnelRequired] = useState(false);
+
+    // Whether the client has SSH credentials at all. Read from the store rather than
+    // passed in: both callers already have the client id and nothing else to add. A job
+    // that is already set to use the tunnel keeps the control usable even if the store
+    // has no client row yet — otherwise the setting could be seen but never turned off.
+    const tunnelConfigured = useClientStore(
+        (s) => !!s.clients.find((c) => c.id === clientId)?.tunnelConfigured,
+    );
+    const tunnelAvailable = tunnelConfigured || tunnelRequired;
 
     // Encryption State
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);
@@ -67,6 +82,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setIsSelectingRepository(false);
         setEncryptionEnabled(false);
         setEncryptionKeyContent(null);
+        setTunnelRequired(false);
     };
 
     const startEditJob = (job: BackupJob) => {
@@ -101,6 +117,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         }
 
         setJobRepository(job.repository || null);
+        setTunnelRequired(!!job.tunnel?.required);
 
         if (job.encryption) {
             setEncryptionEnabled(job.encryption.enabled || false);
@@ -209,7 +226,11 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
                 encryption: encryptionEnabled ? {
                     enabled: true,
                     keyContent: encryptionKeyContent || undefined,
-                } : undefined
+                } : undefined,
+                // Always sent, including as `false`: leaving it out of an update would
+                // let the previously stored route stand, and turning the tunnel off
+                // would silently not take.
+                tunnel: { required: tunnelRequired && tunnelAvailable },
             };
 
             const res = await apiFetch(`/api/v1/clients/${clientId}/jobs`, {
@@ -270,6 +291,10 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         scheduleWeekdays, setScheduleWeekdays,
         scheduleStartDate, setScheduleStartDate,
         scheduleStartTime, setScheduleStartTime,
+
+        // Tunnel
+        tunnelRequired, setTunnelRequired,
+        tunnelAvailable,
 
         // Encryption
         encryptionEnabled, setEncryptionEnabled,

@@ -264,13 +264,7 @@ export class WebSocketController {
                         socket.send(
                             JSON.stringify({
                                 type: WS_EVENTS.AUTH_SUCCESS,
-                                payload: {
-                                    lastSyncTime,
-                                    tunnelRequired:
-                                        ClientTunnelRepository.isEnabled(
-                                            clientId!,
-                                        ),
-                                },
+                                payload: { lastSyncTime },
                             }),
                         );
                         ProxyService.broadcastClientUpdate();
@@ -485,10 +479,10 @@ export class WebSocketController {
                 return;
             }
             // The connection mode says nothing here: a tunnelled inbound client is as
-            // entitled to a lease as an outbound one, and an outbound client without a
-            // tunnel is not entitled to one at all.
-            if (!ClientTunnelRepository.isEnabled(clientId)) {
-                deny("No SSH tunnel is enabled for this client");
+            // entitled to a lease as an outbound one, and an outbound client whose jobs
+            // go straight to the PBS is not entitled to one at all.
+            if (!ClientTunnelRepository.isConfigured(clientId)) {
+                deny("No SSH tunnel is configured for this client");
                 return;
             }
 
@@ -532,6 +526,10 @@ export class WebSocketController {
      * Resolves the PBS endpoint for a request. Backups carry a jobId whose repository is
      * looked up in the server-side job cache; restores carry only a runId, which the
      * server pre-authorised when it triggered the restore.
+     *
+     * The cached job is also what authorises the request: a job not configured for the
+     * tunnel gets no target and therefore no lease, however the agent asks. The server
+     * never takes the client's word for the route — it reads back the job it pushed out.
      */
     private static async resolveTunnelTarget(
         clientId: string,
@@ -549,6 +547,7 @@ export class WebSocketController {
             job = ProxyService.getCachedJob(clientId, jobId);
         }
         if (!job?.repository?.baseUrl) return undefined;
+        if (!job.tunnel?.required) return undefined;
 
         return this.repositoryTarget(job.repository.baseUrl);
     }
@@ -716,11 +715,7 @@ export class WebSocketController {
                     socket.send(
                         JSON.stringify({
                             type: WS_EVENTS.AUTH_SUCCESS,
-                            payload: {
-                                lastSyncTime,
-                                tunnelRequired:
-                                    ClientTunnelRepository.isEnabled(clientId),
-                            },
+                            payload: { lastSyncTime },
                         }),
                     );
                     ProxyService.broadcastClientUpdate();

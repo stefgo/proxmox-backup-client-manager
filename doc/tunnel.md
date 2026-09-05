@@ -4,18 +4,23 @@ How to back up clients that cannot reach the Proxmox Backup Server themselves.
 
 ## Overview
 
-Two independent questions, deliberately kept apart:
+Three separate questions, deliberately kept apart:
 
-| | Question | Values | Changeable |
+| | Question | Where | Changeable |
 |---|---|---|---|
-| `clients.connection_mode` | Who dials the WebSocket? | `inbound` (client dials the server, the default) / `outbound` (server dials the client) | **No** — fixed when the client is created |
-| `client_tunnels.enabled` | How is the PBS reached? | direct / through the SSH reverse tunnel | **Yes** — at any time, in either mode |
+| `clients.connection_mode` | Who dials the WebSocket? | client | **No** — fixed when the client is created |
+| `client_tunnels` (row present) | Is a tunnel *available* to this client? | client | Yes — set up or removed at any time |
+| `job.tunnel.required` | Does *this backup* take it? | job | Yes — per job |
 
-All four combinations are valid. An inbound client on a segment without a route to the PBS
-uses a tunnel; an outbound client that can reach the PBS itself does not. The mode says
-nothing about the route — it used to, and the coupling was a design error: it made the tunnel
-unavailable to exactly the inbound clients that need one, and tied a reversible decision to an
-irreversible one.
+The mode says nothing about the route. It used to — outbound meant "always tunnelled" — and
+the coupling was a design error twice over: it made the tunnel unavailable to exactly the
+inbound clients that need one, and it tied a reversible decision to an irreversible one.
+
+The route is not a client-wide property either. One client can back up to a PBS on its own
+segment directly and to a second one only through the detour, so the choice belongs to the
+job, next to the repository it is made for. The client only supplies the credentials that
+make the choice possible; a job that asks for a tunnel the client has none for is rejected
+when it is saved, not when it next runs.
 
 ```
             ssh (server is the SSH client)       client host (sshd)
@@ -32,10 +37,11 @@ irreversible one.
    └──────────┘
 ```
 
-The client host needs no route to the PBS. The tunnel is **not permanent**: the client
-requests it right before a run and releases it afterwards. The picture shows the outbound
-case; with an inbound client only the WebSocket arrow turns around — the SSH connection is
-opened by the server either way.
+For a tunnelled job the client host needs no route to the PBS. The tunnel is **not
+permanent**: the client requests it right before such a run and releases it afterwards, and a
+job configured without it never asks. The picture shows the outbound case; with an inbound
+client only the WebSocket arrow turns around — the SSH connection is opened by the server
+either way.
 
 ## Setup
 
@@ -90,15 +96,23 @@ registration succeeds.
 chosen before anything else because it cannot be changed afterwards.
 
 **Outbound:** the *Agent* step takes the target address, the registration secret and the
-display name, and carries the switch **Reach the PBS through an SSH reverse tunnel**. With it
-on, a third step *SSH* (host, user, key) follows and **Test & Create** opens the connection,
-creating the client only if it stands. With it off there is no SSH step and **Create**
-registers the client directly.
+display name, and carries the switch **Set up an SSH reverse tunnel**. With it on, a third
+step *SSH* (host, user, key) follows and **Test & Create** opens the connection, creating the
+client only if it stands. With it off there is no SSH step and **Create** registers the client
+directly.
 
-**Inbound:** the tunnel cannot be set up in the wizard — an inbound client does not exist as a
-row until its agent has redeemed the registration token, so there is nothing to attach
-credentials to. Add it afterwards in the client editor; the card there does the same test and
+**Inbound:** the credentials cannot be set up in the wizard — an inbound client does not exist
+as a row until its agent has redeemed the registration token, so there is nothing to attach
+them to. Add them afterwards in the client editor; the card there does the same test and
 create in one action.
+
+### 4. Switch the jobs over
+
+Storing credentials changes no backup by itself. Each job carries its own **SSH Reverse
+Tunnel** switch in the job editor, below the encryption settings; it is disabled while the
+client has no credentials. The setting is pushed to the agent with the job and lives in the
+agent's own job config — which is what lets a scheduled run take the chosen route even while
+the server is unreachable.
 
 The host key that test is offered is what gets pinned, and every later connection is checked
 strictly against it. The two halves run back to back on purpose — the server verifies the
@@ -115,7 +129,7 @@ the test still runs first, but a failure costs nothing beyond the error message.
 > If the process fails **after** registration, the agent has already consumed the secret. Set a
 > new `registrationSecret` on the client host and create the client again.
 
-### 4. Server-side settings (optional)
+### 5. Server-side settings (optional)
 
 ```yaml
 tunnel:
@@ -167,17 +181,23 @@ accidentally back up past the tunnel.
   dials the new address right away.
 - **Switching the connection mode is not supported.** Changing it means delete and re-create —
   and the job history, which hangs off the client ID, is lost in the process. **The tunnel is
-  not like this**: it can be added, switched off and removed at any time, and the client keeps
-  its identity and history throughout.
-- **Switching the tunnel takes effect immediately.** The server closes the SSH connection with
-  it, so a run holding a lease at that moment fails with a clear error rather than writing on
-  into a forward that is about to disappear. The connected agent is told the new route via
-  `TUNNEL_MODE`; an offline one gets it in `AUTH_SUCCESS` on its next connect.
-- **The agent remembers the route, not the jobs.** `tunnel_required` lives once in the agent's
-  `agent_state` table, so a scheduled run while the server is unreachable uses the route the
-  agent was last told about. It used to be written into every job config, which was only safe
-  while the route could never change; switching a tunnel would have left a stale marker behind
-  in every job of an offline client.
+  not like this**: credentials can be added and removed, and each job's route changed, at any
+  time, with the client keeping its identity and history throughout.
+- **A job's route reaches the agent with the job.** Changing the switch is an ordinary job
+  save: the server pushes the config, the agent stores it, and the next run — scheduled or
+  triggered — follows it. There is no second copy of the setting anywhere to fall out of step.
+  A client that is offline at that moment does not get the change; its jobs keep running on
+  the route they know until the save succeeds.
+- **The server authorises the route, not the client.** A lease is granted only if the cached
+  job the agent names is itself configured for the tunnel, so a tampered `TUNNEL_ACQUIRE`
+  cannot obtain a forward for a job that was never meant to have one.
+- **Removing the credentials does not rewrite the jobs.** Any job still set to use the tunnel
+  then fails at the lease — deliberately loud, because quietly sending a backup out over a
+  path the operator never chose is the worse outcome.
+- **Restores have no job to read.** They currently take the tunnel whenever the client has
+  credentials. That is wrong for a client that reaches some repositories directly, and
+  deriving the route from the jobs on the same repository is the open refinement — see the
+  note in `JobController.restore`.
 - **A changed host key can be re-pinned.** The stored fingerprint is compared on every
   connection, so a reinstalled client host fails until its new key is accepted. `Test
   Connection` in the editor reports the fingerprint the host actually presented and offers
@@ -195,8 +215,8 @@ accidentally back up past the tunnel.
 
 The project has no test framework; this checklist is the safety net. It is ordered by what
 fails silently, not by what is easy to check: items 1-4 cover lease and lifecycle faults that
-leave no trace, items 9-12 the four mode/tunnel combinations, and items 13-16 the editor,
-where a wrong answer *looks* like a right one.
+leave no trace, items 9-12 the interplay of client credentials and per-job routes, and items
+13-16 the editor, where a wrong answer *looks* like a right one.
 
 ### Server and protocol
 
@@ -218,17 +238,17 @@ where a wrong answer *looks* like a right one.
    Expected: the second waits and then runs through, rather than failing.
 8. **Inbound untouched** — an existing inbound client backs up directly to the PBS after the
    migration, unchanged.
-9. **Inbound with a tunnel** — add a tunnel to an inbound client in the editor, then run a
-   backup. Expected: the agent asks for a lease over the connection *it* dialled, the server
-   opens SSH to the client host, the run goes through `127.0.0.1:<port>`.
-10. **Outbound without a tunnel** — create an outbound client with the wizard's tunnel switch
-    off. Expected: no SSH step, no `client_tunnels` row, and the backup runs directly against
-    the PBS.
-11. **Switching while offline** — switch a client's tunnel off while its agent is
-    disconnected, then let it reconnect. Expected: `AUTH_SUCCESS` corrects the agent's stored
-    route before its next run; no job config had to be rewritten.
-12. **Switching mid-run** — switch the tunnel off while a backup is running.
-    Expected: the run fails with a tunnel error rather than continuing on a dead forward.
+9. **Inbound with a tunnel** — add credentials to an inbound client, switch one of its jobs
+   over, run it. Expected: the agent asks for a lease over the connection *it* dialled, the
+   server opens SSH to the client host, the run goes through `127.0.0.1:<port>`.
+10. **Two jobs, two routes** — one client, one job with the tunnel and one without, against
+    different repositories. Expected: both succeed, and only the first one takes a lease.
+11. **Job asks, client cannot** — save a job with the tunnel switch on for a client without
+    credentials (via the API; the UI disables the switch). Expected: `400` on save, no job
+    written — not a job that fails on every run.
+12. **Credentials removed under a job** — delete the tunnel while a job is still set to use
+    it. Expected: the next run of that job fails at the lease with a clear message; it does
+    **not** fall back to a direct connection.
 
 ### The editor (`ClientEditor` / `ClientIdentityCard` / `ClientTunnelCard`)
 
@@ -237,8 +257,9 @@ endpoints and different key modes. Everything the wizard guarantees by construct
 always present, nothing is stored yet, one button ends the flow — is an open question here.
 
 The editor answers them by splitting into one card per endpoint: `ClientIdentityCard` owns
-`PUT /clients/:id`, `ClientTunnelCard` owns the `/clients/:id/tunnel` endpoints — `POST` to set
-one up, `PUT` to edit or switch it, `DELETE` to remove it — and no form spans both.
+`PUT /clients/:id`, `ClientTunnelCard` owns the `/clients/:id/tunnel` endpoints — `POST` to
+store credentials, `PUT` to edit them, `DELETE` to remove them — and no form spans both. The
+per-job route is not in this editor at all; it lives with the job.
 `POST /clients/:id/tunnel/test` accepts `sshHost`, `sshPort` and `sshUser` overrides so the
 test describes the fields on screen while the private key stays in the backend; a key entered
 in the form goes through the parameterised `POST /tunnel/test` instead, exactly as in the

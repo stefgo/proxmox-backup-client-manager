@@ -25,23 +25,26 @@ export const ClientSchema = z.object({
     connectionMode: z.enum(["inbound", "outbound"]).optional(),
     outboundTargetAddress: z.string().optional(),
     /**
-     * Whether this client's runs go through the SSH reverse tunnel. Independent of
-     * `connectionMode`: the tunnel is a route to the PBS, the mode is who dials the
-     * WebSocket, and every combination of the two is valid.
+     * Whether SSH credentials are stored for this client, so its jobs may choose the
+     * tunnel. Independent of `connectionMode`: the tunnel is a route to the PBS, the
+     * mode is who dials the WebSocket, and every combination of the two is valid.
      */
-    tunnelEnabled: z.boolean().optional(),
+    tunnelConfigured: z.boolean().optional(),
 });
 
 /**
- * Whether this client has to obtain a tunnel lease before it may reach the PBS.
+ * Whether a job reaches its repository through the SSH reverse tunnel.
  *
- * A property of the client, not of a job: it is delivered in AUTH_SUCCESS and again
- * via TUNNEL_MODE whenever it changes, and the agent persists it. It used to be
- * written into every job config instead, which was only safe while the connection
- * mode — and with it the tunnel — could never change after creation.
+ * A property of the job, chosen per job: one client can back up to a PBS it reaches
+ * directly and to another it only reaches through the tunnel. The client side of it is
+ * just the SSH credentials — stored means available, and a job that asks for a tunnel
+ * the client has none for is rejected when it is saved.
  *
- * The loopback port is deliberately not part of this: it is allocated per forward
- * and only known at lease time (see TunnelAcquireResult).
+ * Travelling with the job is what keeps it honest: the agent stores it in the job's
+ * config and there is no second copy anywhere to fall out of step with.
+ *
+ * The loopback port is deliberately not part of this: it is allocated per forward and
+ * only known at lease time (see TunnelAcquireResult).
  */
 export const TunnelModeSchema = z.object({
     required: z.boolean(),
@@ -92,6 +95,7 @@ export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const RestoreJobSchema = JobSchema.extend({
@@ -100,6 +104,7 @@ export const RestoreJobSchema = JobSchema.extend({
     archives: z.array(z.string()),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const RegistrationPayloadSchema = z.object({
@@ -207,6 +212,9 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
+    // Must be declared here even though it is optional: zod strips unknown keys, so a
+    // missing entry would silently leave every tunnelled restore going direct.
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({

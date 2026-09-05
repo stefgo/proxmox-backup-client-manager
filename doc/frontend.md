@@ -161,11 +161,12 @@ one card per resource.
   validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
   function the backend uses, so a rejected address never has to make the round trip.
 - **`ClientTunnelCard`** — shown for **every** client, in either connection mode: the tunnel is
-  the route to the PBS and is optional on both sides of the WebSocket. Three states in one
-  card, keyed on what `GET /tunnel` answers: a `404` is not an error but "no tunnel yet", and
-  the card becomes a setup form whose **Test & Set Up** does test and `POST` in one action, as
-  the wizard does. With a tunnel configured, a `Switch` puts the credentials into service or
-  parks them, and **Remove** deletes them behind a `ConfirmDialog`.
+  a route to the PBS and is optional on both sides of the WebSocket. It holds the SSH
+  credentials and nothing else — stored means *available*, and which backups take the tunnel
+  is set per job in `JobTunnelSettings`. Two states in one card, keyed on what `GET /tunnel`
+  answers: a `404` is not an error but "no credentials yet", and the card becomes a setup form
+  whose **Test & Set Up** does test and `POST` in one action, as the wizard does. **Remove**
+  deletes them behind a `ConfirmDialog`.
   A `StatusDot` beside the title, exactly as in the card above — whether a connection is up is
   answered in one idiom on every client surface, and the tunnel's four states map onto the
   dot's four tones; it appears only once there is a tunnel to report on. Forwards and
@@ -231,7 +232,8 @@ issued it on entry issued a second one on every remount.
   dismiss it: the token list stores the token hashed, so this is the only time it
   is shown in full.
 - `steps/` — one file per step, all presentational. The outbound branch's length
-  depends on `useTunnel`, the switch on `StepOutboundAgent`: with it on,
+  depends on `useTunnel`, the switch on `StepOutboundAgent` — which decides whether SSH
+  credentials are stored, not whether backups use them: with it on,
   `StepOutboundSsh` follows and **Test & Create** runs the tunnel test and the
   create request back to back; with it off there is no SSH step and **Create**
   registers the client directly. A failure of either is reported into the step
@@ -254,6 +256,22 @@ The detail view of a client. It consists of multiple tabs/sections:
 2. **Configured**: List of configured backup jobs (`ClientJobList`) and editor.
 3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`RepositorySnapshotRestore`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
 4. **History**: Execution logs (`ClientHistoryList`).
+
+### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
+
+One section per aspect of a job, all reading from `JobFormContext` rather than props:
+repository, archives, encryption, tunnel, schedule.
+
+- **`JobTunnelSettings`** — whether *this job* reaches its repository through the client's SSH
+  reverse tunnel. Per job because one client can have a PBS it reaches directly and another it
+  only reaches through the detour; the credentials are the client's, the choice is the job's.
+  The switch is disabled while `tunnelAvailable` is false — `useJobForm` reads
+  `client.tunnelConfigured` from `useClientStore` for that — so the impossible combination is
+  not offered rather than rejected by the backend afterwards. A job already set to use the
+  tunnel keeps the switch usable even without a client row in the store, or the setting could
+  be seen but never turned off.
+- `useJobForm` always sends `tunnel`, including as `false`: omitting it on an update would
+  leave the stored route standing, and switching the tunnel off would silently not take.
 
 ### Restore Flow
 

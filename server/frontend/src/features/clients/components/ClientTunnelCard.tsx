@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TunnelState, TunnelStatus } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, Input, Switch } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, ConfirmDialog, Input } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { StatusDot, StatusTone } from './StatusDot';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
@@ -24,8 +24,6 @@ interface TunnelInfo {
     sshUser: string;
     hostKeySha256: string;
     remoteBindHost: string;
-    /** Whether runs actually take this route, or the credentials are only parked here. */
-    enabled: boolean;
 }
 
 interface TestResult {
@@ -50,18 +48,19 @@ const STATUS_TONE: Record<TunnelStatus, StatusTone> = {
 const COPY_FEEDBACK_MS = 2000;
 
 /**
- * The client's route to the PBS: SSH credentials, the switch that puts them into service,
- * and the actions that belong to them.
+ * The SSH credentials with which the server opens a reverse tunnel to this client — and
+ * nothing more. Stored means the tunnel is *available*; which backups take it is set per
+ * job in the job editor, because one client can have a PBS it reaches directly and
+ * another it only reaches through the detour.
  *
  * Shown for every client, in either connection mode. The tunnel answers a different
  * question than the mode does — the mode is who dials the WebSocket, this is how the PBS
  * is reached — so an inbound client with no route to the PBS can have one, and an outbound
  * client that reaches the PBS itself can do without.
  *
- * Three states, one card: no tunnel at all (the form creates one), credentials parked with
- * the switch off, and in service. Deliberately limited: tunnel target and bind port are
- * not editable — the target follows from each job's repository, the port is allocated per
- * forward.
+ * Two states, one card: no credentials yet (the form creates them) and credentials stored.
+ * Deliberately limited: tunnel target and bind port are not editable — the target follows
+ * from each job's repository, the port is allocated per forward.
  *
  * The card owns its own save button because the credentials are their own endpoint. The
  * test button sends the *form* values, not the stored ones, so a green result always
@@ -253,35 +252,11 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                 sshUser,
                 hostKeySha256: test.hostKeySha256,
                 remoteBindHost: '127.0.0.1',
-                enabled: true,
             });
             setKeyMode('keep');
             setPrivateKey('');
             setPassphrase('');
-            setMessage('Tunnel set up — this client now reaches the PBS through it.');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    /**
-     * Puts the stored credentials into service, or takes them out again. Takes effect at
-     * once: the backend closes an open SSH connection with it, so a run holding a lease
-     * fails rather than writing on into a forward that is about to disappear.
-     */
-    const handleToggleEnabled = async (enabled: boolean) => {
-        setBusy(true);
-        resetFeedback();
-        try {
-            await saveTunnel({ enabled });
-            setInfo((prev) => (prev ? { ...prev, enabled } : prev));
-            setMessage(
-                enabled
-                    ? 'Tunnel switched on — runs go through it from now on.'
-                    : 'Tunnel switched off — runs go directly to the PBS from now on.',
-            );
+            setMessage('Tunnel set up — a job can now be configured to use it.');
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -307,7 +282,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
             setPrivateKey('');
             setPassphrase('');
             setConfirmDelete(false);
-            setMessage('Tunnel removed — runs go directly to the PBS from now on.');
+            setMessage('Tunnel removed. Jobs still configured for it will now fail.');
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -417,37 +392,17 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                                 {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
                             </Badge>
                         )}
-                        {!info.enabled && (
-                            <Badge variant="warning" size="sm">
-                                Off
-                            </Badge>
-                        )}
                     </span>
                 ) : undefined
             }
             classNames={{ header: 'py-5 px-7' }}
         >
             <div className="px-7 py-6 bg-card space-y-6">
-                {isNew ? (
-                    <p className="text-sm text-text-muted">
-                        Optional. Set one up when this host cannot reach the PBS itself — the
-                        server then opens an SSH reverse forward to it for the duration of a
-                        run. Independent of the connection mode: a client that dials the
-                        server can use one just as well.
-                    </p>
-                ) : (
-                    <Switch
-                        label="Route runs through the tunnel"
-                        hint={
-                            info!.enabled
-                                ? 'Off parks these credentials: the client goes to the PBS directly and needs its own route there.'
-                                : 'The credentials are stored but unused — runs go directly to the PBS.'
-                        }
-                        value={info!.enabled}
-                        onChange={handleToggleEnabled}
-                        disabled={busy}
-                    />
-                )}
+                <p className="text-sm text-text-muted">
+                    {isNew
+                        ? 'Optional. Set one up when this host cannot reach a PBS itself — the server then opens an SSH reverse forward to it for the duration of a run. Independent of the connection mode: a client that dials the server can use one just as well.'
+                        : 'These credentials make the tunnel available to this client. Which backups take it is set per job, in the job editor.'}
+                </p>
 
                 {info && (state?.forwards?.length || state?.lastUsedAt || state?.lastError) && (
                     <div className="text-xs text-text-muted space-y-1">

@@ -39,8 +39,9 @@ export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsP
                 an inbound client does not exist as a row until its agent has redeemed
                 the token, and there would be nothing to attach the credentials to. */}
             <p className="text-xs text-text-muted">
-                If this host cannot reach the PBS itself, add an SSH reverse tunnel in the
-                client editor once the agent has registered.
+                If this host cannot reach a PBS itself, add SSH tunnel credentials in the
+                client editor once the agent has registered; each job then chooses whether
+                to use them.
             </p>
 
             {error && <div className="text-sm text-error break-words">{error}</div>}

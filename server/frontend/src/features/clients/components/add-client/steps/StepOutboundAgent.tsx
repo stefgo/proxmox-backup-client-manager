@@ -12,13 +12,13 @@ interface StepOutboundAgentProps {
 }
 
 /**
- * Where the server finds the agent, what proves it may talk to it — and whether it also
- * needs a route to the PBS opened for it.
+ * Where the server finds the agent, what proves it may talk to it — and whether SSH
+ * credentials for a reverse tunnel are stored along with it.
  *
  * The tunnel switch lives here rather than in step 1: the connection mode is the decision
  * that cannot be revised, and putting a freely reversible one next to it would suggest
- * this one is final too. It is not — a tunnel can be added, switched or removed in the
- * client editor at any time.
+ * this one is final too. It is not — credentials can be added or removed in the client
+ * editor at any time, and whether a backup actually takes the tunnel is set per job.
  */
 export const StepOutboundAgent = ({ form, onPatch, error }: StepOutboundAgentProps) => (
     <div className="space-y-4">
@@ -43,8 +43,8 @@ export const StepOutboundAgent = ({ form, onPatch, error }: StepOutboundAgentPro
             hint="One-time secret from the agent's config.yaml. It is consumed on the first successful registration."
         />
         <Switch
-            label="Reach the PBS through an SSH reverse tunnel"
-            hint="Needed when this host cannot reach the PBS itself. Off means it backs up directly — you can change this later."
+            label="Set up an SSH reverse tunnel"
+            hint="Stores SSH credentials so this client's jobs can reach a PBS it has no route to. Each job then chooses whether to use it. Can be added later in the client editor."
             value={form.useTunnel}
             onChange={(useTunnel) => onPatch({ useTunnel })}
         />

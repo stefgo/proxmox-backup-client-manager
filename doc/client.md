@@ -60,7 +60,7 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 - It translates abstract JSON job configurations into CLI arguments for `proxmox-backup-client backup` or `proxmox-backup-client restore`.
 - It spawns a child process and captures real-time `stdout`/`stderr` streams, forwarding them as `LOG_UPDATE` events over the WebSocket.
 - **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then syncs this history with the central server via `SYNC_HISTORY`.
-- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `doc/tunnel.md`). Which of the two paths a run takes follows from `TunnelClient.isRequired()`, not from anything in the job.
+- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `doc/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
 ### 4. Local Web Server (`src/web/server.ts`)
 
@@ -107,7 +107,6 @@ Schema migrations are managed via **Umzug** and run automatically on startup.
 | `jobs`                 | Job configurations synchronized from the server.                     |
 | `job_history`          | Execution records (status, output, timing) for each backup/restore run. |
 | `job_schedule_state`   | Last and next run timestamps per job for schedule tracking.           |
-| `agent_state`          | Key/value state the server owns — currently `tunnel_required`, the route to the PBS. |
 
 ## Outbound mode and the tunnel
 
@@ -117,11 +116,9 @@ With a `registrationSecret` set (or an `authToken` without a `serverUrl`), the a
 **outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
 instead. That is the whole of it — it says nothing about how the PBS is reached.
 
-Whether a run goes **through the tunnel** is the server's decision, delivered in `AUTH_SUCCESS`
-and, while connected, in `TUNNEL_MODE`, and kept in `agent_state.tunnel_required`
-(`TunnelClient.isRequired()`). When it is set, the agent requests a lease through
-`TunnelClient` before every run and replaces host and port in `PBS_REPOSITORY` with the
-loopback endpoint. Persisted rather than held in memory so an offline scheduled run still
-takes the route the agent was last told about; the flag deliberately does **not** live in the
-job configs, where switching the tunnel would leave a stale copy behind in each of them.
-Details: [tunnel.md](tunnel.md).
+Whether a run goes **through the tunnel** is each job's own setting: `tunnel.required` arrives
+with the job config, is stored with it, and is read back before the run. When it is set, the
+agent requests a lease through `TunnelClient` and replaces host and port in `PBS_REPOSITORY`
+with the loopback endpoint. Living in the job config is what makes a scheduled run offline
+take the route the operator chose — and it is the only copy of the setting, so nothing can
+fall out of step with it. Details: [tunnel.md](tunnel.md).

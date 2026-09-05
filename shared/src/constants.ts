@@ -21,7 +21,6 @@ export const WS_EVENTS = {
     HISTORY: "HISTORY",
     RUN_RESTORE: "RUN_RESTORE",
     TUNNEL_ACQUIRE_RESULT: "TUNNEL_ACQUIRE_RESULT",
-    TUNNEL_MODE: "TUNNEL_MODE",
 
     // Server -> Client (outbound connection mode: server dials the client)
     REGISTRATION_REQUEST: "REGISTRATION_REQUEST",
