@@ -2,18 +2,20 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
 import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { WebSocketController } from "./WebSocketController.js";
 
 /**
- * Outbound clients reach the PBS only through the SSH reverse tunnel. Their jobs carry
- * this marker so the agent knows it must obtain a lease before running. The loopback port
- * is deliberately NOT part of the job: it is allocated per forward and only known at
- * lease time, so the stored job keeps the real PBS URL.
+ * Whether this client reaches the PBS through the SSH reverse tunnel.
+ *
+ * The tunnel is a property of the client, not of the connection mode — an inbound client
+ * that cannot reach the PBS itself uses one, an outbound client that can does without.
+ * The agent learns the flag in AUTH_SUCCESS and keeps it; jobs no longer carry it, so
+ * switching the tunnel cannot leave a stale marker behind in a stored job config.
  */
 function isTunneled(clientId: string): boolean {
-    return ClientRepository.findById(clientId)?.connection_mode === "outbound";
+    return ClientTunnelRepository.isEnabled(clientId);
 }
 
 export class JobController {
@@ -54,14 +56,10 @@ export class JobController {
         }
 
         try {
-            const jobData = {
-                ...parsed.data,
-                tunnel: isTunneled(clientId) ? { required: true } : undefined,
-            };
             const result = await ProxyService.sendRequest(
                 clientId,
                 WS_EVENTS.JOB_SAVE_CONFIG,
-                { requestId: request.id, job: jobData },
+                { requestId: request.id, job: parsed.data },
             );
 
             if (result.success) {
@@ -177,7 +175,6 @@ export class JobController {
                 repository,
                 archives,
                 encryption,
-                tunnel: tunneled ? { required: true } : undefined,
             });
             return { status: "triggered", runId };
         } catch (e: unknown) {

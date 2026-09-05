@@ -160,13 +160,19 @@ one card per resource.
   agent version, display name, target address, `Save Client`. The address is
   validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
   function the backend uses, so a rejected address never has to make the round trip.
-- **`ClientTunnelCard`** — outbound only. A `StatusDot` beside the title, exactly as in the
-  card above: whether a connection is up is answered in one idiom on every client surface,
-  and the tunnel's four states map onto the dot's four tones. Forwards and `lastUsedAt` come
-  from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the `GET /tunnel` call
-  supplies only the stored configuration. `Test Connection` sends the form's values,
-  `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host key**
-  block (see `doc/tunnel.md`).
+- **`ClientTunnelCard`** — shown for **every** client, in either connection mode: the tunnel is
+  the route to the PBS and is optional on both sides of the WebSocket. Three states in one
+  card, keyed on what `GET /tunnel` answers: a `404` is not an error but "no tunnel yet", and
+  the card becomes a setup form whose **Test & Set Up** does test and `POST` in one action, as
+  the wizard does. With a tunnel configured, a `Switch` puts the credentials into service or
+  parks them, and **Remove** deletes them behind a `ConfirmDialog`.
+  A `StatusDot` beside the title, exactly as in the card above — whether a connection is up is
+  answered in one idiom on every client surface, and the tunnel's four states map onto the
+  dot's four tones; it appears only once there is a tunnel to report on. Forwards and
+  `lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the
+  `GET /tunnel` call supplies only the stored configuration. `Test Connection` sends the form's
+  values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
+  key** block (see `doc/tunnel.md`).
 
 - **Action bar** — the editor's own, `sticky bottom-0` as the last child of the stack. As the
   last child its resting place is the end of the editor, so it settles there once the operator
@@ -224,10 +230,17 @@ issued it on entry issued a second one on every remount.
 - `InboundTokenDialog.tsx` — the issued token, in a modal. The backdrop does not
   dismiss it: the token list stores the token hashed, so this is the only time it
   is shown in full.
-- `steps/` — one file per step, all presentational. `StepOutboundSsh` is the
-  outbound branch's last one: **Test & Create** runs the tunnel test and the
-  create request back to back, and a failure of either is reported into the step
-  rather than moving the flow on.
+- `steps/` — one file per step, all presentational. The outbound branch's length
+  depends on `useTunnel`, the switch on `StepOutboundAgent`: with it on,
+  `StepOutboundSsh` follows and **Test & Create** runs the tunnel test and the
+  create request back to back; with it off there is no SSH step and **Create**
+  registers the client directly. A failure of either is reported into the step
+  that is currently last, rather than moving the flow on. The wizard clamps its
+  controlled step index, because turning the switch off removes the step behind
+  the current one.
+    - The switch sits on the *Agent* step and not beside the connection mode in
+      step 1 on purpose: the mode cannot be revised, the tunnel can, and putting
+      the two side by side would suggest otherwise.
 
 Inbound registration details (display name, allowed IP or CIDR network) are carried
 by the **registration token**, since the agent registers unattended — see

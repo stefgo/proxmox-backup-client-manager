@@ -39,7 +39,7 @@ import {
     GlobalHistoryEntrySchema,
     GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
-    TunnelDescriptorSchema,
+    TunnelModeSchema,
     TunnelConfigSchema,
     RegistrationRequestSchema,
     RegistrationResultSchema,
@@ -78,7 +78,7 @@ export interface ManagedRepository extends Repository {
 }
 
 export type Client = z.infer<typeof ClientSchema> & {
-    /** Runtime tunnel state, present for outbound clients only. Never persisted. */
+    /** Runtime tunnel state, present when a tunnel is configured. Never persisted. */
     tunnel?: TunnelState;
 };
 
@@ -128,7 +128,7 @@ export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;
 
-export type TunnelDescriptor = z.infer<typeof TunnelDescriptorSchema>;
+export type TunnelMode = z.infer<typeof TunnelModeSchema>;
 export type TunnelConfig = z.infer<typeof TunnelConfigSchema>;
 export type RegistrationRequest = z.infer<typeof RegistrationRequestSchema>;
 export type RegistrationResult = z.infer<typeof RegistrationResultSchema>;
@@ -159,7 +159,16 @@ export interface ProtocolMap {
     };
     AUTH_SUCCESS: {
         req: void;
-        res: { lastSyncTime?: string | null };
+        /**
+         * `tunnelRequired` is the client-level route decision, sent on every
+         * authentication so a reconnect is always enough to correct a stale value.
+         */
+        res: { lastSyncTime?: string | null; tunnelRequired?: boolean };
+    };
+    /** Sent when the tunnel is switched on or off while the agent is connected. */
+    TUNNEL_MODE: {
+        req: TunnelMode;
+        res: void;
     };
     AUTH_FAILURE: {
         req: { error?: string };

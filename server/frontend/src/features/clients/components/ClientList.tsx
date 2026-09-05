@@ -18,9 +18,12 @@ interface ClientListProps {
     reconnectClient: (client: Client) => void;
 }
 
-/** Outbound clients reach the PBS only through the SSH tunnel — worth showing at a glance. */
+/**
+ * Whether this client reaches the PBS through the SSH tunnel — worth showing at a glance,
+ * and keyed on the tunnel rather than the connection mode: either mode can have one.
+ */
 const ConnectionBadge = ({ client }: { client: Client }) => {
-    if (client.connectionMode !== 'outbound') return null;
+    if (!client.tunnelEnabled) return null;
     const tunnel = client.tunnel;
     const tone = tunnel?.status === 'error'
         ? 'text-error'

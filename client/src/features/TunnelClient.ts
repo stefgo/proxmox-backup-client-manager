@@ -1,8 +1,9 @@
 import net from "net";
 import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
-import { config, isOutboundMode } from "../core/Config.js";
+import { config } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
+import { AgentStateRepository } from "../repositories/AgentStateRepository.js";
 
 export interface TunnelLease {
     leaseId: string;
@@ -26,22 +27,26 @@ const PREFLIGHT_TIMEOUT_MS = 5000;
 
 export class TunnelClient {
     /**
-     * Verifies that the job's tunnel expectation matches this agent's connection mode.
-     * Catches a client config copied from one host to another, where the stored jobs
-     * would otherwise silently target the wrong path to the PBS.
+     * Whether this agent's runs go through the SSH reverse tunnel.
+     *
+     * Deliberately unrelated to `isOutboundMode()`: that answers who dials the
+     * WebSocket, this answers how the PBS is reached, and the two are independent. The
+     * value is the server's to decide — it arrives in AUTH_SUCCESS and via TUNNEL_MODE
+     * and is persisted, so a scheduled run while the server is unreachable still uses
+     * the route it was last told about.
      */
-    static assertModeMatches(tunnelRequired: boolean): void {
-        const outbound = isOutboundMode();
-        if (tunnelRequired && !outbound) {
-            throw new Error(
-                "Job expects an SSH tunnel, but this client runs in direct mode",
-            );
-        }
-        if (!tunnelRequired && outbound) {
-            throw new Error(
-                "Client runs in tunnel mode, but the job is configured without a tunnel",
-            );
-        }
+    static isRequired(): boolean {
+        return AgentStateRepository.isTunnelRequired();
+    }
+
+    /** Stores what the server just told us. */
+    static setRequired(required: boolean): void {
+        if (required === this.isRequired()) return;
+        AgentStateRepository.setTunnelRequired(required);
+        logger.info(
+            { tunnelRequired: required },
+            "Route to the PBS changed by the server",
+        );
     }
 
     /**

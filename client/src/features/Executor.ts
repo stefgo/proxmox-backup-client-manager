@@ -407,13 +407,12 @@ export class Executor {
         let stdoutBuffer = "";
         let stderrBuffer = "";
 
-        // Outbound clients reach the PBS only through the SSH reverse tunnel. The lease is
-        // requested here, immediately before the spawn, and released again in every exit
-        // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
+        // A tunnelled client reaches the PBS only through the SSH reverse tunnel. The
+        // lease is requested here, immediately before the spawn, and released again in
+        // every exit path below — a lease that is never released blocks the tunnel until
+        // maxLeaseMs.
         let lease: TunnelLease | undefined;
         try {
-            TunnelClient.assertModeMatches(tunnelRequired);
-
             if (tunnelRequired && repository) {
                 lease = await TunnelClient.acquire(runId, jobId);
                 env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(
@@ -756,7 +755,7 @@ export class Executor {
                     // Tunneled runs skip this: they reach the PBS as 127.0.0.1, where a
                     // CA check can never succeed. There the server measures instead and
                     // hands the value over with the lease, further down.
-                    const fingerprint = jobConfigData.tunnel?.required
+                    const fingerprint = TunnelClient.isRequired()
                         ? repo.fingerprint
                         : await this.resolveFingerprint(repo, jobId);
 
@@ -850,7 +849,7 @@ export class Executor {
             password: pbsPassword,
             keyfilePath: tempKeyfilePath,
             repository: jobConfigData.repository,
-            tunnelRequired: !!jobConfigData.tunnel?.required,
+            tunnelRequired: TunnelClient.isRequired(),
             releaseSlot: true,
         });
     }
@@ -907,7 +906,7 @@ export class Executor {
                     env.PBS_PASSWORD_FD = "3";
                     pbsPassword = repository.secret;
 
-                    const fingerprint = payload?.tunnel?.required
+                    const fingerprint = TunnelClient.isRequired()
                         ? repository.fingerprint
                         : await this.resolveFingerprint(repository);
 
@@ -967,7 +966,7 @@ export class Executor {
             password: pbsPassword,
             keyfilePath: tempKeyfilePath,
             repository,
-            tunnelRequired: !!payload?.tunnel?.required,
+            tunnelRequired: TunnelClient.isRequired(),
             releaseSlot: false,
         });
     }

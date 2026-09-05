@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TunnelState, TunnelStatus } from '@pbcm/shared';
-import { Check, Copy, PlugZap, Save, ShieldAlert } from 'lucide-react';
-import { Badge, Button, Card, Input } from '@stefgo/react-ui-components';
+import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
+import { Badge, Button, Card, ConfirmDialog, Input, Switch } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { StatusDot, StatusTone } from './StatusDot';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
@@ -24,6 +24,8 @@ interface TunnelInfo {
     sshUser: string;
     hostKeySha256: string;
     remoteBindHost: string;
+    /** Whether runs actually take this route, or the credentials are only parked here. */
+    enabled: boolean;
 }
 
 interface TestResult {
@@ -48,11 +50,18 @@ const STATUS_TONE: Record<TunnelStatus, StatusTone> = {
 const COPY_FEEDBACK_MS = 2000;
 
 /**
- * SSH credentials of an outbound client, and the two actions that belong to them.
+ * The client's route to the PBS: SSH credentials, the switch that puts them into service,
+ * and the actions that belong to them.
  *
- * Deliberately limited: connection mode, tunnel target and bind port are not editable —
- * the mode is fixed at creation, the target follows from each job's repository, and the
- * port is allocated per forward.
+ * Shown for every client, in either connection mode. The tunnel answers a different
+ * question than the mode does — the mode is who dials the WebSocket, this is how the PBS
+ * is reached — so an inbound client with no route to the PBS can have one, and an outbound
+ * client that reaches the PBS itself can do without.
+ *
+ * Three states, one card: no tunnel at all (the form creates one), credentials parked with
+ * the switch off, and in service. Deliberately limited: tunnel target and bind port are
+ * not editable — the target follows from each job's repository, the port is allocated per
+ * forward.
  *
  * The card owns its own save button because the credentials are their own endpoint. The
  * test button sends the *form* values, not the stored ones, so a green result always
@@ -61,6 +70,8 @@ const COPY_FEEDBACK_MS = 2000;
 export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunnelCardProps) => {
     const { token } = useAuth();
     const [info, setInfo] = useState<TunnelInfo | null>(null);
+    /** Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer. */
+    const [loaded, setLoaded] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
@@ -74,32 +85,50 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
     const [copied, setCopied] = useState(false);
     /** A fingerprint the host actually presented that differs from the stored one. */
     const [unknownHostKey, setUnknownHostKey] = useState<string | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     useEffect(() => {
         const load = async () => {
             try {
                 const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`);
+                // Not an error: a client without a tunnel is an ordinary state now, and
+                // the card offers to set one up instead of reporting a failure.
+                if (res.status === 404) {
+                    setInfo(null);
+                    setKeyMode('generate');
+                    return;
+                }
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || `Could not load the tunnel configuration (HTTP ${res.status})`);
                 setInfo(data);
                 setSshHost(data.sshHost);
                 setSshPort(String(data.sshPort));
                 setSshUser(data.sshUser);
+                setKeyMode('keep');
             } catch (e) {
                 setLoadError(e instanceof Error ? e.message : String(e));
+            } finally {
+                setLoaded(true);
             }
         };
+        setLoaded(false);
         load();
     }, [clientId, token]);
 
-    const isDirty =
-        !!info &&
-        (sshHost !== info.sshHost ||
-            sshPort !== String(info.sshPort) ||
-            sshUser !== info.sshUser ||
-            (keyMode !== 'keep' && !!privateKey.trim()));
+    /** Loaded, no configuration, nothing broken: the card is a setup form. */
+    const isNew = loaded && !info && !loadError;
 
-    const canSave = isDirty && !!sshHost.trim() && !!sshUser.trim();
+    const isDirty = info
+        ? sshHost !== info.sshHost ||
+          sshPort !== String(info.sshPort) ||
+          sshUser !== info.sshUser ||
+          (keyMode !== 'keep' && !!privateKey.trim())
+        : // A half-filled setup form is worth warning about on the way out just as much
+          // as an edited one.
+          !!sshHost.trim() || !!sshUser.trim() || !!privateKey.trim();
+
+    const complete = !!sshHost.trim() && !!sshUser.trim();
+    const canSave = isNew ? complete && !!privateKey.trim() : isDirty && complete;
 
     // Above the early returns for the loading and error states, so the hook order does not
     // depend on whether the configuration has arrived yet.
@@ -177,6 +206,115 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
         if (!res.ok) throw new Error(data.error || 'Failed to save the tunnel configuration');
     };
 
+    /**
+     * Sets up a tunnel for a client that has none — test and create in one action, the
+     * same pairing the add-client wizard uses: the fingerprint being pinned is the one
+     * this very test was offered, and the backend verifies it again against the key the
+     * host actually presents, so a host that swaps keys in between fails the create.
+     */
+    const handleCreate = async () => {
+        setBusy(true);
+        resetFeedback();
+        try {
+            const testRes = await apiFetch('/api/v1/tunnel/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sshHost,
+                    sshPort: Number(sshPort) || 22,
+                    sshUser,
+                    privateKey: privateKey.trim(),
+                    passphrase: passphrase || undefined,
+                }),
+            });
+            const test: TestResult = await testRes.json();
+            if (!test.ok || !test.hostKeySha256) {
+                throw new Error(test.error || 'Tunnel test failed');
+            }
+
+            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sshHost,
+                    sshPort: Number(sshPort) || 22,
+                    sshUser,
+                    privateKey: privateKey.trim(),
+                    passphrase: keyMode === 'manual' && passphrase ? passphrase : undefined,
+                    hostKeySha256: test.hostKeySha256,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to set up the tunnel');
+
+            setInfo({
+                sshHost,
+                sshPort: Number(sshPort) || 22,
+                sshUser,
+                hostKeySha256: test.hostKeySha256,
+                remoteBindHost: '127.0.0.1',
+                enabled: true,
+            });
+            setKeyMode('keep');
+            setPrivateKey('');
+            setPassphrase('');
+            setMessage('Tunnel set up — this client now reaches the PBS through it.');
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    /**
+     * Puts the stored credentials into service, or takes them out again. Takes effect at
+     * once: the backend closes an open SSH connection with it, so a run holding a lease
+     * fails rather than writing on into a forward that is about to disappear.
+     */
+    const handleToggleEnabled = async (enabled: boolean) => {
+        setBusy(true);
+        resetFeedback();
+        try {
+            await saveTunnel({ enabled });
+            setInfo((prev) => (prev ? { ...prev, enabled } : prev));
+            setMessage(
+                enabled
+                    ? 'Tunnel switched on — runs go through it from now on.'
+                    : 'Tunnel switched off — runs go directly to the PBS from now on.',
+            );
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    /** Removes the tunnel with its credentials. The client and its history stay. */
+    const handleDelete = async () => {
+        setBusy(true);
+        resetFeedback();
+        try {
+            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
+                method: 'DELETE',
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to remove the tunnel');
+            setInfo(null);
+            setSshHost('');
+            setSshPort('22');
+            setSshUser('');
+            setKeyMode('generate');
+            setPrivateKey('');
+            setPassphrase('');
+            setConfirmDelete(false);
+            setMessage('Tunnel removed — runs go directly to the PBS from now on.');
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const handleSave = async () => {
         setBusy(true);
         resetFeedback();
@@ -243,7 +381,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
 
     // A short, silent gap would make the card jump into the layout; a placeholder of the
     // same shape keeps the page still.
-    if (!info) {
+    if (!loaded) {
         return (
             <Card title="SSH Reverse Tunnel" titleAs="h3" classNames={{ header: 'py-5 px-7' }}>
                 <div className="px-7 py-6 bg-card space-y-3" aria-busy>
@@ -264,26 +402,58 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                    uses, so the two connections are read the same way. `span`s throughout:
                    the title is rendered as an `h3`, which may not contain a `div`. */
                 <span className="flex items-center gap-4">
-                    <StatusDot tone={STATUS_TONE[status]} label={status} />
+                    {/* Only once there is a tunnel: a dot on a card that is a setup form
+                        would report the state of something that does not exist. */}
+                    {info && <StatusDot tone={STATUS_TONE[status]} label={status} />}
                     <span>SSH Reverse Tunnel</span>
                 </span>
             }
             titleAs="h3"
             action={
-                !!state?.activeLeases && (
-                    <Badge variant="info" size="sm">
-                        {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
-                    </Badge>
-                )
+                info ? (
+                    <span className="flex items-center gap-3">
+                        {!!state?.activeLeases && (
+                            <Badge variant="info" size="sm">
+                                {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
+                            </Badge>
+                        )}
+                        {!info.enabled && (
+                            <Badge variant="warning" size="sm">
+                                Off
+                            </Badge>
+                        )}
+                    </span>
+                ) : undefined
             }
             classNames={{ header: 'py-5 px-7' }}
         >
             <div className="px-7 py-6 bg-card space-y-6">
-                {(state?.forwards?.length || state?.lastUsedAt || state?.lastError) && (
+                {isNew ? (
+                    <p className="text-sm text-text-muted">
+                        Optional. Set one up when this host cannot reach the PBS itself — the
+                        server then opens an SSH reverse forward to it for the duration of a
+                        run. Independent of the connection mode: a client that dials the
+                        server can use one just as well.
+                    </p>
+                ) : (
+                    <Switch
+                        label="Route runs through the tunnel"
+                        hint={
+                            info!.enabled
+                                ? 'Off parks these credentials: the client goes to the PBS directly and needs its own route there.'
+                                : 'The credentials are stored but unused — runs go directly to the PBS.'
+                        }
+                        value={info!.enabled}
+                        onChange={handleToggleEnabled}
+                        disabled={busy}
+                    />
+                )}
+
+                {info && (state?.forwards?.length || state?.lastUsedAt || state?.lastError) && (
                     <div className="text-xs text-text-muted space-y-1">
                         {state.forwards?.map((f) => (
                             <div key={f.target} className="font-mono break-all">
-                                {f.target} → {info.remoteBindHost}:{f.port}
+                                {f.target} → {info!.remoteBindHost}:{f.port}
                             </div>
                         ))}
                         {state.lastUsedAt && <div>Last used {formatDate(state.lastUsedAt)}</div>}
@@ -316,7 +486,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
 
                 <SshKeyFields
                     token={token}
-                    allowKeep
+                    allowKeep={!isNew}
                     mode={keyMode}
                     onModeChange={(m) => { setKeyMode(m); setPrivateKey(''); setPassphrase(''); resetFeedback(); }}
                     privateKey={privateKey}
@@ -337,6 +507,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                     />
                 )}
 
+                {info && (
                 <div className="space-y-1">
                     <div className="text-xs text-text-muted">Pinned host key (SHA256)</div>
                     {/* `items-center`, not `items-start`: the fingerprint may wrap on a
@@ -345,7 +516,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                         while the value takes the wrapping. */}
                     <div className="flex items-center gap-2">
                         <span className="font-mono text-xs break-all text-text-primary">
-                            {info.hostKeySha256}
+                            {info!.hostKeySha256}
                         </span>
                         <Button
                             type="button"
@@ -359,6 +530,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                         </Button>
                     </div>
                 </div>
+                )}
 
                 {unknownHostKey && (
                     <div className="rounded border border-error p-4 space-y-3">
@@ -391,16 +563,47 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                     </div>
                 )}
 
-                <div className="flex items-center justify-end gap-4 border-t border-border pt-5">
+                <div className="flex flex-wrap items-center justify-end gap-4 border-t border-border pt-5">
                     {error && <span className="text-sm text-error break-words mr-auto">{error}</span>}
                     {!error && message && <span className="text-sm text-success mr-auto">{message}</span>}
-                    <Button type="button" variant="secondary" onClick={handleTest} disabled={busy} icon={PlugZap}>
+                    {/* Removing is destructive and belongs nowhere near the primary action,
+                        so it sits on the far left with the messages between. */}
+                    {info && !error && !message && <span className="mr-auto" />}
+                    {info && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setConfirmDelete(true)}
+                            disabled={busy}
+                            icon={Trash2}
+                        >
+                            Remove
+                        </Button>
+                    )}
+                    <Button type="button" variant="secondary" onClick={handleTest} disabled={busy || !complete} icon={PlugZap}>
                         Test Connection
                     </Button>
-                    <Button type="button" variant="primary" onClick={handleSave} disabled={busy || !canSave} icon={Save}>
-                        Save Tunnel
-                    </Button>
+                    {isNew ? (
+                        <Button type="button" variant="primary" onClick={handleCreate} disabled={busy || !canSave} icon={Plus}>
+                            Test &amp; Set Up
+                        </Button>
+                    ) : (
+                        <Button type="button" variant="primary" onClick={handleSave} disabled={busy || !canSave} icon={Save}>
+                            Save Tunnel
+                        </Button>
+                    )}
                 </div>
+
+                <ConfirmDialog
+                    isOpen={confirmDelete}
+                    onClose={() => setConfirmDelete(false)}
+                    onConfirm={handleDelete}
+                    title="Remove the SSH tunnel?"
+                    description="The stored key is deleted with it. Runs go directly to the PBS from then on — which fails for a host that has no route there. The client and its history stay."
+                    confirmLabel="Remove tunnel"
+                    variant="danger"
+                    isConfirming={busy}
+                />
             </div>
         </Card>
     );

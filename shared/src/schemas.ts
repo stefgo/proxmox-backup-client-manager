@@ -24,14 +24,26 @@ export const ClientSchema = z.object({
     version: z.string().optional(),
     connectionMode: z.enum(["inbound", "outbound"]).optional(),
     outboundTargetAddress: z.string().optional(),
+    /**
+     * Whether this client's runs go through the SSH reverse tunnel. Independent of
+     * `connectionMode`: the tunnel is a route to the PBS, the mode is who dials the
+     * WebSocket, and every combination of the two is valid.
+     */
+    tunnelEnabled: z.boolean().optional(),
 });
 
 /**
- * Marker attached by the server to every job pushed to an outbound client.
- * The client must obtain a tunnel lease before running such a job; the actual
- * loopback port is only known at lease time (see TunnelAcquireResult).
+ * Whether this client has to obtain a tunnel lease before it may reach the PBS.
+ *
+ * A property of the client, not of a job: it is delivered in AUTH_SUCCESS and again
+ * via TUNNEL_MODE whenever it changes, and the agent persists it. It used to be
+ * written into every job config instead, which was only safe while the connection
+ * mode — and with it the tunnel — could never change after creation.
+ *
+ * The loopback port is deliberately not part of this: it is allocated per forward
+ * and only known at lease time (see TunnelAcquireResult).
  */
-export const TunnelDescriptorSchema = z.object({
+export const TunnelModeSchema = z.object({
     required: z.boolean(),
 });
 
@@ -80,7 +92,6 @@ export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const RestoreJobSchema = JobSchema.extend({
@@ -89,7 +100,6 @@ export const RestoreJobSchema = JobSchema.extend({
     archives: z.array(z.string()),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const RegistrationPayloadSchema = z.object({
@@ -197,11 +207,6 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
-    // JobController sends this for tunneled restores and the executor reads it to
-    // decide whether to acquire a lease. It was missing here, which went unnoticed
-    // while nobody validated the payload — parsing would have stripped it and left
-    // every tunneled restore trying to reach the PBS directly.
-    tunnel: TunnelDescriptorSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({

@@ -46,7 +46,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     ClientController.reconnect,
                 );
 
-                // SSH reverse tunnel (outbound clients only)
+                // SSH reverse tunnel — optional, and available in both connection modes
                 protectedRoutes.post("/tunnel/test", TunnelController.test);
                 protectedRoutes.post(
                     "/tunnel/keypair",
@@ -60,9 +60,17 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/tunnel",
                     TunnelController.get,
                 );
+                protectedRoutes.post(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.create,
+                );
                 protectedRoutes.put(
                     "/clients/:clientId/tunnel",
                     TunnelController.update,
+                );
+                protectedRoutes.delete(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.remove,
                 );
                 protectedRoutes.post(
                     "/clients/:clientId/tunnel/test",

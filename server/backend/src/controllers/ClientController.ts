@@ -25,10 +25,15 @@ interface OutboundBody {
 
 export class ClientController {
     /**
-     * Creates an outbound client together with its SSH tunnel — deliberately one atomic
-     * operation. An outbound client without a working tunnel has no route to the PBS at
-     * all, so nothing is persisted unless both the tunnel test and the registration
-     * handshake succeed. The connection mode is fixed here and cannot be changed later.
+     * Creates an outbound client, optionally together with its SSH tunnel — and if one is
+     * given, deliberately as one atomic operation: a tunnel that was never seen to work
+     * must not be left behind by a half-finished create, so nothing is persisted unless
+     * both the tunnel test and the registration handshake succeed.
+     *
+     * The tunnel is optional because it answers a different question than the connection
+     * mode does. The mode says who dials the WebSocket and is fixed here for good; the
+     * tunnel is the route to the PBS and can be added, switched or removed later through
+     * `/clients/:id/tunnel`. An outbound client that can reach the PBS itself needs none.
      */
     static async createOutbound(request: FastifyRequest, reply: FastifyReply) {
         const body = (request.body ?? {}) as OutboundBody;
@@ -40,11 +45,15 @@ export class ClientController {
                 error: "outboundTargetAddress and registrationSecret are required",
             });
         }
+        // Partial credentials are a mistake, not a decision: either a tunnel comes along
+        // in full or none does.
+        const wantsTunnel = !!tunnel && Object.keys(tunnel).length > 0;
         if (
-            !tunnel?.sshHost ||
-            !tunnel?.sshUser ||
-            !tunnel?.privateKey ||
-            !tunnel?.hostKeySha256
+            wantsTunnel &&
+            (!tunnel?.sshHost ||
+                !tunnel?.sshUser ||
+                !tunnel?.privateKey ||
+                !tunnel?.hostKeySha256)
         ) {
             return reply.code(400).send({
                 error: "Incomplete SSH credentials (sshHost, sshUser, privateKey, hostKeySha256)",
@@ -53,18 +62,20 @@ export class ClientController {
 
         // Step 1 — prove the tunnel works and that the host key matches the fingerprint
         // the operator confirmed in the wizard.
-        const test = await TunnelService.testConnection({
-            sshHost: tunnel.sshHost,
-            sshPort: tunnel.sshPort,
-            sshUser: tunnel.sshUser,
-            privateKey: tunnel.privateKey,
-            passphrase: tunnel.passphrase,
-            expectedHostKeySha256: tunnel.hostKeySha256,
-        });
-        if (!test.ok) {
-            return reply
-                .code(400)
-                .send({ error: `SSH tunnel test failed: ${test.error}` });
+        if (wantsTunnel) {
+            const test = await TunnelService.testConnection({
+                sshHost: tunnel!.sshHost!,
+                sshPort: tunnel!.sshPort,
+                sshUser: tunnel!.sshUser!,
+                privateKey: tunnel!.privateKey!,
+                passphrase: tunnel!.passphrase,
+                expectedHostKeySha256: tunnel!.hostKeySha256,
+            });
+            if (!test.ok) {
+                return reply
+                    .code(400)
+                    .send({ error: `SSH tunnel test failed: ${test.error}` });
+            }
         }
 
         // Step 2 — registration and AUTH. Nothing is written before this succeeds.
@@ -86,14 +97,16 @@ export class ClientController {
                         authToken,
                         version,
                     );
-                    ClientTunnelRepository.create(id, {
-                        sshHost: tunnel.sshHost!,
-                        sshPort: tunnel.sshPort,
-                        sshUser: tunnel.sshUser!,
-                        privateKey: tunnel.privateKey!,
-                        passphrase: tunnel.passphrase,
-                        hostKeySha256: tunnel.hostKeySha256!,
-                    });
+                    if (wantsTunnel) {
+                        ClientTunnelRepository.create(id, {
+                            sshHost: tunnel!.sshHost!,
+                            sshPort: tunnel!.sshPort,
+                            sshUser: tunnel!.sshUser!,
+                            privateKey: tunnel!.privateKey!,
+                            passphrase: tunnel!.passphrase,
+                            hostKeySha256: tunnel!.hostKeySha256!,
+                        });
+                    }
                 })();
                 persisted = true;
             },

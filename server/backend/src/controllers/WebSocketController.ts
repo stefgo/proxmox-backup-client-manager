@@ -264,7 +264,13 @@ export class WebSocketController {
                         socket.send(
                             JSON.stringify({
                                 type: WS_EVENTS.AUTH_SUCCESS,
-                                payload: { lastSyncTime },
+                                payload: {
+                                    lastSyncTime,
+                                    tunnelRequired:
+                                        ClientTunnelRepository.isEnabled(
+                                            clientId!,
+                                        ),
+                                },
                             }),
                         );
                         ProxyService.broadcastClientUpdate();
@@ -474,13 +480,15 @@ export class WebSocketController {
         };
 
         try {
-            const client = ClientRepository.findById(clientId);
-            if (!client || client.connection_mode !== "outbound") {
-                deny("Client is not an outbound client — no tunnel applies");
+            if (!ClientRepository.findById(clientId)) {
+                deny("Unknown client");
                 return;
             }
-            if (!ClientTunnelRepository.findByClientId(clientId)) {
-                deny("No SSH tunnel is configured for this client");
+            // The connection mode says nothing here: a tunnelled inbound client is as
+            // entitled to a lease as an outbound one, and an outbound client without a
+            // tunnel is not entitled to one at all.
+            if (!ClientTunnelRepository.isEnabled(clientId)) {
+                deny("No SSH tunnel is enabled for this client");
                 return;
             }
 
@@ -708,7 +716,11 @@ export class WebSocketController {
                     socket.send(
                         JSON.stringify({
                             type: WS_EVENTS.AUTH_SUCCESS,
-                            payload: { lastSyncTime },
+                            payload: {
+                                lastSyncTime,
+                                tunnelRequired:
+                                    ClientTunnelRepository.isEnabled(clientId),
+                            },
                         }),
                     );
                     ProxyService.broadcastClientUpdate();

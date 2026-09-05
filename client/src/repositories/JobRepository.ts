@@ -57,7 +57,6 @@ export class JobRepository {
                 lastRunAt: row.last_run,
                 repository: config.repository,
                 encryption: config.encryption,
-                tunnel: config.tunnel,
             };
         });
     }

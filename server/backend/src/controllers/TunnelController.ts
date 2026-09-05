@@ -5,6 +5,7 @@ import ssh2 from "ssh2";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
+import { ProxyService } from "../services/ProxyService.js";
 
 interface TunnelUpdateBody {
     sshHost?: string;
@@ -13,6 +14,19 @@ interface TunnelUpdateBody {
     privateKey?: string;
     passphrase?: string | null;
     hostKeySha256?: string;
+    /** Switches the route without touching the credentials. */
+    enabled?: boolean;
+}
+
+interface TunnelCreateBody {
+    sshHost?: string;
+    sshPort?: number;
+    sshUser?: string;
+    privateKey?: string;
+    passphrase?: string;
+    hostKeySha256?: string;
+    /** Defaults to on — a tunnel is configured in order to be used. */
+    enabled?: boolean;
 }
 
 interface KeyPairBody {
@@ -57,6 +71,7 @@ export class TunnelController {
             sshHost: row.ssh_host,
             sshPort: row.ssh_port,
             sshUser: row.ssh_user,
+            enabled: !!row.enabled,
             hasPrivateKey: !!row.private_key,
             hasPassphrase: !!row.passphrase,
             hostKeySha256: row.host_key_sha256,
@@ -66,24 +81,84 @@ export class TunnelController {
     }
 
     /**
-     * Updates the SSH credentials. Neither the connection mode nor the tunnel target nor
-     * the bind port are editable: the mode is fixed at creation time, the target follows
-     * from each job's repository and the port is allocated per forward.
+     * Attaches a tunnel to an existing client — the only way an inbound client gets one,
+     * since it does not exist as a row until its agent has registered itself.
+     *
+     * Unlike the outbound create flow in `ClientController`, nothing here is atomic with
+     * a registration: the client already exists, so a failed test costs nothing but the
+     * error message. The test still runs first, so a tunnel is never stored in a state
+     * that was never seen to work.
+     */
+    static async create(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+        const body = (request.body ?? {}) as TunnelCreateBody;
+
+        if (!ClientRepository.findById(clientId)) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+        if (ClientTunnelRepository.findByClientId(clientId)) {
+            return reply.code(409).send({
+                error: "This client already has an SSH tunnel — edit it instead",
+            });
+        }
+        if (
+            !body.sshHost ||
+            !body.sshUser ||
+            !body.privateKey ||
+            !body.hostKeySha256
+        ) {
+            return reply.code(400).send({
+                error: "Incomplete SSH credentials (sshHost, sshUser, privateKey, hostKeySha256)",
+            });
+        }
+
+        const test = await TunnelService.testConnection({
+            sshHost: body.sshHost,
+            sshPort: body.sshPort,
+            sshUser: body.sshUser,
+            privateKey: body.privateKey,
+            passphrase: body.passphrase,
+            expectedHostKeySha256: body.hostKeySha256,
+        });
+        if (!test.ok) {
+            return reply
+                .code(400)
+                .send({ error: `SSH tunnel test failed: ${test.error}` });
+        }
+
+        const enabled = body.enabled !== false;
+        ClientTunnelRepository.create(clientId, {
+            sshHost: body.sshHost,
+            sshPort: body.sshPort,
+            sshUser: body.sshUser,
+            privateKey: body.privateKey,
+            passphrase: body.passphrase,
+            hostKeySha256: body.hostKeySha256,
+            enabled,
+        });
+
+        // The agent's stored jobs carry no route of their own — it follows this flag,
+        // which it has to be told about before its next run.
+        ProxyService.pushTunnelMode(clientId, enabled);
+        ProxyService.broadcastClientUpdate();
+        return { status: "created" };
+    }
+
+    /**
+     * Updates the SSH credentials and switches the route on or off. Neither the
+     * connection mode nor the tunnel target nor the bind port are editable: the mode is
+     * fixed at creation time, the target follows from each job's repository and the port
+     * is allocated per forward.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
         const body = (request.body ?? {}) as TunnelUpdateBody;
 
-        const client = ClientRepository.findById(clientId);
-        if (!client) {
+        if (!ClientRepository.findById(clientId)) {
             return reply.code(404).send({ error: "Client not found" });
         }
-        if (client.connection_mode !== "outbound") {
-            return reply.code(400).send({
-                error: "Only outbound clients have an SSH tunnel",
-            });
-        }
-        if (!ClientTunnelRepository.findByClientId(clientId)) {
+        const row = ClientTunnelRepository.findByClientId(clientId);
+        if (!row) {
             return reply
                 .code(404)
                 .send({ error: "No SSH tunnel is configured for this client" });
@@ -94,9 +169,38 @@ export class TunnelController {
             return reply.code(400).send({ error: "No changes submitted" });
         }
 
-        // New credentials must not be used by an existing connection.
+        // New credentials must not be used by an existing connection — and neither must
+        // a route that was just switched off. A run holding a lease at this moment fails
+        // with a clear error, which is the honest outcome: its remaining bytes would go
+        // to a port that is about to disappear.
         TunnelService.closeClient(clientId);
+
+        if (body.enabled !== undefined && body.enabled !== !!row.enabled) {
+            ProxyService.pushTunnelMode(clientId, body.enabled);
+            ProxyService.broadcastClientUpdate();
+        }
         return { status: "updated" };
+    }
+
+    /**
+     * Removes the tunnel entirely, credentials included. The client stays, and its runs
+     * go directly to the PBS from now on — which for a host without a route there means
+     * they will fail until a tunnel is set up again.
+     */
+    static async remove(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+
+        const info = ClientTunnelRepository.delete(clientId);
+        if (info.changes === 0) {
+            return reply
+                .code(404)
+                .send({ error: "No SSH tunnel is configured for this client" });
+        }
+
+        TunnelService.closeClient(clientId);
+        ProxyService.pushTunnelMode(clientId, false);
+        ProxyService.broadcastClientUpdate();
+        return { status: "deleted" };
     }
 
     /**

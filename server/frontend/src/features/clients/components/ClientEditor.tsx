@@ -15,7 +15,7 @@ interface ClientEditorProps {
 /**
  * Edits a client: one card per resource the backend actually exposes.
  *
- * The split is not cosmetic. `PUT /clients/:id` and `PUT /clients/:id/tunnel` are separate
+ * The split is not cosmetic. `PUT /clients/:id` and the `/clients/:id/tunnel` endpoints are separate
  * endpoints with separate failure modes, and the previous single form gave them one
  * prominent save button that submitted only the first — SSH edits were lost without a
  * word. Two cards, two buttons, and no form spanning both.
@@ -31,13 +31,11 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
     // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the store instead of the prop.
     const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
-    const isOutbound = live.connectionMode === 'outbound';
-
     // `useState` setters are referentially stable, so the cards can list them in an effect's
     // dependencies without re-running it on every render of this component.
     const [identityDirty, setIdentityDirty] = useState(false);
     const [tunnelDirty, setTunnelDirty] = useState(false);
-    const dirty = identityDirty || (isOutbound && tunnelDirty);
+    const dirty = identityDirty || tunnelDirty;
 
     // Escape closes the editor — the same thing the bar's button does, no more. It
     // deliberately does not ask for confirmation when something is unsaved: closing has
@@ -61,13 +59,14 @@ export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) =>
                 onSave={onSave}
                 onDirtyChange={setIdentityDirty}
             />
-            {isOutbound && (
-                <ClientTunnelCard
-                    clientId={live.id}
-                    state={live.tunnel}
-                    onDirtyChange={setTunnelDirty}
-                />
-            )}
+            {/* Shown for every client, in either connection mode: the tunnel is the route
+                to the PBS and is optional on both sides of the WebSocket. The card itself
+                knows whether one is configured. */}
+            <ClientTunnelCard
+                clientId={live.id}
+                state={live.tunnel}
+                onDirtyChange={setTunnelDirty}
+            />
 
             {/* `sticky bottom-0` as the last child: its resting place is the end of the
                 editor, so it sits there once the operator has scrolled all the way down —

@@ -10,6 +10,8 @@ export interface ClientTunnelRow {
     passphrase: string | null;
     host_key_sha256: string;
     remote_bind_host: string;
+    /** SQLite has no boolean: 1 = runs go through the tunnel, 0 = credentials parked. */
+    enabled: number;
     last_used_at: string | null;
 }
 
@@ -36,6 +38,44 @@ export class ClientTunnelRepository {
      * Returns the tunnel parameters with private key and passphrase decrypted.
      * Throws if the secrets cannot be decrypted (usually a changed tunnel.keySecret).
      */
+    /**
+     * Whether this client's runs must go through the tunnel. The one question the rest
+     * of the backend asks — deliberately not `connection_mode`, which only says who
+     * dials the WebSocket. Credentials without the flag are parked, not in use.
+     */
+    static isEnabled(clientId: string): boolean {
+        const row = db
+            .prepare("SELECT enabled FROM client_tunnels WHERE client_id = ?")
+            .get(clientId) as { enabled: number } | undefined;
+        return !!row?.enabled;
+    }
+
+    /** Every client that has SSH credentials stored, enabled or not. */
+    static findAllClientIds(): string[] {
+        return (
+            db.prepare("SELECT client_id FROM client_tunnels").all() as {
+                client_id: string;
+            }[]
+        ).map((r) => r.client_id);
+    }
+
+    /** Every client that currently routes through a tunnel. */
+    static findEnabledClientIds(): string[] {
+        return (
+            db
+                .prepare("SELECT client_id FROM client_tunnels WHERE enabled = 1")
+                .all() as { client_id: string }[]
+        ).map((r) => r.client_id);
+    }
+
+    static setEnabled(clientId: string, enabled: boolean): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE client_tunnels SET enabled = ?, updated_at = datetime('now') WHERE client_id = ?",
+            )
+            .run(enabled ? 1 : 0, clientId);
+    }
+
     static findCredentials(clientId: string): TunnelCredentials | undefined {
         const row = this.findByClientId(clientId);
         if (!row) return undefined;
@@ -64,13 +104,15 @@ export class ClientTunnelRepository {
             passphrase?: string;
             hostKeySha256: string;
             remoteBindHost?: string;
+            /** Defaults to on: a tunnel is configured in order to be used. */
+            enabled?: boolean;
         },
     ): void {
         db.prepare(
             `
             INSERT INTO client_tunnels
-                (client_id, ssh_host, ssh_port, ssh_user, private_key, passphrase, host_key_sha256, remote_bind_host)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (client_id, ssh_host, ssh_port, ssh_user, private_key, passphrase, host_key_sha256, remote_bind_host, enabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         ).run(
             clientId,
@@ -81,10 +123,15 @@ export class ClientTunnelRepository {
             data.passphrase ? encryptSecret(data.passphrase) : null,
             data.hostKeySha256,
             data.remoteBindHost ?? "127.0.0.1",
+            data.enabled === false ? 0 : 1,
         );
     }
 
-    /** Updates the SSH credentials only. Mode, target and port are not editable by design. */
+    /**
+     * Updates the SSH credentials and the enabled flag. Tunnel target and bind port stay
+     * out of it by design: the target follows from each job's repository, the port is
+     * allocated per forward.
+     */
     static update(
         clientId: string,
         data: {
@@ -94,6 +141,7 @@ export class ClientTunnelRepository {
             privateKey?: string;
             passphrase?: string | null;
             hostKeySha256?: string;
+            enabled?: boolean;
         },
     ): { changes: number } {
         const sets: string[] = [];
@@ -122,6 +170,10 @@ export class ClientTunnelRepository {
         if (data.hostKeySha256 !== undefined) {
             sets.push("host_key_sha256 = ?");
             values.push(data.hostKeySha256);
+        }
+        if (data.enabled !== undefined) {
+            sets.push("enabled = ?");
+            values.push(data.enabled ? 1 : 0);
         }
 
         if (sets.length === 0) return { changes: 0 };

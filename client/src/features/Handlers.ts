@@ -138,17 +138,16 @@ export class Handlers {
                 nextRunAt,
                 repository,
                 encryption,
-                tunnel,
             } = payload.job;
             const jobId = id || randomUUID();
 
-            // The tunnel marker must survive in the stored config: the executor reads it
-            // from there before a run and refuses to start an outbound job without it.
+            // No tunnel marker in here: the route is a property of the client, not of a
+            // job, and the agent keeps it in agent_state. A copy per job would go stale
+            // the moment the server switched the tunnel while this client was offline.
             const configObj = {
                 archives: archives || [],
                 repository: repository || undefined,
                 encryption: encryption || undefined,
-                tunnel: tunnel || undefined,
             };
             const configStr = JSON.stringify(configObj);
 

@@ -78,6 +78,12 @@ The backend relies on **SQLite3** wrapped with `better-sqlite3` for fast, synchr
 
 ## SSH reverse tunnel and outbound clients
 
-`ClientConnector` dials outbound clients (registration through the agent's `/ws/register`, then a
-session over `/ws/agent`), and `TunnelService` establishes and tears down the SSH reverse tunnel
-on the client's request. Details, setup and test protocol: [tunnel.md](tunnel.md).
+Two independent mechanisms, and the code keeps them apart. `ClientConnector` dials outbound
+clients (registration through the agent's `/ws/register`, then a session over `/ws/agent`) —
+that is the connection mode. `TunnelService` establishes and tears down the SSH reverse tunnel
+on the client's request — that is the route to the PBS, optional and available in either mode.
+
+The one question the rest of the backend asks is `ClientTunnelRepository.isEnabled(clientId)`;
+`connection_mode` is only consulted where the WebSocket direction genuinely matters (dialling
+and reconnecting, IP pinning, the target address). Details, setup and test protocol:
+[tunnel.md](tunnel.md).

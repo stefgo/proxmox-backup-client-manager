@@ -70,32 +70,48 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
     };
 
     /**
-     * Tests the tunnel and, if it stands, creates the client — one button.
+     * Creates the outbound client — and, if one was asked for, tests its tunnel first.
      *
-     * The two halves cannot be separated: the fingerprint the create request
-     * pins is the one this very test was offered, and it is only trustworthy
-     * for as long as nothing in between changes. The server verifies it again
-     * against the host key it is actually presented, so a host that swaps its
-     * key between the two calls fails the create rather than being pinned.
+     * With a tunnel the two halves cannot be separated: the fingerprint the create
+     * request pins is the one this very test was offered, and it is only trustworthy
+     * for as long as nothing in between changes. The server verifies it again against
+     * the host key it is actually presented, so a host that swaps its key between the
+     * two calls fails the create rather than being pinned.
+     *
+     * Without a tunnel there is nothing to test — the client is created directly and
+     * reaches the PBS on its own route.
      */
     const handleTestAndCreate = async () => {
         setCreating(true);
         setError(null);
         try {
-            const testRes = await apiFetch('/api/v1/tunnel/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            let tunnel: Record<string, unknown> | undefined;
+
+            if (outbound.useTunnel) {
+                const testRes = await apiFetch('/api/v1/tunnel/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sshHost: outbound.sshHost,
+                        sshPort: Number(outbound.sshPort) || 22,
+                        sshUser: outbound.sshUser,
+                        privateKey: outbound.privateKey,
+                        passphrase: outbound.passphrase || undefined,
+                    }),
+                });
+                const test: TunnelTestResult = await testRes.json();
+                patchOutbound({ test });
+                if (!test.ok) throw new Error(test.error || 'Tunnel test failed');
+
+                tunnel = {
                     sshHost: outbound.sshHost,
                     sshPort: Number(outbound.sshPort) || 22,
                     sshUser: outbound.sshUser,
                     privateKey: outbound.privateKey,
                     passphrase: outbound.passphrase || undefined,
-                }),
-            });
-            const test: TunnelTestResult = await testRes.json();
-            patchOutbound({ test });
-            if (!test.ok) throw new Error(test.error || 'Tunnel test failed');
+                    hostKeySha256: test.hostKeySha256,
+                };
+            }
 
             const res = await apiFetch('/api/v1/clients/outbound', {
                 method: 'POST',
@@ -104,14 +120,7 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
                     hostname: outbound.hostname.trim() || undefined,
                     outboundTargetAddress: outbound.targetAddress.trim(),
                     registrationSecret: outbound.registrationSecret.trim(),
-                    tunnel: {
-                        sshHost: outbound.sshHost,
-                        sshPort: Number(outbound.sshPort) || 22,
-                        sshUser: outbound.sshUser,
-                        privateKey: outbound.privateKey,
-                        passphrase: outbound.passphrase || undefined,
-                        hostKeySha256: test.hostKeySha256,
-                    },
+                    tunnel,
                 }),
             });
             const data = await res.json();
@@ -141,32 +150,47 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
         },
     ];
 
+    // The SSH step is part of the flow only when a tunnel was asked for: without one
+    // there are no credentials to collect and nothing to test.
     const outboundSteps: WizardStep[] = [
         {
             id: 'outbound-agent',
             label: 'Agent',
             canContinue: !!outbound.targetAddress.trim() && !!outbound.registrationSecret.trim(),
-            content: <StepOutboundAgent form={outbound} onPatch={patchOutbound} />,
-        },
-        {
-            id: 'outbound-ssh',
-            label: 'SSH',
-            canContinue: !!outbound.sshHost.trim() && !!outbound.sshUser.trim() && !!outbound.privateKey.trim(),
             content: (
-                <StepOutboundSsh
-                    token={token}
-                    form={outbound}
-                    onPatch={patchOutbound}
-                    error={error}
-                />
+                <StepOutboundAgent form={outbound} onPatch={patchOutbound} error={error} />
             ),
         },
+        ...(outbound.useTunnel
+            ? [
+                  {
+                      id: 'outbound-ssh',
+                      label: 'SSH',
+                      canContinue:
+                          !!outbound.sshHost.trim() &&
+                          !!outbound.sshUser.trim() &&
+                          !!outbound.privateKey.trim(),
+                      content: (
+                          <StepOutboundSsh
+                              token={token}
+                              form={outbound}
+                              onPatch={patchOutbound}
+                              error={error}
+                          />
+                      ),
+                  },
+              ]
+            : []),
     ];
 
     const steps: WizardStep[] = [
         modeStep,
         ...(mode === 'inbound' ? inboundSteps : mode === 'outbound' ? outboundSteps : []),
     ];
+
+    // Turning the tunnel off on the agent step removes the step after it. The index is
+    // controlled here, so it would otherwise be left pointing past the end of the array.
+    const safeIndex = Math.min(index, steps.length - 1);
 
     return (
         <Card
@@ -177,12 +201,16 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
         >
             <Wizard
                 steps={steps}
-                value={index}
+                value={safeIndex}
                 onChange={setIndex}
                 onCancel={onClose}
                 onFinish={mode === 'inbound' ? handleCreateInbound : handleTestAndCreate}
-                finishLabel={mode === 'inbound' ? 'Create' : 'Test & Create'}
-                finishIcon={mode === 'inbound' ? KeyRound : PlugZap}
+                finishLabel={
+                    mode === 'inbound' || !outbound.useTunnel ? 'Create' : 'Test & Create'
+                }
+                finishIcon={
+                    mode === 'inbound' || !outbound.useTunnel ? KeyRound : PlugZap
+                }
                 isFinishing={creating}
             />
 

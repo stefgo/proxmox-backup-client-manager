@@ -24,6 +24,13 @@ export interface OutboundForm {
     hostname: string;
     targetAddress: string;
     registrationSecret: string;
+    /**
+     * Whether the server should reach the PBS through an SSH reverse tunnel to this
+     * host. Optional and independent of the connection mode — an outbound client that
+     * can reach the PBS itself needs none, and it can still be added later in the
+     * client editor.
+     */
+    useTunnel: boolean;
     sshHost: string;
     sshPort: string;
     sshUser: string;
@@ -45,6 +52,7 @@ const EMPTY_OUTBOUND: OutboundForm = {
     hostname: '',
     targetAddress: '',
     registrationSecret: '',
+    useTunnel: true,
     sshHost: '',
     sshPort: '22',
     sshUser: '',
@@ -63,6 +71,7 @@ const EMPTY_OUTBOUND: OutboundForm = {
  * "Test & Create" tests and creates in one go and uses that run's own answer.
  */
 const SSH_FIELDS: (keyof OutboundForm)[] = [
+    'useTunnel',
     'sshHost',
     'sshPort',
     'sshUser',

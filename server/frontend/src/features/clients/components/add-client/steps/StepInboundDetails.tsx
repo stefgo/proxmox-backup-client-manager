@@ -35,6 +35,14 @@ export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsP
                 hint="Where the token may be redeemed from, and what the client stays pinned to. Leave it empty to pin the client to the address it registers from."
             />
 
+            {/* The tunnel is optional in this mode too, but it cannot be set up here:
+                an inbound client does not exist as a row until its agent has redeemed
+                the token, and there would be nothing to attach the credentials to. */}
+            <p className="text-xs text-text-muted">
+                If this host cannot reach the PBS itself, add an SSH reverse tunnel in the
+                client editor once the agent has registered.
+            </p>
+
             {error && <div className="text-sm text-error break-words">{error}</div>}
         </div>
     );

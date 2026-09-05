@@ -10,12 +10,12 @@ const OPTIONS: { value: ConnectionMode; title: string; summary: string }[] = [
     {
         value: 'inbound',
         title: 'Inbound',
-        summary: 'the client dials the server — the default, for a host that can reach the PBS itself.',
+        summary: 'the client dials the server — the default, for a host that may open outbound connections.',
     },
     {
         value: 'outbound',
         title: 'Outbound',
-        summary: 'the server dials the client and hands it a route to the PBS through an SSH reverse tunnel.',
+        summary: 'the server dials the client — for a host that must not dial out, or is not allowed to.',
     },
 ];
 
@@ -60,8 +60,13 @@ export const StepConnectionMode = ({ mode, onModeChange }: StepConnectionModePro
         </RadioGroup>
 
         <p className="text-xs text-text-muted">
-            The mode is fixed once the client exists. Changing it later means deleting the
-            client — and its job history goes with it.
+            This is only about who dials whom. How the client reaches the PBS is a separate
+            question — an SSH reverse tunnel can be used with either mode, and switched on
+            or off at any time.
+        </p>
+        <p className="text-xs text-text-muted">
+            The mode itself is fixed once the client exists. Changing it later means
+            deleting the client — and its job history goes with it.
         </p>
     </div>
 );

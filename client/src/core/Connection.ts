@@ -16,9 +16,11 @@ import {
     JobDeleteRequestSchema,
     GenerateKeyRequestSchema,
     HistoryRequestSchema,
+    TunnelModeSchema,
 } from "@pbcm/shared";
 import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
+import { TunnelClient } from "../features/TunnelClient.js";
 import db from "./Database.js";
 
 import { logger } from "./logger.js";
@@ -43,6 +45,7 @@ const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.JOB_DELETE_CONFIG]: JobDeleteRequestSchema,
     [WS_EVENTS.GENERATE_KEY_CONFIG]: GenerateKeyRequestSchema,
     [WS_EVENTS.HISTORY]: HistoryRequestSchema,
+    [WS_EVENTS.TUNNEL_MODE]: TunnelModeSchema,
 };
 
 export class Connection {
@@ -237,6 +240,12 @@ export class Connection {
                     case WS_EVENTS.AUTH_SUCCESS:
                         logger.info("Authenticated successfully");
 
+                        // Sent on every authentication, so a reconnect is always enough
+                        // to correct a route the agent got out of step with.
+                        TunnelClient.setRequired(
+                            !!message.payload?.tunnelRequired,
+                        );
+
                         // Delta Sync History
                         try {
                             const lastSyncTime =
@@ -314,6 +323,12 @@ export class Connection {
                         break;
                     case WS_EVENTS.TUNNEL_ACQUIRE_RESULT:
                         Connection.resolvePending(message.payload);
+                        break;
+                    // The server switched the route while we were connected. Without
+                    // this the change would only take effect on the next reconnect,
+                    // and a scheduled run in between would take the old one.
+                    case WS_EVENTS.TUNNEL_MODE:
+                        TunnelClient.setRequired(!!message.payload?.required);
                         break;
                 }
             } catch (err) {

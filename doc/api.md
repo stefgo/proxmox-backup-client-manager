@@ -496,10 +496,14 @@ the client, which discards its job history.
 
 `POST /v1/clients/outbound`
 
-**Description:** Creates a client the **server** connects to, together with its SSH reverse
-tunnel — deliberately one atomic operation. Nothing is persisted unless both the tunnel test
-and the registration handshake succeed. The connection mode is fixed here and cannot be
-changed later. See `doc/tunnel.md`.
+**Description:** Creates a client the **server** connects to, optionally together with an SSH
+reverse tunnel. If a `tunnel` object is given, create and tunnel are one atomic operation:
+nothing is persisted unless both the tunnel test and the registration handshake succeed.
+Omit `tunnel` entirely for a client that reaches the PBS on its own — one can be added later
+via `POST /v1/clients/:clientId/tunnel`. Partial credentials are rejected with 400.
+
+The connection mode is fixed here and cannot be changed later; the tunnel can. See
+`doc/tunnel.md`.
 
 **Example Request:**
 
@@ -537,8 +541,23 @@ backoff. Returns `{ "connected": true | false }`.
 
 `GET /v1/clients/:clientId/tunnel`
 
-**Description:** SSH tunnel configuration and live state. Never returns secrets — the private
-key is write-only.
+**Description:** SSH tunnel configuration and live state, including `enabled`. Never returns
+secrets — the private key is write-only. `404` when this client has no tunnel, which is an
+ordinary state rather than an error.
+
+---
+
+### Create Client Tunnel
+
+`POST /v1/clients/:clientId/tunnel`
+
+**Description:** Attaches a tunnel to an existing client, in **either** connection mode — the
+only way an inbound client gets one, since it does not exist as a row until its agent has
+registered. Body as in the `tunnel` object of *Create Outbound Client*, plus an optional
+`enabled` (default `true`). The credentials are tested before they are stored; `409` if the
+client already has a tunnel.
+
+The connected agent is told the new route at once via `TUNNEL_MODE`.
 
 ---
 
@@ -546,10 +565,26 @@ key is write-only.
 
 `PUT /v1/clients/:clientId/tunnel`
 
-**Description:** Updates the SSH credentials only. There is no port, no tunnel target and no
-on/off switch: the mode is fixed, the target follows from each job's repository, and the bind
-port is allocated per forward. An existing connection is closed so the new credentials take
-effect.
+**Description:** Updates the SSH credentials and the `enabled` switch. There is no port and
+no tunnel target: the target follows from each job's repository and the bind port is
+allocated per forward. An existing connection is closed so the new credentials — or the new
+route — take effect at once, which fails a run that is holding a lease at that moment.
+
+| Field | Type | Description |
+| :---- | :--- | :---------- |
+| `sshHost`, `sshPort`, `sshUser` | string / number / string | SSH endpoint. |
+| `privateKey`, `passphrase` | string | Write-only; omit to keep the stored key. |
+| `hostKeySha256` | string | Re-pins the host key. |
+| `enabled` | boolean | Whether runs take this route. Pushed to the agent as `TUNNEL_MODE`. |
+
+---
+
+### Delete Client Tunnel
+
+`DELETE /v1/clients/:clientId/tunnel`
+
+**Description:** Removes the tunnel and its stored key. The client and its history stay; its
+runs go directly to the PBS from then on.
 
 ---
 
@@ -1323,8 +1358,8 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 ```
 
 **`TUNNEL_ACQUIRE`**
-**Description:** Requests an SSH reverse tunnel lease before a run. Outbound clients only.
-The request carries **no target**: the server resolves the PBS endpoint from the job (or, for
+**Description:** Requests an SSH reverse tunnel lease before a run. Sent by any client whose
+tunnel is enabled, in either connection mode. The request carries **no target**: the server resolves the PBS endpoint from the job (or, for
 restores, from the run it authorised when triggering it) and verifies that the job belongs to
 the requesting client.
 **Payload:**
@@ -1420,11 +1455,29 @@ able to set what every other client then trusts.
 #### Server -> Client Events
 
 **`AUTH_SUCCESS`**
+**Description:** `tunnelRequired` is the client's route to the PBS, sent on **every**
+authentication. The agent persists it, so a reconnect is always enough to correct a value it
+got out of step with — and a scheduled run while the server is unreachable still uses the
+route it was last told about. Jobs do not carry this; a copy per job would go stale the moment
+the tunnel was switched while the client was offline.
 **Payload:**
 
 ```json
 {
-    "lastSyncTime": "ISO-TIMESTAMP"
+    "lastSyncTime": "ISO-TIMESTAMP",
+    "tunnelRequired": false
+}
+```
+
+**`TUNNEL_MODE`**
+**Description:** The route changed while the agent was connected — sent when a tunnel is
+created, switched on or off, or removed. Without it the change would only take effect on the
+next reconnect, and a scheduled run in between would take the old route.
+**Payload:**
+
+```json
+{
+    "required": true
 }
 ```
 
