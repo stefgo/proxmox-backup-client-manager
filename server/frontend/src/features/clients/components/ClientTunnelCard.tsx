@@ -129,6 +129,11 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
     const complete = !!sshHost.trim() && !!sshUser.trim();
     const canSave = isNew ? complete && !!privateKey.trim() : isDirty && complete;
 
+    // Testing without a key in the form falls back to the stored credentials, and a client
+    // that has none answers with a message about the very tunnel being set up here. Ask for
+    // the key first rather than explaining the setup back to the operator.
+    const canTest = complete && (!isNew || !!privateKey.trim());
+
     // Above the early returns for the loading and error states, so the hook order does not
     // depend on whether the configuration has arrived yet.
     useEffect(() => {
@@ -535,7 +540,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
                             Remove
                         </Button>
                     )}
-                    <Button type="button" variant="secondary" onClick={handleTest} disabled={busy || !complete} icon={PlugZap}>
+                    <Button type="button" variant="secondary" onClick={handleTest} disabled={busy || !canTest} icon={PlugZap}>
                         Test Connection
                     </Button>
                     {isNew ? (

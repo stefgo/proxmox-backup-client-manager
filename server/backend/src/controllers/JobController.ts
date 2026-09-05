@@ -159,11 +159,15 @@ export class JobController {
         const { snapshot, targetPath, repository, archives, encryption } =
             parsed.data;
         const runId = randomUUID();
-        // OPEN QUESTION — a restore belongs to no job, so there is no job setting to read.
-        // This keeps the behaviour that has always applied: a client with a tunnel
-        // restores through it. It is wrong for a client that reaches some of its
-        // repositories directly; deriving the route from the jobs on the same repository
-        // is the obvious refinement and is deliberately left for later.
+        // A restore belongs to no job, so there is no per-job `tunnel` to read. It follows
+        // the client's own configuration instead, which is binary — credentials stored or
+        // not — so a client with a tunnel restores through it, for every repository.
+        //
+        // Decided, not left open: the alternative is to copy the setting from the jobs
+        // pointing at the same repository, which would spare the tunnel where the PBS is
+        // reachable directly, but makes a restore depend on a job that may since have been
+        // edited or deleted. A route that always works beats a route that is optimal until
+        // someone touches an unrelated job.
         const tunneled = tunnelAvailable(clientId);
 
         try {

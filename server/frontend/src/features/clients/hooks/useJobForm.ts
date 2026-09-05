@@ -246,8 +246,12 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
                 setEditingJobId(null);
                 if (onSaveSuccess) onSaveSuccess();
             } else {
-                console.error('Failed to save backup job:', res.status, res.statusText);
-                alert('Failed to save job');
+                // The backend refuses a job whose route the client cannot serve, and that
+                // message names the setting that has to change. Dropping it left the
+                // operator with a failure and no cause.
+                const err = await res.json().catch(() => ({}));
+                console.error('Failed to save backup job:', res.status, res.statusText, err);
+                alert('Failed to save job: ' + (err.error || res.statusText));
             }
         } catch (e) { console.error(e); }
     };
