@@ -187,7 +187,7 @@ comes up long after the client exists. It has its own surface, reached from the 
 
 #### `ClientTunnelEditor` / `ClientTunnelCard`
 
-Opened from the client list's row action — **Add SSH Tunnel**, or **Edit SSH Tunnel** when
+Opened from the client list's row action — **Add Tunnel**, or **Edit  Tunnel** when
 `client.tunnelConfigured` — for **every** client, in either connection mode: the tunnel is a
 route to the PBS and is optional on both sides of the WebSocket. Setting one up and changing
 one are one action, not two: the same form on the same endpoints.

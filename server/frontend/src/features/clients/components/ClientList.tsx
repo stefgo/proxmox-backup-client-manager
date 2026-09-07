@@ -65,7 +65,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             variant: 'default' as const,
         },
         {
-            label: client.tunnelConfigured ? 'Edit SSH Tunnel' : 'Add SSH Tunnel',
+            label: client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel',
             icon: Network,
             onClick: () => {
                 editTunnel(client);
