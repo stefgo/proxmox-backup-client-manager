@@ -25,6 +25,11 @@ interface ClientTunnelEditorProps {
  * The work is all in `ClientTunnelCard`; what this adds is the way out, handed to the card
  * so it lands in its header. The card ends with a key field and a host setup snippet, and
  * the header is the only place that stays reachable across all of it.
+ *
+ * No heading of its own: the card is the top-level element here, exactly as in
+ * {@link ClientEditor}. A page heading above it repeated the card's title and put the
+ * client's name in a second place — the card header carries both now, and the two client
+ * editors open the same way.
  */
 export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
     const navigate = useNavigate();
@@ -75,16 +80,9 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
 
     return (
         <div className="space-y-6">
-            <div className="px-1">
-                <h2 className="text-xl font-bold text-text-primary">SSH Reverse Tunnel</h2>
-                <p className="text-sm text-text-muted mt-1">
-                    {live.displayName || live.hostname}
-                    <span className="font-mono text-xs ml-2 opacity-70">{live.id}</span>
-                </p>
-            </div>
-
             <ClientTunnelCard
                 clientId={live.id}
+                clientName={live.displayName || live.hostname}
                 state={live.tunnel}
                 onDirtyChange={setDirty}
                 action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
