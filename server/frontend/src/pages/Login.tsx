@@ -5,6 +5,12 @@ import { getErrorMessage } from '../utils';
 import { useTheme } from '../features/app/context/ThemeContext';
 import { LoginPage } from '@stefgo/react-ui-components';
 
+/**
+ * The one page that uses plain `fetch` instead of `apiFetch`, and deliberately so:
+ * both endpoints here are unauthenticated, and `apiFetch` turns a 401 into a logout
+ * plus redirect. Routed through it, a wrong password would bounce the user out of the
+ * login form instead of showing "Login failed". See the note in `lib/apiFetch.ts`.
+ */
 export default function Login() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);

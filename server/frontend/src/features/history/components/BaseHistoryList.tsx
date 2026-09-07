@@ -1,7 +1,7 @@
-import { Activity, ChevronRight } from "lucide-react";
-import { useState, useEffect, type ComponentProps } from "react";
-import { formatDate } from "../../../utils";
-import { JOB_STATUS } from "@pbcm/shared";
+import { Activity, ChevronRight } from 'lucide-react';
+import { useState, useEffect, type ComponentProps } from 'react';
+import { formatDate } from '../../../utils';
+import { JOB_STATUS } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 
@@ -46,9 +46,9 @@ export interface BaseHistoryListProps {
 
 export const BaseHistoryList = ({
     items,
-    title = "Recent Activity",
+    title = 'Recent Activity',
     showClientName = false,
-    emptyMessage = "No history available",
+    emptyMessage = 'No history available',
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -69,9 +69,9 @@ export const BaseHistoryList = ({
             }
         };
 
-        window.addEventListener("pbcm:log_update", handleLogUpdate);
+        window.addEventListener('pbcm:log_update', handleLogUpdate);
         return () =>
-            window.removeEventListener("pbcm:log_update", handleLogUpdate);
+            window.removeEventListener('pbcm:log_update', handleLogUpdate);
     }, []);
 
     const toggleExpand = (id: string) => {
@@ -94,14 +94,14 @@ export const BaseHistoryList = ({
                             <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2">
                                     <span
-                                        className={`transition-all duration-200 ${isExpanded ? "rotate-90" : ""
+                                        className={`transition-all duration-200 ${isExpanded ? 'rotate-90' : ''
                                             }`}
                                     >
                                         <ChevronRight size={14} className="text-text-muted" />
                                     </span>
                                     <span className="text-sm font-medium text-text-primary">
-                                        {showClientName && `${item.displayName || item.hostname || "Unknown Client"} : `}
-                                        {item.name || item.jobId || "Unknown Job"}
+                                        {showClientName && `${item.displayName || item.hostname || 'Unknown Client'} : `}
+                                        {item.name || item.jobId || 'Unknown Job'}
                                     </span>
                                 </div>
                                 <Badge
@@ -125,13 +125,13 @@ export const BaseHistoryList = ({
                                     <div
                                         className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-badge-info-bg text-badge-info-text"
                                     >
-                                        {liveLogs[item.id].join("")}
+                                        {liveLogs[item.id].join('')}
                                     </div>
                                 ) : item.error || item.stderr ? (
                                     <div
                                         className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED
-                                            ? "bg-error-bg text-error"
-                                            : "bg-hover text-text-muted"
+                                            ? 'bg-error-bg text-error'
+                                            : 'bg-hover text-text-muted'
                                             }`}
                                     >
                                         {item.error || item.stderr}

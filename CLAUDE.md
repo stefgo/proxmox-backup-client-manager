@@ -152,6 +152,14 @@ See `doc/development.md` for the workflow details.
   Status pills are the `Badge` component, not hand-built spans.
 - **Icons**: passed as components (`icon={Save}`), never as elements — the
   surface sets the size and `aria-hidden` itself.
+- **Quotes**: `'single'` in `server/frontend`, `"double"` in `shared`, `client` and
+  `server/backend`. The split is a fact of the codebase, not an accident — the
+  frontend runs about 250 single-quoted imports against 70 the other way, the three
+  Node workspaces the reverse — and with no formatter to enforce either, flipping one
+  side would be a diff nothing maintains. **A file picks one and stays with it**; that
+  is the part worth checking in review.
+- **Loading state**: one full-panel spinner, `components/LoadingIndicator`. A second
+  hand-built one is how the first two came to look different.
 
 ## Key Docs
 

@@ -5,10 +5,10 @@ import {
     Pencil,
     KeyRound,
     Plus,
-} from "lucide-react";
-import { useMemo, useState } from "react";
-import { CLIENT_STATUS, ClientStatus } from "@pbcm/shared";
-import { formatDate } from "../../../utils";
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
+import { formatDate } from '../../../utils';
 import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
@@ -49,7 +49,7 @@ export interface BaseJobListProps<T extends BaseJobItem> {
 
 export const BaseJobList = <T extends BaseJobItem>({
     jobs,
-    title = "Jobs",
+    title = 'Jobs',
     showClientColumn = false,
     showNewJobButton = false,
     onEditJob,
@@ -58,7 +58,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     onCreateJob,
     getClientStatus,
     getClientName,
-    viewModeStorageKey = "jobViewMode",
+    viewModeStorageKey = 'jobViewMode',
 }: BaseJobListProps<T>) => {
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -90,12 +90,15 @@ export const BaseJobList = <T extends BaseJobItem>({
         if (!isOnline) {
             return (
                 <span className="text-text-muted grayscale">
-                    {date < now ? "Pending" : formatDate(date)}
+                    {date < now ? 'Pending' : formatDate(date)}
                 </span>
             );
         }
         if (date < now) {
-            return <span className="text-orange-500 font-semibold">Pending</span>;
+            // An overdue run on an online client is a warning, and `warning` is the
+            // role for it — the palette colour this used to name resolves to the same
+            // orange in light mode but has no counterpart in the library's dark block.
+            return <span className="text-warning font-semibold">Pending</span>;
         }
         return (
             <span className="text-success">
@@ -116,7 +119,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         if (showClientColumn) {
             cols.push({
-                tableHeader: "Client",
+                tableHeader: 'Client',
                 sortable: true,
                 sortValue: (job) => (job.clientId && getClientName ? getClientName(job.clientId) : '') ?? '',
                 tableItemRender: (job) => {
@@ -125,22 +128,22 @@ export const BaseJobList = <T extends BaseJobItem>({
                         <div className="flex items-center gap-3 mb-1">
                             <div
                                 className={`w-2 h-2 rounded-full shrink-0 ${online
-                                    ? "bg-success shadow-glow-success"
-                                    : "bg-border"
+                                    ? 'bg-success shadow-glow-success'
+                                    : 'bg-border'
                                     }`}
                             />
                             <div
-                                className={`text-sm ${online ? "text-text-primary" : ""
+                                className={`text-sm ${online ? 'text-text-primary' : ''
                                     } max-w-[150px] truncate`}
                                 title={
                                     job.clientId && getClientName
                                         ? getClientName(job.clientId)
-                                        : "Unknown"
+                                        : 'Unknown'
                                 }
                             >
                                 {job.clientId && getClientName
                                     ? getClientName(job.clientId)
-                                    : "Unknown"}
+                                    : 'Unknown'}
                             </div>
                         </div>
                     );
@@ -149,7 +152,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         }
 
         cols.push({
-            tableHeader: "Job",
+            tableHeader: 'Job',
             sortable: true,
             sortValue: (job) => job.name,
             tableItemRender: (job) => {
@@ -157,7 +160,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 return (
                     <>
                         <div
-                            className={`text-sm ${online ? "font-medium text-text-primary" : ""
+                            className={`text-sm ${online ? 'font-medium text-text-primary' : ''
                                 }`}
                         >
                             {job.name}
@@ -171,13 +174,13 @@ export const BaseJobList = <T extends BaseJobItem>({
         });
 
         cols.push({
-            tableHeader: "Archives",
+            tableHeader: 'Archives',
             sortable: true,
             sortValue: (job) => job.archives?.length ?? 0,
             tableItemRender: (job) => {
                 const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <div className={`text-sm ${online ? "text-text-primary" : ""}`}>
+                    <div className={`text-sm ${online ? 'text-text-primary' : ''}`}>
                         {job.archives?.length || 0}
                     </div>
                 );
@@ -185,17 +188,17 @@ export const BaseJobList = <T extends BaseJobItem>({
         });
 
         cols.push({
-            tableHeader: "Schedule",
+            tableHeader: 'Schedule',
             sortable: true,
             sortValue: (job) => job.nextRunAt ?? '',
             tableItemRender: (job) => {
                 const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <div className={`text-sm ${online ? "text-text-muted" : ""}`}>
+                    <div className={`text-sm ${online ? 'text-text-muted' : ''}`}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, online)
                         ) : (
-                            <span className={online ? "text-text-muted" : ""}>
+                            <span className={online ? 'text-text-muted' : ''}>
                                 Manual Only
                             </span>
                         )}
@@ -206,8 +209,8 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         // Encryption indicator
         cols.push({
-            tableHeader: "Encrypted",
-            tableHeaderClassName: "w-8",
+            tableHeader: 'Encrypted',
+            tableHeaderClassName: 'w-8',
             tableItemRender: (job) => {
                 const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return job.encryption?.enabled ? (
@@ -215,8 +218,8 @@ export const BaseJobList = <T extends BaseJobItem>({
                         size={16}
                         className={
                             online
-                                ? "text-text-muted"
-                                : "text-text-muted"
+                                ? 'text-text-muted'
+                                : 'text-text-muted'
                         }
                     />
                 ) : null;
@@ -225,9 +228,9 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         // Actions
         cols.push({
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
             tableItemRender: (job) => {
                 const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 const rowId = job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new');
@@ -239,25 +242,25 @@ export const BaseJobList = <T extends BaseJobItem>({
                                 icon: Play,
                                 onClick: () => onTriggerJob(job),
                                 disabled: !online,
-                                color: "green",
-                                tooltip: { enabled: "Run Now", disabled: "Client Offline" },
+                                color: 'green',
+                                tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
                             },
                             {
                                 icon: Pencil,
                                 onClick: () => onEditJob(job),
                                 disabled: !online,
-                                color: "blue",
-                                tooltip: { enabled: "Edit Job", disabled: "Client Offline" },
+                                color: 'blue',
+                                tooltip: { enabled: 'Edit Job', disabled: 'Client Offline' },
                             },
                         ]}
                         menuEntries={[
                             {
-                                label: "Delete Job",
+                                label: 'Delete Job',
                                 icon: Trash2,
                                 onClick: () => onDeleteJob(job),
                                 disabled: !online,
-                                disabledTitle: "Client Offline",
-                                variant: "danger",
+                                disabledTitle: 'Client Offline',
+                                variant: 'danger',
                             },
                         ]}
                     />
@@ -280,17 +283,17 @@ export const BaseJobList = <T extends BaseJobItem>({
                     return (
                         <div className="flex items-center gap-2 py-1">
                             <span
-                                className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-border"}`}
+                                className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-border'}`}
                             />
                             <span
                                 className={`${isOnline
-                                    ? "text-text-primary"
-                                    : "text-inherit"
+                                    ? 'text-text-primary'
+                                    : 'text-inherit'
                                     }`}
                             >
                                 {job.clientId && getClientName
                                     ? getClientName(job.clientId)
-                                    : "Unknown"}
+                                    : 'Unknown'}
                             </span>
                         </div>
                     );
@@ -308,42 +311,42 @@ export const BaseJobList = <T extends BaseJobItem>({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <span className={isOnline ? "text-text-primary" : "text-inherit"}>
+                    <span className={isOnline ? 'text-text-primary' : 'text-inherit'}>
                         {job.name}
                     </span>
                 );
             },
-            listLabel: "Name",
+            listLabel: 'Name',
         });
 
         contentFields.push({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <span className={isOnline ? "text-text-primary" : "text-inherit"}>
+                    <span className={isOnline ? 'text-text-primary' : 'text-inherit'}>
                         {job.archives?.length || 0}
                     </span>
                 );
             },
-            listLabel: "Archives",
+            listLabel: 'Archives',
         });
 
         contentFields.push({
             listItemRender: (job) => {
                 const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <span className={isOnline ? "text-text-muted" : "text-inherit"}>
+                    <span className={isOnline ? 'text-text-muted' : 'text-inherit'}>
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, isOnline)
                         ) : (
-                            <span className={isOnline ? "text-text-muted" : "text-inherit"}>
+                            <span className={isOnline ? 'text-text-muted' : 'text-inherit'}>
                                 Manual Only
                             </span>
                         )}
                     </span>
                 );
             },
-            listLabel: "Schedule",
+            listLabel: 'Schedule',
         });
 
         // Encryption indicator
@@ -352,12 +355,12 @@ export const BaseJobList = <T extends BaseJobItem>({
                 if (!job.encryption?.enabled) return null;
                 const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <span className={`${isOnline ? "text-text-muted" : "text-inherit"} flex items-center gap-1`}>
-                        <KeyRound size={14} className={isOnline ? "" : "text-inherit"} /> Yes
+                    <span className={`${isOnline ? 'text-text-muted' : 'text-inherit'} flex items-center gap-1`}>
+                        <KeyRound size={14} className={isOnline ? '' : 'text-inherit'} /> Yes
                     </span>
                 );
             },
-            listLabel: "Encrypted",
+            listLabel: 'Encrypted',
         });
 
         // Actions
@@ -373,25 +376,25 @@ export const BaseJobList = <T extends BaseJobItem>({
                                     icon: Play,
                                     onClick: () => onTriggerJob(job),
                                     disabled: !isOnline,
-                                    color: "green",
-                                    tooltip: { enabled: "Run Now", disabled: "Client Offline" },
+                                    color: 'green',
+                                    tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
                                 },
                                 {
                                     icon: Pencil,
                                     onClick: () => onEditJob(job),
                                     disabled: !isOnline,
-                                    color: "blue",
-                                    tooltip: { enabled: "Edit Job", disabled: "Client Offline" },
+                                    color: 'blue',
+                                    tooltip: { enabled: 'Edit Job', disabled: 'Client Offline' },
                                 },
                             ]}
                             menuEntries={[
                                 {
-                                    label: "Delete Job",
+                                    label: 'Delete Job',
                                     icon: Trash2,
                                     onClick: () => onDeleteJob(job),
                                     disabled: !isOnline,
-                                    disabledTitle: "Client Offline",
-                                    variant: "danger",
+                                    disabledTitle: 'Client Offline',
+                                    variant: 'danger',
                                 },
                             ]}
                         />
@@ -402,8 +405,8 @@ export const BaseJobList = <T extends BaseJobItem>({
         });
 
         return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" }
+            { fields: contentFields, columnClassName: 'flex-1' },
+            { fields: actionFields, columnClassName: 'md:text-right' }
         ];
     };
 
@@ -434,8 +437,8 @@ export const BaseJobList = <T extends BaseJobItem>({
             emptyMessage="No jobs configured."
             rowClassName={(job) =>
                 getStatus(job) === CLIENT_STATUS.ONLINE
-                    ? "align-top"
-                    : "bg-app-bg text-text-muted opacity-75"
+                    ? 'align-top'
+                    : 'bg-app-bg text-text-muted opacity-75'
             }
             pagination={{
                 // The view owns the page state and does the slicing; it sorts across

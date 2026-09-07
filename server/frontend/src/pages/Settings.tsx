@@ -9,6 +9,7 @@ import { cn } from '@stefgo/react-ui-components';
 import { FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { getErrorMessage } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 export default function Settings() {
     const { token } = useAuth();
@@ -98,11 +99,7 @@ export default function Settings() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <RefreshCw className="animate-spin text-primary" size={32} />
-            </div>
-        );
+        return <LoadingIndicator />;
     }
 
     // The tab fills the sidebar's width, so the ring is drawn inside it -- an

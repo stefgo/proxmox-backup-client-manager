@@ -1,14 +1,14 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import * as client from 'openid-client';
-import YAML from 'yaml';
-import { logger } from '@pbcm/shared/node';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import * as client from "openid-client";
+import YAML from "yaml";
+import { logger } from "@pbcm/shared/node";
 
-import crypto from 'crypto';
+import crypto from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = path.resolve(__dirname, '../../../config.yaml');
+const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
 
 export interface AppConfig {
     jwtSecret: string;
@@ -56,7 +56,7 @@ export interface TunnelSettings {
 
 const DEFAULT_TUNNEL: TunnelSettings = {
     enabled: true,
-    remoteBindHost: '127.0.0.1',
+    remoteBindHost: "127.0.0.1",
     connectTimeoutMs: 10000,
     keepaliveIntervalMs: 15000,
     idleGraceMs: 60000,
@@ -68,8 +68,8 @@ const DEFAULT_TUNNEL: TunnelSettings = {
 };
 
 const DEFAULT_SETTINGS = {
-    retention_invalid_tokens_days: '30',
-    retention_invalid_tokens_count: '10'
+    retention_invalid_tokens_days: "30",
+    retention_invalid_tokens_count: "10"
 };
 
 let configDoc: YAML.Document = new YAML.Document({});
@@ -78,11 +78,11 @@ let config: Partial<AppConfig> = {};
 function loadConfig() {
     if (fs.existsSync(CONFIG_PATH)) {
         try {
-            const fileContent = fs.readFileSync(CONFIG_PATH, 'utf-8');
+            const fileContent = fs.readFileSync(CONFIG_PATH, "utf-8");
             configDoc = YAML.parseDocument(fileContent);
             config = configDoc.toJS() as Partial<AppConfig>;
         } catch (e) {
-            logger.error({ err: e }, 'Failed to load config.yaml');
+            logger.error({ err: e }, "Failed to load config.yaml");
         }
     }
     
@@ -122,7 +122,7 @@ function syncDoc() {
     }
 
     const updateRecursive = (path: string[], value: any) => {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        if (value !== null && typeof value === "object" && !Array.isArray(value)) {
             for (const [key, val] of Object.entries(value)) {
                 updateRecursive([...path, key], val);
             }
@@ -147,31 +147,31 @@ export function saveConfig() {
         const yamlOutput = configDoc.toString();
         fs.writeFileSync(CONFIG_PATH, yamlOutput);    
     } catch (e) {
-        logger.error({ err: e, path: CONFIG_PATH }, 'Failed to save config.yaml');
+        logger.error({ err: e, path: CONFIG_PATH }, "Failed to save config.yaml");
         throw e;
     }
 }
 
 if (!config.jwtSecret) {
-    logger.info('No JWT secret found in config.yaml, generating a new one...');
-    config.jwtSecret = crypto.randomBytes(64).toString('hex');
+    logger.info("No JWT secret found in config.yaml, generating a new one...");
+    config.jwtSecret = crypto.randomBytes(64).toString("hex");
     try {
         saveConfig();
-        logger.info('Generated new JWT secret and saved to config.yaml');
+        logger.info("Generated new JWT secret and saved to config.yaml");
     } catch (e) {
-        logger.error({ err: e }, 'Failed to save generated JWT secret to config.yaml');
+        logger.error({ err: e }, "Failed to save generated JWT secret to config.yaml");
     }
 }
 
 if (!config.tunnel?.keySecret) {
-    logger.info('No tunnel key secret found in config.yaml, generating a new one...');
+    logger.info("No tunnel key secret found in config.yaml, generating a new one...");
     config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel || {}) } as TunnelSettings;
-    config.tunnel.keySecret = crypto.randomBytes(32).toString('hex');
+    config.tunnel.keySecret = crypto.randomBytes(32).toString("hex");
     try {
         saveConfig();
-        logger.info('Generated new tunnel key secret and saved to config.yaml');
+        logger.info("Generated new tunnel key secret and saved to config.yaml");
     } catch (e) {
-        logger.error({ err: e }, 'Failed to save generated tunnel key secret to config.yaml');
+        logger.error({ err: e }, "Failed to save generated tunnel key secret to config.yaml");
     }
 }
 
@@ -192,9 +192,9 @@ export async function initOIDC() {
                 appConfig.oidc.client_id,
                 appConfig.oidc.client_secret
             );
-            logger.info('OIDC Client initialized');
+            logger.info("OIDC Client initialized");
         } catch (e) {
-            logger.error({ err: e }, 'Failed to initialize OIDC client');
+            logger.error({ err: e }, "Failed to initialize OIDC client");
         }
     }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
 import { apiFetch } from "../../../lib/apiFetch";
+import { LoadingIndicator } from "../../../components/LoadingIndicator";
 
 export const HistoryOverview = () => {
     const { token } = useAuth();
@@ -34,11 +35,7 @@ export const HistoryOverview = () => {
     }, [token]);
 
     if (loading) {
-        return (
-            <div className="flex-1 flex justify-center items-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-            </div>
-        );
+        return <LoadingIndicator className="flex-1 h-full" />;
     }
 
     if (error) {
