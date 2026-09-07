@@ -1,9 +1,13 @@
 export const migration05 = {
     up: async ({ context: db }: { context: any }) => {
-        // One row per outbound client — mandatory for those, forbidden for inbound ones.
-        // (Superseded by migration 08: the tunnel is optional and available in both
-        // connection modes, and the enabled flag left out here was added there.)
-        // Deliberately absent: no enabled flag (derived from clients.connection_mode),
+        // The SSH credential set of one client. A stored row means the tunnel is
+        // available to that client's jobs; whether a run takes it is decided per job
+        // (BackupJobSchema.tunnel). Independent of clients.connection_mode: the mode
+        // says who dials the WebSocket, the tunnel is the route to the PBS.
+        //
+        // Deliberately absent: no enabled flag (the job decides, and a second switch
+        // beside it would only create states in which the job setting visibly does not
+        // do what it says; the global kill switch is `tunnel.enabled` in config.yaml),
         // no bind port (allocated dynamically per forward), no tunnel target (resolved
         // per job from its repository) and no status (runtime-only, kept in memory).
         db.exec(`
