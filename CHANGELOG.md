@@ -1,3 +1,20 @@
+# [1.4.0-beta.4](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.3...v1.4.0-beta.4) (2026-09-07)
+
+
+### Bug Fixes
+
+* **clients:** Tunnel-Fehler dort zeigen, wo sie entstehen ([21bdcc0](https://github.com/stefgo/proxmox-backup-client-manager/commit/21bdcc0fa80b54025f8dbb10a11a68277da84ac3))
+
+
+### Features
+
+* Client-Assistent für beide Verbindungsarten ([1636bde](https://github.com/stefgo/proxmox-backup-client-manager/commit/1636bdecef10d79495014d968935418517268409))
+* **clients:** Add-Client-Wizard mit Escape verlassen ([988c893](https://github.com/stefgo/proxmox-backup-client-manager/commit/988c893b5a3e3a925418fc5435a0b576f26874d5))
+* **clients:** Ausstieg aus dem Client-Editor an eine Sticky-Leiste geben ([06286d0](https://github.com/stefgo/proxmox-backup-client-manager/commit/06286d0e361cba63297ff563d9a14cab142cd73c))
+* **clients:** Client-Editor in Identitäts- und Tunnel-Card trennen ([2b7006f](https://github.com/stefgo/proxmox-backup-client-manager/commit/2b7006fcb099bf1399edd0f024436d237e7da5a4))
+* **clients:** SSH-Tunnel als eigene Seite mit eigenem Weg hinein ([5bd416d](https://github.com/stefgo/proxmox-backup-client-manager/commit/5bd416d795f5196d1d8150b98e85b3836cf1262c))
+* SSH-Tunnel von der Verbindungsart entkoppeln ([f848525](https://github.com/stefgo/proxmox-backup-client-manager/commit/f8485252419d6b0305bef429b06d9c66d6fd64e2))
+
 # [1.4.0-beta.3](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.2...v1.4.0-beta.3) (2026-09-03)
 
 
