@@ -19,7 +19,7 @@ const COPY_FEEDBACK_MS = 2000;
  * form: the token exists on the server from the moment it appears here, so
  * there is nothing left to go back to or to revise. It is also the only time
  * the token is ever shown in full — the token list stores it hashed — which is
- * why the backdrop does not dismiss it and the only way out is the button.
+ * why neither the backdrop nor Escape dismisses it and the only way out is the button.
  */
 export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) => {
     const [copied, setCopied] = useState(false);
@@ -38,6 +38,7 @@ export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) =
             description="Hand this token to the agent — it is shown only once."
             size="md"
             closeOnOverlayClick={false}
+            closeOnEscape={false}
             footer={
                 <div className="flex justify-end">
                     <Button variant="primary" onClick={onClose}>Done</Button>

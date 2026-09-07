@@ -1,16 +1,14 @@
-import { useState } from 'react';
-import { KeyRound, PlugZap, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { KeyRound, X } from 'lucide-react';
 import { ActionButton, Card, Wizard, WizardStep } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../../lib/apiFetch';
-import { useAddClientForm, isAllowedIpValid, TunnelTestResult } from './useAddClientForm';
+import { useAddClientForm, isAllowedIpValid } from './useAddClientForm';
 import { StepConnectionMode } from './steps/StepConnectionMode';
 import { StepInboundDetails } from './steps/StepInboundDetails';
 import { InboundTokenDialog } from './InboundTokenDialog';
-import { StepOutboundAgent } from './steps/StepOutboundAgent';
-import { StepOutboundSsh } from './steps/StepOutboundSsh';
+import { StepOutboundDetails } from './steps/StepOutboundDetails';
 
 interface AddClientWizardProps {
-    token: string | null;
     /** Leaves the flow and hands the work area back to the client list. */
     onClose: () => void;
     /** A client was created and the list should catch up. */
@@ -20,20 +18,23 @@ interface AddClientWizardProps {
 /**
  * Adds a client, in steps, starting with the decision that cannot be revised.
  *
- * Lives in the dashboard's work area, not in a modal: the outbound branch alone
- * carries an SSH key, a connection test and a fingerprint to confirm, which is
- * more than a dialog should hold — and the same in-place swap the client and
- * repository editors already use.
+ * The whole wizard is about one thing: how the server and this agent reach each
+ * other. An SSH tunnel is not part of it — that is the route to the PBS, it can
+ * be set up, changed and removed at any time, and it is offered from the client
+ * list for clients of either mode.
  *
- * The flow forks after step 1 and the two branches have different lengths, so
- * the step index is controlled here rather than left to the `Wizard`: swapping
- * the step array is the branch, and only this component knows it happened.
+ * Lives in the dashboard's work area rather than in a modal, the same in-place
+ * swap the client and repository editors use.
+ *
+ * The flow forks after step 1, so the step index is controlled here rather than
+ * left to the `Wizard`: swapping the step array is the branch, and only this
+ * component knows it happened.
  *
  * All form state lives in `useAddClientForm`, one level above the steps —
  * `Wizard` renders the current step alone, so a step holding its own inputs
  * would lose them on the way back.
  */
-export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardProps) => {
+export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) => {
     const { mode, setMode, inbound, patchInbound, outbound, patchOutbound } = useAddClientForm();
     const [index, setIndex] = useState(0);
     const [creating, setCreating] = useState(false);
@@ -70,49 +71,13 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
     };
 
     /**
-     * Creates the outbound client — and, if one was asked for, tests its tunnel first.
-     *
-     * With a tunnel the two halves cannot be separated: the fingerprint the create
-     * request pins is the one this very test was offered, and it is only trustworthy
-     * for as long as nothing in between changes. The server verifies it again against
-     * the host key it is actually presented, so a host that swaps its key between the
-     * two calls fails the create rather than being pinned.
-     *
-     * Without a tunnel there is nothing to test — the client is created directly and
-     * reaches the PBS on its own route.
+     * Creates the outbound client: the server dials the agent, registers, and the row
+     * exists. Nothing to test beforehand — the registration handshake is the test.
      */
-    const handleTestAndCreate = async () => {
+    const handleCreateOutbound = async () => {
         setCreating(true);
         setError(null);
         try {
-            let tunnel: Record<string, unknown> | undefined;
-
-            if (outbound.useTunnel) {
-                const testRes = await apiFetch('/api/v1/tunnel/test', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sshHost: outbound.sshHost,
-                        sshPort: Number(outbound.sshPort) || 22,
-                        sshUser: outbound.sshUser,
-                        privateKey: outbound.privateKey,
-                        passphrase: outbound.passphrase || undefined,
-                    }),
-                });
-                const test: TunnelTestResult = await testRes.json();
-                patchOutbound({ test });
-                if (!test.ok) throw new Error(test.error || 'Tunnel test failed');
-
-                tunnel = {
-                    sshHost: outbound.sshHost,
-                    sshPort: Number(outbound.sshPort) || 22,
-                    sshUser: outbound.sshUser,
-                    privateKey: outbound.privateKey,
-                    passphrase: outbound.passphrase || undefined,
-                    hostKeySha256: test.hostKeySha256,
-                };
-            }
-
             const res = await apiFetch('/api/v1/clients/outbound', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -120,7 +85,6 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
                     hostname: outbound.hostname.trim() || undefined,
                     outboundTargetAddress: outbound.targetAddress.trim(),
                     registrationSecret: outbound.registrationSecret.trim(),
-                    tunnel,
                 }),
             });
             const data = await res.json();
@@ -133,6 +97,24 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
             setCreating(false);
         }
     };
+
+    /**
+     * Escape leaves the wizard, exactly like the header's button — the same exit the
+     * client and tunnel editors give their forms.
+     *
+     * It listens on `window`, one step further out than every dialog and menu, which
+     * listen on `document` and stop the event there. So an open select closes on its
+     * own Escape and the wizard stays; the token dialog, which refuses Escape outright,
+     * swallows it without the wizard closing behind it.
+     */
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            onClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [onClose]);
 
     const modeStep: WizardStep = {
         id: 'mode',
@@ -150,37 +132,15 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
         },
     ];
 
-    // The SSH step is part of the flow only when a tunnel was asked for: without one
-    // there are no credentials to collect and nothing to test.
     const outboundSteps: WizardStep[] = [
         {
-            id: 'outbound-agent',
-            label: 'Agent',
+            id: 'outbound-details',
+            label: 'Client',
             canContinue: !!outbound.targetAddress.trim() && !!outbound.registrationSecret.trim(),
             content: (
-                <StepOutboundAgent form={outbound} onPatch={patchOutbound} error={error} />
+                <StepOutboundDetails form={outbound} onPatch={patchOutbound} error={error} />
             ),
         },
-        ...(outbound.useTunnel
-            ? [
-                  {
-                      id: 'outbound-ssh',
-                      label: 'SSH',
-                      canContinue:
-                          !!outbound.sshHost.trim() &&
-                          !!outbound.sshUser.trim() &&
-                          !!outbound.privateKey.trim(),
-                      content: (
-                          <StepOutboundSsh
-                              token={token}
-                              form={outbound}
-                              onPatch={patchOutbound}
-                              error={error}
-                          />
-                      ),
-                  },
-              ]
-            : []),
     ];
 
     const steps: WizardStep[] = [
@@ -188,8 +148,8 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
         ...(mode === 'inbound' ? inboundSteps : mode === 'outbound' ? outboundSteps : []),
     ];
 
-    // Turning the tunnel off on the agent step removes the step after it. The index is
-    // controlled here, so it would otherwise be left pointing past the end of the array.
+    // Going back to step 1 and picking the other mode swaps the array under the index,
+    // which is controlled here — so clamp rather than let it point past the end.
     const safeIndex = Math.min(index, steps.length - 1);
 
     return (
@@ -204,13 +164,9 @@ export const AddClientWizard = ({ token, onClose, onCreated }: AddClientWizardPr
                 value={safeIndex}
                 onChange={setIndex}
                 onCancel={onClose}
-                onFinish={mode === 'inbound' ? handleCreateInbound : handleTestAndCreate}
-                finishLabel={
-                    mode === 'inbound' || !outbound.useTunnel ? 'Create' : 'Test & Create'
-                }
-                finishIcon={
-                    mode === 'inbound' || !outbound.useTunnel ? KeyRound : PlugZap
-                }
+                onFinish={mode === 'inbound' ? handleCreateInbound : handleCreateOutbound}
+                finishLabel="Create"
+                finishIcon={KeyRound}
                 isFinishing={creating}
             />
 
