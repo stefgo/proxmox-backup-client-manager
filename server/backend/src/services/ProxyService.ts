@@ -307,7 +307,14 @@ export class ProxyService {
         }
 
         // Generate a unique Request ID to correlate the async response from the client.
-        const requestId = (payload as any).requestId || randomUUID();
+        // Narrowed rather than cast: only some entries of ProtocolMap carry a requestId,
+        // and a caller that already made one (JOB_SAVE_CONFIG does) keeps it.
+        const existingId =
+            payload && typeof payload === "object" && "requestId" in payload
+                ? payload.requestId
+                : undefined;
+        const requestId =
+            typeof existingId === "string" ? existingId : randomUUID();
         // Ensure payload has requestId
         const finalPayload = { ...payload, requestId };
 

@@ -16,6 +16,24 @@ import { Connection } from "../core/Connection.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
 import { logger } from "../core/logger.js";
 import { WS_EVENTS } from "@pbcm/shared";
+import { z } from "zod";
+
+/**
+ * What the agent's own setup page posts to `/api/register`.
+ *
+ * Validated for the same reason the server validates its endpoints: this runs on the
+ * backed-up machine and the values decide which server the agent will trust from then on.
+ */
+const WebRegisterSchema = z.object({
+    token: z.string().min(1),
+    url: z.url(),
+});
+
+/** The token both WebSocket routes accept in the query string. */
+type TokenQuery = { token?: string };
+
+/** The optional server URL the status endpoint may be asked to check instead of the configured one. */
+type StatusQuery = { url?: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +85,10 @@ export async function startWebServer() {
     });
 
     const sendFileSafe = async (reply: FastifyReply, file: string) => {
+        // `sendFile` exists on the reply only when @fastify/static registered above, and
+        // that registration is conditional on the public directory being found. The cast
+        // stays deliberately: the runtime check on the line is the whole point, and a
+        // declaration claiming the method is always there would contradict it.
         if (typeof (reply as any).sendFile === "function") {
             return (reply as any).sendFile(file);
         }
@@ -102,7 +124,7 @@ export async function startWebServer() {
     fastify.get(
         "/api/status/server",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const query = request.query as any;
+            const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
 
@@ -164,14 +186,13 @@ export async function startWebServer() {
     fastify.post(
         "/api/register",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const body = request.body as any;
-            const { token, url } = body;
-
-            if (!token || !url) {
+            const parsed = WebRegisterSchema.safeParse(request.body);
+            if (!parsed.success) {
                 return reply
                     .status(400)
-                    .send({ error: "Missing token or url." });
+                    .send({ error: parsed.error.issues[0].message });
             }
+            const { token, url } = parsed.data;
 
             logger.info(`Web UI Registration requested with ${url}...`);
 
@@ -304,7 +325,7 @@ export async function startWebServer() {
         "/ws/agent",
         { websocket: true },
         (socket: any, req: FastifyRequest) => {
-            const token = (req.query as any)?.token;
+            const token = (req.query as TokenQuery)?.token;
 
             if (!token || !config.authToken || token !== config.authToken) {
                 logger.warn("Inbound agent connection rejected: invalid token");

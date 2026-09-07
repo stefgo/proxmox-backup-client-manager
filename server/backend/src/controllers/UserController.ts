@@ -1,5 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import bcrypt from "bcryptjs";
+import { CreateUserSchema, UpdateUserSchema } from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import { UserRepository } from "../repositories/UserRepository.js";
 
 export class UserController {
@@ -8,10 +10,14 @@ export class UserController {
     }
 
     static async create(request: FastifyRequest, reply: FastifyReply) {
-        const { username, password, auth_methods } = request.body as any;
-        if (!username)
-            return reply.code(400).send({ error: "Username required" });
+        const parsed = CreateUserSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { username, password, auth_methods } = parsed.data;
 
+        // Not part of the schema: that a *local* user needs a password is a rule about
+        // this combination of fields, not a property of the shape.
         const methods = auth_methods || "local";
         if (methods.includes("local") && !password) {
             return reply
@@ -43,7 +49,11 @@ export class UserController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { userId } = request.params as { userId: string };
-        const { password, auth_methods } = request.body as any;
+        const parsed = UpdateUserSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { password, auth_methods } = parsed.data;
 
         const user = UserRepository.findById(userId);
         if (!user) return reply.code(404).send({ error: "User not found" });
@@ -81,7 +91,9 @@ export class UserController {
 
     static async delete(request: FastifyRequest, reply: FastifyReply) {
         const { userId } = request.params as { userId: string };
-        const user = request.user as any;
+        // Typed through src/types/fastify.d.ts. Still compared as strings: the token
+        // carries a number, the route parameter is text.
+        const user = request.user;
 
         if (user && String(user.id) === String(userId)) {
             return reply.code(400).send({ error: "Cannot delete yourself" });

@@ -65,7 +65,10 @@ export default function Settings() {
                 body: JSON.stringify(settings)
             });
             if (!response.ok) {
-                throw new Error('Failed to save settings');
+                // The endpoint validates the body and names the offending field, so pass
+                // that through instead of a generic sentence — same as useRepositoryStore.
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to save settings');
             }
         } catch (e: unknown) {
             alert(getErrorMessage(e));

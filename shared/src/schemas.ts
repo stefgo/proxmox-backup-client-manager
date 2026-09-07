@@ -405,3 +405,107 @@ export const FingerprintObservedSchema = z.object({
 export const TunnelReleaseSchema = z.object({
     leaseId: z.string(),
 });
+
+// REST request bodies
+//
+// These describe what the HTTP endpoints accept, and they exist for the same reason the
+// WS payload schemas above do: an unchecked body reaches a repository or the config file
+// unaltered. They stay here rather than in the backend because the frontend builds these
+// same shapes and can derive its types from them.
+
+/** `POST /api/login`. Both empty is a malformed request, not a failed login. */
+export const LoginPayloadSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+});
+
+/**
+ * `POST /api/v1/users`.
+ *
+ * `password` is optional at this level because an OIDC-only user has none; that a *local*
+ * user must have one is a rule the controller enforces, not a property of the shape.
+ */
+export const CreateUserSchema = z.object({
+    username: z.string().trim().min(1).max(100),
+    password: z.string().min(1).optional(),
+    auth_methods: z.string().min(1).optional(),
+});
+
+/** `PUT /api/v1/users/:userId`. Both fields optional: either one alone is a valid edit. */
+export const UpdateUserSchema = z.object({
+    password: z.string().min(1).optional(),
+    auth_methods: z.string().min(1).optional(),
+});
+
+/** A retention value as the settings UI sends it: a count of days or of entries. */
+const RetentionValueSchema = z
+    .string()
+    .regex(/^\d+$/, "Retention values must be whole numbers");
+
+/**
+ * `PUT /api/v1/settings/cleanup`.
+ *
+ * Deliberately loose. `AppConfig.settings` carries an index signature, and the settings
+ * page reads the whole object and sends it back unchanged — so a key an operator added to
+ * `config.yaml` by hand travels through this endpoint on every save. A strict schema would
+ * strip it, and the next save from the UI would silently delete it from the file.
+ *
+ * What is checked is what the UI writes and what has consequences: the retention values
+ * must be numbers, and `security` decides which networks may register a client.
+ */
+export const CleanupSettingsSchema = z.looseObject({
+    retention_invalid_tokens_days: RetentionValueSchema.optional(),
+    retention_invalid_tokens_count: RetentionValueSchema.optional(),
+    retention_job_history_days: RetentionValueSchema.optional(),
+    retention_job_history_count: RetentionValueSchema.optional(),
+    security: z
+        .object({
+            allowed_networks: z.array(z.string()).optional(),
+            trusted_networks: z.array(z.string()).optional(),
+        })
+        .optional(),
+});
+
+/**
+ * `GET /api/v1/history`.
+ *
+ * Coerced because query strings arrive as text. The bounds are the point: `parseInt` used
+ * to pass `NaN` straight to a SQLite binding, and a negative LIMIT means *no* limit in
+ * SQLite -- so `?limit=-1` returned the entire history table.
+ */
+export const HistoryQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(1000).default(100),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * One snapshot as the Proxmox Backup Server API returns it.
+ *
+ * Separate from `SnapshotSchema` on purpose: PBS speaks kebab-case over the wire and this
+ * application speaks camelCase. Keeping both means the translation in
+ * `RepositoryController.listSnapshots` stays visible instead of hiding inside one schema
+ * that would have to accept either spelling.
+ */
+export const PbsSnapshotSchema = z.looseObject({
+    "backup-type": z.string(),
+    "backup-id": z.string(),
+    "backup-time": z.number(),
+    files: z
+        .array(
+            z.looseObject({
+                filename: z.string(),
+                "crypt-mode": z.string().optional(),
+                size: z.number().optional(),
+            }),
+        )
+        .default([]),
+    size: z.number().optional(),
+    owner: z.string().optional(),
+    comment: z.string().optional(),
+    fingerprint: z.string().optional(),
+});
+
+/** The envelope PBS wraps every list response in. */
+export const PbsSnapshotListSchema = z.object({
+    data: z.array(PbsSnapshotSchema),
+});

@@ -33,6 +33,26 @@ import { VERSION } from "./Version.js";
  * the handlers actually read declared in its schema, or validation would quietly
  * remove it.
  */
+/**
+ * A row of the agent's own `job_history` table, as the delta sync reads it back.
+ *
+ * Written out rather than left as `any[]`: better-sqlite3 hands back `unknown`, and the
+ * ten fields below are renamed one by one into the wire format a few lines down -- a typo
+ * in one of those names would have travelled to the server as `undefined`.
+ */
+interface JobHistoryRow {
+    id: string;
+    job_id: string | null;
+    name: string | null;
+    type: string;
+    status: string;
+    start_time: string | null;
+    end_time: string | null;
+    exit_code: number | null;
+    stdout: string | null;
+    stderr: string | null;
+}
+
 const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.RUN_BACKUP]: RunJobPayloadSchema,
     [WS_EVENTS.RUN_RESTORE]: RestoreSnapshotPayloadSchema,
@@ -241,36 +261,50 @@ export class Connection {
                         try {
                             const lastSyncTime =
                                 message.payload?.lastSyncTime;
-                            let historyToSync = [];
+                            let historyToSync: JobHistoryRow[] = [];
                             if (lastSyncTime) {
                                 historyToSync = db
                                     .prepare(
                                         "SELECT * FROM job_history WHERE updated_at > ?",
                                     )
-                                    .all(lastSyncTime) as any[];
+                                    .all(lastSyncTime) as JobHistoryRow[];
                             } else {
                                 historyToSync = db
                                     .prepare(
                                         "SELECT * FROM job_history WHERE updated_at IS NOT NULL",
                                     )
-                                    .all() as any[];
+                                    .all() as JobHistoryRow[];
                             }
 
                             if (historyToSync.length > 0) {
-                                const formattedHistory = historyToSync.map(
-                                    (h: any) => ({
-                                        id: h.id,
-                                        jobConfigId: h.job_id,
-                                        name: h.name,
-                                        type: h.type,
-                                        status: h.status,
-                                        startTime: h.start_time,
-                                        endTime: h.end_time,
-                                        exitCode: h.exit_code,
-                                        stdout: h.stdout,
-                                        stderr: h.stderr,
-                                    }),
+                                // A row without a start time cannot be sent: the server
+                                // validates SYNC_HISTORY as a whole, so one such row would
+                                // cost the entire batch rather than just itself. The
+                                // column carries DEFAULT CURRENT_TIMESTAMP, so this is a
+                                // guard against rows written before that, not the norm.
+                                const syncable = historyToSync.filter(
+                                    (h) => h.start_time !== null,
                                 );
+                                const skipped =
+                                    historyToSync.length - syncable.length;
+                                if (skipped > 0) {
+                                    logger.warn(
+                                        `Skipping ${skipped} history record(s) without a start time`,
+                                    );
+                                }
+
+                                const formattedHistory = syncable.map((h) => ({
+                                    id: h.id,
+                                    jobConfigId: h.job_id,
+                                    name: h.name,
+                                    type: h.type,
+                                    status: h.status,
+                                    startTime: h.start_time as string,
+                                    endTime: h.end_time,
+                                    exitCode: h.exit_code,
+                                    stdout: h.stdout,
+                                    stderr: h.stderr,
+                                }));
 
                                 logger.info(
                                     `Syncing ${formattedHistory.length} history records to server...`,

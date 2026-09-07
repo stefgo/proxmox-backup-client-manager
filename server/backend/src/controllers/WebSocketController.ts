@@ -38,6 +38,21 @@ type AgentLogger = {
 };
 
 /**
+ * A socket carrying the liveness flag of the ping/pong heartbeat.
+ *
+ * `ws` has no place for it, so the three heartbeat loops here hang it on the socket
+ * object. Declared rather than cast at each use: the flag is written in one place and read
+ * in another 30 seconds later, and a typo between the two would simply mean a dead
+ * connection is never terminated.
+ */
+interface HeartbeatSocket extends WebSocket {
+    isAlive?: boolean;
+}
+
+/** The query string both WebSocket routes accept the bearer token in. */
+type TokenQuery = { token?: string };
+
+/**
  * A run that reached one of these is over and belongs in the history table. Typed as
  * string[] on purpose: the payload's status stays a plain string on the wire, so an
  * agent on an older build is never dropped for reporting something unfamiliar.
@@ -72,19 +87,19 @@ export class WebSocketController {
         req: any,
         fastify: FastifyInstance,
     ) {
-        const socket = connection.socket || connection;
-        (socket as any).isAlive = true;
+        const socket: HeartbeatSocket = connection.socket || connection;
+        socket.isAlive = true;
 
         socket.on("pong", () => {
-            (socket as any).isAlive = true;
+            socket.isAlive = true;
         });
 
         const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
+            if (socket.isAlive === false) {
                 socket.terminate();
                 return;
             }
-            (socket as any).isAlive = false;
+            socket.isAlive = false;
             socket.ping();
         }, 30000);
 
@@ -94,7 +109,7 @@ export class WebSocketController {
             clearInterval(pingInterval);
         });
 
-        const token = (req.query as any).token;
+        const token = (req.query as TokenQuery).token;
         if (!token) {
             socket.close(4001, "Unauthorized");
             return;
@@ -129,15 +144,15 @@ export class WebSocketController {
         const clientIp = req.ip;
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
-        const socket = connection.socket || connection;
-        (socket as any).isAlive = true;
+        const socket: HeartbeatSocket = connection.socket || connection;
+        socket.isAlive = true;
 
         socket.on("pong", () => {
-            (socket as any).isAlive = true;
+            socket.isAlive = true;
         });
 
         const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
+            if (socket.isAlive === false) {
                 fastify.log.warn({
                     msg: "Agent client connection timed out (no pong). Terminating.",
                     ip: clientIp,
@@ -146,7 +161,7 @@ export class WebSocketController {
                 socket.terminate();
                 return;
             }
-            (socket as any).isAlive = false;
+            socket.isAlive = false;
             socket.ping();
         }, 30000);
 
@@ -160,7 +175,7 @@ export class WebSocketController {
         // AUTHENTICATION LOGIC (Token + IP)
         // 1. Extract Token: Check query params first, then Authorization header.
         // WebSocket connections from browser usually use query params?token=..., agents might use Headers.
-        let token = (req.query as any).token;
+        let token = (req.query as TokenQuery).token;
         if (!token && req.headers["authorization"]) {
             const parts = req.headers["authorization"].split(" ");
             if (parts.length === 2 && parts[0] === "Bearer") {
@@ -643,7 +658,7 @@ export class WebSocketController {
      */
     static handleOutboundAgentConnection(
         clientId: string,
-        socket: WebSocket,
+        socket: HeartbeatSocket,
         onClose: () => void,
         onAuthResult?: (success: boolean) => void,
         onPersist?: (version: string | null) => void,
@@ -653,17 +668,17 @@ export class WebSocketController {
             "Outbound agent connection established, awaiting AUTH",
         );
 
-        (socket as any).isAlive = true;
+        socket.isAlive = true;
         socket.on("pong", () => {
-            (socket as any).isAlive = true;
+            socket.isAlive = true;
         });
 
         const pingInterval = setInterval(() => {
-            if ((socket as any).isAlive === false) {
+            if (socket.isAlive === false) {
                 socket.terminate();
                 return;
             }
-            (socket as any).isAlive = false;
+            socket.isAlive = false;
             socket.ping();
         }, 30000);
 

@@ -53,6 +53,12 @@ import {
     TunnelAcquireResultSchema,
     FingerprintObservedSchema,
     TunnelReleaseSchema,
+    LoginPayloadSchema,
+    CreateUserSchema,
+    UpdateUserSchema,
+    CleanupSettingsSchema,
+    HistoryQuerySchema,
+    PbsSnapshotSchema,
 } from "./schemas.js";
 
 /**
@@ -107,6 +113,15 @@ export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
+
+// REST request bodies
+
+export type LoginPayload = z.infer<typeof LoginPayloadSchema>;
+export type CreateUser = z.infer<typeof CreateUserSchema>;
+export type UpdateUser = z.infer<typeof UpdateUserSchema>;
+export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
+export type HistoryQuery = z.infer<typeof HistoryQuerySchema>;
+export type PbsSnapshot = z.infer<typeof PbsSnapshotSchema>;
 
 // WS Payloads
 

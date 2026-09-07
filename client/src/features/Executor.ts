@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import type { Writable } from "stream";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -448,7 +449,11 @@ export class Executor {
         });
 
         if (password) {
-            const passwordPipe = child.stdio[3] as any;
+            // `stdio` is typed as possibly-null per slot because the shape depends on the
+            // options object; slot 3 was configured as a pipe two lines above, so it is a
+            // Writable here. Named as one rather than left as `any` -- `.write()` on the
+            // wrong thing would fail silently into the catch below.
+            const passwordPipe = child.stdio[3] as Writable;
             passwordPipe.on("error", () => {});
             passwordPipe.write(password);
             passwordPipe.end();

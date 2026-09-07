@@ -1,4 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
+import { HistoryQuerySchema } from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import db from "../core/Database.js";
 
 export class HistoryController {
@@ -8,9 +10,19 @@ export class HistoryController {
      */
     static async getGlobalHistory(req: FastifyRequest, reply: FastifyReply) {
         try {
-            const query = req.query as { limit?: string; offset?: string };
-            const limit = query.limit ? parseInt(query.limit, 10) : 100;
-            const offset = query.offset ? parseInt(query.offset, 10) : 0;
+            // Bounded rather than parsed: `parseInt("abc")` used to hand NaN to a SQLite
+            // binding, and SQLite reads a negative LIMIT as "no limit" -- so `?limit=-1`
+            // returned the whole table.
+            const parsed = HistoryQuerySchema.safeParse(req.query);
+            if (!parsed.success) {
+                // This endpoint answers with a `success` flag, unlike the others -- kept
+                // so the frontend's existing error handling still recognises the shape.
+                return reply.code(400).send({
+                    success: false,
+                    error: firstIssue(parsed.error),
+                });
+            }
+            const { limit, offset } = parsed.data;
 
             const records = db
                 .prepare(

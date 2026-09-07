@@ -125,6 +125,9 @@ if (fs.existsSync(CONFIG_PATH)) {
     try {
         const fileContent = fs.readFileSync(CONFIG_PATH, "utf-8");
         configDoc = YAML.parseDocument(fileContent);
+        // Stays `any`: this is an operator-edited file whose contents are unknown by
+        // definition, and every field below is read defensively one at a time. A declared
+        // shape here would assert a structure the file is under no obligation to have.
         const loadedConfig = configDoc.toJS() as any;
 
         if (loadedConfig.executable) {

@@ -1,4 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { CleanupSettingsSchema } from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import { SettingsService } from "../services/SettingsService.js";
 
 export const SettingsController = {
@@ -15,14 +17,16 @@ export const SettingsController = {
     },
 
     async updateSettings(request: FastifyRequest, reply: FastifyReply) {
-        const body = request.body as Record<string, any>;
-
-        if (!body || typeof body !== "object") {
-            return reply.status(400).send({ error: "Invalid settings data" });
+        // This body ends up in config.yaml, and a `security` block in it replaces the one
+        // that decides which networks may register a client -- so it is checked, but
+        // loosely: see the note on CleanupSettingsSchema for why unknown keys survive.
+        const parsed = CleanupSettingsSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
 
         try {
-            SettingsService.updateSettings(body);
+            SettingsService.updateSettings(parsed.data);
             return reply.send({ success: true });
         } catch (e) {
             request.log.error(e);

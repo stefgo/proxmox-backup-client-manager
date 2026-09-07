@@ -29,13 +29,21 @@ export class RepositoryConfigRepository {
             | undefined;
     }
 
+    /**
+     * `fingerprint` and `tokenname` are nullable because their columns are, and because
+     * both are genuinely optional: a PBS with a CA-signed certificate needs no pinned
+     * fingerprint, and an API token without a name falls back to "token" at call time.
+     *
+     * They must be `null` and never `undefined` -- better-sqlite3 rejects `undefined` as a
+     * bound value. The controllers pass `?? null` for exactly that reason.
+     */
     static create(
         id: string,
         baseUrl: string,
         datastore: string,
-        fingerprint: string,
+        fingerprint: string | null,
         username: string,
-        tokenname: string,
+        tokenname: string | null,
         secret: string,
     ): void {
         db.prepare(
@@ -47,13 +55,14 @@ export class RepositoryConfigRepository {
         ).run(id, baseUrl, datastore, fingerprint, username, tokenname, secret);
     }
 
+    /** Same nullability rules as `create`. */
     static update(
         id: string,
         baseUrl: string,
         datastore: string,
-        fingerprint: string,
+        fingerprint: string | null,
         username: string,
-        tokenname: string,
+        tokenname: string | null,
         secret: string,
     ): { changes: number } {
         return db

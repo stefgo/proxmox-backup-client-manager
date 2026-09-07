@@ -133,6 +133,10 @@ export class AuthService {
             throw new Error("OIDC authentication not allowed for this user");
         }
 
-        return user;
+        // `username` is nullable on the row because the column is, but this row was found
+        // *by* that username, so here it cannot be null. Stated in the return value rather
+        // than asserted at the caller: the caller signs it into a JWT and has no way of
+        // knowing that the lookup already guaranteed it.
+        return { ...user, username };
     }
 }

@@ -25,7 +25,7 @@ const db = new Database(dbPath);
 logger.info(`Database opened: ${dbPath}`);
 
 // Run umzug migrations
-const migrator = new Umzug({
+const migrator = new Umzug<Database.Database>({
     migrations: [
         { name: "00_initial", up: migration00.up, down: migration00.down },
         {
@@ -52,21 +52,21 @@ const migrator = new Umzug({
     context: db,
     storage: {
         async executed({ context }) {
-            (context as any).exec(
+            context.exec(
                 `CREATE TABLE IF NOT EXISTS umzug_migrations (name TEXT PRIMARY KEY)`,
             );
-            return (context as any)
+            return context
                 .prepare("SELECT name FROM umzug_migrations")
                 .all()
                 .map((r: any) => r.name);
         },
         async logMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("INSERT INTO umzug_migrations (name) VALUES (?)")
                 .run(name);
         },
         async unlogMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("DELETE FROM umzug_migrations WHERE name = ?")
                 .run(name);
         },

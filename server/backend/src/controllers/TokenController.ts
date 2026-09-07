@@ -1,6 +1,10 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
-import { CreateRegistrationTokenSchema } from "@pbcm/shared";
+import {
+    CreateRegistrationTokenSchema,
+    RegistrationPayloadSchema,
+} from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { isIpInCidr } from "../utils/networkUtils.js";
@@ -27,9 +31,7 @@ export const TokenController = {
             request.body ?? {},
         );
         if (!parsed.success) {
-            return reply
-                .code(400)
-                .send({ error: parsed.error.issues[0].message });
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
 
         const token = crypto.randomBytes(16).toString("hex");
@@ -45,7 +47,16 @@ export const TokenController = {
     },
 
     register: async (request: FastifyRequest, reply: FastifyReply) => {
-        const { token } = request.body as any;
+        // The one unauthenticated endpoint with a body, so the shape is checked before
+        // anything else happens. Ahead of the token lookup on purpose: a malformed request
+        // should not learn from the status code whether the token it sent exists.
+        const parsed = RegistrationPayloadSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { token, clientId } = parsed.data;
+        const hostname = parsed.data.hostname || "unknown";
+
         const tokenRow = TokenRepository.findValidByToken(token);
 
         if (!tokenRow) {
@@ -53,12 +64,6 @@ export const TokenController = {
         }
 
         try {
-            const clientId = (request.body as any).clientId;
-            const hostname = (request.body as any).hostname || "unknown";
-
-            if (!clientId)
-                return reply.code(400).send({ error: "Missing clientId" });
-
             // A token bound to a network may only be redeemed from inside it.
             // Checked before anything is written: the agent consumes its
             // one-time secret on a successful call, so a rejection has to leave
