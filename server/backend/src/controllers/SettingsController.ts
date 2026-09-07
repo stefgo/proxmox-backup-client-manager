@@ -11,7 +11,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to fetch settings" });
         }
     },
@@ -31,7 +31,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to update settings" });
         }
     },
@@ -46,7 +46,7 @@ export const SettingsController = {
         } catch (e) {
             request.log.error(e);
             return reply
-                .status(500)
+                .code(500)
                 .send({ error: "Failed to run maintenance" });
         }
     },

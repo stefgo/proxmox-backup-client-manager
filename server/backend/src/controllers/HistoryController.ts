@@ -51,7 +51,7 @@ export class HistoryController {
                 err: error,
             });
             return reply
-                .status(500)
+                .code(500)
                 .send({ success: false, error: "Internal Server Error" });
         }
     }
