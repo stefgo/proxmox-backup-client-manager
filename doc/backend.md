@@ -84,8 +84,16 @@ that is the connection mode. `TunnelService` establishes and tears down the SSH 
 on the client's request — that is the route to the PBS, optional and available in either mode.
 
 Availability is `ClientTunnelRepository.isConfigured(clientId)` — credentials stored — and use
-is `tunnel.required` on the individual job, which is also what authorises a lease:
-`resolveTunnelTarget` returns nothing for a job not configured for the tunnel.
+is `tunnel.required` per run: on the individual job for a backup, on the trigger request for a
+restore. Availability is only ever a *check* on that answer, never the answer itself, and both
+`JobController.save` and `JobController.triggerRestore` reject a run asking for a route the
+client has no credentials for. The same `tunnel.required` authorises the lease:
+`resolveTunnelTarget` returns nothing for a job not configured for the tunnel, and a restore
+target is pre-authorised per `runId` only when its request asked for the tunnel.
+
+Credentials are attached only through `/clients/:clientId/tunnel`. `POST /clients/outbound`
+creates the connection alone, so the irreversible decision (the mode) and the revisable one
+(the route) never travel in one request.
 `connection_mode` is only consulted where the WebSocket direction genuinely matters (dialling
 and reconnecting, IP pinning, the target address). Details, setup and test protocol:
 [tunnel.md](tunnel.md).

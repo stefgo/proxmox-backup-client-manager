@@ -28,6 +28,16 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
     const [selectedArchives, setSelectedArchives] = useState<string[]>([]);
+    /**
+     * Whether this restore reaches the repository through the client's SSH tunnel.
+     *
+     * Asked here rather than derived from the client, for the same reason a backup job
+     * asks it: stored credentials say the detour is *possible*, not that this repository
+     * needs it. Defaulted to on, because a client that has a tunnel at all usually has it
+     * for want of a direct route — and a restore that cannot reach the PBS is the more
+     * expensive mistake of the two.
+     */
+    const [useTunnel, setUseTunnel] = useState(true);
 
     const [error, setError] = useState<string | null>(null);
     // A started restore used to leave the form looking untouched, which invites
@@ -36,6 +46,13 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     // Use Global Store for File Browser
     const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
+
+    // The client can still be swapped in the form, so the offer follows the selection and
+    // not the client this editor was opened for.
+    const restoreClient = selectedClient?.id === selectedClientId
+        ? selectedClient
+        : clients.find((c) => c.id === selectedClientId);
+    const tunnelAvailable = !!restoreClient?.tunnelConfigured;
 
     const availableArchives = snapshot.files
         .map(f => f.filename)
@@ -60,6 +77,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             setSelectedTarget('');
             setBrowserPath('/');
+            setUseTunnel(true);
             setIsSelectingClient(false);
             setMessage(null);
             setError(null);
@@ -109,7 +127,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                     snapshot: snapshotId,
                     targetPath: selectedTarget,
                     repository: repo,
-                    archives: sanitizedArchives
+                    archives: sanitizedArchives,
+                    // Only when it is actually on offer: a client without credentials
+                    // would have the request refused for a box it was never shown.
+                    tunnel: tunnelAvailable ? { required: useTunnel } : undefined
                 })
             });
 
@@ -224,6 +245,21 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                                 setSelectedTarget('');
                                 setMessage(null);
                             }}
+                        />
+                    )}
+
+                    {/* Only for a client that has credentials. Hidden rather than disabled:
+                        a client with no tunnel has no choice to make, and an inert switch
+                        would raise a question the operator cannot act on from here. */}
+                    {tunnelAvailable && (
+                        <Checkbox
+                            label="Restore through the SSH reverse tunnel"
+                            checked={useTunnel}
+                            onChange={() => {
+                                setUseTunnel(!useTunnel);
+                                setMessage(null);
+                            }}
+                            classNames={{ label: 'text-sm text-text-muted' }}
                         />
                     )}
 

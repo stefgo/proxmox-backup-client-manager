@@ -25,23 +25,25 @@ export const ClientSchema = z.object({
     connectionMode: z.enum(["inbound", "outbound"]).optional(),
     outboundTargetAddress: z.string().optional(),
     /**
-     * Whether SSH credentials are stored for this client, so its jobs may choose the
-     * tunnel. Independent of `connectionMode`: the tunnel is a route to the PBS, the
-     * mode is who dials the WebSocket, and every combination of the two is valid.
+     * Whether SSH credentials are stored for this client, so its jobs and restores may
+     * choose the tunnel. Independent of `connectionMode`: the tunnel is a route to the
+     * PBS, the mode is who dials the WebSocket, every combination of the two is valid,
+     * and unlike the mode this one can be set up and removed at any time.
      */
     tunnelConfigured: z.boolean().optional(),
 });
 
 /**
- * Whether a job reaches its repository through the SSH reverse tunnel.
+ * Whether a run reaches its repository through the SSH reverse tunnel.
  *
- * A property of the job, chosen per job: one client can back up to a PBS it reaches
- * directly and to another it only reaches through the tunnel. The client side of it is
- * just the SSH credentials — stored means available, and a job that asks for a tunnel
- * the client has none for is rejected when it is saved.
+ * A property of the run, chosen per backup job and per restore: one client can back up to
+ * a PBS it reaches directly and to another it only reaches through the tunnel. The client
+ * side of it is just the SSH credentials — stored means available, and a job or restore
+ * that asks for a tunnel the client has none for is rejected when it is saved or started.
  *
  * Travelling with the job is what keeps it honest: the agent stores it in the job's
- * config and there is no second copy anywhere to fall out of step with.
+ * config and there is no second copy anywhere to fall out of step with. A restore has no
+ * stored config, so it carries the answer in the request that triggers it.
  *
  * The loopback port is deliberately not part of this: it is allocated per forward and
  * only known at lease time (see TunnelAcquireResult).
@@ -213,7 +215,8 @@ export const RestoreSnapshotPayloadSchema = z.object({
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
     // Must be declared here even though it is optional: zod strips unknown keys, so a
-    // missing entry would silently leave every tunnelled restore going direct.
+    // missing entry would silently leave every tunnelled restore going direct. Absent
+    // means direct, which is also what a client without credentials always gets.
     tunnel: TunnelModeSchema.optional(),
 });
 

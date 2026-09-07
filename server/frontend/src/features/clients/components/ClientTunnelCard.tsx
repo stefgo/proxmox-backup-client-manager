@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { TunnelState, TunnelStatus } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, ConfirmDialog, Input } from '@stefgo/react-ui-components';
@@ -13,8 +13,14 @@ interface ClientTunnelCardProps {
     clientId: string;
     /** Live state from the client store — kept current by TUNNEL_UPDATE over the socket. */
     state?: TunnelState;
-    /** Reported upwards so the editor's action bar can warn before the operator leaves. */
+    /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
     onDirtyChange?: (dirty: boolean) => void;
+    /**
+     * Placed in the card header, beside the lease badge. The page passes its close control
+     * here — and it is rendered in every state of the card, the load error and the
+     * placeholder included, so a stuck request never traps the operator on the page.
+     */
+    action?: ReactNode;
 }
 
 /** Stored tunnel configuration. The private key is write-only and never part of this. */
@@ -66,7 +72,7 @@ const COPY_FEEDBACK_MS = 2000;
  * test button sends the *form* values, not the stored ones, so a green result always
  * describes what is on screen.
  */
-export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunnelCardProps) => {
+export const ClientTunnelCard = ({ clientId, state, onDirtyChange, action }: ClientTunnelCardProps) => {
     const { token } = useAuth();
     const [info, setInfo] = useState<TunnelInfo | null>(null);
     /** Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer. */
@@ -353,7 +359,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
 
     if (loadError) {
         return (
-            <Card title="SSH Reverse Tunnel" titleAs="h3" classNames={{ header: 'py-5 px-7' }}>
+            <Card title="SSH Reverse Tunnel" titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
                 <div className="px-7 py-6 bg-card text-sm text-error break-words">{loadError}</div>
             </Card>
         );
@@ -363,7 +369,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
     // same shape keeps the page still.
     if (!loaded) {
         return (
-            <Card title="SSH Reverse Tunnel" titleAs="h3" classNames={{ header: 'py-5 px-7' }}>
+            <Card title="SSH Reverse Tunnel" titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
                 <div className="px-7 py-6 bg-card space-y-3" aria-busy>
                     <div className="h-4 w-1/3 rounded bg-border animate-pulse" />
                     <div className="h-10 w-full rounded bg-border animate-pulse" />
@@ -390,15 +396,16 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange }: ClientTunne
             }
             titleAs="h3"
             action={
-                info ? (
-                    <span className="flex items-center gap-3">
-                        {!!state?.activeLeases && (
-                            <Badge variant="info" size="sm">
-                                {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
-                            </Badge>
-                        )}
-                    </span>
-                ) : undefined
+                /* The badge describes the tunnel, the page's control leaves the page —
+                   read left to right, the state comes before the way out. */
+                <span className="flex items-center gap-3">
+                    {info && !!state?.activeLeases && (
+                        <Badge variant="info" size="sm">
+                            {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
+                        </Badge>
+                    )}
+                    {action}
+                </span>
             }
             classNames={{ header: 'py-5 px-7' }}
         >

@@ -60,7 +60,7 @@ export class JobController {
         // with the cause two screens away from the setting that caused it.
         if (parsed.data.tunnel?.required && !tunnelAvailable(clientId)) {
             return reply.code(400).send({
-                error: "This client has no SSH tunnel configured — set one up in the client editor first.",
+                error: "This client has no SSH tunnel configured — add one from the client list first.",
             });
         }
 
@@ -150,25 +150,31 @@ export class JobController {
             repository: true,
             archives: true,
             encryption: true,
+            tunnel: true,
         }).safeParse(request.body);
         if (!parsed.success) {
             return reply
                 .code(400)
                 .send({ error: parsed.error.issues[0].message });
         }
-        const { snapshot, targetPath, repository, archives, encryption } =
+        const { snapshot, targetPath, repository, archives, encryption, tunnel } =
             parsed.data;
         const runId = randomUUID();
-        // A restore belongs to no job, so there is no per-job `tunnel` to read. It follows
-        // the client's own configuration instead, which is binary — credentials stored or
-        // not — so a client with a tunnel restores through it, for every repository.
+        // The route is the operator's choice here, exactly as it is for a backup job — and
+        // for the same reason: a client can reach one PBS directly and another only through
+        // the detour, so "credentials are stored" cannot answer it. It used to: a client
+        // with a tunnel restored through it from every repository, which was a route that
+        // always worked but was not always the right one, and could not be declined.
         //
-        // Decided, not left open: the alternative is to copy the setting from the jobs
-        // pointing at the same repository, which would spare the tunnel where the PBS is
-        // reachable directly, but makes a restore depend on a job that may since have been
-        // edited or deleted. A route that always works beats a route that is optimal until
-        // someone touches an unrelated job.
-        const tunneled = tunnelAvailable(clientId);
+        // The restore form asks the question next to the repository it is asked about, and
+        // the answer travels with this one request. Availability is only checked here, the
+        // same check the job save does.
+        const tunneled = !!tunnel?.required;
+        if (tunneled && !tunnelAvailable(clientId)) {
+            return reply.code(400).send({
+                error: "This client has no SSH tunnel configured — add one from the client list first.",
+            });
+        }
 
         try {
             if (tunneled) {

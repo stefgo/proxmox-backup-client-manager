@@ -1,88 +1,91 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
-import { AlertTriangle, X } from 'lucide-react';
-import { Button } from '@stefgo/react-ui-components';
+import { X } from 'lucide-react';
+import { ActionButton, ConfirmDialog } from '@stefgo/react-ui-components';
 import { useClientStore } from '../../../stores/useClientStore';
 import { ClientIdentityCard } from './ClientIdentityCard';
-import { ClientTunnelCard } from './ClientTunnelCard';
 
 interface ClientEditorProps {
     client: Client;
     onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
-    onCancel: () => void;
 }
 
 /**
- * Edits a client: one card per resource the backend actually exposes.
+ * Edits what a client *is*: its name and, for an outbound client, where the server dials it.
+ * A page of its own, at `/client/:clientId/edit`.
  *
- * The split is not cosmetic. `PUT /clients/:id` and the `/clients/:id/tunnel` endpoints are separate
- * endpoints with separate failure modes, and the previous single form gave them one
- * prominent save button that submitted only the first — SSH edits were lost without a
- * word. Two cards, two buttons, and no form spanning both.
+ * The SSH tunnel is deliberately not here. It lives behind its own action in the client
+ * list ({@link ClientTunnelEditor}) because it is a different resource with its own
+ * endpoints and its own failure modes — and because it is not part of what a client is,
+ * but of how a PBS is reached from it. Keeping the two apart also keeps this editor's save
+ * button honest: it submits the one form it sits under and nothing else.
  *
- * Leaving, on the other hand, belongs to the editor rather than to either card. It used to
- * hang off the first one, which meant that working the page top to bottom left the operator
- * at the end of the tunnel card with no way out but to scroll back up. The sticky bar below
- * is the editor's own: it is one pointer move away at every scroll position, and it is the
- * only place that can see both cards at once — so it is also where an unsaved change in
- * either of them can be reported.
+ * Leaving is a navigation, and the control for it sits in the card's header — the one part
+ * of the form that is in reach from every scroll position without a floating bar over the
+ * content. Where it goes is the caller's business: the client list and the client detail
+ * page both open this editor, and `location.state.from` is how each says where back is.
  */
-export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) => {
+export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    // A directly opened URL carries no state — the list is the honest fallback, since it
+    // is the surface this client is guaranteed to appear on.
+    const back = (location.state as { from?: string } | null)?.from ?? '/clients';
+
     // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the store instead of the prop.
     const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
-    // `useState` setters are referentially stable, so the cards can list them in an effect's
+    // `useState` setters are referentially stable, so the card can list it in an effect's
     // dependencies without re-running it on every render of this component.
-    const [identityDirty, setIdentityDirty] = useState(false);
-    const [tunnelDirty, setTunnelDirty] = useState(false);
-    const dirty = identityDirty || tunnelDirty;
+    const [dirty, setDirty] = useState(false);
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-    // Escape closes the editor — the same thing the bar's button does, no more. It
-    // deliberately does not ask for confirmation when something is unsaved: closing has
-    // always discarded silently, and quietly refusing to close would be worse than the
-    // warning in the bar, which at least says what is at stake before the key is pressed.
+    /**
+     * Leaving used to discard silently under a warning label. It asks now: the exit moved
+     * into the header, where it sits a few pixels from the fields it would throw away, and
+     * a warning the operator has already scrolled past is no protection at that distance.
+     */
+    const requestClose = useCallback(() => {
+        if (dirty) {
+            setConfirmDiscard(true);
+            return;
+        }
+        navigate(back);
+    }, [dirty, navigate, back]);
+
+    // Escape does exactly what the header's button does — including asking first.
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
-            // Not while a select, a dialog or an autocomplete is using Escape for itself.
+            // Not while a select, a dialog or an autocomplete is using Escape for itself —
+            // this includes the discard dialog below, which closes on its own Escape.
             if (e.defaultPrevented) return;
-            onCancel();
+            requestClose();
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [onCancel]);
+    }, [requestClose]);
 
     return (
         <div className="space-y-6">
             <ClientIdentityCard
                 client={live}
                 onSave={onSave}
-                onDirtyChange={setIdentityDirty}
-            />
-            {/* Shown for every client, in either connection mode: the tunnel is the route
-                to the PBS and is optional on both sides of the WebSocket. The card itself
-                knows whether one is configured. */}
-            <ClientTunnelCard
-                clientId={live.id}
-                state={live.tunnel}
-                onDirtyChange={setTunnelDirty}
+                onDirtyChange={setDirty}
+                action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
             />
 
-            {/* `sticky bottom-0` as the last child: its resting place is the end of the
-                editor, so it sits there once the operator has scrolled all the way down —
-                and floats at the bottom of the viewport for the whole way there. The page
-                itself is the scroll container, so nothing above clips it. */}
-            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-4 rounded-lg border border-border bg-card px-7 py-4 shadow-lg">
-                {dirty && (
-                    <span className="mr-auto flex items-center gap-2 text-sm text-warning">
-                        <AlertTriangle size={16} aria-hidden />
-                        Unsaved changes — closing discards them
-                    </span>
-                )}
-                <Button type="button" variant="secondary" onClick={onCancel} icon={X}>
-                    Close
-                </Button>
-            </div>
+            <ConfirmDialog
+                isOpen={confirmDiscard}
+                onClose={() => setConfirmDiscard(false)}
+                onConfirm={() => navigate(back)}
+                title="Discard your changes?"
+                description="The client has not been saved. Leaving now keeps it as it was."
+                confirmLabel="Discard"
+                cancelLabel="Keep editing"
+                variant="danger"
+            />
         </div>
     );
 };

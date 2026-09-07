@@ -31,6 +31,9 @@ const ManagedRepositories = lazy(() => import("../repositories/components/Manage
 const ManagedJobs = lazy(() => import("../jobs/components/ManagedJobs").then(m => ({ default: m.ManagedJobs })));
 const HistoryOverview = lazy(() => import("../history/components/HistoryOverview").then(m => ({ default: m.HistoryOverview })));
 const ClientOverview = lazy(() => import("../clients/components/ClientOverview").then(m => ({ default: m.ClientOverview })));
+const AddClientWizard = lazy(() => import("../clients/components/add-client/AddClientWizard").then(m => ({ default: m.AddClientWizard })));
+const ClientEditor = lazy(() => import("../clients/components/ClientEditor").then(m => ({ default: m.ClientEditor })));
+const ClientTunnelEditor = lazy(() => import("../clients/components/ClientTunnelEditor").then(m => ({ default: m.ClientTunnelEditor })));
 const RepositoryOverview = lazy(() => import("../repositories/components/RepositoryOverview").then(m => ({ default: m.RepositoryOverview })));
 const UserOverview = lazy(() => import("../users/components/UserOverview").then(m => ({ default: m.UserOverview })));
 const Settings = lazy(() => import("../../pages/Settings"));
@@ -57,8 +60,12 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
 function ClientsRoute() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { token } = useAuth();
-  const { clients, fetchClients, deleteClient, updateClient } = useClientStore();
+  const { clients, fetchClients, deleteClient } = useClientStore();
+
+  // Every editor route knows where back is because the surface that opened it says so.
+  const open = (to: string) => navigate(to, { state: { from: pathname } });
 
   return (
     <ManagedClients
@@ -70,19 +77,54 @@ function ClientsRoute() {
       onDelete={(id) => {
         if (token) deleteClient(id);
       }}
-      onUpdate={(id, data) => (token ? updateClient(id, data) : Promise.reject())}
+      onAdd={() => open("/clients/new")}
+      onEdit={(c) => open(`/client/${c.id}/edit`)}
+      onEditTunnel={(c) => open(`/client/${c.id}/tunnel`)}
     />
   );
 }
 
-function ClientDetailRoute() {
-  const { clientId } = useParams();
-  const { clients } = useClientStore();
+function AddClientRoute() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { fetchClients } = useClientStore();
+  const back = (location.state as { from?: string } | null)?.from ?? "/clients";
 
-  const client = clients.find((c) => c.id === clientId);
+  return (
+    <AddClientWizard onClose={() => navigate(back)} onCreated={fetchClients} />
+  );
+}
+
+/**
+ * The three client routes below all resolve the client from the store and bail out to the
+ * list if it is gone — a stale bookmark or a deleted client must not render an editor over
+ * `undefined`.
+ */
+function useRouteClient() {
+  const { clientId } = useParams();
+  return useClientStore((s) => s.clients.find((c) => c.id === clientId));
+}
+
+function ClientDetailRoute() {
+  const client = useRouteClient();
   if (!client) return <Navigate to="/clients" replace />;
 
   return <ClientOverview client={client} />;
+}
+
+function ClientEditRoute() {
+  const client = useRouteClient();
+  const { updateClient } = useClientStore();
+  if (!client) return <Navigate to="/clients" replace />;
+
+  return <ClientEditor client={client} onSave={updateClient} />;
+}
+
+function ClientTunnelRoute() {
+  const client = useRouteClient();
+  if (!client) return <Navigate to="/clients" replace />;
+
+  return <ClientTunnelEditor client={client} />;
 }
 
 function RepositoriesRoute() {
@@ -217,7 +259,7 @@ function AppLayout() {
   const pages: DashboardPage[] = useMemo(() => [
     {
       id: "clients",
-      path: ["/", "/clients", "/client/:clientId"],
+      path: ["/", "/clients", "/clients/new", "/client/:clientId", "/client/:clientId/edit", "/client/:clientId/tunnel"],
       nav: {
         groupId: "resources",
         label: "Clients",
@@ -311,7 +353,10 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<ClientsRoute />} />
           <Route path="/clients" element={<ClientsRoute />} />
+          <Route path="/clients/new" element={<AddClientRoute />} />
           <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+          <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
+          <Route path="/client/:clientId/tunnel" element={<ClientTunnelRoute />} />
           <Route path="/jobs" element={<ManagedJobs />} />
           <Route path="/repositories" element={<RepositoriesRoute />} />
           <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />

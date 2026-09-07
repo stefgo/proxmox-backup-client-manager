@@ -1,26 +1,21 @@
-import { Input, Switch } from '@stefgo/react-ui-components';
+import { Input } from '@stefgo/react-ui-components';
 import { OutboundForm } from '../useAddClientForm';
 
-interface StepOutboundAgentProps {
+interface StepOutboundDetailsProps {
     form: OutboundForm;
     onPatch: (patch: Partial<OutboundForm>) => void;
-    /**
-     * A failed create. Only ever shown here when the tunnel is off: then this is the
-     * last step, and without it the failure would have nowhere to appear.
-     */
+    /** A failed create. This is the last step, so without it the failure would have nowhere to appear. */
     error?: string | null;
 }
 
 /**
- * Where the server finds the agent, what proves it may talk to it — and whether SSH
- * credentials for a reverse tunnel are stored along with it.
+ * Where the server finds the agent and what proves it may talk to it — and nothing else.
  *
- * The tunnel switch lives here rather than in step 1: the connection mode is the decision
- * that cannot be revised, and putting a freely reversible one next to it would suggest
- * this one is final too. It is not — credentials can be added or removed in the client
- * editor at any time, and whether a backup actually takes the tunnel is set per job.
+ * No SSH credentials here on purpose. Adding a client establishes the connection, which is
+ * fixed once it is made; the route to the PBS is a separate, reversible decision and is set
+ * up from the client list afterwards, for inbound and outbound clients alike.
  */
-export const StepOutboundAgent = ({ form, onPatch, error }: StepOutboundAgentProps) => (
+export const StepOutboundDetails = ({ form, onPatch, error }: StepOutboundDetailsProps) => (
     <div className="space-y-4">
         <Input
             label="Display Name (optional)"
@@ -42,15 +37,7 @@ export const StepOutboundAgent = ({ form, onPatch, error }: StepOutboundAgentPro
             onChange={(e) => onPatch({ registrationSecret: e.target.value })}
             hint="One-time secret from the agent's config.yaml. It is consumed on the first successful registration."
         />
-        <Switch
-            label="Set up an SSH reverse tunnel"
-            hint="Stores SSH credentials so this client's jobs can reach a PBS it has no route to. Each job then chooses whether to use it. Can be added later in the client editor."
-            value={form.useTunnel}
-            onChange={(useTunnel) => onPatch({ useTunnel })}
-        />
 
-        {!form.useTunnel && error && (
-            <div className="text-sm text-error break-words">{error}</div>
-        )}
+        {error && <div className="text-sm text-error break-words">{error}</div>}
     </div>
 );

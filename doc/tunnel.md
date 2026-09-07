@@ -11,6 +11,7 @@ Three separate questions, deliberately kept apart:
 | `clients.connection_mode` | Who dials the WebSocket? | client | **No** — fixed when the client is created |
 | `client_tunnels` (row present) | Is a tunnel *available* to this client? | client | Yes — set up or removed at any time |
 | `job.tunnel.required` | Does *this backup* take it? | job | Yes — per job |
+| `tunnel.required` on a restore | Does *this restore* take it? | restore request | Yes — per restore |
 
 The mode says nothing about the route. It used to — outbound meant "always tunnelled" — and
 the coupling was a design error twice over: it made the tunnel unavailable to exactly the
@@ -18,9 +19,10 @@ inbound clients that need one, and it tied a reversible decision to an irreversi
 
 The route is not a client-wide property either. One client can back up to a PBS on its own
 segment directly and to a second one only through the detour, so the choice belongs to the
-job, next to the repository it is made for. The client only supplies the credentials that
-make the choice possible; a job that asks for a tunnel the client has none for is rejected
-when it is saved, not when it next runs.
+run, next to the repository it is made for — per job for a backup, and asked again in the
+form for a restore. The client only supplies the credentials that make the choice possible;
+a job that asks for a tunnel the client has none for is rejected when it is saved, not when
+it next runs, and a restore likewise when it is triggered.
 
 ```
             ssh (server is the SSH client)       client host (sshd)
@@ -47,15 +49,12 @@ either way.
 
 ### 1. Prepare the client host
 
-The **SSH** step of the *Add Client* wizard supports both paths. Under **Key** you choose between
-*Generate a key* — an ed25519 key without a passphrase, because the server uses it unattended —
-and *Paste your own key*. The private key is only stored, never handed back out; to replace it,
-generate a new one in the client editor.
-
-Below that, the optional collapsed section **Client host setup** provides a copyable block of
-commands — the same for both paths, since the public part is derived from the stored key when
-needed. It must have been run on the client host **before** the wizard's next step, "Test
-Connection", can succeed.
+Whether the key is generated for you or pasted in, the client host needs the public half in
+`authorized_keys` **before** a connection test can succeed. The tunnel editor (step 3) offers
+both paths under **Key** — *Generate a key*, an ed25519 key without a passphrase because the
+server uses it unattended, or *Paste your own key* — and below that the optional collapsed
+section **Client host setup** with a copyable block of commands. The private key is only
+stored, never handed back out; to replace it, generate a new one in the same editor.
 
 Done by hand, this is the following entry on the client host:
 
@@ -90,23 +89,33 @@ registration succeeds.
 > host, pick a free one via `listenPort` or `PBCM_CLIENT_PORT` and enter that same port in the
 > client's target address.
 
-### 3. Create the client in the UI
+### 3. Create the client, then add the tunnel
 
-**+ Add** in the clients area, then the connection mode in the wizard's first step — it is
-chosen before anything else because it cannot be changed afterwards.
+These are two separate actions, and deliberately so — the wizard settles who dials whom, which
+is fixed for good, and nothing else.
 
-**Outbound:** the *Agent* step takes the target address, the registration secret and the
-display name, and carries the switch **Set up an SSH reverse tunnel**. With it on, a third
-step *SSH* (host, user, key) follows and **Test & Create** opens the connection, creating the
-client only if it stands. With it off there is no SSH step and **Create** registers the client
-directly.
+**+ Add** in the clients area opens the wizard. Its first step is the connection mode, because
+it cannot be changed afterwards. **Inbound** then takes a display name and an optional allowed
+IP and issues a registration token; the client exists once its agent redeems it. **Outbound**
+takes the agent's target address, the registration secret and a display name, and **Create**
+dials the agent and registers it.
 
-**Inbound:** the credentials cannot be set up in the wizard — an inbound client does not exist
-as a row until its agent has redeemed the registration token, so there is nothing to attach
-them to. Add them afterwards in the client editor; the card there does the same test and
-create in one action.
+The tunnel comes afterwards, from the client list's row action — **Add SSH Tunnel**, or **Edit
+SSH Tunnel** for a client that already has one, the same form either way. It is offered for
+every client in either connection mode. Host, user and key go in; **Test & Set Up** opens the
+connection and stores the credentials only if it stands.
 
-### 4. Switch the jobs over
+The host key that test is offered is what gets pinned, and every later connection is checked
+strictly against it. The two halves run back to back on purpose — the server verifies the
+fingerprint again against the key it is actually presented, so a host that changes its key in
+between fails the setup instead of being pinned. Nobody confirms the fingerprint by hand any
+more; it is trusted on first use. On failure the form stays put and reports what went wrong.
+
+Attaching a tunnel is not atomic with anything and does not need to be: the test runs first,
+and a failure costs nothing beyond the error message. **Remove** deletes the credentials with
+the stored key; the client and its history stay.
+
+### 4. Switch the runs over
 
 Storing credentials changes no backup by itself. Each job carries its own **SSH Reverse
 Tunnel** switch in the job editor, below the encryption settings; it is disabled while the
@@ -114,20 +123,10 @@ client has no credentials. The setting is pushed to the agent with the job and l
 agent's own job config — which is what lets a scheduled run take the chosen route even while
 the server is unreachable.
 
-The host key that test is offered is what gets pinned, and every later connection is checked
-strictly against it. The two halves run back to back on purpose — the server verifies the
-fingerprint again against the key it is actually presented, so a host that changes its key in
-between fails the create instead of being pinned. Nobody confirms the fingerprint by hand any
-more; it is trusted on first use. On failure the wizard stays on *SSH* and reports what went
-wrong, with the fingerprint shown if the tunnel itself stood.
-
-Client and tunnel are stored in a single transaction, and only once both the tunnel test **and**
-the registration have succeeded. If either fails, the database is left untouched. Attaching a
-tunnel to a client that already exists is not atomic in the same way and does not need to be:
-the test still runs first, but a failure costs nothing beyond the error message.
-
-> If the process fails **after** registration, the agent has already consumed the secret. Set a
-> new `registrationSecret` on the client host and create the client again.
+A restore is asked the same question in its own form, next to the client it restores to:
+**Restore through the SSH reverse tunnel**, shown only for a client that has credentials and
+defaulted to on. A restore has no stored config, so the answer travels with the request that
+triggers it.
 
 ### 5. Server-side settings (optional)
 
@@ -183,6 +182,9 @@ accidentally back up past the tunnel.
   and the job history, which hangs off the client ID, is lost in the process. **The tunnel is
   not like this**: credentials can be added and removed, and each job's route changed, at any
   time, with the client keeping its identity and history throughout.
+- **A run's route is chosen per run.** A backup job stores it; a restore is asked in its form.
+  Neither is derived from the client, because credentials say the detour is *possible*, not
+  that this repository needs it.
 - **A job's route reaches the agent with the job.** Changing the switch is an ordinary job
   save: the server pushes the config, the agent stores it, and the next run — scheduled or
   triggered — follows it. There is no second copy of the setting anywhere to fall out of step.
@@ -194,10 +196,10 @@ accidentally back up past the tunnel.
 - **Removing the credentials does not rewrite the jobs.** Any job still set to use the tunnel
   then fails at the lease — deliberately loud, because quietly sending a backup out over a
   path the operator never chose is the worse outcome.
-- **Restores have no job to read.** They currently take the tunnel whenever the client has
-  credentials. That is wrong for a client that reaches some repositories directly, and
-  deriving the route from the jobs on the same repository is the open refinement — see the
-  note in `JobController.restore`.
+- **Restores have no job to read**, so the server cannot resolve the target from a `jobId` the
+  way it does for a backup. It authorises the target up front instead, when the restore is
+  triggered and only if that request asked for the tunnel; the client still never names a
+  host itself.
 - **A changed host key can be re-pinned.** The stored fingerprint is compared on every
   connection, so a reinstalled client host fails until its new key is accepted. `Test
   Connection` in the editor reports the fingerprint the host actually presented and offers
@@ -214,9 +216,9 @@ accidentally back up past the tunnel.
 ## Manual test protocol
 
 The project has no test framework; this checklist is the safety net. It is ordered by what
-fails silently, not by what is easy to check: items 1-4 cover lease and lifecycle faults that
-leave no trace, items 9-12 the interplay of client credentials and per-job routes, and items
-13-16 the editor, where a wrong answer *looks* like a right one.
+fails silently, not by what is easy to check: items 1-8 cover lease and lifecycle faults that
+leave no trace, items 9-14 the interplay of client credentials and per-run routes, and items
+15-18 the tunnel editor, where a wrong answer *looks* like a right one.
 
 ### Server and protocol
 
@@ -224,9 +226,9 @@ leave no trace, items 9-12 the interplay of client credentials and per-job route
    Expected: the WS disconnect drops all leases, the tunnel closes after `idleGraceMs`.
 2. **Port change after reconnect** — interrupt the SSH connection during a run.
    Expected: the lease is dropped, the run fails with a clear message, no access to a dead port.
-3. **Atomic creation with a failure** — valid SSH details, wrong registration secret.
-   Expected: no row in `clients` and none in `client_tunnels`; the message points at the
-   consumed secret.
+3. **Failed registration** — create an outbound client with a wrong registration secret.
+   Expected: no row in `clients`; the message points at the consumed secret. The wizard asks
+   for no SSH details at all, so there is nothing half-written to check for.
 4. **Parallel jobs** — start two jobs of the same client at once.
    Expected: exactly **one** SSH connection, one forward per target repository, both runs
    succeed, the tunnel closes only after the second release.
@@ -249,38 +251,45 @@ leave no trace, items 9-12 the interplay of client credentials and per-job route
 12. **Credentials removed under a job** — delete the tunnel while a job is still set to use
     it. Expected: the next run of that job fails at the lease with a clear message; it does
     **not** fall back to a direct connection.
+13. **Restore, both routes** — restore a snapshot to a tunnelled client twice, once with the
+    form's tunnel box on and once off. Expected: the first goes through `127.0.0.1:<port>`,
+    the second straight to the PBS. Neither is decided by the client's credentials alone.
+14. **Restore asks, client cannot** — trigger a restore with `tunnel.required` for a client
+    without credentials (via the API; the UI hides the box). Expected: `400`, and no restore
+    started.
 
-### The editor (`ClientEditor` / `ClientIdentityCard` / `ClientTunnelCard`)
+### The tunnel editor (`ClientTunnelEditor` / `ClientTunnelCard`)
 
-These four exist because the wizard and the editor reach the same tunnel through different
-endpoints and different key modes. Everything the wizard guarantees by construction — a key is
-always present, nothing is stored yet, one button ends the flow — is an open question here.
+These exist because the tunnel is set up long after the client is, on a surface that has to
+handle what the wizard never faced: credentials may already be stored, the private key may be
+one the operator never sees, and a failed action must leave the existing configuration intact.
 
-The editor answers them by splitting into one card per endpoint: `ClientIdentityCard` owns
-`PUT /clients/:id`, `ClientTunnelCard` owns the `/clients/:id/tunnel` endpoints — `POST` to
-store credentials, `PUT` to edit them, `DELETE` to remove them — and no form spans both. The
-per-job route is not in this editor at all; it lives with the job.
+The client's two resources have one surface each, both reached from the client list's row
+actions: **Edit Client** opens `ClientEditor` / `ClientIdentityCard`, which owns
+`PUT /clients/:id`; **Add / Edit SSH Tunnel** opens `ClientTunnelEditor` / `ClientTunnelCard`,
+which owns the `/clients/:id/tunnel` endpoints — `POST` to store credentials, `PUT` to edit
+them, `DELETE` to remove them. No form spans both, and the per-run route is in neither: it
+lives with the job, and with the restore request.
+
 `POST /clients/:id/tunnel/test` accepts `sshHost`, `sshPort` and `sshUser` overrides so the
 test describes the fields on screen while the private key stays in the backend; a key entered
-in the form goes through the parameterised `POST /tunnel/test` instead, exactly as in the
-wizard.
+in the form goes through the parameterised `POST /tunnel/test` instead.
 
-13. **Test after an edit** — open a tunnelled client's editor, change SSH host, user or key,
-   then press **Test Connection**.
-   Expected: the result refers to what is in the fields. A test that silently checks the
-   *stored* credentials reports success for a configuration nobody is running.
-14. **Both save paths** — change the display name *and* an SSH field, then use the editor's
-    primary save; repeat with <kbd>Enter</kbd> pressed inside an SSH field.
-    Expected: nothing is discarded without a word. Either one save covers both, or the screen
-    says plainly which action writes the SSH fields.
-15. **Setup snippet on the stored key** — open an existing outbound client (key mode
-    *Keep stored key*) and expand the host setup snippet.
+15. **Test after an edit** — open a tunnelled client's tunnel editor, change SSH host, user
+    or key, then press **Test Connection**.
+    Expected: the result refers to what is in the fields. A test that silently checks the
+    *stored* credentials reports success for a configuration nobody is running.
+16. **Leaving with unsaved changes** — edit an SSH field, then close the tunnel editor.
+    Expected: the sticky bar warns before the click; closing discards, and the list's action
+    for that client still reads what is actually stored.
+17. **Setup snippet on the stored key** — open a tunnelled client (key mode *Keep stored key*)
+    and expand the host setup snippet.
     Expected: a real public key, or no snippet at all — never a copyable `authorized_keys`
     line with an empty key in it.
-16. **Host key after a client rebuild** — reinstall the client host, or replace its SSH host
+18. **Host key after a client rebuild** — reinstall the client host, or replace its SSH host
     key, then let the server reconnect.
-    Expected: the run fails with a clear fingerprint mismatch **and** the editor offers to pin
-    the new key after showing it. Deleting and re-adding the client must not be the only way
+    Expected: the run fails with a clear fingerprint mismatch **and** the tunnel editor offers
+    to pin the new key after showing it. Deleting and re-adding the client must not be the only way
     back, because that also drops its jobs and history.
 
 ## Prerequisite

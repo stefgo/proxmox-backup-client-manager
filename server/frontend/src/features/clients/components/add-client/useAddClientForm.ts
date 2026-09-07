@@ -1,15 +1,7 @@
 import { useState } from 'react';
 import { Ipv4OrCidrSchema } from '@pbcm/shared';
-import { SshKeyMode } from '../SshKeyFields';
 
 export type ConnectionMode = 'inbound' | 'outbound';
-
-export interface TunnelTestResult {
-    ok: boolean;
-    hostKeySha256?: string;
-    boundPort?: number;
-    error?: string;
-}
 
 export interface InboundForm {
     displayName: string;
@@ -24,21 +16,6 @@ export interface OutboundForm {
     hostname: string;
     targetAddress: string;
     registrationSecret: string;
-    /**
-     * Whether the server should reach the PBS through an SSH reverse tunnel to this
-     * host. Optional and independent of the connection mode — an outbound client that
-     * can reach the PBS itself needs none, and it can still be added later in the
-     * client editor.
-     */
-    useTunnel: boolean;
-    sshHost: string;
-    sshPort: string;
-    sshUser: string;
-    keyMode: SshKeyMode;
-    privateKey: string;
-    passphrase: string;
-    /** The last tunnel test's outcome — kept only to report a failed attempt. */
-    test: TunnelTestResult | null;
 }
 
 const EMPTY_INBOUND: InboundForm = {
@@ -52,33 +29,7 @@ const EMPTY_OUTBOUND: OutboundForm = {
     hostname: '',
     targetAddress: '',
     registrationSecret: '',
-    useTunnel: true,
-    sshHost: '',
-    sshPort: '22',
-    sshUser: '',
-    keyMode: 'generate',
-    privateKey: '',
-    passphrase: '',
-    test: null,
 };
-
-/**
- * Changing any of these clears the last tunnel test's outcome.
- *
- * The test result is only ever shown as a report on the fields as they stood
- * when it ran; leaving a green result under an edited host would claim a
- * connection nobody made. The pinned fingerprint itself never comes from here —
- * "Test & Create" tests and creates in one go and uses that run's own answer.
- */
-const SSH_FIELDS: (keyof OutboundForm)[] = [
-    'useTunnel',
-    'sshHost',
-    'sshPort',
-    'sshUser',
-    'keyMode',
-    'privateKey',
-    'passphrase',
-];
 
 /** Empty is valid: without a pin the client is bound to the address it registers from. */
 export const isAllowedIpValid = (value: string): boolean =>
@@ -101,14 +52,7 @@ export const useAddClientForm = () => {
         setInbound((prev) => ({ ...prev, ...patch }));
 
     const patchOutbound = (patch: Partial<OutboundForm>) =>
-        setOutbound((prev) => {
-            const touchesSsh = SSH_FIELDS.some((field) => field in patch);
-            return {
-                ...prev,
-                ...patch,
-                ...(touchesSsh ? { test: null } : {}),
-            };
-        });
+        setOutbound((prev) => ({ ...prev, ...patch }));
 
     return { mode, setMode, inbound, patchInbound, outbound, patchOutbound };
 };

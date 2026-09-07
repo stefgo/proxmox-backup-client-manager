@@ -15,6 +15,8 @@ interface ClientListProps {
     editClient: (client: Client) => void;
     /** Opens the wizard. One entry point — the connection mode is its first step, not a button. */
     addClient: () => void;
+    /** Opens the tunnel editor — setting one up and changing one are the same surface. */
+    editTunnel: (client: Client) => void;
     reconnectClient: (client: Client) => void;
 }
 
@@ -40,8 +42,55 @@ const ConnectionBadge = ({ client }: { client: Client }) => {
     );
 };
 
-export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, reconnectClient }: ClientListProps) => {
+export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, editTunnel, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
+
+    /**
+     * The row's actions, built once for both views — table and list show the same menu,
+     * and two copies of it drift apart.
+     *
+     * The tunnel entry is offered for every client regardless of connection mode, and only
+     * its label turns on whether credentials are stored: setting one up and changing one
+     * are the same form on the same endpoint, so they are one action and not two. It is
+     * here rather than inside the client editor because it is the client list the operator
+     * is looking at when the question "this host cannot reach the PBS" comes up.
+     */
+    const buildMenuEntries = (client: Client) => [
+        {
+            label: 'Edit Client',
+            icon: Edit,
+            onClick: () => {
+                editClient(client);
+            },
+            variant: 'default' as const,
+        },
+        {
+            label: client.tunnelConfigured ? 'Edit SSH Tunnel' : 'Add SSH Tunnel',
+            icon: Network,
+            onClick: () => {
+                editTunnel(client);
+            },
+            variant: 'default' as const,
+        },
+        ...(client.connectionMode === 'outbound' && client.status !== 'online'
+            ? [{
+                label: 'Connect Now',
+                icon: PlugZap,
+                onClick: () => {
+                    reconnectClient(client);
+                },
+                variant: 'default' as const,
+            }]
+            : []),
+        {
+            label: 'Delete Client',
+            icon: Trash2,
+            onClick: () => {
+                deleteClient(client);
+            },
+            variant: 'danger' as const,
+        },
+    ];
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
@@ -100,37 +149,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             tableCellClassName: "content-center",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             )
         });
@@ -184,37 +203,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         actionFields.push({
             listItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             ),
             listLabel: null,

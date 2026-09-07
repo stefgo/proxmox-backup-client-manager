@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Client, normaliseTargetAddress } from '@pbcm/shared';
 import { Save } from 'lucide-react';
 import { Badge, Button, Card, Input } from '@stefgo/react-ui-components';
@@ -8,8 +8,14 @@ import { formatDate } from '../../../utils';
 interface ClientIdentityCardProps {
     client: Client;
     onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
-    /** Reported upwards so the editor's action bar can warn before the operator leaves. */
+    /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
     onDirtyChange?: (dirty: boolean) => void;
+    /**
+     * Placed in the card header. The page passes its close control here rather than
+     * rendering one of its own: the header is the one part of a card that stays in reach
+     * no matter how far down the form the operator has scrolled.
+     */
+    action?: ReactNode;
 }
 
 /**
@@ -18,12 +24,11 @@ interface ClientIdentityCardProps {
  * separate card: one save button per resource is the only arrangement in which a button
  * cannot silently drop what the operator typed into a field it does not submit.
  *
- * The card offers no way out at all — no X in the header, no Cancel in the footer. Leaving
- * is the editor's own affair and its sticky bar owns it, which is the only arrangement in
- * which the exit is reachable from every scroll position. A close control here would be the
- * same action a second time, sitting where it looks like it belonged to this card's fields.
+ * The card does not decide what leaving means — the page does, and hands it in as
+ * `action`. Save stays here, because it belongs to these fields; the way out belongs to
+ * the surface that opened them.
  */
-export const ClientIdentityCard = ({ client, onSave, onDirtyChange }: ClientIdentityCardProps) => {
+export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: ClientIdentityCardProps) => {
     const [displayName, setDisplayName] = useState(client.displayName || '');
     const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
     const [isSaving, setIsSaving] = useState(false);
@@ -98,6 +103,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange }: ClientIden
                 </div>
             }
             titleAs="div"
+            action={action}
             classNames={{ header: 'py-5 px-7' }}
         >
             <div className="px-7 py-6 bg-card">

@@ -35,13 +35,13 @@ export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsP
                 hint="Where the token may be redeemed from, and what the client stays pinned to. Leave it empty to pin the client to the address it registers from."
             />
 
-            {/* The tunnel is optional in this mode too, but it cannot be set up here:
-                an inbound client does not exist as a row until its agent has redeemed
-                the token, and there would be nothing to attach the credentials to. */}
+            {/* Doubly true in this mode: no client is set up with a tunnel, and an
+                inbound one does not even exist as a row until its agent has redeemed
+                the token — there would be nothing to attach the credentials to. */}
             <p className="text-xs text-text-muted">
-                If this host cannot reach a PBS itself, add SSH tunnel credentials in the
-                client editor once the agent has registered; each job then chooses whether
-                to use them.
+                If this host cannot reach a PBS itself, add an SSH tunnel from the client
+                list once the agent has registered; each job and restore then chooses
+                whether to take it.
             </p>
 
             {error && <div className="text-sm text-error break-words">{error}</div>}

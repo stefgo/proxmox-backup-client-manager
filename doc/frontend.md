@@ -42,10 +42,27 @@ Routing is controlled via `react-router-dom` in `App.tsx`.
 | :-------------------- | :-------------- | :------------------------------------------------ |
 | `/login`              | `Login.tsx`     | Authentication page (Local & OIDC).               |
 | `/*`                  | `Dashboard.tsx` | Main application (Protected by `ProtectedRoute`). |
-| `/client/:clientId`   | `Dashboard.tsx` | Detail view of a client.                          |
-| `/repository/:repoId` | `Dashboard.tsx` | Detail view of a repository.                      |
+| `/clients`                    | `ManagedClients`      | Client list.                                    |
+| `/clients/new`                | `AddClientWizard`     | Adds a client, starting with the connection mode. |
+| `/client/:clientId`           | `ClientOverview`      | Detail view of a client.                        |
+| `/client/:clientId/edit`      | `ClientEditor`        | Name and target address of a client.            |
+| `/client/:clientId/tunnel`    | `ClientTunnelEditor`  | Adds, changes or removes the SSH reverse tunnel. |
+| `/repositories`               | `ManagedRepositories` | Repository list.                                |
+| `/repository/:repoId`         | `RepositoryOverview`  | Detail view of a repository.                    |
 
-> **Note:** The `Dashboard` internally uses state (`view`) to switch between tabs and detail views without reloading the entire page. URLs are kept in sync.
+Every client form is a route, not a state flag: the URL says what is on screen, a reload
+keeps it there, and the browser's back button works. The three editor routes resolve their
+client from `useClientStore` and redirect to `/clients` when the id is unknown — a stale
+bookmark must not render an editor over `undefined`.
+
+**Where "back" is** is the caller's business, not the editor's: the surface that opens an
+editor navigates with `{ state: { from: location.pathname } }`, and the editor reads
+`location.state.from` with `/clients` as the fallback. That is why **Edit Client** returns
+to the client list from the list, and to `/client/:clientId` from the detail page, while a
+directly opened URL still closes onto something sensible.
+
+All three routes are listed in the `clients` entry's `path` array in `pages`, so the
+sidebar stays marked while an editor is open.
 
 ---
 
@@ -118,7 +135,9 @@ What is never allowed is the middle ground: a nested section with its own save b
 *above* the form's primary button. The primary button then silently ignores half the fields,
 and <kbd>Enter</kbd> in any nested input submits the outer form rather than the section the
 cursor is in. `ClientEditor` carried exactly this defect from the moment the SSH tunnel section
-was hung into its existing `<form>`; it now takes the second shape, one `Card` per endpoint.
+was hung into its existing `<form>`. The fix went one step further than one `Card` per
+endpoint: the tunnel is now its own surface (`ClientTunnelEditor`), so there is no shared form
+left to get this wrong.
 
 Three rules follow from the same reasoning:
 
@@ -132,7 +151,8 @@ Three rules follow from the same reasoning:
 - **The way out belongs to the container, not to its first child.** `ClientEditor`'s exit
   used to hang off `ClientIdentityCard` because that card happened to be first. With a second
   card below it, working the page top to bottom ended with no way out in reach. Closing is a
-  property of the editor, so the editor renders it — see the action bar below.
+  property of the editor, so the editor renders it — see the action bar below. `ClientTunnelEditor`
+  does the same, for a card that is even longer.
 - **A new mode is a review of its siblings.** Adding a variant such as `SshKeyMode`'s `keep`
   changes what the *neighbouring* components receive — `keep` leaves `privateKey` empty, which
   is why `SshHostSetupSnippet` renders a command with a hole in it. When a mode is added, walk
@@ -148,48 +168,70 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
 
 - **Functionality**:
     - Displays list of clients.
-    - Opens the add-client wizard (one **+ Add** button; the connection mode is the wizard's first step). The wizard replaces the list in the work area — it is not a modal, just like `ClientEditor`.
     - Deletes clients, reconnects outbound ones.
+    - Navigates to the three editor routes: `/clients/new` from the one **+ Add** button (the connection mode is the wizard's first step), `/client/:id/edit` and `/client/:id/tunnel` from the row actions. It holds no editor state of its own — it used to swap four surfaces through the same `div`, which meant the URL described none of them.
 
 ### Client Editor (`ClientEditor.tsx`)
 
-A container, not a form: it selects the live client from `useClientStore` by id and stacks
-one card per resource.
+A page at `/client/:clientId/edit`, and a container rather than a form: it selects the live
+client from `useClientStore` by id and renders the card for the one resource it owns.
 
 - **`ClientIdentityCard`** — header (`StatusDot`, id, last seen), connection mode `Badge`,
   agent version, display name, target address, `Save Client`. The address is
   validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
   function the backend uses, so a rejected address never has to make the round trip.
-- **`ClientTunnelCard`** — shown for **every** client, in either connection mode: the tunnel is
-  a route to the PBS and is optional on both sides of the WebSocket. It holds the SSH
-  credentials and nothing else — stored means *available*, and which backups take the tunnel
-  is set per job in `JobTunnelSettings`. Two states in one card, keyed on what `GET /tunnel`
-  answers: a `404` is not an error but "no credentials yet", and the card becomes a setup form
-  whose **Test & Set Up** does test and `POST` in one action, as the wizard does. **Remove**
-  deletes them behind a `ConfirmDialog`.
-  A `StatusDot` beside the title, exactly as in the card above — whether a connection is up is
-  answered in one idiom on every client surface, and the tunnel's four states map onto the
-  dot's four tones; it appears only once there is a tunnel to report on. Forwards and
-  `lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the
-  `GET /tunnel` call supplies only the stored configuration. `Test Connection` sends the form's
-  values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
-  key** block (see `doc/tunnel.md`).
 
-- **Action bar** — the editor's own, `sticky bottom-0` as the last child of the stack. As the
-  last child its resting place is the end of the editor, so it settles there once the operator
-  has scrolled all the way down and floats at the bottom of the viewport for the whole way
-  there. The page itself is the scroll container; nothing above it clips a sticky child. It
-  holds `Close`, and <kbd>Esc</kbd> does the same. Both cards report their dirty state upwards
-  through `onDirtyChange`, so the bar is the one place that can see an unsaved edit in either
-  and warn about it — neither card can, and the operator leaving is exactly when it matters.
+The SSH tunnel is **not** in this editor. It is a different resource on different endpoints,
+and it is not part of what a client *is* but of how a PBS is reached from it — a question that
+comes up long after the client exists. It has its own surface, reached from the client list.
 
-The bar and <kbd>Esc</kbd> are the *only* exits: neither card carries a close control of its
-own any more. That is the point — an exit inside a card is reachable only when that card is on
-screen. Closing discards unsaved edits without asking; the warning in the bar is the whole of
-the safety net, deliberately, because a confirm dialog exists nowhere else in this frontend.
+#### `ClientTunnelEditor` / `ClientTunnelCard`
 
-Saving does not close the editor — both cards behave alike. The caller passes a client that may
-be a stale snapshot, which is why the live one is read from the store instead.
+Opened from the client list's row action — **Add SSH Tunnel**, or **Edit SSH Tunnel** when
+`client.tunnelConfigured` — for **every** client, in either connection mode: the tunnel is a
+route to the PBS and is optional on both sides of the WebSocket. Setting one up and changing
+one are one action, not two: the same form on the same endpoints.
+
+`ClientTunnelEditor` is the frame (client name, the close control, Escape, the discard
+dialog); `ClientTunnelCard` is the work. The card holds the SSH
+credentials and nothing else — stored means *available*, and which runs take the tunnel is set
+per job in `JobTunnelSettings` and per restore in `SnapshotRestoreEditor`. Two states in one
+card, keyed on what `GET /tunnel` answers: a `404` is not an error but "no credentials yet",
+and the card becomes a setup form whose **Test & Set Up** does test and `POST` in one action.
+**Remove** deletes them behind a `ConfirmDialog`.
+
+A `StatusDot` beside the title, exactly as in `ClientIdentityCard` — whether a connection is up
+is answered in one idiom on every client surface, and the tunnel's four states map onto the
+dot's four tones; it appears only once there is a tunnel to report on. Forwards and
+`lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the
+`GET /tunnel` call supplies only the stored configuration. `Test Connection` sends the form's
+values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
+key** block (see `doc/tunnel.md`).
+
+Leaving the editor refetches the clients: `tunnelConfigured` is what the row's action label
+and its tunnel badge read, and it has just changed.
+
+#### Leaving an editor (both editors)
+
+The exit is an `ActionButton` with an `X`, and the page hands it to the card through the
+card's `action` prop so it lands in the **card header** — the same place `AddClientWizard`
+and `ClientOverview` already put theirs. This replaced a `sticky bottom-0` bar that both
+editors carried in duplicate; the header is the one part of a card that stays in reach at
+every scroll position without floating over the content. `ClientTunnelCard` renders the
+action in *all* of its states, the load error and the loading placeholder included — an
+exit that disappears when a request hangs is an exit that is missing when it is needed.
+
+<kbd>Esc</kbd> does exactly what the button does, guarded by `e.defaultPrevented` so a
+select, an autocomplete or the dialog below keeps Escape for itself.
+
+Each card reports its dirty state upwards through `onDirtyChange`. Clean, the click
+navigates straight away; dirty, a `ConfirmDialog` asks first — the same component the
+tunnel's **Remove** uses. It replaced a passive warning line, which stopped being enough
+once the exit moved into the header: it now sits a few pixels from the fields it would
+throw away, and a warning the operator has scrolled past protects nothing at that distance.
+
+Saving does not leave either editor. The caller passes a client that may be a stale
+snapshot, which is why the live one is read from the store instead.
 
 `StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately, because
 the domains name the same state differently — a client is `online`, a tunnel is `up`. The
@@ -204,7 +246,7 @@ after step 1:
 
 ```
 1 Connection ┬─ inbound  → 2 Client (name, allowed IP/CIDR) → [Create] → token dialog
-             └─ outbound → 2 Agent → 3 SSH → [Test & Create]
+             └─ outbound → 2 Client (name, address, secret) → [Create]
 ```
 
 The inbound branch ends *at* step 2: **Create** issues the registration token and
@@ -213,36 +255,31 @@ the wizard. The token is deliberately not a step — it exists on the server fro
 the moment it appears, so there is nothing left to go back to, and a step that
 issued it on entry issued a second one on every remount.
 
+The wizard covers **one** question: how the server and the agent reach each other. An SSH
+tunnel is no part of it — that is the route to the PBS, it stays revisable for the client's
+whole life, and it is added afterwards from the client list. Tying it to the wizard tied a
+reversible decision to an irreversible one and made it look like a property of the mode.
+
 - `AddClientWizard.tsx` — the framing `Card`, the step lists per branch, and both
   create requests (`POST /v1/tokens` for inbound, `POST /v1/clients/outbound` for
-  outbound). It renders inline in the dashboard work area (`ManagedClients`
-  swaps it in for `ClientList`); the outbound branch carries an SSH key, a
-  connection test and a fingerprint confirmation, which is more than a dialog
-  should hold. The step index is **controlled** here: swapping the step array is the
-  branch, and only this component knows it happened.
+  outbound). It is the `/clients/new` route — a page in the dashboard work area,
+  not a modal, like the two editors. Its `onClose` / `onCreated` come from the
+  route, which navigates back and refetches the list. The step index is
+  **controlled** here: swapping the step array is the branch, and only this
+  component knows it happened.
 - `useAddClientForm.ts` — all form state, one level above the steps. `Wizard`
   renders the current step alone, so a step holding its own inputs would lose
   them on the way back. Inbound and outbound are separate objects, so switching
   the mode and switching back costs nothing.
-    - It also owns the rule that any change to an SSH field discards a completed
-      tunnel test: the fields and the fingerprint confirmation now sit two steps
-      apart, and without it one could confirm a fingerprint for one host and
-      create the client against another.
 - `InboundTokenDialog.tsx` — the issued token, in a modal. The backdrop does not
   dismiss it: the token list stores the token hashed, so this is the only time it
   is shown in full.
-- `steps/` — one file per step, all presentational. The outbound branch's length
-  depends on `useTunnel`, the switch on `StepOutboundAgent` — which decides whether SSH
-  credentials are stored, not whether backups use them: with it on,
-  `StepOutboundSsh` follows and **Test & Create** runs the tunnel test and the
-  create request back to back; with it off there is no SSH step and **Create**
-  registers the client directly. A failure of either is reported into the step
-  that is currently last, rather than moving the flow on. The wizard clamps its
-  controlled step index, because turning the switch off removes the step behind
-  the current one.
-    - The switch sits on the *Agent* step and not beside the connection mode in
-      step 1 on purpose: the mode cannot be revised, the tunnel can, and putting
-      the two side by side would suggest otherwise.
+- `steps/` — one file per step, all presentational. Both branches are two steps
+  long: the connection mode, then either the inbound registration details or the
+  outbound agent's address and secret. **Create** ends either one. A failure is
+  reported into the last step rather than moving the flow on. The wizard still
+  clamps its controlled step index, because going back and picking the other mode
+  swaps the array underneath it.
 
 Inbound registration details (display name, allowed IP or CIDR network) are carried
 by the **registration token**, since the agent registers unattended — see
@@ -278,10 +315,19 @@ repository, archives, encryption, tunnel, schedule.
 The restore process is complex and distributed across:
 
 1. `useRepositoryStore`: Loads available snapshots from the PBS.
-2. `RepositorySnapshotRestore` (in `features/repositories`):
+2. `SnapshotRestoreEditor` (in `features/repositories`):
     - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
     - Target path input on the client.
-3. `POST /api/v1/clients/:id/restore`: Triggers the restore command on the client.
+    - **Restore through the SSH reverse tunnel** — the same question `JobTunnelSettings` asks
+      of a job, asked here because a restore has no stored config to carry it. It follows the
+      *selected* client, not the one the editor was opened for, since the client can still be
+      swapped in the form. Shown only when that client has credentials — a client with no
+      tunnel has no choice to make, and an inert switch would raise a question the operator
+      cannot act on from here — and defaulted to on, because a client that has a tunnel
+      usually has it for want of a direct route.
+3. `POST /api/v1/clients/:id/restore`: Triggers the restore command on the client. The tunnel
+   choice travels in that one request as `tunnel: { required }`; the backend rejects a request
+   asking for a route the client has no credentials for.
 
 ---
 

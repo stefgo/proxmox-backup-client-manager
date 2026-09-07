@@ -121,4 +121,9 @@ with the job config, is stored with it, and is read back before the run. When it
 agent requests a lease through `TunnelClient` and replaces host and port in `PBS_REPOSITORY`
 with the loopback endpoint. Living in the job config is what makes a scheduled run offline
 take the route the operator chose — and it is the only copy of the setting, so nothing can
-fall out of step with it. Details: [tunnel.md](tunnel.md).
+fall out of step with it.
+
+A **restore** carries the same `tunnel.required`, but in the `RUN_RESTORE` payload rather than
+in a stored config: it is triggered from the dashboard, is never scheduled, and the operator
+answers the question in the restore form. Absent means a direct connection.
+Details: [tunnel.md](tunnel.md).
