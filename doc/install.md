@@ -112,7 +112,7 @@ The behavior of the client and server can be controlled via environment variable
 | Variable     | Values                             | Default       | Description                                                                                              |
 | :----------- | :--------------------------------- | :------------ | :------------------------------------------------------------------------------------------------------- |
 | `LOG_LEVEL`  | `debug`, `info`, `warn`, `error`   | `info`        | Controls the verbosity of the logs.                                                                      |
-| `LOG_FORMAT` | `pretty`, `json`                   | _auto_        | `pretty` for single-line, colored logs (default in Dev). `json` for structured output (default in Prod). |
+| `LOG_FORMAT` | `pretty`, `one-line`, `json`       | _auto_        | `pretty` for single-line, colored logs (default in Dev). `json` for structured output (default in Prod). `one-line` is an accepted alias of `pretty` — the transport always sets `singleLine`, so there is no separate multi-line mode for it to switch off. |
 | `SERVER_URL` | URL (e.g., `wss://localhost:3000`) | _from config_ | (Client only) Overrides the server URL from `config.yaml`.                                               |
 | `NODE_ENV`   | `development`, `production`        | `development` | Controls general behavior like logging defaults.                                                         |
 

@@ -656,7 +656,7 @@ to leave the backend.
 
 **Description:** Verifies SSH reachability, credentials and that a reverse forward is
 permitted. Does **not** contact any PBS: server-to-PBS reachability is a property of the
-repository and is covered by `GET /v1/repositories/:id/status`.
+repository and is covered by `GET /v1/repositories/:repositoryId/status`.
 
 **Example Response:**
 
@@ -1326,7 +1326,7 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 ### Dashboard Connection
 
-`GET /api/ws/dashboard`
+`GET /ws/dashboard`
 
 **Description:** WebSocket endpoint for the web dashboard to receive real-time updates.
 
@@ -1347,7 +1347,7 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 ### Agent Connection
 
-`GET /ws`
+`GET /ws/agent`
 
 **Description:** WebSocket endpoint for client agents. Requires an active `authToken`.
 
