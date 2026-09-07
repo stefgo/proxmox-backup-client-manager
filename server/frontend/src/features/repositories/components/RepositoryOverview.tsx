@@ -1,6 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, FileBox } from 'lucide-react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
+import {
+    ManagedRepository as Repository,
+    CLIENT_STATUS,
+    REPOSITORY_STATUS,
+} from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useState, useEffect } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
@@ -44,7 +48,8 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const getStatusColor = () => {
         if (isLoading) return 'bg-warning animate-pulse shadow-glow-accent';
-        if (repo?.status === 'online') return 'bg-success shadow-glow-success';
+        if (repo?.status === REPOSITORY_STATUS.ONLINE)
+            return 'bg-success shadow-glow-success';
         return 'bg-border';
     };
 
@@ -58,7 +63,8 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         );
     }
 
-    const showDetails = !isLoading && !error && repo.status === 'online';
+    const showDetails =
+        !isLoading && !error && repo.status === REPOSITORY_STATUS.ONLINE;
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -88,7 +94,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                 </div>
             )}
 
-            {!isLoading && !error && repo.status !== 'online' && (
+            {!isLoading && !error && repo.status !== REPOSITORY_STATUS.ONLINE && (
                 <div className="bg-app-bg border border-border text-text-muted p-4 rounded-md flex items-center gap-3">
                     <AlertCircle size={18} className="shrink-0" />
                     <span>Repository is offline — snapshots cannot be listed.</span>
@@ -126,7 +132,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                                 snapshots={snapshots}
                                 showClientColumn={true}
                                 onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
-                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || 'offline'}
+                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
                                 getClientName={(clientId) => {
                                     const client = clients.find(c => c.id === clientId);
                                     return client ? (client.displayName || client.hostname) : null;

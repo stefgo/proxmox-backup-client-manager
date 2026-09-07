@@ -1,9 +1,10 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { TunnelState, TunnelStatus } from '@pbcm/shared';
+import { TunnelState, TunnelStatus, TUNNEL_STATUS } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, ConfirmDialog, Input } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
-import { StatusDot, StatusTone } from './StatusDot';
+import { StatusDot } from './StatusDot';
+import { STATUS_TONE, type StatusTone } from './statusTone';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 import { apiFetch } from '../../../lib/apiFetch';
@@ -44,11 +45,11 @@ interface TestResult {
  * the point of showing it the same way is that "is this connection up" is answered in one
  * place and one idiom on every client surface.
  */
-const STATUS_TONE: Record<TunnelStatus, StatusTone> = {
-    up: 'online',
-    connecting: 'connecting',
-    error: 'error',
-    idle: 'offline',
+const TUNNEL_STATUS_TONE: Record<TunnelStatus, StatusTone> = {
+    [TUNNEL_STATUS.UP]: STATUS_TONE.ONLINE,
+    [TUNNEL_STATUS.CONNECTING]: STATUS_TONE.CONNECTING,
+    [TUNNEL_STATUS.ERROR]: STATUS_TONE.ERROR,
+    [TUNNEL_STATUS.IDLE]: STATUS_TONE.OFFLINE,
 };
 
 const COPY_FEEDBACK_MS = 2000;
@@ -390,7 +391,7 @@ export const ClientTunnelCard = ({ clientId, state, onDirtyChange, action }: Cli
                 <span className="flex items-center gap-4">
                     {/* Only once there is a tunnel: a dot on a card that is a setup form
                         would report the state of something that does not exist. */}
-                    {info && <StatusDot tone={STATUS_TONE[status]} label={status} />}
+                    {info && <StatusDot tone={TUNNEL_STATUS_TONE[status]} label={status} />}
                     <span>SSH Reverse Tunnel</span>
                 </span>
             }

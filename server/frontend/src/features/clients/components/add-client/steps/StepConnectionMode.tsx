@@ -1,5 +1,5 @@
 import { RadioGroup, Radio, cn } from '@stefgo/react-ui-components';
-import { ConnectionMode } from '../useAddClientForm';
+import { CONNECTION_MODE, ConnectionMode } from '@pbcm/shared';
 
 interface StepConnectionModeProps {
     mode: ConnectionMode | null;
@@ -8,12 +8,12 @@ interface StepConnectionModeProps {
 
 const OPTIONS: { value: ConnectionMode; title: string; summary: string }[] = [
     {
-        value: 'inbound',
+        value: CONNECTION_MODE.INBOUND,
         title: 'Inbound',
         summary: 'the client dials the server — the default, for a host that may open outbound connections.',
     },
     {
-        value: 'outbound',
+        value: CONNECTION_MODE.OUTBOUND,
         title: 'Outbound',
         summary: 'the server dials the client — for a host that must not dial out, or is not allowed to.',
     },

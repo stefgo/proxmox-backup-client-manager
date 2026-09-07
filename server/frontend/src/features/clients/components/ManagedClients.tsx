@@ -1,4 +1,4 @@
-import { Client } from "@pbcm/shared";
+import { Client, CONNECTION_MODE } from "@pbcm/shared";
 import { ClientList } from "./ClientList";
 import { apiFetch } from "../../../lib/apiFetch";
 
@@ -35,7 +35,7 @@ export const ManagedClients = ({
 }: ManagedClientsProps) => {
     const handleDeleteClient = async (client: Client) => {
         const extra =
-            client.connectionMode === "outbound"
+            client.connectionMode === CONNECTION_MODE.OUTBOUND
                 ? "\n\nNote: the connection mode is fixed. Deleting this client also discards its job history."
                 : "";
         if (!confirm(`Delete this client?${extra}`)) return;

@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
-import { Client, JOB_STATUS } from '@pbcm/shared';
+import { Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
 import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
@@ -144,7 +144,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             <Card
                 title={
                     <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                         <div>
                             <h2 className="text-2xl font-bold">
                                 {client.displayName || client.hostname}
@@ -157,7 +157,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
                 action={
                     <div className="flex items-center gap-4">
-                        {client.status !== 'online' && (
+                        {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-right mr-2">
                                 <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Last Seen</div>
                                 <div className="text-sm text-text-primary font-mono">{formatDate(client.lastSeen)}</div>
@@ -199,7 +199,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
             />
 
-            {client.status === 'online' && (
+            {client.status === CLIENT_STATUS.ONLINE && (
                 <>
                     {jobForm.isCreatingJob ? (
                         <ClientJobEditor

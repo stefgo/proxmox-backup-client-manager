@@ -1,6 +1,11 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
-import { WS_EVENTS, BackupJob } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    CLIENT_STATUS,
+    REPOSITORY_STATUS,
+    BackupJob,
+} from "@pbcm/shared";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import {
     probeCertificate,
@@ -30,7 +35,7 @@ export class RepositoryController {
         return repos.map((repo) => ({
             ...repo,
             baseUrl: repo.base_url,
-            status: "unknown",
+            status: REPOSITORY_STATUS.UNKNOWN,
             observed: FingerprintObservations.get(repo.id),
         }));
     }
@@ -151,7 +156,7 @@ export class RepositoryController {
         }
 
         const skippedOffline = ProxyService.getClientsWithStatus()
-            .filter((c: any) => c.status !== "online")
+            .filter((c: any) => c.status !== CLIENT_STATUS.ONLINE)
             .map((c: any) => ({
                 clientId: c.id,
                 hostname: c.displayName || c.hostname,
@@ -196,12 +201,12 @@ export class RepositoryController {
             clearTimeout(timeoutId);
 
             if (res.ok) {
-                return { status: "online" };
+                return { status: REPOSITORY_STATUS.ONLINE };
             } else {
-                return { status: "offline" };
+                return { status: REPOSITORY_STATUS.OFFLINE };
             }
         } catch (e) {
-            return { status: "offline" };
+            return { status: REPOSITORY_STATUS.OFFLINE };
         }
     }
 

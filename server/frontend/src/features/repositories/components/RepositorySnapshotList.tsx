@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
-import { Snapshot } from '@pbcm/shared';
+import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 
@@ -8,7 +8,7 @@ interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
     onRestore: (snapshot: T) => void;
     showClientColumn?: boolean;
-    getClientStatus?: (clientId: string) => "online" | "offline";
+    getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string | null;
 }
 
@@ -52,8 +52,9 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         });
     }, [sortedSnapshots, searchQuery, getClientName]);
 
-    const getStatus = (snap: Snapshot): "online" | "offline" => {
-        if (!showClientColumn || !getClientStatus || !snap.backupId) return "online";
+    const getStatus = (snap: Snapshot): ClientStatus => {
+        if (!showClientColumn || !getClientStatus || !snap.backupId)
+            return CLIENT_STATUS.ONLINE;
         return getClientStatus(snap.backupId);
     };
 
@@ -68,7 +69,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
                 if (!name) return null;
 
-                const online = getStatus(snap) === "online";
+                const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-3">
                         <div
@@ -140,7 +141,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
                 if (!name) return null;
 
-                const isOnline = getStatus(snap) === "online";
+                const isOnline = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-2 py-1">
                         <span

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
 
 export const RepositorySchema = z.object({
     /**
@@ -19,10 +20,10 @@ export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
     displayName: z.string().optional(),
-    status: z.enum(["online", "offline"]),
+    status: z.enum(CLIENT_STATUS),
     lastSeen: z.string(),
     version: z.string().optional(),
-    connectionMode: z.enum(["inbound", "outbound"]).optional(),
+    connectionMode: z.enum(CONNECTION_MODE).optional(),
     outboundTargetAddress: z.string().optional(),
     /**
      * Whether SSH credentials are stored for this client, so its jobs and restores may

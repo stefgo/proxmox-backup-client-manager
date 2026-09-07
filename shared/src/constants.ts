@@ -55,8 +55,24 @@ export const TUNNEL_STATUS = {
     ERROR: "error",
 } as const;
 
+/**
+ * Whether the server currently holds a WebSocket to the agent. Deliberately binary:
+ * ProxyService derives it from `connectedClients` on every dashboard broadcast, and
+ * there is no third state for it to report.
+ */
 export const CLIENT_STATUS = {
     ONLINE: "online",
     OFFLINE: "offline",
-    BUSY: "busy",
+} as const;
+
+/**
+ * Reachability of a managed PBS repository. Wider than CLIENT_STATUS on both ends:
+ * `unknown` is what the list endpoint returns before anything has probed the repository,
+ * `loading` is the frontend's own marker while a probe is in flight.
+ */
+export const REPOSITORY_STATUS = {
+    ONLINE: "online",
+    OFFLINE: "offline",
+    UNKNOWN: "unknown",
+    LOADING: "loading",
 } as const;

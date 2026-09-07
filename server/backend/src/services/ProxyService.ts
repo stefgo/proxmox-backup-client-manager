@@ -1,6 +1,13 @@
 import { WebSocket } from "ws";
 import crypto, { randomUUID } from "crypto";
-import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    WsMessage,
+    ProtocolMap,
+    BackupJob,
+} from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
@@ -194,11 +201,13 @@ export class ProxyService {
             id: client.id,
             hostname: client.hostname,
             displayName: client.display_name,
-            status: this.connectedClients.has(client.id) ? "online" : "offline",
+            status: this.connectedClients.has(client.id)
+                ? CLIENT_STATUS.ONLINE
+                : CLIENT_STATUS.OFFLINE,
             lastSeen: client.last_seen,
             ipAddress: client.ip_address,
             version: client.version,
-            connectionMode: client.connection_mode || "inbound",
+            connectionMode: client.connection_mode || CONNECTION_MODE.INBOUND,
             outboundTargetAddress: client.outbound_target_address,
             // Keyed on the tunnel itself, not on the connection mode: a tunnel is optional
             // in either mode, so an inbound client can have one and an outbound one can do

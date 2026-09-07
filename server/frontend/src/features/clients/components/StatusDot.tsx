@@ -1,5 +1,6 @@
-/** The visual states a status dot has, independent of what the domain calls them. */
-export type StatusTone = 'online' | 'connecting' | 'error' | 'offline';
+import { STATUS_TONE, type StatusTone } from './statusTone';
+
+export type { StatusTone };
 
 interface StatusDotProps {
     tone: StatusTone;
@@ -15,10 +16,10 @@ interface StatusDotProps {
 const TONE_CLASSES: Record<StatusTone, string> = {
     // The glow exists only in the success variant of the preset, so the other tones make do
     // with the plain pulse — the same pairing `RepositoryList` has used all along.
-    online: 'bg-success shadow-glow-success animate-pulse-glow',
-    connecting: 'bg-warning animate-pulse',
-    error: 'bg-error',
-    offline: 'bg-border',
+    [STATUS_TONE.ONLINE]: 'bg-success shadow-glow-success animate-pulse-glow',
+    [STATUS_TONE.CONNECTING]: 'bg-warning animate-pulse',
+    [STATUS_TONE.ERROR]: 'bg-error',
+    [STATUS_TONE.OFFLINE]: 'bg-border',
 };
 
 /**

@@ -7,6 +7,7 @@ import {
     Plus,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CLIENT_STATUS, ClientStatus } from "@pbcm/shared";
 import { formatDate } from "../../../utils";
 import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
@@ -41,7 +42,7 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     onTriggerJob: (job: T) => void;
     onDeleteJob: (job: T) => void;
     onCreateJob?: () => void;
-    getClientStatus?: (clientId: string) => "online" | "offline";
+    getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
     viewModeStorageKey?: string;
 }
@@ -103,8 +104,9 @@ export const BaseJobList = <T extends BaseJobItem>({
         );
     };
 
-    const getStatus = (job: T): "online" | "offline" => {
-        if (!showClientColumn || !getClientStatus || !job.clientId) return "online";
+    const getStatus = (job: T): ClientStatus => {
+        if (!showClientColumn || !getClientStatus || !job.clientId)
+            return CLIENT_STATUS.ONLINE;
         return getClientStatus(job.clientId);
     };
 
@@ -118,7 +120,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 sortable: true,
                 sortValue: (job) => (job.clientId && getClientName ? getClientName(job.clientId) : '') ?? '',
                 tableItemRender: (job) => {
-                    const online = getStatus(job) === "online";
+                    const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-3 mb-1">
                             <div
@@ -151,7 +153,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             sortable: true,
             sortValue: (job) => job.name,
             tableItemRender: (job) => {
-                const online = getStatus(job) === "online";
+                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <>
                         <div
@@ -173,7 +175,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             sortable: true,
             sortValue: (job) => job.archives?.length ?? 0,
             tableItemRender: (job) => {
-                const online = getStatus(job) === "online";
+                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className={`text-sm ${online ? "text-text-primary" : ""}`}>
                         {job.archives?.length || 0}
@@ -187,7 +189,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             sortable: true,
             sortValue: (job) => job.nextRunAt ?? '',
             tableItemRender: (job) => {
-                const online = getStatus(job) === "online";
+                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className={`text-sm ${online ? "text-text-muted" : ""}`}>
                         {job.scheduleEnabled ? (
@@ -207,7 +209,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableHeader: "Encrypted",
             tableHeaderClassName: "w-8",
             tableItemRender: (job) => {
-                const online = getStatus(job) === "online";
+                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return job.encryption?.enabled ? (
                     <KeyRound
                         size={16}
@@ -227,7 +229,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (job) => {
-                const online = getStatus(job) === "online";
+                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 const rowId = job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new');
                 return (
                     <DataAction
@@ -274,7 +276,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         if (showClientColumn) {
             contentFields.push({
                 listItemRender: (job) => {
-                    const isOnline = getStatus(job) === "online";
+                    const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-2 py-1">
                             <span
@@ -304,7 +306,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         contentFields.push({
             listItemRender: (job) => {
-                const isOnline = getStatus(job) === "online";
+                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <span className={isOnline ? "text-text-primary" : "text-inherit"}>
                         {job.name}
@@ -316,7 +318,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         contentFields.push({
             listItemRender: (job) => {
-                const isOnline = getStatus(job) === "online";
+                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <span className={isOnline ? "text-text-primary" : "text-inherit"}>
                         {job.archives?.length || 0}
@@ -328,7 +330,7 @@ export const BaseJobList = <T extends BaseJobItem>({
 
         contentFields.push({
             listItemRender: (job) => {
-                const isOnline = getStatus(job) === "online";
+                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <span className={isOnline ? "text-text-muted" : "text-inherit"}>
                         {job.scheduleEnabled ? (
@@ -348,7 +350,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         contentFields.push({
             listItemRender: (job) => {
                 if (!job.encryption?.enabled) return null;
-                const isOnline = getStatus(job) === "online";
+                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <span className={`${isOnline ? "text-text-muted" : "text-inherit"} flex items-center gap-1`}>
                         <KeyRound size={14} className={isOnline ? "" : "text-inherit"} /> Yes
@@ -361,7 +363,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         // Actions
         actionFields.push({
             listItemRender: (job) => {
-                const isOnline = getStatus(job) === "online";
+                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center justify-center gap-3 mt-3">
                         <DataAction
@@ -431,7 +433,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             search={{ onChange: setSearchQuery }}
             emptyMessage="No jobs configured."
             rowClassName={(job) =>
-                getStatus(job) === "online"
+                getStatus(job) === CLIENT_STATUS.ONLINE
                     ? "align-top"
                     : "bg-app-bg text-text-muted opacity-75"
             }

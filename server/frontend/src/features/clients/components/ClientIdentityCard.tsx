@@ -1,8 +1,14 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { Client, normaliseTargetAddress } from '@pbcm/shared';
+import {
+    Client,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    normaliseTargetAddress,
+} from '@pbcm/shared';
 import { Save } from 'lucide-react';
 import { Badge, Button, Card, Input } from '@stefgo/react-ui-components';
 import { StatusDot } from './StatusDot';
+import { STATUS_TONE } from './statusTone';
 import { formatDate } from '../../../utils';
 
 interface ClientIdentityCardProps {
@@ -35,7 +41,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
 
-    const isOutbound = client.connectionMode === 'outbound';
+    const isOutbound = client.connectionMode === CONNECTION_MODE.OUTBOUND;
 
     // Validated here rather than only on the server: the same function decides both, so a
     // rejected address is caught in the field instead of coming back as a request error.
@@ -79,7 +85,11 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
             title={
                 <div className="flex items-center gap-4">
                     <StatusDot
-                        tone={client.status === 'online' ? 'online' : 'offline'}
+                        tone={
+                            client.status === CLIENT_STATUS.ONLINE
+                                ? STATUS_TONE.ONLINE
+                                : STATUS_TONE.OFFLINE
+                        }
                         label={client.status}
                     />
                     <div>
@@ -94,7 +104,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                         {/* Only while offline: for a connected client the pulsing dot
                             already says the agent is here, and a timestamp beside it just
                             invites the question whether it is stale. */}
-                        {client.status !== 'online' && (
+                        {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-xs font-normal text-text-muted mt-1">
                                 Last seen {formatDate(client.lastSeen)}
                             </div>

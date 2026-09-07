@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
-import { WS_EVENTS } from "@pbcm/shared";
+import { WS_EVENTS, CONNECTION_MODE } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
@@ -299,7 +299,7 @@ export class ClientConnector {
         const timer = setTimeout(async () => {
             this.reconnectTimers.delete(clientId);
             const client = ClientRepository.findById(clientId);
-            if (client && client.connection_mode === "outbound") {
+            if (client && client.connection_mode === CONNECTION_MODE.OUTBOUND) {
                 await this.connectClient(client);
             }
         }, delay);
@@ -311,7 +311,8 @@ export class ClientConnector {
     static async reconnectNow(clientId: string): Promise<boolean> {
         this.cancelReconnect(clientId);
         const client = ClientRepository.findById(clientId);
-        if (!client || client.connection_mode !== "outbound") return false;
+        if (!client || client.connection_mode !== CONNECTION_MODE.OUTBOUND)
+            return false;
         return this.connectClient(client);
     }
 

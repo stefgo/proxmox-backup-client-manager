@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { Ipv4OrCidrSchema } from '@pbcm/shared';
-
-export type ConnectionMode = 'inbound' | 'outbound';
+import { Ipv4OrCidrSchema, ConnectionMode } from '@pbcm/shared';
 
 export interface InboundForm {
     displayName: string;

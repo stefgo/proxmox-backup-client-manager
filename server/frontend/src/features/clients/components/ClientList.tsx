@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
-import { Client } from '@pbcm/shared';
+import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
@@ -72,7 +72,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             },
             variant: 'default' as const,
         },
-        ...(client.connectionMode === 'outbound' && client.status !== 'online'
+        ...(client.connectionMode === CONNECTION_MODE.OUTBOUND && client.status !== CLIENT_STATUS.ONLINE
             ? [{
                 label: 'Connect Now',
                 icon: PlugZap,
@@ -117,8 +117,8 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
-                        <div className={`text-sm text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
                             {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                         </div>
@@ -135,7 +135,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-text-primary",
             tableItemRender: (client) => (
-                client.status !== 'online' ? (
+                client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
                         Last seen: {formatDate(client.lastSeen)}
                     </div >
@@ -164,8 +164,8 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
-                    <div className={`font-inherit text-text-primary ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                    <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                         {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                     </div>
@@ -191,7 +191,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
 
         contentFields.push({
             listItemRender: (client) => (
-                client.status !== 'online' ? (
+                client.status !== CLIENT_STATUS.ONLINE ? (
                     <span className="text-sm text-text-muted">
                         {formatDate(client.lastSeen)}
                     </span>

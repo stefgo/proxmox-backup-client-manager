@@ -12,6 +12,7 @@ import {
 
 // Library Components
 import { Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING } from "@stefgo/react-ui-components";
+import { CLIENT_STATUS, REPOSITORY_STATUS } from "@pbcm/shared";
 
 import Login from '../../pages/Login';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -200,17 +201,17 @@ function AppLayout() {
   const stats = useMemo(
     () => ({
       clients: {
-        active: clients.filter((c) => c.status === "online").length,
+        active: clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length,
         total: clients.length,
       },
       repositories: {
-        active: repos.filter((r) => r.status === "online").length,
+        active: repos.filter((r) => r.status === REPOSITORY_STATUS.ONLINE).length,
         total: repos.length,
       },
       jobs: {
         active: globalJobs.filter((j) => {
           const client = clients.find((c) => c.id === j.clientId);
-          return client?.status === "online";
+          return client?.status === CLIENT_STATUS.ONLINE;
         }).length,
         total: globalJobs.length,
       },

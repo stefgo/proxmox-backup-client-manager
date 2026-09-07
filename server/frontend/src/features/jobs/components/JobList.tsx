@@ -1,3 +1,4 @@
+import { ClientStatus } from "@pbcm/shared";
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
 import { BaseJobList } from "./BaseJobList";
 
@@ -6,7 +7,7 @@ interface JobListProps {
     onEditJob: (job: GlobalJob) => void;
     onTriggerJob: (clientId: string, jobId: string) => void;
     onDeleteJob: (clientId: string, jobId: string) => void;
-    getClientStatus: (clientId: string) => "online" | "offline";
+    getClientStatus: (clientId: string) => ClientStatus;
     getClientName: (clientId: string) => string;
 }
 

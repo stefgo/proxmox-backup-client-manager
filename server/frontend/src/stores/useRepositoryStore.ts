@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { ManagedRepository as Repository } from "@pbcm/shared";
+import {
+    ManagedRepository as Repository,
+    REPOSITORY_STATUS,
+} from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
 
@@ -72,7 +75,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     checkRepositoryStatus: async (id) => {
         set((state) => ({
             repositories: state.repositories.map((r) =>
-                r.id === id ? { ...r, status: "loading" } : r,
+                r.id === id ? { ...r, status: REPOSITORY_STATUS.LOADING } : r,
             ),
         }));
 
@@ -89,14 +92,14 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
             } else {
                 set((state) => ({
                     repositories: state.repositories.map((r) =>
-                        r.id === id ? { ...r, status: "offline" } : r,
+                        r.id === id ? { ...r, status: REPOSITORY_STATUS.OFFLINE } : r,
                     ),
                 }));
             }
         } catch {
             set((state) => ({
                 repositories: state.repositories.map((r) =>
-                    r.id === id ? { ...r, status: "offline" } : r,
+                    r.id === id ? { ...r, status: REPOSITORY_STATUS.OFFLINE } : r,
                 ),
             }));
         }

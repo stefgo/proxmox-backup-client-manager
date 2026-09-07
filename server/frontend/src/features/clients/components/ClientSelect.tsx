@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react';
-import { Client } from '@pbcm/shared';
+import { Client, CLIENT_STATUS } from '@pbcm/shared';
 import { Collapsible, Badge, ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 const ClientInfo = ({ client }: { client: Client }) => (
@@ -14,7 +14,7 @@ const ClientInfo = ({ client }: { client: Client }) => (
         </div>
         <div className="grid grid-cols-[80px_1fr] gap-2">
             <span className="text-text-muted">Status:</span>
-            <Badge variant={client.status === 'online' ? 'success' : 'neutral'} size="sm">
+            <Badge variant={client.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'} size="sm">
                 {client.status}
             </Badge>
         </div>
@@ -69,7 +69,7 @@ export const ClientSelect = ({
                                     <div className="font-medium text-sm text-text-primary truncate">
                                         {client.displayName || client.hostname}
                                     </div>
-                                    <Badge variant={client.status === 'online' ? 'success' : 'neutral'} size="sm">
+                                    <Badge variant={client.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'} size="sm">
                                         {client.status}
                                     </Badge>
                                 </div>
@@ -105,7 +105,7 @@ export const ClientSelect = ({
                                 <div className="flex justify-between items-center gap-2 w-full">
                                     <div className="text-sm text-text-primary truncate font-medium opacity-90">
                                         {selectedClient.displayName || selectedClient.hostname}
-                                        <Badge variant={selectedClient.status === 'online' ? 'success' : 'neutral'} size="sm" className="ml-2">
+                                        <Badge variant={selectedClient.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'} size="sm" className="ml-2">
                                             {selectedClient.status}
                                         </Badge>
                                     </div>

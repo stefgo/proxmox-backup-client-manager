@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
+import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
 import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
@@ -42,11 +42,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             tableItemRender: (repo) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-success shadow-glow-success'
-                            : repo.status === 'loading' ? 'bg-warning animate-pulse'
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
+                            : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
                                 : 'bg-border'
                             }`} />
-                        <div className={`text-sm text-text-primary ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                             {repo.baseUrl}:{repo.datastore}
                         </div>
                     </div>
@@ -96,11 +96,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-success shadow-glow-success'
-                        : repo.status === 'loading' ? 'bg-warning animate-pulse'
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
+                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
                             : 'bg-border'
                         }`} />
-                    <div className={`font-inherit text-text-primary ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
                 </div>

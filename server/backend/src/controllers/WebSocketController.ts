@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import {
     WS_EVENTS,
     JOB_STATUS,
+    CONNECTION_MODE,
     WsMessage,
     ProtocolMap,
     AuthPayloadSchema,
@@ -200,7 +201,8 @@ export class WebSocketController {
         const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
 
         // Outbound clients are dialed BY the server and have no registered IP to pin against.
-        const isInbound = client.connection_mode !== "outbound";
+        const isInbound =
+            client.connection_mode !== CONNECTION_MODE.OUTBOUND;
 
         if (isInbound && !isTrusted && !matchesPin(clientIp, client.inbound_registered_ip)) {
             fastify.log.warn({

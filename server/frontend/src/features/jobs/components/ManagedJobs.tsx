@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { CLIENT_STATUS } from "@pbcm/shared";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -76,7 +77,7 @@ export const ManagedJobs = () => {
 
     const getClientStatus = (clientId: string) => {
         const client = clients.find((c) => c.id === clientId);
-        return client?.status || "offline";
+        return client?.status || CLIENT_STATUS.OFFLINE;
     };
 
     const getClientName = (clientId: string) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, X } from 'lucide-react';
 import { ActionButton, Card, Wizard, WizardStep } from '@stefgo/react-ui-components';
+import { CONNECTION_MODE } from '@pbcm/shared';
 import { apiFetch } from '../../../../lib/apiFetch';
 import { useAddClientForm, isAllowedIpValid } from './useAddClientForm';
 import { StepConnectionMode } from './steps/StepConnectionMode';
@@ -145,7 +146,11 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
 
     const steps: WizardStep[] = [
         modeStep,
-        ...(mode === 'inbound' ? inboundSteps : mode === 'outbound' ? outboundSteps : []),
+        ...(mode === CONNECTION_MODE.INBOUND
+            ? inboundSteps
+            : mode === CONNECTION_MODE.OUTBOUND
+              ? outboundSteps
+              : []),
     ];
 
     // Going back to step 1 and picking the other mode swaps the array under the index,
@@ -164,7 +169,7 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
                 value={safeIndex}
                 onChange={setIndex}
                 onCancel={onClose}
-                onFinish={mode === 'inbound' ? handleCreateInbound : handleCreateOutbound}
+                onFinish={mode === CONNECTION_MODE.INBOUND ? handleCreateInbound : handleCreateOutbound}
                 finishLabel="Create"
                 finishIcon={KeyRound}
                 isFinishing={creating}

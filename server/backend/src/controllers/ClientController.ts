@@ -1,7 +1,12 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, ClientSchema, normaliseTargetAddress } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    CONNECTION_MODE,
+    ClientSchema,
+    normaliseTargetAddress,
+} from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
@@ -77,7 +82,7 @@ export class ClientController {
         if (!client) {
             return reply.code(404).send({ error: "Client not found" });
         }
-        if (client.connection_mode !== "outbound") {
+        if (client.connection_mode !== CONNECTION_MODE.OUTBOUND) {
             return reply
                 .code(400)
                 .send({ error: "Only outbound clients can be dialled" });
@@ -146,7 +151,7 @@ export class ClientController {
 
         let address: string | undefined;
         if (body.outboundTargetAddress !== undefined) {
-            if (client.connection_mode !== "outbound") {
+            if (client.connection_mode !== CONNECTION_MODE.OUTBOUND) {
                 return reply.code(400).send({
                     error: "Only outbound clients have a target address",
                 });

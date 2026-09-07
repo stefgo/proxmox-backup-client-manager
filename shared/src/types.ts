@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { JOB_STATUS, CLIENT_STATUS } from "./constants.js";
+import {
+    JOB_STATUS,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    TUNNEL_STATUS,
+    REPOSITORY_STATUS,
+} from "./constants.js";
 import {
     ClientSchema,
     BackupJobSchema,
@@ -49,16 +55,22 @@ import {
     TunnelReleaseSchema,
 } from "./schemas.js";
 
-export type ConnectionMode = "inbound" | "outbound";
-export type TunnelStatus = "idle" | "connecting" | "up" | "error";
-
 /**
- * Derived from the constants so the two can never drift apart. Note that the wire
- * schemas keep `status` as a plain string: an agent running an older build must not
- * have its STATUS_UPDATE dropped just because it reports a status we do not know yet.
+ * Every status vocabulary is derived from its constant, so the two can never drift
+ * apart -- the constant is the only place a value is written down, and the Zod enums in
+ * `schemas.js` are built from the same objects.
+ *
+ * Note that the wire schemas keep `status` as a plain string: an agent running an older
+ * build must not have its STATUS_UPDATE dropped just because it reports a status we do
+ * not know yet.
  */
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
+export type ConnectionMode =
+    (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MODE];
+export type TunnelStatus = (typeof TUNNEL_STATUS)[keyof typeof TUNNEL_STATUS];
+export type RepositoryStatus =
+    (typeof REPOSITORY_STATUS)[keyof typeof REPOSITORY_STATUS];
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
@@ -67,7 +79,7 @@ export type Repository = z.infer<typeof RepositorySchema>;
 
 export interface ManagedRepository extends Repository {
     id: string | number;
-    status: "online" | "offline" | "unknown" | "loading";
+    status: RepositoryStatus;
     /** Last fingerprint a client reported for this repository. Informational only. */
     observed?: {
         fingerprint: string;
