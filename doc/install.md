@@ -2,8 +2,19 @@
 
 ## Prerequisites
 
-- **Node.js**: v22.x or higher
-- **npm**: v10.x or higher
+- **Node.js**: v22 — pinned in `.nvmrc`, matching the `node:22` base image of the Dockerfiles.
+- **npm**: v11 — the lockfile is written with npm 11. npm 10 (which Node 22 ships)
+  disagrees with it about the optional peers of `@commitlint/read` and fails `npm ci`.
+  `packageManager` in the root `package.json` is the single source for the exact version:
+
+    ```bash
+    npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+    ```
+
+- **`NPM_TOKEN`**: a GitHub PAT with `read:packages`. The UI library
+  `@stefgo/react-ui-components` comes from GitHub Packages, and the root `.npmrc` reads
+  the credential from this variable. See
+  [development.md](development.md#registry-authentication) for the CI and Docker variants.
 - **Docker** & **Docker Compose** (optional, for container-based setup)
 
 ## Project Structure
@@ -20,18 +31,25 @@ The project is organized as a monorepo:
 1.  **Clone repository:**
 
     ```bash
-    git clone <repo-url>
+    git clone https://github.com/stefgo/proxmox-backup-client-manager
     cd proxmox-backup-client-manager
     ```
 
-2.  **Install dependencies:**
+2.  **Export the registry token:**
+    `npm install` fails without it — see the prerequisites above.
+
+    ```bash
+    export NPM_TOKEN=ghp_…
+    ```
+
+3.  **Install dependencies:**
     Run this command in the root directory to install all dependencies for all workspaces:
 
     ```bash
     npm install
     ```
 
-3.  **Build Shared Library:**
+4.  **Build Shared Library:**
     Before the client or server can start, the shared library must be built:
     ```bash
     npm run build -w shared

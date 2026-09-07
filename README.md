@@ -82,7 +82,7 @@ services:
             - NODE_ENV=production
 ```
 
-1. Copy `client/config example.yaml` to `client-config.yaml`.
+1. Copy `client/config.example.yaml` to `client-config.yaml`.
 2. Provide the Server URL and a newly generated registration token (obtained from the web dashboard).
 3. Run `docker compose up -d`.
 
@@ -90,16 +90,30 @@ services:
 
 ### Prerequisites
 
-- Node.js v22+
-- npm v10+
+- **Node.js v22** — pinned in [`.nvmrc`](.nvmrc) and matching the `node:22` base image used by the Dockerfiles.
+- **npm v11** — Node 22 ships npm 10, which is _not_ enough: the lockfile is written with npm 11, and the two disagree about the optional peers of `@commitlint/read`, so `npm ci` fails under npm 10. The exact version lives in `packageManager` in `package.json`; install it with
+
+    ```bash
+    npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+    ```
+
+- **A GitHub Packages token** — the UI library `@stefgo/react-ui-components` is published to GitHub Packages, and the root [`.npmrc`](.npmrc) reads the credential from `NPM_TOKEN`. Without it `npm install` fails with `401 Unauthorized` on the `@stefgo` scope. A classic PAT with `read:packages` scope is sufficient.
 
 ### Local Setup
 
-1. Clone the repository: `git clone https://github.com/your-org/proxmox-backup-client-manager`
-2. Install dependencies: `npm install`
-3. Build the shared library: `npm run build -w shared`
-4. Start the server stack (Backend + Frontend): `npm run dev:server`
-5. Start a test client: `npm run dev:client`
+1. Clone the repository: `git clone https://github.com/stefgo/proxmox-backup-client-manager`
+2. Export the registry token: `export NPM_TOKEN=ghp_…` — it has to be in the environment; npm expands `${NPM_TOKEN}` from there, not from a `.env` file (that one is for the Compose builds)
+3. Install dependencies: `npm install`
+4. Build the shared library: `npm run build -w shared`
+5. Start the backend: `npm run dev:server` — API and dashboard on `http://localhost:3000`
+6. Start the frontend dev server: `npm run dev:frontend` — hot reload on `http://localhost:5173`, proxying `/api` and `/ws` to the backend
+7. Start a test client: `npm run dev:client`
+
+Steps 5 and 6 are separate processes. Only the Vite dev server gives you hot module
+replacement; the backend serves the _built_ frontend from `server/dist/public`, so for
+a production-like check `npm run build` followed by step 5 alone is enough.
+
+See [Installation & Setup](doc/install.md) for the full guide.
 
 ## 🤝 Contributing
 
