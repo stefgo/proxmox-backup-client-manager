@@ -223,7 +223,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
                 <Button size="sm" icon={Plus} onClick={addClient}>
-                    Add
+                    Add Client
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}

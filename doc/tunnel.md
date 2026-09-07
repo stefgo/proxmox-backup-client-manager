@@ -94,7 +94,7 @@ registration succeeds.
 These are two separate actions, and deliberately so — the wizard settles who dials whom, which
 is fixed for good, and nothing else.
 
-**+ Add** in the clients area opens the wizard. Its first step is the connection mode, because
+**+ Add Client** in the clients area opens the wizard. Its first step is the connection mode, because
 it cannot be changed afterwards. **Inbound** then takes a display name and an optional allowed
 IP and issues a registration token; the client exists once its agent redeems it. **Outbound**
 takes the agent's target address, the registration secret and a display name, and **Create**
