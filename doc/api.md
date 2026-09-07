@@ -496,10 +496,12 @@ the client, which discards its job history.
 
 `POST /v1/clients/outbound`
 
-**Description:** Creates a client the **server** connects to, together with its SSH reverse
-tunnel — deliberately one atomic operation. Nothing is persisted unless both the tunnel test
-and the registration handshake succeed. The connection mode is fixed here and cannot be
-changed later. See `doc/tunnel.md`.
+**Description:** Creates a client the **server** connects to — the connection and nothing else.
+Nothing is persisted unless the registration handshake succeeds.
+
+No SSH credentials are accepted here. The connection mode is fixed by this call and cannot be
+changed later; the tunnel is a separate, revisable resource and is attached afterwards via
+`POST /v1/clients/:clientId/tunnel`, in either connection mode. See `doc/tunnel.md`.
 
 **Example Request:**
 
@@ -507,20 +509,9 @@ changed later. See `doc/tunnel.md`.
 {
     "hostname": "backup-host",
     "outboundTargetAddress": "192.168.1.50:3001",
-    "registrationSecret": "one-time-secret",
-    "tunnel": {
-        "sshHost": "192.168.1.50",
-        "sshPort": 22,
-        "sshUser": "pbcm",
-        "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----...",
-        "passphrase": "optional",
-        "hostKeySha256": "confirmed-fingerprint"
-    }
+    "registrationSecret": "one-time-secret"
 }
 ```
-
-`hostKeySha256` is the fingerprint the operator confirmed in the wizard; the server verifies
-the host key actually presented matches it before pinning.
 
 ---
 
@@ -537,8 +528,40 @@ backoff. Returns `{ "connected": true | false }`.
 
 `GET /v1/clients/:clientId/tunnel`
 
-**Description:** SSH tunnel configuration and live state. Never returns secrets — the private
-key is write-only.
+**Description:** SSH tunnel configuration and live state. Stored credentials mean the tunnel
+is *available* to this client; whether a run takes it is `tunnel.required` — on the job for a
+backup, on the request for a restore. Never returns secrets — the private key is write-only. `404` when this client has no tunnel, which is an
+ordinary state rather than an error.
+
+---
+
+### Create Client Tunnel
+
+`POST /v1/clients/:clientId/tunnel`
+
+**Description:** Attaches a tunnel to an existing client, in **either** connection mode — the
+only way any client gets one, since *Create Outbound Client* no longer takes credentials and
+an inbound client does not exist as a row until its agent has registered. The credentials are
+tested before they are stored; `409` if the client already has a tunnel.
+
+Storing them changes no run by itself — each job opts in through its own `tunnel` field, and
+each restore through the `tunnel` field of its trigger request.
+
+**Example Request:**
+
+```json
+{
+    "sshHost": "192.168.1.50",
+    "sshPort": 22,
+    "sshUser": "pbcm",
+    "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----...",
+    "passphrase": "optional",
+    "hostKeySha256": "confirmed-fingerprint"
+}
+```
+
+`hostKeySha256` is the fingerprint the caller's own tunnel test was offered moments earlier;
+the server verifies the host key actually presented matches it before pinning.
 
 ---
 
@@ -546,10 +569,26 @@ key is write-only.
 
 `PUT /v1/clients/:clientId/tunnel`
 
-**Description:** Updates the SSH credentials only. There is no port, no tunnel target and no
-on/off switch: the mode is fixed, the target follows from each job's repository, and the bind
-port is allocated per forward. An existing connection is closed so the new credentials take
-effect.
+**Description:** Updates the SSH credentials. There is no port, no tunnel target and no
+on/off switch: the target follows from each job's repository, the bind port is allocated per
+forward, and whether the tunnel is used is each job's own setting. An existing connection is
+closed so the new credentials take effect at once, which fails a run holding a lease.
+
+| Field | Type | Description |
+| :---- | :--- | :---------- |
+| `sshHost`, `sshPort`, `sshUser` | string / number / string | SSH endpoint. |
+| `privateKey`, `passphrase` | string | Write-only; omit to keep the stored key. |
+| `hostKeySha256` | string | Re-pins the host key. |
+
+---
+
+### Delete Client Tunnel
+
+`DELETE /v1/clients/:clientId/tunnel`
+
+**Description:** Removes the tunnel and its stored key. The client and its history stay. Jobs
+still configured for the tunnel are **not** rewritten — they fail at the lease rather than
+quietly taking a path nobody chose.
 
 ---
 
@@ -611,7 +650,7 @@ cannot be parsed — including a passphrase-protected key without the matching `
 
 ### Test Tunnel
 
-`POST /v1/tunnel/test` — with supplied SSH parameters, for the create wizard.
+`POST /v1/tunnel/test` — with supplied SSH parameters, for a key that is not stored yet.
 `POST /v1/clients/:clientId/tunnel/test` — with the stored credentials, so the key never has
 to leave the backend.
 
@@ -801,6 +840,11 @@ repository and is covered by `GET /v1/repositories/:id/status`.
 
 **Description:** Triggers a restore operation on the client from a specific snapshot.
 
+Whether it goes through the client's SSH reverse tunnel is asked per restore, exactly as it is
+per job for a backup — stored credentials say the detour is possible, not that this repository
+needs it. `tunnel.required` for a client with no credentials is rejected with `400`; an absent
+`tunnel` means a direct connection.
+
 #### Path Parameters
 
 | Parameter  | Type   | Required | Description             |
@@ -815,6 +859,7 @@ repository and is covered by `GET /v1/repositories/:id/status`.
 | `targetPath` | string   | **Yes**  | The absolute path where files should be restored.                                  |
 | `repository` | string   | **Yes**  | The ID of the repository containing the snapshot.                                  |
 | `archives`   | string[] | **Yes**  | Array of archive filenames within the snapshot to restore (e.g. `["root.pxar"]`). |
+| `tunnel`     | object   | No       | `{ "required": true }` to route this restore through the client's SSH reverse tunnel. |
 
 **Example Request:**
 
@@ -823,7 +868,8 @@ repository and is covered by `GET /v1/repositories/:id/status`.
     "snapshot": "host/backup-client-01/2023-10-26T02:00:00Z",
     "targetPath": "/tmp/restore",
     "repository": "repo-abc",
-    "archives": ["root.pxar"]
+    "archives": ["root.pxar"],
+    "tunnel": { "required": true }
 }
 ```
 
@@ -1104,6 +1150,8 @@ reported, not queued.
 | `createdAt` | string | ISO 8601 timestamp of creation.                 |
 | `expiresAt` | string | ISO 8601 timestamp of expiry.                   |
 | `usedAt`    | string | ISO 8601 timestamp of when it was used (optional). |
+| `displayName` | string | Name applied to the client this token registers (optional). |
+| `allowedIp` | string | IPv4 address or CIDR network the token may be redeemed from (optional). |
 
 **Example Response:**
 
@@ -1113,7 +1161,9 @@ reported, not queued.
         "token": "token-123",
         "createdAt": "2023-10-27T10:00:00Z",
         "expiresAt": "2023-10-27T14:00:00Z",
-        "usedAt": null
+        "usedAt": null,
+        "displayName": "pbs-node-01",
+        "allowedIp": "192.168.1.0/24"
     }
 ]
 ```
@@ -1124,6 +1174,23 @@ reported, not queued.
 
 **Description:** Generates a new short-lived token for client registration.
 
+#### Request Body (optional)
+
+Both fields carry a decision the agent cannot make for itself — it registers
+unattended, so anything not set here has to be corrected by hand afterwards.
+
+| Field         | Type   | Required | Description                                                        |
+| :------------ | :----- | :------- | :----------------------------------------------------------------- |
+| `displayName` | string | No       | Applied to the client on registration.                              |
+| `allowedIp`   | string | No       | IPv4 address or CIDR network. Registration is refused with **403** from anywhere else, and the client stays pinned to it afterwards. Without it the client is pinned to the address it registered from. |
+
+```json
+{
+    "displayName": "pbs-node-01",
+    "allowedIp": "192.168.1.0/24"
+}
+```
+
 #### Response
 
 **Example Response:**
@@ -1131,7 +1198,9 @@ reported, not queued.
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "expiresAt": "2023-10-27T14:45:00.000Z"
+    "expiresAt": "2023-10-27T14:45:00.000Z",
+    "displayName": "pbs-node-01",
+    "allowedIp": "192.168.1.0/24"
 }
 ```
 
@@ -1300,8 +1369,10 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 ```
 
 **`TUNNEL_ACQUIRE`**
-**Description:** Requests an SSH reverse tunnel lease before a run. Outbound clients only.
-The request carries **no target**: the server resolves the PBS endpoint from the job (or, for
+**Description:** Requests an SSH reverse tunnel lease before a run of a job configured for the
+tunnel, in either connection mode. The server grants it only if the named job is itself
+configured for the tunnel — the client's word is never the basis. The request carries **no
+target**: the server resolves the PBS endpoint from the job (or, for
 restores, from the run it authorised when triggering it) and verifies that the job belongs to
 the requesting client.
 **Payload:**
@@ -1435,9 +1506,13 @@ able to set what every other client then trusts.
     "snapshot": "snapshot-name",
     "targetPath": "/restore/path",
     "repository": { "baseUrl": "...", "datastore": "...", "username": "...", "secret": "..." },
-    "archives": ["root.pxar"]
+    "archives": ["root.pxar"],
+    "tunnel": { "required": true }
 }
 ```
+
+`tunnel` is present only when the restore was triggered for it; absent means a direct
+connection.
 
 **`JOB_LIST_CONFIG`**
 **Description:** Server requests the list of configured jobs from the agent.

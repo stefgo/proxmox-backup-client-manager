@@ -1,6 +1,6 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
 import { Client, JOB_STATUS } from '@pbcm/shared';
@@ -16,8 +16,6 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
-import { ClientEditor } from './ClientEditor';
-import { useClientStore } from '../../../stores/useClientStore';
 import { ActionMenu, Card, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 
 
@@ -28,6 +26,8 @@ interface ClientOverviewProps {
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { token } = useAuth();
+    const navigate = useNavigate();
+    const { pathname } = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const tab = searchParams.get('tab');
     const activeTab = (tab === 'history' || tab === 'snapshots') ? tab : 'jobs';
@@ -35,9 +35,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const setActiveTab = (tab: 'jobs' | 'history' | 'snapshots') => {
         setSearchParams({ tab });
     };
-
-    // Client Store for updates
-    const { updateClient } = useClientStore();
 
     // Global Store Data
     const {
@@ -122,8 +119,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
 
-    // Header / Edit Logic
-    const [isEditing, setIsEditing] = useState(false);
     const { menuState, openMenu, closeMenu } = useActionMenu<string>();
 
     const handleTriggerJob = async (jobId: string) => {
@@ -142,27 +137,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             alert(getErrorMessage(e));
         }
     };
-
-    const handleUpdateClient = async (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => {
-        if (!token) return;
-        try {
-            await updateClient(id, data);
-            setIsEditing(false);
-        } catch (e: unknown) {
-            console.error("Failed to update client", e);
-            throw e;
-        }
-    };
-
-    if (isEditing) {
-        return (
-            <ClientEditor
-                client={client}
-                onSave={handleUpdateClient}
-                onCancel={() => setIsEditing(false)}
-            />
-        );
-    }
 
     return (
         <div className="space-y-6">
@@ -202,7 +176,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             >
                                 <button
                                     onClick={() => {
-                                        setIsEditing(true);
+                                        // `from` is how the editor knows that back is this
+                                        // page and not the client list.
+                                        navigate(`/client/${client.id}/edit`, {
+                                            state: { from: pathname },
+                                        });
                                         closeMenu();
                                     }}
                                     // A menu entry marks focus with its background, the way the

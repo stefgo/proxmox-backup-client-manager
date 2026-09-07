@@ -12,6 +12,7 @@ import {
     EncryptionConfigSchema,
     ScheduleConfigSchema,
     TokenSchema,
+    CreateRegistrationTokenSchema,
     SnapshotSchema,
     AuthPayloadSchema,
     RunJobPayloadSchema,
@@ -38,7 +39,7 @@ import {
     GlobalHistoryEntrySchema,
     GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
-    TunnelDescriptorSchema,
+    TunnelModeSchema,
     TunnelConfigSchema,
     RegistrationRequestSchema,
     RegistrationResultSchema,
@@ -77,11 +78,14 @@ export interface ManagedRepository extends Repository {
 }
 
 export type Client = z.infer<typeof ClientSchema> & {
-    /** Runtime tunnel state, present for outbound clients only. Never persisted. */
+    /** Runtime tunnel state, present when SSH credentials are stored. Never persisted. */
     tunnel?: TunnelState;
 };
 
 export type Token = z.infer<typeof TokenSchema>;
+export type CreateRegistrationToken = z.infer<
+    typeof CreateRegistrationTokenSchema
+>;
 
 export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type Archive = z.infer<typeof ArchiveSchema>;
@@ -124,7 +128,7 @@ export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;
 
-export type TunnelDescriptor = z.infer<typeof TunnelDescriptorSchema>;
+export type TunnelMode = z.infer<typeof TunnelModeSchema>;
 export type TunnelConfig = z.infer<typeof TunnelConfigSchema>;
 export type RegistrationRequest = z.infer<typeof RegistrationRequestSchema>;
 export type RegistrationResult = z.infer<typeof RegistrationResultSchema>;

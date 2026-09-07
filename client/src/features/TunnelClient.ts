@@ -1,6 +1,6 @@
 import net from "net";
 import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
-import { config, isOutboundMode } from "../core/Config.js";
+import { config } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "../core/logger.js";
 
@@ -25,25 +25,6 @@ const ACQUIRE_TIMEOUT_MS = 25000;
 const PREFLIGHT_TIMEOUT_MS = 5000;
 
 export class TunnelClient {
-    /**
-     * Verifies that the job's tunnel expectation matches this agent's connection mode.
-     * Catches a client config copied from one host to another, where the stored jobs
-     * would otherwise silently target the wrong path to the PBS.
-     */
-    static assertModeMatches(tunnelRequired: boolean): void {
-        const outbound = isOutboundMode();
-        if (tunnelRequired && !outbound) {
-            throw new Error(
-                "Job expects an SSH tunnel, but this client runs in direct mode",
-            );
-        }
-        if (!tunnelRequired && outbound) {
-            throw new Error(
-                "Client runs in tunnel mode, but the job is configured without a tunnel",
-            );
-        }
-    }
-
     /**
      * Requests a tunnel lease from the server and verifies the forward is usable.
      * The request carries no target: the server derives the PBS endpoint from the job

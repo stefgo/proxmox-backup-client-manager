@@ -3,6 +3,7 @@ import crypto, { randomUUID } from "crypto";
 import { WS_EVENTS, WsMessage, ProtocolMap, BackupJob } from "@pbcm/shared";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { TunnelService } from "./TunnelService.js";
 
@@ -186,6 +187,9 @@ export class ProxyService {
 
     static getClientsWithStatus() {
         const clients = ClientRepository.findAll();
+        // Read once for the whole list rather than per client: this runs on every
+        // dashboard broadcast.
+        const configured = new Set(ClientTunnelRepository.findAllClientIds());
         return clients.map((client) => ({
             id: client.id,
             hostname: client.hostname,
@@ -196,10 +200,13 @@ export class ProxyService {
             version: client.version,
             connectionMode: client.connection_mode || "inbound",
             outboundTargetAddress: client.outbound_target_address,
-            tunnel:
-                client.connection_mode === "outbound"
-                    ? TunnelService.getStatus(client.id)
-                    : undefined,
+            // Keyed on the tunnel itself, not on the connection mode: a tunnel is optional
+            // in either mode, so an inbound client can have one and an outbound one can do
+            // without. Whether a given run takes it is the job's own setting.
+            tunnelConfigured: configured.has(client.id),
+            tunnel: configured.has(client.id)
+                ? TunnelService.getStatus(client.id)
+                : undefined,
             createdAt: client.created_at,
             updatedAt: client.updated_at,
         }));
@@ -348,4 +355,5 @@ export class ProxyService {
         if (!socket) throw new Error("Client not connected");
         socket.send(JSON.stringify({ type, payload }));
     }
+
 }

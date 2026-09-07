@@ -36,6 +36,26 @@ export class ClientTunnelRepository {
      * Returns the tunnel parameters with private key and passphrase decrypted.
      * Throws if the secrets cannot be decrypted (usually a changed tunnel.keySecret).
      */
+    /**
+     * Whether a tunnel is available to this client's jobs. The one question the rest of
+     * the backend asks — deliberately not `connection_mode`, which only says who dials
+     * the WebSocket. Which jobs actually take it is each job's own setting.
+     */
+    static isConfigured(clientId: string): boolean {
+        return !!db
+            .prepare("SELECT 1 FROM client_tunnels WHERE client_id = ?")
+            .get(clientId);
+    }
+
+    /** Every client that has SSH credentials stored. */
+    static findAllClientIds(): string[] {
+        return (
+            db.prepare("SELECT client_id FROM client_tunnels").all() as {
+                client_id: string;
+            }[]
+        ).map((r) => r.client_id);
+    }
+
     static findCredentials(clientId: string): TunnelCredentials | undefined {
         const row = this.findByClientId(clientId);
         if (!row) return undefined;
@@ -84,7 +104,11 @@ export class ClientTunnelRepository {
         );
     }
 
-    /** Updates the SSH credentials only. Mode, target and port are not editable by design. */
+    /**
+     * Updates the SSH credentials. Tunnel target and bind port stay out of it by design:
+     * the target follows from each job's repository, the port is allocated per forward,
+     * and whether the tunnel is used at all is the job's setting.
+     */
     static update(
         clientId: string,
         data: {

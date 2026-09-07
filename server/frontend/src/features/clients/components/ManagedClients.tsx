@@ -1,10 +1,5 @@
 import { Client } from "@pbcm/shared";
 import { ClientList } from "./ClientList";
-import { ClientEditor } from "./ClientEditor";
-import { useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
-import { TokenModal } from "../../tokens/components/TokenModal";
-import { OutboundClientWizard } from "./OutboundClientWizard";
 import { apiFetch } from "../../../lib/apiFetch";
 
 interface ManagedClientsProps {
@@ -12,44 +7,32 @@ interface ManagedClientsProps {
     onSelect: (client: Client | null) => void;
     onRefresh: () => void;
     onDelete: (clientId: string) => void;
-    onUpdate: (
-        clientId: string,
-        data: { displayName?: string; outboundTargetAddress?: string },
-    ) => Promise<void>;
+    /** Opens the add wizard — its own route, so the URL says what is on screen. */
+    onAdd: () => void;
+    /** Opens the client editor for this client. */
+    onEdit: (client: Client) => void;
+    /** Opens the tunnel editor — setting one up and changing one are the same route. */
+    onEditTunnel: (client: Client) => void;
 }
 
+/**
+ * The client list and the two things only the list can do: delete a client, and pull an
+ * offline outbound client back in.
+ *
+ * Everything that opens a form — add, edit, tunnel — is a route of its own and therefore
+ * a navigation, not a state flag here. This component used to swap four surfaces in and
+ * out of the same `div`, which meant the URL described none of them and a reload dropped
+ * the operator back on the list.
+ */
 export const ManagedClients = ({
     clients,
     onSelect,
     onRefresh,
     onDelete,
-    onUpdate,
+    onAdd,
+    onEdit,
+    onEditTunnel,
 }: ManagedClientsProps) => {
-    const { token } = useAuth();
-    const [createdToken, setCreatedToken] = useState<{
-        token: string;
-        expiresAt: string;
-    } | null>(null);
-    const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
-    const [editingClient, setEditingClient] = useState<Client | null>(null);
-    const [isWizardOpen, setIsWizardOpen] = useState(false);
-
-    const handleGenerateToken = async () => {
-        try {
-            const res = await apiFetch("/api/v1/tokens", {
-                method: "POST",
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setCreatedToken(data);
-                setIsTokenModalOpen(true);
-                onRefresh();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
     const handleDeleteClient = async (client: Client) => {
         const extra =
             client.connectionMode === "outbound"
@@ -77,50 +60,17 @@ export const ManagedClients = ({
         }
     };
 
-    const handleSaveClient = async (
-        id: string,
-        data: { displayName?: string; outboundTargetAddress?: string },
-    ) => {
-        await onUpdate(id, data);
-        setEditingClient(null);
-    };
-
     return (
         <div id="client-list-section">
-            {editingClient ? (
-                <ClientEditor
-                    client={editingClient}
-                    onSave={handleSaveClient}
-                    onCancel={() => setEditingClient(null)}
-                />
-            ) : (
-                <ClientList
-                    clients={clients}
-                    setSelectedClient={onSelect}
-                    deleteClient={handleDeleteClient}
-                    generateToken={handleGenerateToken}
-                    editClient={setEditingClient}
-                    addOutboundClient={() => setIsWizardOpen(true)}
-                    reconnectClient={handleReconnect}
-                />
-            )}
-
-            {isWizardOpen && (
-                <OutboundClientWizard
-                    token={token}
-                    onClose={() => setIsWizardOpen(false)}
-                    onCreated={onRefresh}
-                />
-            )}
-
-            {/* Token Modal */}
-            {isTokenModalOpen && createdToken && (
-                <TokenModal
-                    token={createdToken.token}
-                    expiresAt={createdToken.expiresAt}
-                    onClose={() => setIsTokenModalOpen(false)}
-                />
-            )}
+            <ClientList
+                clients={clients}
+                setSelectedClient={onSelect}
+                deleteClient={handleDeleteClient}
+                editClient={onEdit}
+                addClient={onAdd}
+                editTunnel={onEditTunnel}
+                reconnectClient={handleReconnect}
+            />
         </div>
     );
 };

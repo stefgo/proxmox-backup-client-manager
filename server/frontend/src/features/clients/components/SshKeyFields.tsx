@@ -62,7 +62,7 @@ export const SshKeyFields = ({
 
     const options: { value: SshKeyMode; label: string }[] = [
         ...(allowKeep ? [{ value: 'keep' as const, label: 'Keep stored key' }] : []),
-        { value: 'generate', label: 'Generate a key' },
+        { value: 'generate', label: 'Generate a new key' },
         { value: 'manual', label: 'Paste your own key' },
     ];
 
@@ -115,6 +115,7 @@ export const SshKeyFields = ({
                 <div className="space-y-3">
                     <Textarea
                         label="Private Key"
+                        required
                         value={privateKey}
                         onChange={(e) => onPrivateKeyChange(e.target.value)}
                         rows={5}

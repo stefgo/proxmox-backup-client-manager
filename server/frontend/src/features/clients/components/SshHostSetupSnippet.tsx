@@ -89,7 +89,7 @@ export const SshHostSetupSnippet = ({
                 <span className="text-text-muted">
                     {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </span>
-                Einrichtung auf dem Client-Host (optional)
+                Setup on the client host (optional)
             </button>
 
             {open && (

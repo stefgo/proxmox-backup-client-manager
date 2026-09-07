@@ -4,6 +4,7 @@ import { JobRepositorySelect } from './job-editor/JobRepositorySelect';
 import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
 import { JobArchiveList } from './job-editor/JobArchiveList';
 import { JobEncryptionSettings } from './job-editor/JobEncryptionSettings';
+import { JobTunnelSettings } from './job-editor/JobTunnelSettings';
 import { JobFormProvider, JobFormContextType } from '../context/JobFormContext';
 import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 
@@ -80,6 +81,7 @@ export const ClientJobEditor = (props: JobFormContextType) => {
                             <div className="space-y-6">
                                 <JobArchiveList />
                                 <JobEncryptionSettings />
+                                <JobTunnelSettings />
                                 <JobScheduleSettings />
                             </div>
                         )}

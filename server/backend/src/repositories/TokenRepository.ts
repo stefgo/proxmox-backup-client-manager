@@ -6,6 +6,16 @@ export interface RegistrationTokenRow {
     created_at: string;
     expires_at: string | null;
     used_at: string | null;
+    /** Applied to the client this token registers. */
+    display_name: string | null;
+    /** Where the token may be redeemed from, and the client's IP pin afterwards. */
+    allowed_ip: string | null;
+}
+
+/** What an operator may decide for a client that is not there yet. */
+export interface RegistrationTokenDefaults {
+    displayName?: string;
+    allowedIp?: string;
 }
 
 export class TokenRepository {
@@ -27,10 +37,19 @@ export class TokenRepository {
             .get(token) as RegistrationTokenRow | undefined;
     }
 
-    static create(token: string, expiresAt: string): void {
+    static create(
+        token: string,
+        expiresAt: string,
+        defaults: RegistrationTokenDefaults = {},
+    ): void {
         db.prepare(
-            "INSERT INTO registration_tokens (token, expires_at) VALUES (?, ?)",
-        ).run(token, expiresAt);
+            "INSERT INTO registration_tokens (token, expires_at, display_name, allowed_ip) VALUES (?, ?, ?, ?)",
+        ).run(
+            token,
+            expiresAt,
+            defaults.displayName ?? null,
+            defaults.allowedIp ?? null,
+        );
     }
 
     static markUsed(token: string): { changes: number } {

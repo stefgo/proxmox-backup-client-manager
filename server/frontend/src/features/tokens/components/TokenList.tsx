@@ -1,7 +1,7 @@
-import { Key, Trash2, Plus } from 'lucide-react';
+import { Key, Trash2 } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef, Button } from '@stefgo/react-ui-components';
+import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { Card } from '@stefgo/react-ui-components';
 import { Badge } from '@stefgo/react-ui-components';
@@ -9,10 +9,9 @@ import { Badge } from '@stefgo/react-ui-components';
 interface TokenListProps {
     tokens: Token[];
     deleteToken: (token: string) => void;
-    generateToken: () => void;
 }
 
-export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps) => {
+export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
     const columns: DataTableDef<Token>[] = [
         {
             tableHeader: "Token",
@@ -20,6 +19,21 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
                 <span className={`font-mono text-sm text-text-primary ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
                     {t.token}
                 </span>
+            ),
+        },
+        {
+            // A token now carries decisions — the name the client will get and
+            // the network it may register from. Hiding them would leave two
+            // tokens looking identical while behaving differently.
+            tableHeader: "Client",
+            tableCellClassName: "text-sm",
+            tableItemRender: (t) => (
+                (t.displayName || t.allowedIp) ? (
+                    <div>
+                        {t.displayName && <div className="text-text-primary">{t.displayName}</div>}
+                        {t.allowedIp && <div className="font-mono text-xs text-text-muted">{t.allowedIp}</div>}
+                    </div>
+                ) : <span className="text-text-muted">—</span>
             ),
         },
         {
@@ -66,17 +80,13 @@ export const TokenList = ({ tokens, deleteToken, generateToken }: TokenListProps
     return (
         <Card
             title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
-            action={
-                <Button size="sm" icon={Plus} onClick={generateToken}>
-                    Generate New Token
-                </Button>
-            }
             padding="none"
         >
             <DataTable
                 data={tokens}
                 itemDef={columns}
-                sort={{ defaultValue: [{ colIndex: 1, direction: 'asc' }] }}
+                // colIndex 2 is "Expires / Used"; the Client column sits before it.
+                sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
                 keyField="token"
                 emptyMessage="No tokens generated"
                 className="rounded-b-xl border-0 shadow-none"

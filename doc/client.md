@@ -60,7 +60,7 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 - It translates abstract JSON job configurations into CLI arguments for `proxmox-backup-client backup` or `proxmox-backup-client restore`.
 - It spawns a child process and captures real-time `stdout`/`stderr` streams, forwarding them as `LOG_UPDATE` events over the WebSocket.
 - **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then syncs this history with the central server via `SYNC_HISTORY`.
-- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `doc/tunnel.md`).
+- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `doc/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
 ### 4. Local Web Server (`src/web/server.ts`)
 
@@ -110,7 +110,20 @@ Schema migrations are managed via **Umzug** and run automatically on startup.
 
 ## Outbound mode and the tunnel
 
+Two separate things, and the agent treats them as such.
+
 With a `registrationSecret` set (or an `authToken` without a `serverUrl`), the agent runs in
-outbound mode: it does not dial out itself but serves `/ws/register` and `/ws/agent` instead.
-Before every run it requests a tunnel lease through `TunnelClient` and replaces host and port in
-`PBS_REPOSITORY` with the loopback endpoint. Details: [tunnel.md](tunnel.md).
+**outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
+instead. That is the whole of it — it says nothing about how the PBS is reached.
+
+Whether a run goes **through the tunnel** is each job's own setting: `tunnel.required` arrives
+with the job config, is stored with it, and is read back before the run. When it is set, the
+agent requests a lease through `TunnelClient` and replaces host and port in `PBS_REPOSITORY`
+with the loopback endpoint. Living in the job config is what makes a scheduled run offline
+take the route the operator chose — and it is the only copy of the setting, so nothing can
+fall out of step with it.
+
+A **restore** carries the same `tunnel.required`, but in the `RUN_RESTORE` payload rather than
+in a stored config: it is triggered from the dashboard, is never scheduled, and the operator
+answers the question in the restore form. Absent means a direct connection.
+Details: [tunnel.md](tunnel.md).

@@ -24,14 +24,31 @@ export const ClientSchema = z.object({
     version: z.string().optional(),
     connectionMode: z.enum(["inbound", "outbound"]).optional(),
     outboundTargetAddress: z.string().optional(),
+    /**
+     * Whether SSH credentials are stored for this client, so its jobs and restores may
+     * choose the tunnel. Independent of `connectionMode`: the tunnel is a route to the
+     * PBS, the mode is who dials the WebSocket, every combination of the two is valid,
+     * and unlike the mode this one can be set up and removed at any time.
+     */
+    tunnelConfigured: z.boolean().optional(),
 });
 
 /**
- * Marker attached by the server to every job pushed to an outbound client.
- * The client must obtain a tunnel lease before running such a job; the actual
- * loopback port is only known at lease time (see TunnelAcquireResult).
+ * Whether a run reaches its repository through the SSH reverse tunnel.
+ *
+ * A property of the run, chosen per backup job and per restore: one client can back up to
+ * a PBS it reaches directly and to another it only reaches through the tunnel. The client
+ * side of it is just the SSH credentials — stored means available, and a job or restore
+ * that asks for a tunnel the client has none for is rejected when it is saved or started.
+ *
+ * Travelling with the job is what keeps it honest: the agent stores it in the job's
+ * config and there is no second copy anywhere to fall out of step with. A restore has no
+ * stored config, so it carries the answer in the request that triggers it.
+ *
+ * The loopback port is deliberately not part of this: it is allocated per forward and
+ * only known at lease time (see TunnelAcquireResult).
  */
-export const TunnelDescriptorSchema = z.object({
+export const TunnelModeSchema = z.object({
     required: z.boolean(),
 });
 
@@ -80,7 +97,7 @@ export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const RestoreJobSchema = JobSchema.extend({
@@ -89,7 +106,7 @@ export const RestoreJobSchema = JobSchema.extend({
     archives: z.array(z.string()),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const RegistrationPayloadSchema = z.object({
@@ -103,11 +120,36 @@ export const RegistrationResponseSchema = z.object({
     clientId: z.string(),
 });
 
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation.
+ *
+ * Only v4: the pin is checked with `isIpInCidr` on the server, which works on
+ * 32-bit integers. Accepting a v6 literal here would store a value that check
+ * cannot evaluate.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
+
 export const TokenSchema = z.object({
     token: z.string(),
     createdAt: z.string(),
     expiresAt: z.string(),
     usedAt: z.string().optional(),
+    /** Applied to the client this token registers. */
+    displayName: z.string().optional(),
+    /** Where the token may be redeemed from, and what the client is pinned to afterwards. */
+    allowedIp: z.string().optional(),
+});
+
+/**
+ * The optional body of `POST /api/v1/tokens`.
+ *
+ * Both values are decisions only an operator can make, and the token is the one
+ * moment one is present: the agent registers unattended, so anything it is not
+ * told here has to be corrected by hand afterwards.
+ */
+export const CreateRegistrationTokenSchema = z.object({
+    displayName: z.string().trim().min(1).max(100).optional(),
+    allowedIp: Ipv4OrCidrSchema.optional(),
 });
 
 export const SnapshotSchema = z.object({
@@ -172,11 +214,10 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
-    // JobController sends this for tunneled restores and the executor reads it to
-    // decide whether to acquire a lease. It was missing here, which went unnoticed
-    // while nobody validated the payload — parsing would have stripped it and left
-    // every tunneled restore trying to reach the PBS directly.
-    tunnel: TunnelDescriptorSchema.optional(),
+    // Must be declared here even though it is optional: zod strips unknown keys, so a
+    // missing entry would silently leave every tunnelled restore going direct. Absent
+    // means direct, which is also what a client without credentials always gets.
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({

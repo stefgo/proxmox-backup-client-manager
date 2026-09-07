@@ -1,115 +1,91 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
-import { Save, X } from 'lucide-react';
-import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
-import { ClientTunnelSettings } from './ClientTunnelSettings';
+import { X } from 'lucide-react';
+import { ActionButton, ConfirmDialog } from '@stefgo/react-ui-components';
+import { useClientStore } from '../../../stores/useClientStore';
+import { ClientIdentityCard } from './ClientIdentityCard';
 
 interface ClientEditorProps {
     client: Client;
     onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
-    onCancel: () => void;
 }
 
-export const ClientEditor = ({ client, onSave, onCancel }: ClientEditorProps) => {
-    const [displayName, setDisplayName] = useState(client.displayName || '');
-    const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+/**
+ * Edits what a client *is*: its name and, for an outbound client, where the server dials it.
+ * A page of its own, at `/client/:clientId/edit`.
+ *
+ * The SSH tunnel is deliberately not here. It lives behind its own action in the client
+ * list ({@link ClientTunnelEditor}) because it is a different resource with its own
+ * endpoints and its own failure modes — and because it is not part of what a client is,
+ * but of how a PBS is reached from it. Keeping the two apart also keeps this editor's save
+ * button honest: it submits the one form it sits under and nothing else.
+ *
+ * Leaving is a navigation, and the control for it sits in the card's header — the one part
+ * of the form that is in reach from every scroll position without a floating bar over the
+ * content. Where it goes is the caller's business: the client list and the client detail
+ * page both open this editor, and `location.state.from` is how each says where back is.
+ */
+export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    // A directly opened URL carries no state — the list is the honest fallback, since it
+    // is the surface this client is guaranteed to appear on.
+    const back = (location.state as { from?: string } | null)?.from ?? '/clients';
 
-    const isOutbound = client.connectionMode === 'outbound';
+    // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
+    // over the socket afterwards, so read it from the store instead of the prop.
+    const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
+    // `useState` setters are referentially stable, so the card can list it in an effect's
+    // dependencies without re-running it on every render of this component.
+    const [dirty, setDirty] = useState(false);
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        setError(null);
-        try {
-            await onSave(client.id, {
-                displayName: displayName.trim(),
-                // Only sent for outbound clients: the backend rejects the field for
-                // inbound ones, which have no target address to begin with.
-                outboundTargetAddress: isOutbound ? targetAddress.trim() : undefined,
-            });
-            onCancel();
-        } catch (e) {
-            console.error(e);
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setIsSaving(false);
+    /**
+     * Leaving used to discard silently under a warning label. It asks now: the exit moved
+     * into the header, where it sits a few pixels from the fields it would throw away, and
+     * a warning the operator has already scrolled past is no protection at that distance.
+     */
+    const requestClose = useCallback(() => {
+        if (dirty) {
+            setConfirmDiscard(true);
+            return;
         }
-    };
+        navigate(back);
+    }, [dirty, navigate, back]);
+
+    // Escape does exactly what the header's button does — including asking first.
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            // Not while a select, a dialog or an autocomplete is using Escape for itself —
+            // this includes the discard dialog below, which closes on its own Escape.
+            if (e.defaultPrevented) return;
+            requestClose();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [requestClose]);
 
     return (
-        <Card
-            className="flex flex-col"
-            title="Edit Client"
-            action={
-                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
-            }
-            classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
-        >
+        <div className="space-y-6">
+            <ClientIdentityCard
+                client={live}
+                onSave={onSave}
+                onDirtyChange={setDirty}
+                action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
+            />
 
-            <div className="p-7 bg-card">
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <Input
-                        label="Display Name"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder={client.hostname}
-                        disabled={isSaving}
-                        hint={`Leave empty to use hostname (${client.hostname})`}
-                    />
-
-                    {/* Connection mode is fixed at creation time and shown read-only. */}
-                    <div className="text-sm text-text-muted">
-                        Connection mode:{' '}
-                        <span className="font-mono text-text-primary">
-                            {isOutbound ? 'Outbound (server dials in, PBS through an SSH tunnel)' : 'Inbound (client dials in, PBS directly)'}
-                        </span>
-                        <div className="text-xs mt-1">Fixed at creation — switching requires deleting and re-adding the client.</div>
-                    </div>
-
-                    {/* The address itself stays editable: the agent's port may change. */}
-                    {isOutbound && (
-                        <Input
-                            label="Target Address"
-                            value={targetAddress}
-                            onChange={(e) => setTargetAddress(e.target.value)}
-                            placeholder="192.168.1.50:3001"
-                            disabled={isSaving}
-                            hint="Host and port the agent is reachable on. Saving reconnects."
-                        />
-                    )}
-
-                    {error && (
-                        <div className="text-sm text-error">{error}</div>
-                    )}
-
-                    {client.connectionMode === 'outbound' && (
-                        <ClientTunnelSettings clientId={client.id} />
-                    )}
-
-                    <div className="flex justify-end gap-3 pt-2">
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={onCancel}
-                            disabled={isSaving}
-                            icon={X}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            isLoading={isSaving}
-                            icon={Save}
-                            className="shadow-glow-accent"
-                        >
-                            {isSaving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </div>
-                </form>
-            </div>
-        </Card>
+            <ConfirmDialog
+                isOpen={confirmDiscard}
+                onClose={() => setConfirmDiscard(false)}
+                onConfirm={() => navigate(back)}
+                title="Discard your changes?"
+                description="The client has not been saved. Leaving now keeps it as it was."
+                confirmLabel="Discard"
+                cancelLabel="Keep editing"
+                variant="danger"
+            />
+        </div>
     );
 };

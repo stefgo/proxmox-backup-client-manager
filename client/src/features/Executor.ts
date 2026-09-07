@@ -407,13 +407,11 @@ export class Executor {
         let stdoutBuffer = "";
         let stderrBuffer = "";
 
-        // Outbound clients reach the PBS only through the SSH reverse tunnel. The lease is
+        // A job configured for the tunnel reaches the PBS only through it. The lease is
         // requested here, immediately before the spawn, and released again in every exit
         // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
         let lease: TunnelLease | undefined;
         try {
-            TunnelClient.assertModeMatches(tunnelRequired);
-
             if (tunnelRequired && repository) {
                 lease = await TunnelClient.acquire(runId, jobId);
                 env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(

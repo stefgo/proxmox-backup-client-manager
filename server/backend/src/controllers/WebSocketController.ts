@@ -18,7 +18,7 @@ import {
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { isIpInNetworks } from "../utils/networkUtils.js";
+import { isIpInCidr, isIpInNetworks } from "../utils/networkUtils.js";
 import { logger } from "../core/logger.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
@@ -46,6 +46,24 @@ const TERMINAL_JOB_STATUSES: string[] = [
     JOB_STATUS.FAILED,
     JOB_STATUS.ABORTED,
 ];
+
+/**
+ * Does an inbound client's connection come from the address it is pinned to?
+ *
+ * The pin is a single address for a client that registered without one being
+ * specified, and an IPv4 network for a client whose registration token carried
+ * one -- a machine on DHCP is one address today and another one tomorrow, and
+ * pinning it to the first was never the intent, only the default.
+ *
+ * A pin without a `/` keeps the exact comparison it always had. `isIpInCidr`
+ * works on 32-bit integers and maps everything it cannot parse -- every IPv6
+ * address -- to `0`, so routing a plain address through it would make any two
+ * IPv6 clients match each other.
+ */
+const matchesPin = (clientIp: string, pin: string | null): boolean => {
+    if (!pin) return false;
+    return pin.includes("/") ? isIpInCidr(clientIp, pin) : pin === clientIp;
+};
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -184,7 +202,7 @@ export class WebSocketController {
         // Outbound clients are dialed BY the server and have no registered IP to pin against.
         const isInbound = client.connection_mode !== "outbound";
 
-        if (isInbound && !isTrusted && client.inbound_registered_ip !== clientIp) {
+        if (isInbound && !isTrusted && !matchesPin(clientIp, client.inbound_registered_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
                 expected: client.inbound_registered_ip,
@@ -456,12 +474,14 @@ export class WebSocketController {
         };
 
         try {
-            const client = ClientRepository.findById(clientId);
-            if (!client || client.connection_mode !== "outbound") {
-                deny("Client is not an outbound client — no tunnel applies");
+            if (!ClientRepository.findById(clientId)) {
+                deny("Unknown client");
                 return;
             }
-            if (!ClientTunnelRepository.findByClientId(clientId)) {
+            // The connection mode says nothing here: a tunnelled inbound client is as
+            // entitled to a lease as an outbound one, and an outbound client whose jobs
+            // go straight to the PBS is not entitled to one at all.
+            if (!ClientTunnelRepository.isConfigured(clientId)) {
                 deny("No SSH tunnel is configured for this client");
                 return;
             }
@@ -506,6 +526,10 @@ export class WebSocketController {
      * Resolves the PBS endpoint for a request. Backups carry a jobId whose repository is
      * looked up in the server-side job cache; restores carry only a runId, which the
      * server pre-authorised when it triggered the restore.
+     *
+     * The cached job is also what authorises the request: a job not configured for the
+     * tunnel gets no target and therefore no lease, however the agent asks. The server
+     * never takes the client's word for the route — it reads back the job it pushed out.
      */
     private static async resolveTunnelTarget(
         clientId: string,
@@ -523,6 +547,7 @@ export class WebSocketController {
             job = ProxyService.getCachedJob(clientId, jobId);
         }
         if (!job?.repository?.baseUrl) return undefined;
+        if (!job.tunnel?.required) return undefined;
 
         return this.repositoryTarget(job.repository.baseUrl);
     }

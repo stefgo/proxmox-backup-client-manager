@@ -1,90 +1,40 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, ClientSchema } from "@pbcm/shared";
+import { WS_EVENTS, ClientSchema, normaliseTargetAddress } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { logger } from "../core/logger.js";
-import db from "../core/Database.js";
 
 interface OutboundBody {
     hostname?: string;
     outboundTargetAddress?: string;
     registrationSecret?: string;
-    tunnel?: {
-        sshHost?: string;
-        sshPort?: number;
-        sshUser?: string;
-        privateKey?: string;
-        passphrase?: string;
-        hostKeySha256?: string;
-    };
-}
-
-/**
- * Accepts "host:port" (also IPv6 in brackets) and rejects anything carrying a scheme,
- * path or credentials — the value is interpolated into `ws://<address>/ws/agent`, so a
- * stray slash would silently redirect the agent connection.
- */
-function normaliseTargetAddress(value: string): string | undefined {
-    const trimmed = value.trim();
-    if (!trimmed || /[\s/@\\?#]/.test(trimmed)) return undefined;
-    try {
-        const url = new URL(`ws://${trimmed}`);
-        if (!url.hostname || !url.port) return undefined;
-        return `${url.host}`;
-    } catch {
-        return undefined;
-    }
 }
 
 export class ClientController {
     /**
-     * Creates an outbound client together with its SSH tunnel — deliberately one atomic
-     * operation. An outbound client without a working tunnel has no route to the PBS at
-     * all, so nothing is persisted unless both the tunnel test and the registration
-     * handshake succeed. The connection mode is fixed here and cannot be changed later.
+     * Creates an outbound client — the connection and nothing else.
+     *
+     * Deliberately no SSH credentials here. Creating a client answers one question, "who
+     * dials the WebSocket", and that answer is fixed for good; the tunnel answers another,
+     * "how is the PBS reached", and stays revisable for the client's whole life. Tying the
+     * reversible decision to the irreversible one is what this endpoint used to do, and it
+     * made the tunnel look like a property of the connection mode. It is set up afterwards
+     * through `/clients/:id/tunnel`, which tests and pins in the same action.
      */
     static async createOutbound(request: FastifyRequest, reply: FastifyReply) {
         const body = (request.body ?? {}) as OutboundBody;
         const { hostname, outboundTargetAddress, registrationSecret } = body;
-        const tunnel = body.tunnel;
 
         if (!outboundTargetAddress || !registrationSecret) {
             return reply.code(400).send({
                 error: "outboundTargetAddress and registrationSecret are required",
             });
         }
-        if (
-            !tunnel?.sshHost ||
-            !tunnel?.sshUser ||
-            !tunnel?.privateKey ||
-            !tunnel?.hostKeySha256
-        ) {
-            return reply.code(400).send({
-                error: "Incomplete SSH credentials (sshHost, sshUser, privateKey, hostKeySha256)",
-            });
-        }
 
-        // Step 1 — prove the tunnel works and that the host key matches the fingerprint
-        // the operator confirmed in the wizard.
-        const test = await TunnelService.testConnection({
-            sshHost: tunnel.sshHost,
-            sshPort: tunnel.sshPort,
-            sshUser: tunnel.sshUser,
-            privateKey: tunnel.privateKey,
-            passphrase: tunnel.passphrase,
-            expectedHostKeySha256: tunnel.hostKeySha256,
-        });
-        if (!test.ok) {
-            return reply
-                .code(400)
-                .send({ error: `SSH tunnel test failed: ${test.error}` });
-        }
-
-        // Step 2 — registration and AUTH. Nothing is written before this succeeds.
+        // Registration and AUTH. Nothing is written before this succeeds.
         const id = randomUUID();
         const resolvedHostname = hostname?.trim() || outboundTargetAddress;
         let persisted = false;
@@ -94,24 +44,14 @@ export class ClientController {
             outboundTargetAddress,
             registrationSecret,
             (authToken, version) => {
-                // Step 3 — both checks passed: write client and tunnel in one transaction.
-                db.transaction(() => {
-                    ClientRepository.createOutbound(
-                        id,
-                        resolvedHostname,
-                        outboundTargetAddress,
-                        authToken,
-                        version,
-                    );
-                    ClientTunnelRepository.create(id, {
-                        sshHost: tunnel.sshHost!,
-                        sshPort: tunnel.sshPort,
-                        sshUser: tunnel.sshUser!,
-                        privateKey: tunnel.privateKey!,
-                        passphrase: tunnel.passphrase,
-                        hostKeySha256: tunnel.hostKeySha256!,
-                    });
-                })();
+                // The handshake stood — only now does the client become a row.
+                ClientRepository.createOutbound(
+                    id,
+                    resolvedHostname,
+                    outboundTargetAddress,
+                    authToken,
+                    version,
+                );
                 persisted = true;
             },
         );

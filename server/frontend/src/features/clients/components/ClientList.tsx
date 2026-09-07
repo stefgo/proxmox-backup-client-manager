@@ -12,15 +12,21 @@ interface ClientListProps {
     clients: Client[];
     setSelectedClient: (client: Client | null) => void;
     deleteClient: (client: Client) => void;
-    generateToken: () => void;
     editClient: (client: Client) => void;
-    addOutboundClient: () => void;
+    /** Opens the wizard. One entry point — the connection mode is its first step, not a button. */
+    addClient: () => void;
+    /** Opens the tunnel editor — setting one up and changing one are the same surface. */
+    editTunnel: (client: Client) => void;
     reconnectClient: (client: Client) => void;
 }
 
-/** Outbound clients reach the PBS only through the SSH tunnel — worth showing at a glance. */
+/**
+ * Whether a tunnel is available to this client's jobs — worth showing at a glance, and
+ * keyed on the tunnel rather than the connection mode: either mode can have one. Which
+ * jobs take it is per job and not something a client row can answer.
+ */
 const ConnectionBadge = ({ client }: { client: Client }) => {
-    if (client.connectionMode !== 'outbound') return null;
+    if (!client.tunnelConfigured) return null;
     const tunnel = client.tunnel;
     const tone = tunnel?.status === 'error'
         ? 'text-error'
@@ -36,8 +42,55 @@ const ConnectionBadge = ({ client }: { client: Client }) => {
     );
 };
 
-export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient, addOutboundClient, reconnectClient }: ClientListProps) => {
+export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, editTunnel, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
+
+    /**
+     * The row's actions, built once for both views — table and list show the same menu,
+     * and two copies of it drift apart.
+     *
+     * The tunnel entry is offered for every client regardless of connection mode, and only
+     * its label turns on whether credentials are stored: setting one up and changing one
+     * are the same form on the same endpoint, so they are one action and not two. It is
+     * here rather than inside the client editor because it is the client list the operator
+     * is looking at when the question "this host cannot reach the PBS" comes up.
+     */
+    const buildMenuEntries = (client: Client) => [
+        {
+            label: 'Edit Client',
+            icon: Edit,
+            onClick: () => {
+                editClient(client);
+            },
+            variant: 'default' as const,
+        },
+        {
+            label: client.tunnelConfigured ? 'Edit SSH Tunnel' : 'Add SSH Tunnel',
+            icon: Network,
+            onClick: () => {
+                editTunnel(client);
+            },
+            variant: 'default' as const,
+        },
+        ...(client.connectionMode === 'outbound' && client.status !== 'online'
+            ? [{
+                label: 'Connect Now',
+                icon: PlugZap,
+                onClick: () => {
+                    reconnectClient(client);
+                },
+                variant: 'default' as const,
+            }]
+            : []),
+        {
+            label: 'Delete Client',
+            icon: Trash2,
+            onClick: () => {
+                deleteClient(client);
+            },
+            variant: 'danger' as const,
+        },
+    ];
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
@@ -96,37 +149,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableCellClassName: "content-center",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             )
         });
@@ -180,37 +203,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         actionFields.push({
             listItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             ),
             listLabel: null,
@@ -229,14 +222,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         <DataMultiView
             title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
-                <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" icon={Plus} onClick={addOutboundClient}>
-                        Outbound-Client
-                    </Button>
-                    <Button size="sm" icon={Plus} onClick={generateToken}>
-                        Generate New Token
-                    </Button>
-                </div>
+                <Button size="sm" icon={Plus} onClick={addClient}>
+                    Add
+                </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ storageKey: "clientViewMode" }}
