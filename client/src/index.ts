@@ -1,7 +1,7 @@
 import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer } from "./web/server.js";
 import { config, isOutboundMode } from "./core/Config.js";
-import { logger } from "./core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Scheduler } from "./features/Scheduler.js";
 import { Executor } from "./features/Executor.js";
 import { Cleanup } from "./features/Cleanup.js";

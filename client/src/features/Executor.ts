@@ -12,11 +12,12 @@ import {
     ProtocolMap,
     JOB_STATUS,
     RestoreSnapshotPayload,
+    normalizeFingerprint,
 } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 import { TunnelClient, TunnelLease } from "./TunnelClient.js";
-import { probeCertificate, normalizeFingerprint } from "../core/CertProbe.js";
+import { probeCertificate } from "@pbcm/shared/node";
 
 export interface JobHistoryRow {
     id: string;

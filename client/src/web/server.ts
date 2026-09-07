@@ -14,7 +14,7 @@ import {
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS } from "@pbcm/shared";
 import { z } from "zod";
 

@@ -1,6 +1,6 @@
 import type { AppConfig } from "../config/AppConfig.js";
 import { appConfig, updateConfig } from "../config/AppConfig.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 
 /**
  * Reads and writes the operator-facing part of `config.yaml`.

@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
+import { ManagedRepository as Repository, normalizeFingerprint } from '@pbcm/shared';
 import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
-
-const normalizeFingerprint = (value?: string | null) => (value ?? '').replace(/\s+/g, '').toLowerCase();
 
 interface RepositoryEditorProps {
     repository?: Repository | null;

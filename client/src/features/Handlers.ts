@@ -14,7 +14,7 @@ import {
 } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Executor } from "./Executor.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";

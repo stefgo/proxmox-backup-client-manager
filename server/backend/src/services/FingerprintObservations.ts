@@ -1,4 +1,4 @@
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 
 export interface Observation {
     fingerprint: string;

@@ -2,7 +2,7 @@ import net from "net";
 import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 
 export interface TunnelLease {
     leaseId: string;

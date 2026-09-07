@@ -21,7 +21,7 @@ import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
 import db from "./Database.js";
 
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 import { VERSION } from "./Version.js";
 
 /**

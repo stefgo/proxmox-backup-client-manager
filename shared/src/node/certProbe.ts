@@ -1,6 +1,7 @@
 import tls from "node:tls";
 import net from "node:net";
-import { parseRepositoryEndpoint } from "@pbcm/shared";
+import { parseRepositoryEndpoint } from "../repositoryUrl.js";
+import { normalizeFingerprint } from "../fingerprint.js";
 import { logger } from "./logger.js";
 
 export interface CertProbeResult {
@@ -17,15 +18,6 @@ export interface CertProbeResult {
     /** Expiry date, shown in the UI so an upcoming renewal is not a surprise. */
     notAfter?: string;
     error?: string;
-}
-
-/**
- * Brings a fingerprint into the form the database stores: lowercase hex with colons.
- * Node reports `fingerprint256` in uppercase, so comparing raw values would report a
- * mismatch on every single probe.
- */
-export function normalizeFingerprint(value?: string | null): string {
-    return (value ?? "").replace(/\s+/g, "").toLowerCase();
 }
 
 interface HandshakeResult {
@@ -74,10 +66,12 @@ function handshake(
 /**
  * Measures the TLS certificate of a PBS instance.
  *
- * Note for this copy: `client/src/web/server.ts` sets NODE_TLS_REJECT_UNAUTHORIZED=0
- * on some paths, which changes the process-wide default. The `rejectUnauthorized`
- * flag below is therefore passed explicitly and must stay that way — without it the
- * validating attempt would silently succeed against anything.
+ * `rejectUnauthorized` is passed explicitly on both attempts and must stay that way. The
+ * agent's `client/src/web/server.ts` sets NODE_TLS_REJECT_UNAUTHORIZED=0 on some paths,
+ * which changes the process-wide default — without the explicit flag the validating
+ * attempt would silently succeed against anything, and `caValid` would become a lie.
+ * The server has no such path today, but this function runs in both processes and the
+ * weaker of the two environments is the one it has to survive.
  *
  * Two attempts by design: the first one validates, and its success is what makes an
  * automatic adoption of the fingerprint permissible at all. Only if it fails do we

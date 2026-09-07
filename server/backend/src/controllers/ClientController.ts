@@ -10,7 +10,7 @@ import {
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 
 interface OutboundBody {
     hostname?: string;

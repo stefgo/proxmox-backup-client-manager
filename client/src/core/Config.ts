@@ -3,7 +3,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");

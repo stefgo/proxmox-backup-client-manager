@@ -7,16 +7,13 @@ import {
     BackupJob,
     RepositorySchema,
     PbsSnapshotListSchema,
+    normalizeFingerprint,
 } from "@pbcm/shared";
+import { probeCertificate, logger } from "@pbcm/shared/node";
 import { firstIssue } from "../utils/validation.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
-import {
-    probeCertificate,
-    normalizeFingerprint,
-} from "../services/CertProbe.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
 import { ProxyService } from "../services/ProxyService.js";
-import { logger } from "../core/logger.js";
 
 /**
  * Decides whether a job's embedded repository copy belongs to the given repository.

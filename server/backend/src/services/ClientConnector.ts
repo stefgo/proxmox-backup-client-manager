@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
 import { WS_EVENTS, CONNECTION_MODE } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
 

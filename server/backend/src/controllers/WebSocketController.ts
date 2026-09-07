@@ -15,21 +15,19 @@ import {
     TunnelReleaseSchema,
     FingerprintObservedSchema,
     parseRepositoryEndpoint,
+    normalizeFingerprint,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { isIpInCidr, isIpInNetworks } from "../utils/networkUtils.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
-import {
-    probeCertificate,
-    normalizeFingerprint,
-} from "../services/CertProbe.js";
+import { probeCertificate } from "@pbcm/shared/node";
 
 type AgentLogger = {
     info: (o: any) => void;

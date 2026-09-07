@@ -2,7 +2,7 @@ import net from "net";
 import crypto, { randomUUID } from "crypto";
 import { Client as SshClient } from "ssh2";
 import type { TunnelState, TunnelStatus } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { appConfig } from "../config/AppConfig.js";
 import {
     ClientTunnelRepository,

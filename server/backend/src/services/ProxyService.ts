@@ -8,7 +8,7 @@ import {
     ProtocolMap,
     BackupJob,
 } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
