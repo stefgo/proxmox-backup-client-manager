@@ -74,8 +74,12 @@ jobs:
             - name: Build all workspaces
               run: npm run build
 
+            # The workspace script, not a second spelling of it: `typecheck` picks
+            # tsconfig.json, while `typecheck:local-ui` picks the sibling-checkout
+            # variant, and CI must stay on the first. Calling tsc directly here meant
+            # the two could drift without anything noticing.
             - name: Typecheck frontend
-              run: npx tsc -p server/frontend --noEmit
+              run: npm run typecheck -w server/frontend
 
             - name: Lint frontend
               run: npm run lint -w server/frontend
