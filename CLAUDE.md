@@ -23,6 +23,19 @@ npm run dev:client   # Client agent in watch mode
 npm run clean        # Remove all build artifacts
 ```
 
+`build` names its workspaces one by one instead of using `--workspaces`, because
+`shared` has to be built first and the rest need its output. `--workspaces` would
+run `shared` a second time, and its ordering guarantee is only the position of
+`shared` in the `workspaces` array -- too implicit for something the other three
+builds depend on. **A new workspace has to be added to that list by hand.**
+
+There is no `start:frontend`: the frontend is a Vite SPA that builds into
+`server/dist/public`, which the backend serves itself
+([`index.ts`](server/backend/src/index.ts) registers it as the static root). So
+`npm run start:server` starts the frontend too. To serve the built bundle on its
+own -- to check a production build without the backend -- use
+`npm run preview -w server/frontend`.
+
 ### Per-workspace
 ```bash
 npm run lint -w server/frontend            # ESLint (frontend only)
