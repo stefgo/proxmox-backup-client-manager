@@ -1,3 +1,15 @@
+# [1.4.0-beta.5](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.4...v1.4.0-beta.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* **backend:** REST-Endpunkte validieren ihre Eingaben ([b70670b](https://github.com/stefgo/proxmox-backup-client-manager/commit/b70670bc98565bf810fa8920fac88aa589f967ee))
+
+
+### Features
+
+* add clientName prop to ClientTunnelCard and update ClientTunnelEditor to use it ([ddb126b](https://github.com/stefgo/proxmox-backup-client-manager/commit/ddb126b57a464681b90edc23f513b9fb51848b08))
+
 # [1.4.0-beta.4](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.3...v1.4.0-beta.4) (2026-09-07)
 
 
