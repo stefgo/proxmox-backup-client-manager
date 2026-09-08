@@ -7,6 +7,7 @@ import {
 } from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
+import { useClientStore } from "./useClientStore";
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -17,8 +18,19 @@ export interface GlobalJob extends BackupJob {
  * pushed over the WebSocket, which arrive in the agent's HistoryEntry form. Both
  * satisfy the list's BaseHistoryItem contract; nothing reads the fields where they
  * differ (jobId vs jobConfigId).
+ *
+ * The list does read hostname/displayName, though (`showClientName`), and only the
+ * REST rows carry them -- an agent knows neither. updateSession therefore fills them
+ * in from the client store, so a job started here is not labelled "Unknown Client"
+ * until the next refetch.
  */
-export type SessionHistoryItem = GlobalHistoryEntry | HistoryEntry;
+export type SessionHistoryItem =
+    | GlobalHistoryEntry
+    | (HistoryEntry & {
+          clientId: string;
+          hostname: string | null;
+          displayName: string | null;
+      });
 
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
@@ -27,7 +39,7 @@ interface GlobalJobsState {
     error: string | null;
 
     fetchAllJobs: () => Promise<void>;
-    updateSession: (job: HistoryEntry) => void;
+    updateSession: (clientId: string, job: HistoryEntry) => void;
     updateJobNextRunAt: (
         clientId: string,
         jobId: string,
@@ -102,8 +114,18 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
         }
     },
 
-    updateSession: (job: HistoryEntry) =>
+    updateSession: (clientId: string, job: HistoryEntry) =>
         set((state) => {
+            const client = useClientStore
+                .getState()
+                .clients.find((c) => c.id === clientId);
+            const entry: SessionHistoryItem = {
+                ...job,
+                clientId,
+                hostname: client?.hostname ?? null,
+                displayName: client?.displayName ?? null,
+            };
+
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const isWithin24Hours = (j: SessionHistoryItem) => {
                 const timeToCheck = j.endTime
@@ -112,14 +134,24 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 return timeToCheck > twentyFourHoursAgo;
             };
 
-            let updatedHistory;
-            const exists = state.lastHistory.find((j) => j.id === job.id);
+            // An existing row may already carry the client columns from the REST
+            // fetch, so the resolved ones only win where they actually resolved --
+            // an unknown client must not blank out a name that was already there.
+            const merge = (j: SessionHistoryItem): SessionHistoryItem => ({
+                ...j,
+                ...entry,
+                hostname: entry.hostname ?? j.hostname,
+                displayName: entry.displayName ?? j.displayName,
+            });
+
+            let updatedHistory: SessionHistoryItem[];
+            const exists = state.lastHistory.some((j) => j.id === job.id);
             if (exists) {
                 updatedHistory = state.lastHistory.map((j) =>
-                    j.id === job.id ? { ...j, ...job } : j,
+                    j.id === job.id ? merge(j) : j,
                 );
             } else {
-                updatedHistory = [job, ...state.lastHistory];
+                updatedHistory = [entry, ...state.lastHistory];
             }
 
             updatedHistory = updatedHistory

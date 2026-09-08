@@ -5,9 +5,12 @@ export const useGlobalSubscription = () => {
     const { updateSession, updateJobNextRunAt } = useGlobalJobsStore();
 
     useEffect(() => {
+        // The JOB_UPDATE payload is { clientId, job }: the agent's status update
+        // carries no client columns, so the id is what lets the store look the
+        // client's name up -- dropping it here is what produced "Unknown Client".
         const handleJobUpdate = (e: CustomEvent) => {
-            const { job } = e.detail;
-            updateSession(job);
+            const { clientId, job } = e.detail;
+            updateSession(clientId, job);
         };
         const handleNextRunUpdate = (e: CustomEvent) => {
             const { clientId, jobId, nextRunAt } = e.detail;
