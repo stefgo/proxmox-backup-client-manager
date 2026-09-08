@@ -61,6 +61,10 @@ export class ProxyService {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
             this.jobCache.delete(clientId);
+            // The cache is the only source /api/v1/jobs has, so an emptied entry has to
+            // reach the dashboards too -- otherwise they keep showing jobs that a reload
+            // would no longer return.
+            this.broadcastJobs(clientId, []);
             // The agent is gone, so no answer is coming. Failing the callers now beats
             // leaving each of them to discover it separately when its timeout expires.
             this.rejectPendingFor(clientId, "Client disconnected");
@@ -87,13 +91,25 @@ export class ProxyService {
             );
             this.jobCache.set(clientId, payload.jobs);
             await this.backfillRepositoryIds(clientId, payload.jobs);
-            // Optional: Broadcast a separate JOB cache update if frontend listens for it
+            // After the backfill, so the broadcast carries the same rows a fetch would.
+            // This is the only notification the dashboards get about the job cache: it
+            // fills on connect, and a dashboard that was already open would otherwise
+            // keep the empty list it fetched while the client was still offline.
+            this.broadcastJobs(clientId, this.jobCache.get(clientId) ?? []);
         } catch (e: unknown) {
             logger.error(
                 { clientId, err: e instanceof Error ? e.message : String(e) },
                 "Failed to refresh job cache for client",
             );
         }
+    }
+
+    /** One client's cached job list, in the shape a `GET /api/v1/jobs` entry has. */
+    private static broadcastJobs(clientId: string, jobs: BackupJob[]) {
+        this.broadcastToDashboard({
+            type: "JOBS_UPDATE",
+            payload: { clientId, jobs },
+        });
     }
 
     static updateJobNextRun(

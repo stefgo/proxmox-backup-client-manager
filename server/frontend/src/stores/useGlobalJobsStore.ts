@@ -39,6 +39,7 @@ interface GlobalJobsState {
     error: string | null;
 
     fetchAllJobs: () => Promise<void>;
+    setClientJobs: (clientId: string, jobs: BackupJob[]) => void;
     updateSession: (clientId: string, job: HistoryEntry) => void;
     updateJobNextRunAt: (
         clientId: string,
@@ -113,6 +114,22 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             set({ error: getErrorMessage(e), isLoading: false });
         }
     },
+
+    /**
+     * Replaces one client's jobs, fed by the server's JOBS_UPDATE broadcast.
+     *
+     * The server caches an agent's jobs only while it is connected, so the list a
+     * dashboard fetched on mount goes stale the moment a client comes online or drops.
+     * Replacing per client rather than refetching everything keeps the other clients'
+     * rows -- including their live nextRunAt -- untouched.
+     */
+    setClientJobs: (clientId, jobs) =>
+        set((state) => ({
+            globalJobs: [
+                ...state.globalJobs.filter((j) => j.clientId !== clientId),
+                ...jobs.map((job) => ({ ...job, clientId })),
+            ],
+        })),
 
     updateSession: (clientId: string, job: HistoryEntry) =>
         set((state) => {

@@ -293,12 +293,13 @@ function AppLayout() {
                 active: repos.filter((r) => r.status === REPOSITORY_STATUS.ONLINE).length,
                 total: repos.length,
             },
+            // Only the active count: the total counted the same cache, so on an
+            // offline client both halves read the same number and said nothing.
             jobs: {
                 active: globalJobs.filter((j) => {
                     const client = clients.find((c) => c.id === j.clientId);
                     return client?.status === CLIENT_STATUS.ONLINE;
                 }).length,
-                total: globalJobs.length,
             },
         }),
         [clients, repos, globalJobs],
@@ -360,7 +361,7 @@ function AppLayout() {
                 groupId: 'resources',
                 label: 'Jobs',
                 icon: HardDrive,
-                badge: `${stats.jobs.active} / ${stats.jobs.total}`,
+                badge: `${stats.jobs.active}`,
                 onClick: () => navigate('/jobs'),
             },
         },

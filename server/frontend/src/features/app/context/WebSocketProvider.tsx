@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
+import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
 
@@ -49,6 +50,15 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     if (data.type === 'CLIENTS_UPDATE') {
                         setClients(data.payload);
+                    }
+
+                    // The server caches an agent's jobs only while it is connected, so
+                    // this is what tells an already-open dashboard that a client came
+                    // online (or dropped) and its job list changed with it.
+                    if (data.type === 'JOBS_UPDATE') {
+                        useGlobalJobsStore
+                            .getState()
+                            .setClientJobs(data.payload.clientId, data.payload.jobs);
                     }
 
                     // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
