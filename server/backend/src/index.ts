@@ -60,15 +60,22 @@ server.addHook("onResponse", async (req, reply) => {
 });
 
 // Plugins
-await server.register(cors);
+// origin: false sends no CORS headers at all, because nothing here is ever a
+// cross-origin request: in production this server serves the SPA itself from
+// dist/public, and in development Vite proxies /api and /ws to this port
+// (vite.config.js), so the browser talks to its own origin either way. Registered
+// without options it reflected whatever Origin a caller sent.
+await server.register(cors, { origin: false });
 
 // Registered without a global limit: the only route that needs one is the login, and a
 // blanket limit would also count the dashboard's own polling and the agent handshakes,
 // where a busy fleet legitimately produces bursts. Routes opt in via `config.rateLimit`.
 await server.register(rateLimit, { global: false });
+// jwtExpiresIn always carries a value now (the config schema defaults it), so there is
+// no longer a branch that signs a token which never expires.
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
-    sign: appConfig.jwtExpiresIn ? { expiresIn: appConfig.jwtExpiresIn } : {},
+    sign: { expiresIn: appConfig.jwtExpiresIn },
 });
 
 await server.register(staticFiles, {
