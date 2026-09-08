@@ -137,7 +137,7 @@ This file is created automatically or can be created manually.
 | `clientId`      | Identity of the client. Issued by the server during registration and written together with `authToken` — never set or changed by hand. |
 | `executable`    | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
 | `retentionTime` | Number of days to keep job history and schedule states (default: `90`).            |
-| `allowedNetworks` | Outbound mode only: list of CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it. |
+| `allowedNetworks` | Outbound mode only: list of CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 
 #### Server Config (`server/config.yaml`)
 
@@ -151,7 +151,14 @@ This file contains advanced settings for the server, specifically for authentica
 |             | `client_secret` | OIDC Client Secret.                     |
 |             | `redirect_uri`  | OIDC Redirect URI.                      |
 | `jwtSecret` | (Root)          | Generated automatically if not present. |
+| `jwtExpiresIn` | (Root)       | How long a login stays valid, in any span `@fastify/jwt` accepts (default: `12h`). Before this had a default, a token signed without one never expired. |
 | `security`  | `allowed_networks` | List of CIDR networks an agent may connect to `/ws/agent` from. Empty (default) allows every address. |
+
+`config.yaml` is validated against a schema at startup, and an invalid value aborts the
+start with a message naming the field — a configuration error is not something to discover
+on the first tunnel lease hours later. Keys the schema does not know are preserved, so
+anything added by hand survives the next save. The file is created with defaults on first
+start; `jwtSecret` and `tunnel.keySecret` are generated before the check runs.
 
 ### Address checks for agent connections
 
@@ -208,10 +215,30 @@ The `clientId` also decides which snapshots the UI shows under a client. It must
 never be edited by hand: a changed id starts a new snapshot group in PBS and orphans
 everything backed up so far.
 
+Registering through the agent's Web UI additionally requires the **setup PIN**. While the
+agent has no identity it prints one to its log on every start:
+
+```
+──────────────────────────────────────────────
+  Setup PIN:  7K4M-9QX2
+  Web UI:     http://<this-host>:3001/register
+  The PIN is required to register this agent.
+──────────────────────────────────────────────
+```
+
+Read it with `docker logs <container>` or `journalctl -u pbcm-client` and enter it
+alongside the server URL and the registration token. Without it the endpoint answers
+`403` — otherwise anyone able to reach `listenPort` could point an unregistered agent at a
+server of their own, since the caller supplies both the URL and the token. The PIN is held
+in memory only, is rotated after five failed attempts, and stops existing once the agent
+is registered. Registration in **outbound mode** does not use it: there the server dials
+the agent and the handshake is already protected by `registrationSecret` and
+`allowedNetworks`.
+
 An agent that already holds an identity refuses to register again — `409` on the Web UI
 path, close code `4003 Already registered` in outbound mode. To re-register a host on
 purpose, remove `clientId` and `authToken` from its `config.yaml` first, and delete the
-client's old row in the UI afterwards.
+client's old row in the UI afterwards. A restarted agent prints a fresh setup PIN.
 
 > **Upgrade note:** agents and server must be updated together. An older agent sends no
 > `clientId` and is refused at `/ws/agent` with close code `4001`.
