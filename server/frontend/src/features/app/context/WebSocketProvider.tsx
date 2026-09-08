@@ -2,20 +2,21 @@ import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
 import { WebSocketContext } from './WebSocketContext';
+import { emit } from '../../../lib/realtimeEvents';
 
 interface WebSocketProviderProps {
     children: ReactNode;
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { setClients } = useClientStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (!token) return;
+        if (!isAuthenticated) return;
 
         let isClosing = false;
         let connectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -24,7 +25,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
+            // No token in the URL: the browser attaches the session cookie to the
+            // handshake by itself. As a query parameter the JWT was written into every
+            // proxy and server access log this connection passed through.
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
             console.log('Connecting to WebSocket:', wsUrl);
             const socket = new WebSocket(wsUrl);
@@ -52,16 +56,19 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         useClientStore.getState().setTunnelState(data.payload);
                     }
 
+                    // Streamed rather than stored: these arrive many times a second for
+                    // one visible component, and a store would re-render every
+                    // subscriber per chunk. See lib/realtimeEvents.ts.
                     if (data.type === 'JOB_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:job_update', { detail: data.payload }));
+                        emit('jobUpdate', data.payload);
                     }
 
                     if (data.type === 'LOG_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:log_update', { detail: data.payload }));
+                        emit('logUpdate', data.payload);
                     }
 
                     if (data.type === 'JOB_NEXT_RUN_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:job_next_run_update', { detail: data.payload }));
+                        emit('jobNextRunUpdate', data.payload);
                     }
 
                 } catch (e) {
@@ -112,7 +119,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [token, setClients]);
+    }, [isAuthenticated, setClients]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected }}>

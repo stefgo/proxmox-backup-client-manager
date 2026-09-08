@@ -82,7 +82,7 @@ const COPY_FEEDBACK_MS = 2000;
  * describes what is on screen.
  */
 export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, action }: ClientTunnelCardProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [info, setInfo] = useState<TunnelInfo | null>(null);
     /** Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer. */
     const [loaded, setLoaded] = useState(false);
@@ -127,7 +127,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         };
         setLoaded(false);
         load();
-    }, [clientId, token]);
+    }, [clientId, isAuthenticated]);
 
     /** Loaded, no configuration, nothing broken: the card is a setup form. */
     const isNew = loaded && !info && !loadError;
@@ -484,7 +484,6 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                     />
 
                     <SshKeyFields
-                        token={token}
                         allowKeep={!isNew}
                         mode={keyMode}
                         onModeChange={(m) => { setKeyMode(m); setPrivateKey(''); setPassphrase(''); resetFeedback(); }}
@@ -499,7 +498,6 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                         mode it could only render a command with an empty key in it. */}
                     {keyMode !== 'keep' && (
                         <SshHostSetupSnippet
-                            token={token}
                             privateKey={privateKey}
                             passphrase={passphrase}
                             sshUser={sshUser}

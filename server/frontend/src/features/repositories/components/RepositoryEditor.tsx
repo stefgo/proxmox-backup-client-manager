@@ -26,7 +26,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     const [tokenName, setTokenName] = useState('');
     const [secret, setSecret] = useState('');
 
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const probeCertificate = useRepositoryStore((s) => s.probeCertificate);
     const distributeFingerprint = useRepositoryStore((s) => s.distributeFingerprint);
 
@@ -47,7 +47,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         normalizeFingerprint(fingerprint) !== normalizeFingerprint(repository?.fingerprint);
 
     const handleCheckCertificate = async () => {
-        if (!repository || !token) return;
+        if (!repository || !isAuthenticated) return;
         setIsChecking(true);
         setCheckError(null);
         setDistribution(null);
@@ -62,7 +62,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     };
 
     const handleDistribute = async () => {
-        if (!repository || !token) return;
+        if (!repository || !isAuthenticated) return;
         if (!confirm('Push the saved fingerprint to all connected clients?')) return;
         setIsDistributing(true);
         try {

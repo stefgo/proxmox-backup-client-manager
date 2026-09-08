@@ -1,6 +1,7 @@
 import { Activity, ChevronRight } from 'lucide-react';
 import { useState, useEffect, type ComponentProps } from 'react';
 import { formatDate } from '../../../utils';
+import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_STATUS } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
@@ -54,24 +55,13 @@ export const BaseHistoryList = ({
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
 
     useEffect(() => {
-        const handleLogUpdate = (e: Event) => {
-            const customEvent = e as CustomEvent<{
-                jobId: string;
-                output: string;
-            }>;
-            const { jobId, output } = customEvent.detail;
-
-            if (jobId && output) {
-                setLiveLogs((prev) => ({
-                    ...prev,
-                    [jobId]: [...(prev[jobId] || []), output],
-                }));
-            }
-        };
-
-        window.addEventListener('pbcm:log_update', handleLogUpdate);
-        return () =>
-            window.removeEventListener('pbcm:log_update', handleLogUpdate);
+        return subscribe('logUpdate', ({ jobId, output }) => {
+            if (!jobId || !output) return;
+            setLiveLogs((prev) => ({
+                ...prev,
+                [jobId]: [...(prev[jobId] || []), output],
+            }));
+        });
     }, []);
 
     const toggleExpand = (id: string) => {

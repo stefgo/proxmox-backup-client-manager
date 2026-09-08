@@ -33,6 +33,26 @@ export const WS_EVENTS = {
     ERROR: "ERROR",
 } as const;
 
+/** Applies to every request the server sends an agent that has no entry below. */
+export const WS_REQUEST_TIMEOUT_DEFAULT_MS = 5000;
+
+/**
+ * How long the server waits for an agent's answer, per event.
+ *
+ * Five seconds used to apply to everything. That is generous for a config read and far
+ * too little for the two below: a directory listing on a large tree and an encryption key
+ * generation are both slow by nature, and over a narrow link they timed out while the
+ * agent was still working — the answer then arrived for a request nobody was waiting for.
+ *
+ * Kept next to WS_EVENTS rather than in the server, because the agent's own timeouts are
+ * derived from the same contract and the two must not drift.
+ */
+export const WS_REQUEST_TIMEOUT_MS: Partial<Record<string, number>> = {
+    [WS_EVENTS.FS_LIST]: 30000,
+    [WS_EVENTS.GENERATE_KEY_CONFIG]: 30000,
+    [WS_EVENTS.HISTORY]: 15000,
+};
+
 export const JOB_STATUS = {
     IDLE: "idle",
     RUNNING: "running",

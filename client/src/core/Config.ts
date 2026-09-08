@@ -51,6 +51,14 @@ export interface ClientConfig {
     backupParams?: string[];
     restoreParams?: string[];
     queueDelaySeconds?: number;
+    /**
+     * Bytes of stdout and stderr kept per run, each channel counted separately.
+     *
+     * The captured output is held in memory for the whole run, stored as a BLOB and then
+     * synced to the server, so an unbounded one costs three times over. Head and tail are
+     * kept with the middle dropped — see core/CappedLog.ts.
+     */
+    logCapBytes: number;
     retentionTime: number;
     preScript?: string;
     postScript?: string;
@@ -81,6 +89,7 @@ export const config: ClientConfig = {
     backupParams: [],
     restoreParams: [],
     queueDelaySeconds: 5,
+    logCapBytes: 256 * 1024,
     retentionTime: 90,
     preScript: undefined,
     postScript: undefined,
@@ -175,6 +184,19 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (typeof loadedConfig.queueDelaySeconds === "number") {
             config.queueDelaySeconds = loadedConfig.queueDelaySeconds;
+        }
+
+        // Floor rather than trust: a cap below a kilobyte would leave neither head nor
+        // tail worth reading, and CappedLog raises it anyway.
+        if (
+            typeof loadedConfig.logCapBytes === "number" &&
+            loadedConfig.logCapBytes >= 1024
+        ) {
+            config.logCapBytes = loadedConfig.logCapBytes;
+        } else if (loadedConfig.logCapBytes !== undefined) {
+            logger.warn(
+                `Ignoring invalid logCapBytes in config.yaml, using ${config.logCapBytes}`,
+            );
         }
 
         if (typeof loadedConfig.retentionTime === "number") {

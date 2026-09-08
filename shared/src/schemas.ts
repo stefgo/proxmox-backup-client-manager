@@ -533,3 +533,99 @@ export const PbsSnapshotSchema = z.looseObject({
 export const PbsSnapshotListSchema = z.object({
     data: z.array(PbsSnapshotSchema),
 });
+
+// ---------------------------------------------------------------------------
+// Server configuration (config.yaml)
+// ---------------------------------------------------------------------------
+
+/**
+ * The SSH reverse tunnel settings block.
+ *
+ * Every default lives here rather than in a separate constant on the server, so the
+ * fallback and the validity rule for a field cannot drift apart. The bounds are not
+ * decoration: `maxConcurrentTunnels: 0` would refuse every backup, and a
+ * `minRequestIntervalMs` of 0 would remove the rate limit on lease requests entirely.
+ */
+export const TunnelSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    /** Never 0.0.0.0: that would need GatewayPorts on the client host. */
+    remoteBindHost: z.string().min(1).default("127.0.0.1"),
+    connectTimeoutMs: z.number().int().positive().default(10000),
+    keepaliveIntervalMs: z.number().int().positive().default(15000),
+    idleGraceMs: z.number().int().nonnegative().default(60000),
+    maxLeaseMs: z.number().int().positive().default(86400000),
+    acquireTimeoutMs: z.number().int().positive().default(20000),
+    maxConcurrentTunnels: z.number().int().min(1).default(20),
+    retryDelaysMs: z.array(z.number().int().nonnegative()).default([2000, 5000, 10000]),
+    minRequestIntervalMs: z.number().int().nonnegative().default(3000),
+    /** Generated on first start when absent, so it is optional here. */
+    keySecret: z.string().min(1).optional(),
+});
+
+/**
+ * The retention block. Loose for the same reason `CleanupSettingsSchema` is: the settings
+ * page reads this object whole and writes it back, so a key an operator added by hand has
+ * to survive the round trip.
+ */
+export const AppSettingsSchema = z.looseObject({
+    retention_invalid_tokens_days: RetentionValueSchema.default("30"),
+    retention_invalid_tokens_count: RetentionValueSchema.default("10"),
+});
+
+export const OidcConfigSchema = z.object({
+    enabled: z.boolean().optional(),
+    issuer: z.url(),
+    client_id: z.string().min(1),
+    client_secret: z.string().min(1),
+    redirect_uri: z.url(),
+});
+
+/**
+ * The whole of `config.yaml`.
+ *
+ * Loose at the top level on purpose. `AppConfig.saveConfig()` writes the parsed object
+ * back into the YAML document, so a strict schema would not merely ignore a key an
+ * operator added by hand — it would delete it from their file on the next save.
+ *
+ * `jwtSecret` is required even though a fresh installation has none: the server generates
+ * one and writes it back *before* this schema is applied, so by the time anything is
+ * validated the value always exists. Requiring it here turns a secret that somehow went
+ * missing into a startup error rather than a server signing tokens with `undefined`.
+ */
+export const AppConfigSchema = z.looseObject({
+    jwtSecret: z.string().min(1),
+    /**
+     * Any span @fastify/jwt accepts. Defaulted rather than optional: without a value the
+     * server signed tokens that never expired, so a leaked one stayed valid forever.
+     */
+    jwtExpiresIn: z.string().min(1).default("12h"),
+    logLevel: z.string().min(1).optional(),
+    oidc: OidcConfigSchema.optional(),
+    settings: AppSettingsSchema.default({
+        retention_invalid_tokens_days: "30",
+        retention_invalid_tokens_count: "10",
+    }),
+    security: z
+        .object({
+            /**
+             * Empty means no restriction — an unset perimeter, not a closed one. Validated
+             * against the same shape a client's own pin uses, so an unusable value is
+             * caught at startup instead of silently rejecting every agent.
+             */
+            allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
+            /**
+             * Whether to send Strict-Transport-Security.
+             *
+             * Off by default, unlike helmet's own setting. A large share of installations
+             * run on plain HTTP inside a home network, and that header tells the browser
+             * to refuse http:// for this host from then on — remembered for months, and
+             * not undone by turning the header off again. Only switch it on behind TLS.
+             */
+            hsts: z.boolean().default(false),
+        })
+        .default({ allowed_networks: [], hsts: false }),
+    tunnel: TunnelSettingsSchema.default(TunnelSettingsSchema.parse({})),
+});
+
+export type AppConfigInput = z.input<typeof AppConfigSchema>;
+export type AppConfigParsed = z.output<typeof AppConfigSchema>;

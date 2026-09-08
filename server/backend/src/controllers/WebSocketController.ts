@@ -1,70 +1,35 @@
 import { FastifyInstance } from "fastify";
-import { WebSocket } from "ws";
 import {
     WS_EVENTS,
-    JOB_STATUS,
     CONNECTION_MODE,
     WsMessage,
-    ProtocolMap,
     AuthPayloadSchema,
-    StatusUpdatePayloadSchema,
-    LogUpdatePayloadSchema,
-    SyncHistoryPayloadSchema,
-    JobNextRunUpdatePayloadSchema,
-    TunnelAcquireSchema,
-    TunnelReleaseSchema,
-    FingerprintObservedSchema,
-    parseRepositoryEndpoint,
-    normalizeFingerprint,
     isIpAllowed,
     isIpInNetworks,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
-import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
-import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
-import { FingerprintObservations } from "../services/FingerprintObservations.js";
-import { probeCertificate } from "@pbcm/shared/node";
-
-type AgentLogger = {
-    info: (o: any) => void;
-    warn: (o: any) => void;
-    error: (o: any) => void;
-};
-
-/**
- * A socket carrying the liveness flag of the ping/pong heartbeat.
- *
- * `ws` has no place for it, so the three heartbeat loops here hang it on the socket
- * object. Declared rather than cast at each use: the flag is written in one place and read
- * in another 30 seconds later, and a typo between the two would simply mean a dead
- * connection is never terminated.
- */
-interface HeartbeatSocket extends WebSocket {
-    isAlive?: boolean;
-}
-
-/** The query string both WebSocket routes accept the bearer token in. */
-type TokenQuery = { token?: string };
+import { SESSION_COOKIE } from "../services/SessionCookie.js";
+import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
+import {
+    routeAgentMessage,
+    type AgentLogger,
+} from "./websocket/AgentMessageRouter.js";
 
 /** What an agent presents when it dials in: the identity the server issued it. */
 type AgentQuery = { token?: string; clientId?: string };
 
 /**
- * A run that reached one of these is over and belongs in the history table. Typed as
- * string[] on purpose: the payload's status stays a plain string on the wire, so an
- * agent on an older build is never dropped for reporting something unfamiliar.
+ * The WebSocket entry points, and nothing else.
+ *
+ * This file used to be 769 lines and did three jobs: the two handshakes, the message
+ * routing, and the tunnel-lease authorisation. The latter two now live next door under
+ * `websocket/` — see AgentMessageRouter.ts and TunnelLease.ts. What stays here is what
+ * `index.ts` and `ClientConnector` actually call.
  */
-const TERMINAL_JOB_STATUSES: string[] = [
-    JOB_STATUS.SUCCESS,
-    JOB_STATUS.FAILED,
-    JOB_STATUS.ABORTED,
-];
-
 export class WebSocketController {
     static async handleDashboardConnection(
         connection: any,
@@ -72,28 +37,15 @@ export class WebSocketController {
         fastify: FastifyInstance,
     ) {
         const socket: HeartbeatSocket = connection.socket || connection;
-        socket.isAlive = true;
+        // Attached before the auth checks below: those close the socket and return early,
+        // and attachHeartbeat registers the close handler that clears the interval.
+        attachHeartbeat(socket);
 
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
-
-        // Registered before the auth checks below: those close the socket and return
-        // early, and without this handler their ping interval would never be cleared.
-        socket.on("close", () => {
-            clearInterval(pingInterval);
-        });
-
-        const token = (req.query as TokenQuery).token;
+        // Read from the cookie, which the browser attaches to the WebSocket handshake by
+        // itself. It used to arrive as ?token=<JWT> — the browser WebSocket API cannot
+        // set headers, so the query string was the only place a bearer token could go,
+        // and it landed in every proxy and server access log along the way.
+        const token = req.cookies?.[SESSION_COOKIE];
         if (!token) {
             socket.close(4001, "Unauthorized");
             return;
@@ -129,29 +81,13 @@ export class WebSocketController {
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
         const socket: HeartbeatSocket = connection.socket || connection;
-        socket.isAlive = true;
-
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                fastify.log.warn({
-                    msg: "Agent client connection timed out (no pong). Terminating.",
-                    ip: clientIp,
-                    clientId,
-                });
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
-
-        socket.on("close", () => {
-            clearInterval(pingInterval);
-        });
+        attachHeartbeat(socket, () =>
+            fastify.log.warn({
+                msg: "Agent client connection timed out (no pong). Terminating.",
+                ip: clientIp,
+                clientId,
+            }),
+        );
         let isAuthenticated = false;
         let clientId: string | null = null;
         let authTimeout: NodeJS.Timeout;
@@ -313,6 +249,9 @@ export class WebSocketController {
      * Handles every post-authentication message from an agent. Shared by both connection
      * modes: inbound clients dial in, outbound clients are dialed by the server, but the
      * protocol from here on is identical.
+     *
+     * The routing itself lives in websocket/AgentMessageRouter.ts; this stays as the name
+     * both handshakes call.
      */
     static async handleAgentMessage(
         clientId: string,
@@ -320,324 +259,7 @@ export class WebSocketController {
         data: WsMessage,
         log: AgentLogger,
     ) {
-            // Handle Messages from Agent
-            // 1. Status Updates (Forward to Dashboard + Save to DB if final)
-            if (data.type === WS_EVENTS.STATUS_UPDATE) {
-                const parsed = StatusUpdatePayloadSchema.safeParse(
-                    data.payload,
-                );
-                if (!parsed.success) {
-                    log.warn({
-                        msg: "Invalid STATUS_UPDATE payload",
-                        errors: parsed.error,
-                    });
-                    return;
-                }
-                const statusPayload = parsed.data;
-
-                // If job has ended, save to history
-                if (TERMINAL_JOB_STATUSES.includes(statusPayload.status)) {
-                    try {
-                        JobHistoryRepository.upsertStatus(
-                            clientId,
-                            statusPayload,
-                        );
-                    } catch (err) {
-                        log.error({
-                            msg: "Failed to save job history",
-                            err,
-                        });
-                    }
-                }
-
-                const updateMsg = {
-                    type: "JOB_UPDATE",
-                    payload: {
-                        clientId: clientId,
-                        job: statusPayload,
-                    },
-                };
-                // We need to implement this method in ProxyService or expose dashboardClients
-                // I'll assume I update ProxyService or access it if I change it to public.
-                // Better: update ProxyService.
-                ProxyService.broadcastToDashboard(updateMsg);
-            }
-
-            // 2. Log Updates
-            // Stream stdout/stderr from client jobs to the dashboard for real-time monitoring.
-            if (data.type === WS_EVENTS.LOG_UPDATE) {
-                const parsed = LogUpdatePayloadSchema.safeParse(
-                    data.payload,
-                );
-                if (!parsed.success) return;
-                const logPayload = parsed.data;
-                const updateMsg = {
-                    type: "LOG_UPDATE",
-                    payload: {
-                        clientId: clientId,
-                        ...logPayload,
-                    },
-                };
-                ProxyService.broadcastToDashboard(updateMsg);
-            }
-
-            // 3. Sync History (Delta load from client)
-            if (data.type === WS_EVENTS.SYNC_HISTORY) {
-                const parsed = SyncHistoryPayloadSchema.safeParse(
-                    data.payload,
-                );
-                if (!parsed.success) {
-                    log.warn({
-                        msg: "Invalid SYNC_HISTORY payload",
-                        errors: parsed.error,
-                    });
-                    return;
-                }
-                const syncPayload = parsed.data;
-                if (
-                    syncPayload.history &&
-                    Array.isArray(syncPayload.history)
-                ) {
-                    try {
-                        JobHistoryRepository.upsertHistoryBatch(
-                            clientId,
-                            syncPayload.history,
-                        );
-                        log.info({
-                            msg: "Processed history sync from client",
-                            clientId,
-                            count: syncPayload.history.length,
-                        });
-                    } catch (err) {
-                        log.error({
-                            msg: "Failed to process history sync",
-                            err,
-                        });
-                    }
-                }
-            }
-
-            // 4. Job Next Run Update
-            if (data.type === WS_EVENTS.JOB_NEXT_RUN_UPDATE) {
-                const parsed = JobNextRunUpdatePayloadSchema.safeParse(
-                    data.payload,
-                );
-                if (!parsed.success) return;
-                const nextRunPayload = parsed.data;
-                ProxyService.updateJobNextRun(
-                    clientId,
-                    nextRunPayload.jobId,
-                    nextRunPayload.nextRunAt,
-                );
-            }
-
-            // 5. Tunnel lease requests (outbound clients only).
-            // The client never names a target: jobId (backup) or runId (restore) is
-            // resolved server-side into the actual PBS host and port.
-            if (data.type === WS_EVENTS.TUNNEL_ACQUIRE) {
-                await this.handleTunnelAcquire(clientId, socket, data, log);
-            }
-
-            if (data.type === WS_EVENTS.FINGERPRINT_OBSERVED) {
-                const parsed = FingerprintObservedSchema.safeParse(data.payload);
-                if (!parsed.success) return;
-                this.handleFingerprintObserved(clientId, parsed.data, log);
-            }
-
-            if (data.type === WS_EVENTS.TUNNEL_RELEASE) {
-                const parsed = TunnelReleaseSchema.safeParse(data.payload);
-                if (!parsed.success) return;
-                TunnelService.release(clientId, parsed.data.leaseId);
-            }
-    }
-
-    /**
-     * Grants or denies a tunnel lease. Everything security relevant happens here:
-     * the requested job must belong to the requesting client, and the target is derived
-     * from the job's repository — never from the request.
-     */
-    private static async handleTunnelAcquire(
-        clientId: string,
-        socket: any,
-        data: WsMessage,
-        log: AgentLogger,
-    ) {
-        const parsed = TunnelAcquireSchema.safeParse(data.payload);
-        if (!parsed.success) {
-            log.warn({ msg: "Invalid TUNNEL_ACQUIRE payload", clientId });
-            return;
-        }
-        const { requestId, runId, jobId } = parsed.data;
-
-        const deny = (error: string) => {
-            log.warn({ msg: "Tunnel request denied", clientId, runId, jobId, error });
-            socket.send(
-                JSON.stringify({
-                    type: WS_EVENTS.TUNNEL_ACQUIRE_RESULT,
-                    payload: { requestId, granted: false, error },
-                }),
-            );
-        };
-
-        try {
-            if (!ClientRepository.findById(clientId)) {
-                deny("Unknown client");
-                return;
-            }
-            // The connection mode says nothing here: a tunnelled inbound client is as
-            // entitled to a lease as an outbound one, and an outbound client whose jobs
-            // go straight to the PBS is not entitled to one at all.
-            if (!ClientTunnelRepository.isConfigured(clientId)) {
-                deny("No SSH tunnel is configured for this client");
-                return;
-            }
-
-            const target = await this.resolveTunnelTarget(clientId, runId, jobId);
-            if (!target) {
-                deny(
-                    "No permitted tunnel target for this request — job unknown or belongs to another client",
-                );
-                return;
-            }
-
-            // Measured here rather than taken from the job snapshot: the client will
-            // reach the PBS as 127.0.0.1 and can never validate the certificate itself.
-            const fingerprint = await this.resolveFingerprint(target, log);
-
-            const lease = await TunnelService.acquire(
-                clientId,
-                target,
-                runId,
-                jobId,
-            );
-            socket.send(
-                JSON.stringify({
-                    type: WS_EVENTS.TUNNEL_ACQUIRE_RESULT,
-                    payload: {
-                        requestId,
-                        granted: true,
-                        leaseId: lease.leaseId,
-                        bindHost: lease.bindHost,
-                        bindPort: lease.bindPort,
-                        fingerprint,
-                    },
-                }),
-            );
-        } catch (e) {
-            deny(e instanceof Error ? e.message : String(e));
-        }
-    }
-
-    /**
-     * Resolves the PBS endpoint for a request. Backups carry a jobId whose repository is
-     * looked up in the server-side job cache; restores carry only a runId, which the
-     * server pre-authorised when it triggered the restore.
-     *
-     * The cached job is also what authorises the request: a job not configured for the
-     * tunnel gets no target and therefore no lease, however the agent asks. The server
-     * never takes the client's word for the route — it reads back the job it pushed out.
-     */
-    private static async resolveTunnelTarget(
-        clientId: string,
-        runId: string,
-        jobId?: string,
-    ): Promise<{ host: string; port: number } | undefined> {
-        if (!jobId) {
-            return TunnelService.resolveRunTarget(clientId, runId);
-        }
-
-        let job = ProxyService.getCachedJob(clientId, jobId);
-        if (!job) {
-            // Cache may be cold right after a restart — refresh once before giving up.
-            await ProxyService.refreshJobCache(clientId);
-            job = ProxyService.getCachedJob(clientId, jobId);
-        }
-        if (!job?.repository?.baseUrl) return undefined;
-        if (!job.tunnel?.required) return undefined;
-
-        return this.repositoryTarget(job.repository.baseUrl);
-    }
-
-    /**
-     * Records a fingerprint a client measured. Logged and kept for the operator to look
-     * at — never written into the repository config, because a single compromised client
-     * must not be able to set the value every other client then trusts.
-     */
-    private static handleFingerprintObserved(
-        clientId: string,
-        payload: { repositoryId?: string; baseUrl: string; fingerprint: string; caValid: boolean },
-        log: AgentLogger,
-    ) {
-        const repo = payload.repositoryId
-            ? RepositoryConfigRepository.findById(payload.repositoryId)
-            : RepositoryConfigRepository.findAll().find(
-                  (r: any) => r.base_url === payload.baseUrl,
-              );
-
-        if (!repo) {
-            log.warn({
-                msg: "Fingerprint reported for an unknown repository",
-                clientId,
-                baseUrl: payload.baseUrl,
-            });
-            return;
-        }
-
-        FingerprintObservations.record(
-            repo.id,
-            clientId,
-            payload.fingerprint,
-            payload.caValid,
-        );
-    }
-
-    /**
-     * Determines which fingerprint a tunneled run should pin. A measured value is only
-     * used when the regular CA validation vouched for it; otherwise the stored value —
-     * which an operator confirmed by hand — stays authoritative.
-     */
-    private static async resolveFingerprint(
-        target: { host: string; port: number },
-        log: AgentLogger,
-    ): Promise<string | undefined> {
-        const repo = RepositoryConfigRepository.findAll().find((r: any) => {
-            const t = this.repositoryTarget(r.base_url);
-            return t?.host === target.host && t?.port === target.port;
-        });
-
-        const baseUrl = repo?.base_url ?? `https://${target.host}:${target.port}`;
-        const stored = normalizeFingerprint(repo?.fingerprint);
-
-        const probe = await probeCertificate(baseUrl);
-
-        if (probe.caValid && probe.fingerprint) {
-            if (stored && stored !== probe.fingerprint) {
-                log.warn({
-                    msg: "Stored fingerprint is outdated — using the measured one for this run",
-                    baseUrl,
-                    stored,
-                    measured: probe.fingerprint,
-                });
-            }
-            return probe.fingerprint;
-        }
-
-        // A failed probe must never block a backup: fall back to what is stored.
-        return repo?.fingerprint || undefined;
-    }
-
-    /**
-     * Turns a repository base URL into the host/port the tunnel must forward to.
-     * The port is whatever the URL says — see parseRepositoryEndpoint; a PBS on its own
-     * API port has to be written as `https://pbs.example.com:8007`.
-     */
-    static repositoryTarget(
-        baseUrl: string,
-    ): { host: string; port: number } | undefined {
-        const endpoint = parseRepositoryEndpoint(baseUrl);
-        return endpoint
-            ? { host: endpoint.host, port: endpoint.port }
-            : undefined;
+        await routeAgentMessage(clientId, socket, data, log);
     }
 
     /**
@@ -657,19 +279,7 @@ export class WebSocketController {
             "Outbound agent connection established, awaiting AUTH",
         );
 
-        socket.isAlive = true;
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
+        attachHeartbeat(socket);
 
         let isAuthenticated = false;
         let authResultSent = false;
@@ -739,7 +349,8 @@ export class WebSocketController {
         });
 
         socket.on("close", () => {
-            clearInterval(pingInterval);
+            // The heartbeat clears itself — attachHeartbeat registers its own close
+            // handler for exactly that.
             clearTimeout(authTimeout);
             notifyAuthResult(false);
             if (isAuthenticated) {

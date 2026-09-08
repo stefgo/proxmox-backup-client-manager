@@ -41,7 +41,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { menuState, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
     const [activeTab, setActiveTab] = useState<'snapshots' | 'history'>('snapshots');
@@ -54,17 +54,17 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     // Fetch Snapshots on mount or repo change
     useEffect(() => {
-        if (repo && token) {
+        if (repo && isAuthenticated) {
             fetchSnapshots(repo);
         }
-    }, [repo, token, fetchSnapshots]);
+    }, [repo, isAuthenticated, fetchSnapshots]);
 
     // Fetch Clients needed for restore if not already loaded
     useEffect(() => {
-        if (clients.length === 0 && token) {
+        if (clients.length === 0 && isAuthenticated) {
             fetchClients();
         }
-    }, [clients.length, token, fetchClients]);
+    }, [clients.length, isAuthenticated, fetchClients]);
 
     const getStatusColor = () => {
         if (isLoading) return 'bg-warning animate-pulse shadow-glow-accent';

@@ -57,7 +57,8 @@ backstop.
 
 The `Connection` class manages the persistent WebSocket connection to the central server.
 
-- **Features**: Automatic reconnection with exponential backoff, ping/pong health checks, and secure transmission of all payload data.
+- **Features**: Automatic reconnection, ping/pong health checks, and secure transmission of all payload data.
+- **Reconnect**: The delay steps through `5s → 10s → 30s → 60s` and then stays there, with up to 3s of jitter added each time. The same ladder as `ClientConnector.RECONNECT_DELAYS` on the server, which dials outbound agents — the two directions of one link should not behave differently. Before this it was a flat 5s with no jitter, so a fleet of agents and one server restart meant all of them knocking on the same beat. The counter resets on `AUTH_SUCCESS`, not when the socket opens: a connection that dies before the handshake is not a working one. All reconnects go through a single timer, and a connect that times out closes its socket — leaving it open used to let a later `connect()` close it, whose close handler then scheduled a second reconnect alongside the attempt already running.
 - **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `config.yaml`. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
 - **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, remove `clientId` and `authToken` from its `config.yaml` first.
 
@@ -72,10 +73,20 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
 
 ### 3. Job Executor (`src/features/Executor.ts`)
 
+`Executor` keeps the four entry points its callers use, the concurrency queue, and the orchestration. The steps of a run live under `features/execution/`:
+
+| Module               | Responsibility                                                                    |
+| :------------------- | :-------------------------------------------------------------------------------- |
+| `RunPreparation.ts`  | Everything both kinds of run need before the spawn: the temporary keyfile, the repository environment (`PBS_REPOSITORY`, `PBS_PASSWORD_FD`, `PBS_FINGERPRINT`), and the fingerprint resolution. Backup and restore each kept their own copy of this — the arrangement in which the keyfile cleanup already went missing once. |
+| `CommandBuilder.ts`  | `buildBackupArgs` / `buildRestoreArgs`. Pure functions with no I/O, and therefore the first part of the agent that can be checked without a running process. |
+| `ProcessRunner.ts`   | `runProxmoxClient`, `runScript`, `finishFailedRun` — everything that starts a child process and reports what became of it. Takes an `onSlotRelease` callback rather than knowing about the queue. |
+
 The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI binaries.
 
 - It translates abstract JSON job configurations into CLI arguments for `proxmox-backup-client backup` or `proxmox-backup-client restore`.
 - It spawns a child process and captures real-time `stdout`/`stderr` streams, forwarding them as `LOG_UPDATE` events over the WebSocket.
+- **Bounded output** (`core/CappedLog.ts`): each channel keeps at most `logCapBytes` (default 256 KB), holding the **head and the tail** with an explicit marker where the middle was dropped. Not a ring buffer: the invocation and the first errors are at the top and the reason a run failed is at the bottom, and a ring buffer keeps only the second half. The cap matters because the captured output is paid for three times — held in memory for the whole run, written to SQLite as a BLOB, and synced to the server from there.
+- **Batched log frames** (`core/LogStream.ts`): `LOG_UPDATE` events are collected and sent every 250 ms or once 8 KB accumulate, rather than one frame per chunk from the pipe. Safe because these frames are display-only; what must not slip is their order against the run's final `STATUS_UPDATE`, so the stream is flushed before that and in the spawn-error path.
 - **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then syncs this history with the central server via `SYNC_HISTORY`.
 - **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `doc/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
@@ -85,6 +96,20 @@ The client includes a micro-server (Fastify) for local management and initial se
 
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. Requests to the PBCM server tolerate a self-signed certificate via `core/InsecureHttp.ts`, scoped to those calls — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above.
+- **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` requires a PIN that the agent
+  prints to its log on startup while it has no identity (`docker logs`,
+  `journalctl -u pbcm-client`). Without it, anyone who can route to `listenPort` could
+  point an unregistered agent at a server of their choosing — the caller supplies both the
+  server URL and the token. `allowedNetworks` cannot serve as that check (see below), so
+  the guard is a shared secret instead of an address; whoever can read the machine's log
+  already has the access that registering would grant.
+
+  The PIN lives in memory only. It is regenerated on every start, dropped once an identity
+  exists, and rotated after five failed attempts — which ends online guessing without
+  locking the operator out, since they read the new value from the same place. It is
+  checked **before** the `isRegistered()` gate, so the status code does not reveal whether
+  the agent already has an identity. The outbound path over `/ws/register` is unaffected:
+  it is already protected by `registrationSecret` and `allowedNetworks`.
 - **Port**: `listenPort` in `config.yaml` (default `3001`), overridden by the environment
   variable `PBCM_CLIENT_PORT`. In outbound mode the same server also serves `/ws/register`
   and `/ws/agent`, so a changed port must match the client's target address on the server —
@@ -96,7 +121,8 @@ The client includes a micro-server (Fastify) for local management and initial se
   listener binds every interface the host has. The local Web UI on the same port is
   deliberately **not** restricted — it is the surface an operator uses to set the
   registration secret, and a list holding only the server's address would shut them out of
-  it. The address checked is the socket's peer (no `trustProxy`), so an agent behind a
+  it; that surface is guarded by the setup PIN above instead. The address checked is the
+  socket's peer (no `trustProxy`), so an agent behind a
   reverse proxy must allow the proxy's address, not the server's. A wrong value is only
   repairable locally on the client host: the connection one would fix it over is the one
   being refused.

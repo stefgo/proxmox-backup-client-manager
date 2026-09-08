@@ -42,7 +42,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     // page says where back is; a directly opened URL falls back to its own list.
     const back = (location.state as { from?: string } | null)?.from ?? fallbackBack;
 
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { clients } = useClientStore();
     const { repositories, fetchRepositories } = useRepositoryStore();
     const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
@@ -73,8 +73,8 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     });
 
     useEffect(() => {
-        if (token && repositories.length === 0) fetchRepositories();
-    }, [token, repositories.length, fetchRepositories]);
+        if (isAuthenticated && repositories.length === 0) fetchRepositories();
+    }, [isAuthenticated, repositories.length, fetchRepositories]);
 
     // Seeds the form exactly once. Neither jobForm nor its actions keep their identity
     // across renders, so there is no honest dependency array to write here — the guard
@@ -92,10 +92,10 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
 
     const { fileBrowserPath } = jobForm;
     useEffect(() => {
-        if (token && selectedClientId) {
+        if (isAuthenticated && selectedClientId) {
             fetchFileList(selectedClientId, fileBrowserPath);
         }
-    }, [token, selectedClientId, fileBrowserPath, fetchFileList]);
+    }, [isAuthenticated, selectedClientId, fileBrowserPath, fetchFileList]);
 
     /**
      * Leaving asks first while the form holds unsaved work — the exit sits a few pixels

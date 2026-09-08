@@ -7,6 +7,8 @@ import {
     WsMessage,
     ProtocolMap,
     BackupJob,
+    WS_REQUEST_TIMEOUT_MS,
+    WS_REQUEST_TIMEOUT_DEFAULT_MS,
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -14,10 +16,31 @@ import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.j
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { TunnelService } from "./TunnelService.js";
 
+/** One outstanding request to an agent, keyed by its requestId. */
+interface PendingRequest {
+    clientId: string;
+    type: string;
+    resolve: (payload: any) => void;
+    reject: (err: Error) => void;
+    timer: NodeJS.Timeout;
+}
+
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
     private static dashboardClients = new Set<WebSocket>();
     private static jobCache = new Map<string, BackupJob[]>();
+    /**
+     * Correlation table for requests the server sent to agents.
+     *
+     * Replaces one `socket.on("message", …)` listener per outstanding request. That shape
+     * worked, but it scaled the wrong way: eleven concurrent requests to one agent
+     * tripped Node's MaxListenersExceededWarning, and every message arriving on that
+     * socket was JSON.parse'd once per attached listener.
+     *
+     * This is the mirror image of Connection.request/resolvePending in the agent, which
+     * has always been built this way.
+     */
+    private static pending = new Map<string, PendingRequest>();
 
     static registerClient(clientId: string, socket: WebSocket) {
         const existing = this.connectedClients.get(clientId);
@@ -38,6 +61,9 @@ export class ProxyService {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
             this.jobCache.delete(clientId);
+            // The agent is gone, so no answer is coming. Failing the callers now beats
+            // leaving each of them to discover it separately when its timeout expires.
+            this.rejectPendingFor(clientId, "Client disconnected");
             // A client that is gone cannot release its leases any more — drop them here,
             // otherwise the tunnel would stay open until maxLeaseMs.
             TunnelService.dropClientLeases(clientId);
@@ -279,12 +305,15 @@ export class ProxyService {
      */
     static broadcastClientUpdate() {
         try {
-            const clients = this.getClientsWithStatus();
-            const message = JSON.stringify({
-                type: "CLIENTS_UPDATE",
-                payload: clients,
-            });
-            this.broadcastToDashboard(JSON.parse(message));
+            // Serialised once. This used to stringify, parse the result straight back,
+            // and hand the object to broadcastToDashboard — which stringified it again:
+            // three passes over the full client list on every connect and disconnect.
+            this.broadcastToDashboard(
+                JSON.stringify({
+                    type: "CLIENTS_UPDATE",
+                    payload: this.getClientsWithStatus(),
+                }),
+            );
         } catch (e) {
             logger.error({ err: e }, "Broadcast error");
         }
@@ -332,48 +361,74 @@ export class ProxyService {
         // Ensure payload has requestId
         const finalPayload = { ...payload, requestId };
 
+        const timeoutMs =
+            WS_REQUEST_TIMEOUT_MS[type as string] ??
+            WS_REQUEST_TIMEOUT_DEFAULT_MS;
+
         return new Promise((resolve, reject) => {
-            // Every exit path runs through cleanup(). Detaching the listener only on
-            // success used to leave one behind per timed-out or aborted request, which
-            // both grew unboundedly and re-parsed every later message once per corpse.
-            const cleanup = () => {
-                clearTimeout(timeout);
-                socket.off("message", listener);
-                socket.off("close", onClose);
-            };
+            const timer = setTimeout(() => {
+                this.pending.delete(requestId);
+                reject(new Error(`Timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
 
-            const timeout = setTimeout(() => {
-                cleanup();
-                reject(new Error("Timeout"));
-            }, 5000);
+            this.pending.set(requestId, {
+                clientId,
+                type: type as string,
+                resolve,
+                reject,
+                timer,
+            });
 
-            const onClose = () => {
-                cleanup();
-                reject(new Error("Client disconnected"));
-            };
-
-            const listener = (msg: Buffer) => {
-                try {
-                    const data = JSON.parse(msg.toString()) as WsMessage<any>;
-
-                    // Check if message matches the expected type and requestId
-                    if (
-                        data.type === type &&
-                        data.payload?.requestId === requestId
-                    ) {
-                        cleanup();
-                        if (data.payload.error) {
-                            reject(new Error(data.payload.error));
-                        } else {
-                            resolve(data.payload as ProtocolMap[K]["res"]);
-                        }
-                    }
-                } catch (e) {}
-            };
-            socket.on("message", listener);
-            socket.on("close", onClose);
-            socket.send(JSON.stringify({ type, payload: finalPayload }));
+            try {
+                socket.send(JSON.stringify({ type, payload: finalPayload }));
+            } catch (e) {
+                // A send that throws leaves an entry nobody will ever answer.
+                clearTimeout(timer);
+                this.pending.delete(requestId);
+                reject(e instanceof Error ? e : new Error(String(e)));
+            }
         });
+    }
+
+    /**
+     * Hands an agent's answer to whoever is waiting for it.
+     *
+     * Called from WebSocketController for every message an authenticated agent sends;
+     * anything without a matching requestId is not a response and is ignored here.
+     */
+    static resolvePending(clientId: string, data: WsMessage<any>): void {
+        const requestId = data?.payload?.requestId;
+        if (typeof requestId !== "string") return;
+
+        const entry = this.pending.get(requestId);
+        if (!entry) return;
+
+        // The id is a UUID, so a collision across clients is not a practical concern —
+        // but answering one client's request with another's reply would be silent and
+        // very hard to trace, so the pairing is checked rather than assumed.
+        if (entry.clientId !== clientId || entry.type !== data.type) return;
+
+        this.pending.delete(requestId);
+        clearTimeout(entry.timer);
+
+        if (data.payload.error) {
+            entry.reject(new Error(data.payload.error));
+        } else {
+            entry.resolve(data.payload);
+        }
+    }
+
+    /**
+     * Fails every request outstanding for a client. Called when its socket closes: those
+     * answers are never coming, and without this each one sat until its own timeout.
+     */
+    private static rejectPendingFor(clientId: string, reason: string): void {
+        for (const [requestId, entry] of [...this.pending.entries()]) {
+            if (entry.clientId !== clientId) continue;
+            this.pending.delete(requestId);
+            clearTimeout(entry.timer);
+            entry.reject(new Error(reason));
+        }
     }
 
     /**

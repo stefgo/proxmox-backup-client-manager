@@ -41,6 +41,7 @@ Services contain the heavy business logic of the application. They are designed 
 
 - **`ProxyService.ts`**: The central communication hub. It manages active agent and dashboard connections, handles request/response correlation for agent commands, and maintains an in-memory job configuration cache.
 - **`AuthService.ts`**: Handles user authentication, OIDC flows, and JWT generation.
+- **`SessionCookie.ts`**: The browser session, as two cookies — `pbcm_session` (the JWT, `HttpOnly`) and `pbcm_auth` (a flag with no secret, readable so the UI knows whether to show the login form). Both are set from one place so the local login and the OIDC return cannot drift apart. `Secure` follows `request.protocol` rather than being hardcoded: set unconditionally it would make a plain-HTTP installation discard the cookie, and the login would look successful while every following request came back `401` — a failure that never shows on localhost, which counts as a secure context.
 - **`SettingsService.ts`**: Manages global application settings and persistence.
 - **`CertProbe.ts`**: Measures the TLS certificate of a PBS instance (`probeCertificate`). The endpoint comes from `parseRepositoryEndpoint` in `shared/`, the single place that maps a repository URL to host and port — an explicit port wins, otherwise the protocol default (443/80) applies and the PBS API port is never assumed. Reports `caValid` — whether the certificate passed regular validation against the real hostname. That flag is what decides whether a measured fingerprint may be adopted automatically: it is evidence from a CA, a source independent of the fingerprint itself. An identical copy exists in the client agent; it is not in `shared/` because `shared` must stay importable from the browser and `node:tls` is not.
 - **`FingerprintObservations.ts`**: In-memory record of fingerprints reported by agents (`FINGERPRINT_OBSERVED`). Deliberately never written into the repository config — a single compromised client must not be able to set the value every other client then trusts.
@@ -50,15 +51,27 @@ Services contain the heavy business logic of the application. They are designed 
 
 Routes are Fastify plugins. They map HTTP verbs (GET, POST, PUT, DELETE) to specific methods in the Controllers and handle generic middleware (e.g., verifying JWT tokens).
 
-All protected routes require a valid JWT in the `Authorization` header (`Bearer <token>`). The single public API route outside of auth is `POST /v1/register` (client self-registration).
+All protected routes require a valid JWT. The browser sends it as the `pbcm_session` cookie; the `Authorization: Bearer <token>` header keeps working for scripted clients, and `@fastify/jwt` accepts either. The single public API route outside of auth is `POST /v1/register` (client self-registration).
+
+`POST /login` carries a rate limit of ten attempts per fifteen minutes. The limiter is registered with `global: false` on purpose — a blanket limit would also count the agent handshakes and the dashboard's own traffic, where a larger fleet legitimately produces bursts.
 
 ### 4. WebSocket Controller & ProxyService
 
 Real-time communication is handled via WebSockets (using `@fastify/websocket`).
 The `WebSocketController` acts as the entry point, while `ProxyService` manages the lifecycle of these connections.
 
-- **Authentication**: Incoming agent connections are validated against tokens and IP restrictions.
+`WebSocketController.ts` holds only the entry points its callers use — the two handshakes for `index.ts`, `handleOutboundAgentConnection` for `ClientConnector`. The rest sits under `controllers/websocket/`:
+
+| Module                  | Responsibility                                                                 |
+| :---------------------- | :----------------------------------------------------------------------------- |
+| `Heartbeat.ts`          | `attachHeartbeat(socket, onTimeout?)` — the 30-second ping/pong. Existed three times over, once per connection kind; the copies differed only in whether they logged the drop. |
+| `AgentMessageRouter.ts` | A `type → handler` table for everything an authenticated agent sends. Was an `if` chain of seven branches, so each message was compared against all seven. Same shape as `INBOUND_SCHEMAS` in the agent's `core/Connection.ts`. |
+| `TunnelLease.ts`        | Lease authorisation and the fingerprint handling. Together because that is where the tunnel's security property lives: the requesting client never names a host, the server derives the target from the job it pushed out. `repositoryTarget` lives here too, and `JobController` imports it from here. |
+
+- **Authentication**: Incoming agent connections are validated against tokens and IP restrictions. Dashboard connections authenticate with the `pbcm_session` cookie, which the browser attaches to the handshake itself — there is no token in the URL.
 - **Connection Management**: `ProxyService` tracks online agents and active dashboard sessions.
+- **Request correlation**: Requests to agents are tracked in one `pending` map keyed by `requestId`, and `handleAgentMessage` routes every incoming message through `resolvePending`. This replaced a per-request `message` listener on the agent's socket: that shape tripped Node's `MaxListenersExceededWarning` at eleven concurrent requests and re-parsed every arriving message once per attached listener. It mirrors `Connection.request` in the agent, which has always worked this way. A closing socket rejects the client's outstanding requests immediately instead of leaving each to its own timeout.
+- **Per-event timeouts**: `WS_REQUEST_TIMEOUT_MS` in `shared/src/constants.ts` sets how long the server waits per event, with a 5 s default. `FS_LIST` and `GENERATE_KEY_CONFIG` get 30 s — both are slow by nature, and under the old flat 5 s their answers arrived for a request nobody was waiting for any more.
 - **Job Caching**: When an agent connects, `ProxyService` automatically refreshes its local job cache to ensure high-speed retrieval of job configurations.
 - **Repository id backfill**: During that refresh, jobs whose embedded repository copy predates `repositoryId` are resolved by base URL plus datastore and stamped with the id (`backfillRepositoryIds`). Ambiguous or unmatched jobs are skipped with a warning rather than guessed. Without the id nothing can tell which managed repository a job belongs to, which is what fingerprint distribution needs.
 - **Broadcasting**: `ProxyService` multicasts events (like job progress or log updates) from agents to all connected dashboards.

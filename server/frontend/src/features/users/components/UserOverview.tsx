@@ -5,7 +5,7 @@ import { UserList, UserData } from './UserList';
 import { apiFetch } from '../../../lib/apiFetch';
 
 export const UserOverview = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -13,7 +13,7 @@ export const UserOverview = () => {
 
     useEffect(() => {
         fetchUsers();
-    }, [token]);
+    }, [isAuthenticated]);
 
     const fetchUsers = async () => {
         setIsLoading(true);

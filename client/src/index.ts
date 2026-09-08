@@ -2,6 +2,8 @@ import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "@pbcm/shared/node";
 import { startAgentActivity } from "./core/Lifecycle.js";
 import { initDatabase } from "./core/Database.js";
+import { isRegistered } from "./core/Config.js";
+import { logSetupPin } from "./core/SetupPin.js";
 
 // Initialize Database
 await initDatabase();
@@ -10,6 +12,13 @@ await initDatabase();
 // the agent is registered — it is the surface an operator registers it through.
 if (process.env.DISABLE_WEB_UI !== "true") {
     startWebServer();
+
+    // The setup PIN guards /api/register and only matters while there is no identity
+    // yet. Printed here rather than inside the web server so it lands after the
+    // "listening on port" line, where an operator is already looking.
+    if (!isRegistered()) {
+        logSetupPin();
+    }
 } else {
     logger.info("Web UI disabled via DISABLE_WEB_UI environment variable.");
 }

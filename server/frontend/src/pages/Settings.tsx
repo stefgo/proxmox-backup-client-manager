@@ -12,7 +12,7 @@ import { apiFetch } from '../lib/apiFetch';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
 export default function Settings() {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: '30',
         retention_invalid_tokens_count: '10',
@@ -25,10 +25,10 @@ export default function Settings() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (token) {
+        if (isAuthenticated) {
             fetchSettings();
         }
-    }, [token]);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (cleanupResult) {

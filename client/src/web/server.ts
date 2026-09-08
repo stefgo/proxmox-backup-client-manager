@@ -15,6 +15,7 @@ import {
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
+import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
 import { z } from "zod";
@@ -28,6 +29,12 @@ import { z } from "zod";
 const WebRegisterSchema = z.object({
     token: z.string().min(1),
     url: z.url(),
+    /**
+     * The PIN from this agent's own log. Without it anyone who can route to `listenPort`
+     * could point an unregistered agent at a server of their choosing — see SetupPin.ts
+     * on why this is a shared secret rather than a network list.
+     */
+    pin: z.string().min(1),
 });
 
 /** The identity the server presents on the agent session it opens. */
@@ -188,11 +195,30 @@ export async function startWebServer() {
         async (request: FastifyRequest, reply: FastifyReply) => {
             const parsed = WebRegisterSchema.safeParse(request.body);
             if (!parsed.success) {
-                return reply
-                    .status(400)
-                    .send({ error: parsed.error.issues[0].message });
+                // The path is prefixed for the same reason the server does it: on its
+                // own, "expected string, received undefined" leaves the caller to guess
+                // which of three fields it meant.
+                const issue = parsed.error.issues[0];
+                const path = issue.path.join(".");
+                return reply.status(400).send({
+                    error: path ? `${path}: ${issue.message}` : issue.message,
+                });
             }
-            const { token, url } = parsed.data;
+            const { token, url, pin } = parsed.data;
+
+            // Checked before the isRegistered() gate below, so the status code cannot be
+            // used to find out whether this agent already has an identity — the same
+            // reasoning the server applies in TokenController.register, where the schema
+            // check comes before the token lookup.
+            if (!verifySetupPin(pin)) {
+                logger.warn(
+                    { ip: request.ip },
+                    "Registration denied: wrong or missing setup PIN",
+                );
+                return reply.status(403).send({
+                    error: "Wrong setup PIN. It is printed in this agent's log on startup.",
+                });
+            }
 
             // Same rule the outbound handshake has always had: an agent that already
             // owns an identity does not get a second one. Registering again would leave
@@ -237,6 +263,8 @@ export async function startWebServer() {
                 if (data.token && data.clientId) {
                     setServerUrl(url);
                     persistIdentity(data.clientId, data.token);
+                    // There is an identity now, so the PIN has nothing left to protect.
+                    clearSetupPin();
                     logger.info(
                         "Web Registration successful! Identity received.",
                     );
