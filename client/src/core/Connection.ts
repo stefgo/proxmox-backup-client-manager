@@ -65,8 +65,24 @@ const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.HISTORY]: HistoryRequestSchema,
 };
 
+/**
+ * Backoff for reconnect attempts, in milliseconds.
+ *
+ * Deliberately the same ladder as ClientConnector.RECONNECT_DELAYS on the server, which
+ * dials outbound agents: the two directions of the same link should not behave
+ * differently. Before this, the agent retried on a flat 5s forever — with a fleet of
+ * agents and one server restart, all of them hit the door on the same beat.
+ */
+const RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000];
+
+/** Spread across attempts so a fleet does not stay in lockstep, as TunnelClient does for cron. */
+const RECONNECT_JITTER_MS = 3000;
+
 export class Connection {
     private static wsInstance: WebSocket | null = null;
+    /** One timer for the whole module: two of these would mean two reconnect loops. */
+    private static reconnectTimer: NodeJS.Timeout | null = null;
+    private static reconnectAttempts = 0;
     /** Correlation table for requests this agent sends to the server. */
     private static pending = new Map<
         string,
@@ -117,6 +133,32 @@ export class Connection {
     }
 
     /**
+     * Queues the next connection attempt.
+     *
+     * Every reconnect goes through here, and the single timer is cleared first: the
+     * connect timeout and the close handler could previously both schedule an attempt,
+     * leaving two loops racing each other for the rest of the process's life.
+     */
+    private static scheduleReconnect(): void {
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+        const step = Math.min(
+            this.reconnectAttempts,
+            RECONNECT_DELAYS_MS.length - 1,
+        );
+        const delay =
+            RECONNECT_DELAYS_MS[step] +
+            Math.floor(Math.random() * RECONNECT_JITTER_MS);
+        this.reconnectAttempts++;
+
+        logger.warn(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            Connection.connect();
+        }, delay);
+    }
+
+    /**
      * Establishes a WebSocket connection to the central backend server using the
      * configured URL and authentication token. Implements automatic reconnection,
      * handles incoming messages and routes them to the appropriate Handlers.
@@ -124,6 +166,13 @@ export class Connection {
      * @returns A promise resolving to an object indicating connection success or failure.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
+        // A manual connect supersedes a queued one; without this the pending timer would
+        // fire on top of the connection this call is about to establish.
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
         if (this.isConnected()) {
             return Promise.resolve({ connected: true });
         }
@@ -176,7 +225,18 @@ export class Connection {
                 }, 35000); // 30s server interval + 5s buffer
             }
 
+            // Closing the socket is the point: leaving it open meant the caller saw a
+            // failure while the handshake was still running, and a later connect() then
+            // closed it — whose close handler scheduled a *second* reconnect alongside
+            // the attempt already under way. The close here routes the failure through
+            // the single path in onClose below.
             const timeout = setTimeout(() => {
+                logger.warn("Connection attempt timed out after 5s.");
+                try {
+                    ws.close();
+                } catch (_) {
+                    /* already gone */
+                }
                 resolve({
                     connected: false,
                     error: "Connection timeout (5s).",
@@ -197,6 +257,10 @@ export class Connection {
             this.attach(ws, {
                 onAuthSuccess: () => {
                     clearTimeout(timeout);
+                    // Reset on AUTH, not on `open`: a socket that is accepted and then
+                    // dropped before the handshake is not a working connection, and
+                    // counting it as one would restart the ladder at 5s every time.
+                    Connection.reconnectAttempts = 0;
                     resolve({ connected: true });
                 },
                 onHeartbeat: heartbeat,
@@ -207,8 +271,7 @@ export class Connection {
                         connected: false,
                         error: `${reasonStr} (Code: ${code})`,
                     });
-                    logger.warn("Reconnecting in 5s...");
-                    setTimeout(() => Connection.connect(), 5000);
+                    Connection.scheduleReconnect();
                 },
             });
 
