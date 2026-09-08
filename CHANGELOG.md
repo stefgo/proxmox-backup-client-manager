@@ -1,3 +1,22 @@
+# [1.4.0-beta.11](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.10...v1.4.0-beta.11) (2026-09-08)
+
+
+### Bug Fixes
+
+* **client:** Fehlermeldung der Registrierung nennt das betroffene Feld ([8ce8552](https://github.com/stefgo/proxmox-backup-client-manager/commit/8ce8552b84fed46ab4f6dcc9b25e018aa2204968))
+* **client:** Log-Puffer und Log-Frames sind gedeckelt ([21d1143](https://github.com/stefgo/proxmox-backup-client-manager/commit/21d114394906cf543bc73586db457ee2ac7bfb2e))
+* **client:** Reconnect nutzt Backoff mit Jitter ([125d616](https://github.com/stefgo/proxmox-backup-client-manager/commit/125d616e2d2637ed6b49eaae186c8118a34f2277))
+* **server:** Anmeldung wird auf 10 Versuche je 15 Minuten begrenzt ([0c479ef](https://github.com/stefgo/proxmox-backup-client-manager/commit/0c479efc883d3223b0fc5f023f8b532b5c033d12))
+* **server:** CORS spiegelt keine fremden Origins mehr und Token laufen ab ([bf6473f](https://github.com/stefgo/proxmox-backup-client-manager/commit/bf6473fe02030347e6c86d617cbf9773f129d79a))
+* **server:** Sicherheitskopfzeilen ueber helmet ([7980971](https://github.com/stefgo/proxmox-backup-client-manager/commit/7980971d3c12f47d9d84778671669a895438e5d2))
+* **server:** Tunnel-Slots werden gezaehlt statt aus dem Zustand abgeleitet ([2a7a11b](https://github.com/stefgo/proxmox-backup-client-manager/commit/2a7a11ba966e3d4605dea4cfc6ffc7a2dd1d4878))
+
+
+### Features
+
+* **client:** Registrierung verlangt eine Setup-PIN ([8e4fb61](https://github.com/stefgo/proxmox-backup-client-manager/commit/8e4fb619c407dc9e97ccdef3cc13881a866a453f))
+* **server:** Anmeldung nutzt ein httpOnly-Cookie statt eines Bearer-Tokens ([3e61516](https://github.com/stefgo/proxmox-backup-client-manager/commit/3e6151628cf1b2d63544a89cb4acd06f8d7b6266))
+
 # [1.4.0-beta.10](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.9...v1.4.0-beta.10) (2026-09-08)
 
 
