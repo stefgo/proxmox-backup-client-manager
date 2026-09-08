@@ -3,7 +3,12 @@ name: Registry Cleanup
 on:
     schedule:
         - cron: "0 2 * * *" # Runs every night at 02:00
-    workflow_dispatch: # Allows manual trigger for testing
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Log what would be deleted, delete nothing"
+                type: boolean
+                default: true
 
 jobs:
     delete-old-packages:
@@ -12,22 +17,39 @@ jobs:
             packages: write
             contents: read
 
-        strategy:
-            matrix:
-                package: [pbcm-client, pbcm-client-arm64, pbcm-server]
-
         steps:
-            # Bleibt vorerst auf node20: v5 ist die aktuelle Major-Version dieser
-            # Action, eine node24-Fassung gibt es noch nicht. Sie erzeugt daher
-            # weiterhin die Deprecation-Warnung der Runner.
+            # dataaxiom/ghcr-cleanup-action instead of actions/delete-package-versions,
+            # because the latter does not know what a manifest child is. A multi-arch
+            # build pushes its per-architecture images and its attestations untagged;
+            # only the manifest list carries the tag. Deleting "untagged versions" from
+            # such a package therefore hollows out the tagged images -- that is how
+            # pbcm-server:main lost all four of its children while the tag stayed.
             - name: Delete unwanted versions
-              uses: actions/delete-package-versions@v5
+              uses: dataaxiom/ghcr-cleanup-action@v1
               with:
-                  package-name: ${{ matrix.package }}
-                  package-type: "container"
-                  # We keep versions that should NOT be deleted:
-                  # Regex for: 'latest' OR version numbers (e.g., v1.0.1)
-                  # OR branch names (here 'main')
-                  ignore-versions: '^(latest|main|v?[0-9]+\.[0-9]+\.[0-9]+)$'
-                  min-versions-to-keep: 5 # Always keep the last 5 versions per package
-                  delete-only-untagged-versions: true # Never delete tagged versions (main, latest, v1.0.0, ...)
+                  packages: pbcm-server,pbcm-client,pbcm-client-arm64
+
+                  # A child of a kept tag does not count as untagged here. This is the
+                  # whole difference to the previous action.
+                  delete-untagged: true
+                  keep-n-tagged: 10
+
+                  # Safety net for the pointers nobody may lose. `main` is deliberately
+                  # absent: that tag is already broken and delete-partial-images clears
+                  # it. The two version patterns keep every release pullable -- a
+                  # deleted 1.3.2 breaks whoever pinned it, so release images are meant
+                  # to accumulate.
+                  exclude-tags: latest,dev,*.*.*,*.*
+
+                  # Removes manifests whose children are gone, i.e. the damage the
+                  # previous configuration already did.
+                  delete-ghost-images: true
+                  delete-partial-images: true
+
+                  # Verifies after the run that every multi-arch image still has all of
+                  # its platform children -- exactly the failure that went unnoticed.
+                  validate: true
+
+                  # Manual runs default to a dry run; the nightly schedule passes no
+                  # input and deletes.
+                  dry-run: ${{ inputs.dry_run || false }}

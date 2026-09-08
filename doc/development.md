@@ -146,6 +146,36 @@ dispatched by hand for a prerelease publishes `<version>` only and leaves
 `latest` where it is. A branch push or a manual dispatch on a branch publishes
 `<branch>` and `sha-<short>`, never `latest`.
 
+### Registry cleanup
+
+[`cleanup-packages.yml`](../.github/workflows/cleanup-packages.yml) prunes GHCR
+every night. It uses `dataaxiom/ghcr-cleanup-action` rather than the more obvious
+`actions/delete-package-versions`, and the reason is worth keeping: a multi-arch
+build pushes its per-architecture images and its attestations **untagged** --
+only the manifest list carries the tag.
+
+```
+pbcm-server:dev  ─┬─► sha256:9c55…  linux/arm64      ┐
+                  ├─► sha256:72f7…  linux/amd64      │ each one an untagged
+                  ├─► sha256:41be…  attestation      │ version of the package
+                  └─► sha256:434a…  attestation      ┘
+```
+
+An action that deletes "untagged versions" therefore hollows out the tagged
+images from underneath. That is not hypothetical: it is how `pbcm-server:main`
+came to be a tag whose four children all return 404. The cleanup in use knows
+which children belong to a kept tag, `validate: true` re-checks that after every
+run, and `delete-partial-images` removes the manifests that already lost theirs.
+
+`latest` and `dev` are excluded from every rule, and so is anything shaped like a
+version: a deleted `1.3.2` breaks whoever pinned it, so release images are meant
+to accumulate. A manual run defaults to `dry_run: true`:
+
+```bash
+gh workflow run cleanup-packages.yml            # logs only
+gh workflow run cleanup-packages.yml -f dry_run=false
+```
+
 ### Registry authentication
 
 The builds install `@stefgo/react-ui-components` from GitHub Packages, which
