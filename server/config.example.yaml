@@ -40,3 +40,10 @@ security:
     # means no perimeter was configured, while a client without an allowed address is
     # refused outright.
     allowed_networks: []
+
+# Not listed here: the "tunnel:" section for the SSH reverse tunnel. The server writes it
+# with its defaults on first start, so a copy of this file does not need it — and it must
+# not carry tunnel.keySecret, which is generated per installation and encrypts the stored
+# SSH keys: sharing that value would share one key across every installation that copied
+# the file.
+# The parameters and what each of them does are documented in doc/tunnel.md.
