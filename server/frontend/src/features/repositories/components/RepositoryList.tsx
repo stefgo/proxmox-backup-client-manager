@@ -67,7 +67,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                         rowId={repo.id as string}
                         menuEntries={[
                             {
-                                label: 'Edit',
+                                label: 'Edit Repository',
                                 icon: Edit,
                                 onClick: () => onEdit(repo),
                                 variant: 'default',
@@ -140,7 +140,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                         rowId={repo.id as string}
                         menuEntries={[
                             {
-                                label: 'Edit',
+                                label: 'Edit Repository',
                                 icon: Edit,
                                 onClick: () => onEdit(repo),
                                 variant: 'default',

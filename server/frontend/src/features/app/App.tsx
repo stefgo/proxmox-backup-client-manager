@@ -12,7 +12,7 @@ import {
 
 // Library Components
 import { Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING } from '@stefgo/react-ui-components';
-import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
+import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
@@ -38,6 +38,7 @@ const ClientEditor = lazy(() => import('../clients/components/ClientEditor').the
 const ClientTunnelEditor = lazy(() => import('../clients/components/ClientTunnelEditor').then(m => ({ default: m.ClientTunnelEditor })));
 const JobEditorPage = lazy(() => import('../jobs/components/JobEditorPage').then(m => ({ default: m.JobEditorPage })));
 const RepositoryOverview = lazy(() => import('../repositories/components/RepositoryOverview').then(m => ({ default: m.RepositoryOverview })));
+const RepositoryEditor = lazy(() => import('../repositories/components/RepositoryEditor').then(m => ({ default: m.RepositoryEditor })));
 const UserOverview = lazy(() => import('../users/components/UserOverview').then(m => ({ default: m.UserOverview })));
 const Settings = lazy(() => import('../../pages/Settings'));
 
@@ -208,6 +209,46 @@ function RepositoryDetailRoute() {
     return <RepositoryOverview repo={repo} />;
 }
 
+/**
+ * Editing from the detail page needs a URL of its own: the list keeps its editor in local
+ * state, which nothing outside `ManagedRepositories` can reach. `from` carries the page the
+ * menu was opened on, so Cancel returns there instead of always falling back to the list.
+ */
+function RepositoryEditRoute() {
+    const { repoId } = useParams();
+    const navigate = useNavigate();
+    const { state } = useLocation();
+    const { repositories, updateRepository } = useRepositoryStore();
+    const [isSaving, setIsSaving] = useState(false);
+
+    const repo = repositories.find((r) => String(r.id) === repoId);
+    const back = (state as { from?: string } | null)?.from ?? `/repository/${repoId}`;
+
+    if (!repo) return <Navigate to="/repositories" replace />;
+
+    const handleSave = async (data: Partial<Repository>) => {
+        setIsSaving(true);
+        try {
+            await updateRepository(repo.id, data);
+            navigate(back);
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save repository');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <RepositoryEditor
+            repository={repo}
+            onSave={handleSave}
+            onCancel={() => navigate(back)}
+            isSaving={isSaving}
+        />
+    );
+}
+
 function NotFound() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
@@ -340,7 +381,7 @@ function AppLayout() {
         },
         {
             id: 'repositories',
-            path: ['/repositories', '/repository/:repoId'],
+            path: ['/repositories', '/repository/:repoId', '/repository/:repoId/edit'],
             nav: {
                 groupId: 'resources',
                 label: 'Repositories',
@@ -426,6 +467,7 @@ function AppLayout() {
                     <Route path="/jobs/:clientId/:jobId" element={<EditJobRoute fallback={() => '/jobs'} />} />
                     <Route path="/repositories" element={<RepositoriesRoute />} />
                     <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />
+                    <Route path="/repository/:repoId/edit" element={<RepositoryEditRoute />} />
                     <Route path="/history" element={<HistoryOverview />} />
                     <Route path="/users" element={<UserOverview />} />
                     <Route path="/tokens" element={<TokenOverview />} />

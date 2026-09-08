@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { AlertCircle, FileBox } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, Edit, FileBox, MoreVertical } from 'lucide-react';
 import {
     ManagedRepository as Repository,
     CLIENT_STATUS,
@@ -9,11 +9,29 @@ import { Snapshot } from '@pbcm/shared';
 import { useState, useEffect } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
-import { Card, StatCard, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import {
+    ActionButton,
+    ActionMenu,
+    Card,
+    StatCard,
+    cn,
+    useActionMenu,
+    FOCUS_RING,
+    FOCUS_RING_NONE,
+} from '@stefgo/react-ui-components';
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
 
+
+/**
+ * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
+ * inside the popover would be clipped by it. Same rule as the client detail page.
+ */
+const MENU_ENTRY = cn(
+    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    FOCUS_RING_NONE,
+);
 
 interface RepositoryOverviewProps {
     repo: Repository;
@@ -22,7 +40,9 @@ interface RepositoryOverviewProps {
 export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const navigate = useNavigate();
+    const { pathname } = useLocation();
     const { token } = useAuth();
+    const { menuState, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
     const [activeTab, setActiveTab] = useState<'snapshots' | 'history'>('snapshots');
 
@@ -81,6 +101,34 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                                 {repo.id}
                             </div>
                         </div>
+                    </div>
+                }
+                action={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Repository actions"
+                            onClick={(e) => openMenu(e, String(repo.id))}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === String(repo.id)}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                        >
+                            <button
+                                onClick={() => {
+                                    // `from` is how the editor knows that Cancel returns to
+                                    // this page and not to the repository list.
+                                    navigate(`/repository/${repo.id}/edit`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
+                            >
+                                <Edit size={16} /> Edit Repository
+                            </button>
+                        </ActionMenu>
                     </div>
                 }
             />
