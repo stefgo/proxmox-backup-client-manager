@@ -60,11 +60,32 @@
 
 ## 🔐 Authentication
 
+Browser sessions are carried by a cookie, not by a token the page holds.
+
+| Cookie         | Contents         | Flags                                              |
+| :------------- | :--------------- | :------------------------------------------------- |
+| `pbcm_session` | The JWT          | `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS |
+| `pbcm_auth`    | `1`, no secret   | `SameSite=Strict` — readable, so the UI knows whether to render the login form |
+
+`Max-Age` on both follows `jwtExpiresIn`. `Secure` is set only when the request arrived
+over HTTPS: hardcoded, it would make the browser discard the cookie on a plain-HTTP
+installation, and the login would appear to succeed while every following request came
+back `401`.
+
+The JWT never reaches JavaScript. It used to travel in the OIDC redirect's query string,
+in `localStorage`, and in the dashboard WebSocket URL — the first and third of which are
+written to proxy and server access logs.
+
+**Scripted clients** can keep using `Authorization: Bearer <jwt>`; that path is unchanged,
+and agents are unaffected either way. Since the browser sends the session automatically,
+CSRF is kept out by `SameSite=Strict` together with the server's `origin: false` CORS
+setting — every request in this application is same-origin.
+
 ### Login
 
 `POST /login` (Note: No `/v1` prefix, maps to `/api/login`)
 
-**Description:** Authenticates a user with local credentials and returns a JWT token.
+**Description:** Authenticates a user with local credentials and sets the session cookies.
 
 #### Request Body
 
@@ -84,15 +105,48 @@
 
 #### Response
 
-| Field   | Type   | Description                                              |
-| :------ | :----- | :------------------------------------------------------- |
-| `token` | string | A JWT token used for authenticating subsequent requests. |
+The session arrives as `Set-Cookie`. The body only reports that it worked — putting the
+token in it would hand it back to JavaScript, which is what the cookie exists to avoid.
+
+| Field     | Type    | Description               |
+| :-------- | :------ | :------------------------ |
+| `success` | boolean | `true` when authenticated |
 
 **Example Response:**
 
 ```json
 {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "success": true
+}
+```
+
+### Logout
+
+`POST /auth/logout` (maps to `/api/auth/logout`)
+
+**Description:** Clears both session cookies. Needed as an endpoint because `pbcm_session`
+is `HttpOnly` and cannot be removed by the page. Unauthenticated on purpose — a caller
+without a session loses nothing by it, and requiring a valid JWT would make an expired
+session impossible to log out of.
+
+```json
+{
+    "success": true
+}
+```
+
+### Current User
+
+`GET /v1/me`
+
+**Description:** Who the session belongs to. The dashboard used to base64-decode the JWT
+in the browser to get this; with the token in an `HttpOnly` cookie it comes from the
+server that issued it instead.
+
+```json
+{
+    "username": "admin",
+    "id": 1
 }
 ```
 
@@ -1336,11 +1390,15 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 **Description:** WebSocket endpoint for the web dashboard to receive real-time updates.
 
-#### Query Parameters
+#### Authentication
 
-| Parameter | Type   | Required | Description                     |
-| :-------- | :----- | :------- | :------------------------------ |
-| `token`   | string | **Yes**  | Valid JWT authentication token. |
+The `pbcm_session` cookie, which the browser attaches to the handshake on its own. There
+are no query parameters. It used to take `?token=<jwt>` — the browser WebSocket API cannot
+set headers, so the query string was the only place a bearer token could go, and it was
+written into every proxy and server access log the connection passed.
+
+A connection without a valid session is closed with `4001 Unauthorized`
+(or `4001 Invalid Token` if the cookie is present but does not verify).
 
 #### Events (Server -> Client)
 

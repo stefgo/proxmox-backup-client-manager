@@ -137,6 +137,7 @@ This file is created automatically or can be created manually.
 | `clientId`      | Identity of the client. Issued by the server during registration and written together with `authToken` — never set or changed by hand. |
 | `executable`    | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
 | `retentionTime` | Number of days to keep job history and schedule states (default: `90`).            |
+| `logCapBytes`   | Bytes of `stdout` and `stderr` kept per run, each channel separately (default: `262144`, i.e. 256 KB). Head and tail are kept with the middle dropped and marked. Values below 1024 are ignored. |
 | `allowedNetworks` | Outbound mode only: list of CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 
 #### Server Config (`server/config.yaml`)
@@ -153,6 +154,7 @@ This file contains advanced settings for the server, specifically for authentica
 | `jwtSecret` | (Root)          | Generated automatically if not present. |
 | `jwtExpiresIn` | (Root)       | How long a login stays valid, in any span `@fastify/jwt` accepts (default: `12h`). Before this had a default, a token signed without one never expired. |
 | `security`  | `allowed_networks` | List of CIDR networks an agent may connect to `/ws/agent` from. Empty (default) allows every address. |
+|             | `hsts`          | Send `Strict-Transport-Security` (default: `false`). **Only switch this on behind TLS.** The header tells browsers to refuse `http://` for this host from then on, they remember it for months, and turning the header off again does not undo it — on a plain-HTTP installation it locks your users out. |
 
 `config.yaml` is validated against a schema at startup, and an invalid value aborts the
 start with a message naming the field — a configuration error is not something to discover
