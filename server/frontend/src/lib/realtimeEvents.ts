@@ -1,3 +1,4 @@
+import mitt from 'mitt';
 import { HistoryEntry } from '@pbcm/shared';
 
 /**
@@ -12,6 +13,11 @@ import { HistoryEntry } from '@pbcm/shared';
  * `window.dispatchEvent(new CustomEvent('pbcm:log_update', …))`, so the payload type was
  * *asserted* at each listener rather than guaranteed, the events were invisible to the
  * React DevTools, and every subscriber needed an `as EventListener` cast to compile.
+ *
+ * The registry underneath is `mitt` — about 200 bytes, and generic over the event map, so
+ * the one cast the hand-written version needed is gone. What stays hand-written is the
+ * two things mitt deliberately leaves out: an unsubscribe function and per-handler error
+ * isolation.
  */
 
 /**
@@ -19,8 +25,12 @@ import { HistoryEntry } from '@pbcm/shared';
  *
  * The payload types come from `@pbcm/shared`, the same contracts the WebSocket messages
  * are validated against — so the channel cannot drift from the socket that feeds it.
+ *
+ * A `type` and not an `interface`: mitt's parameter is constrained to
+ * `Record<EventType, unknown>`, and an interface satisfies no index signature it does not
+ * declare, while a type alias for an object literal gets one implicitly.
  */
-export interface RealtimeEvents {
+export type RealtimeEvents = {
     /**
      * A job changed state. `clientId` travels alongside because the agent's status update
      * carries no client columns, and dropping it here is what once produced
@@ -42,67 +52,56 @@ export interface RealtimeEvents {
         jobId: string;
         nextRunAt: string | null;
     };
-}
+};
 
 type Handler<K extends keyof RealtimeEvents> = (
     payload: RealtimeEvents[K],
 ) => void;
 
 /**
- * The registry, deliberately untyped inside.
+ * One emitter for the whole app, created at module load.
  *
- * A `{ [K in keyof RealtimeEvents]?: Set<Handler<K>> }` cannot be written to through a
- * generic key — TypeScript has to assume `K` might be instantiated as any one member, so
- * the assignment is rejected. Every implementation of this pattern lands on one cast
- * somewhere; keeping it here, behind two fully typed functions, means no caller ever
- * needs one. That is the whole improvement over the `window` bus, where the cast sat at
- * every listener instead.
+ * Module scope rather than a React context on purpose: the senders sit in
+ * `WebSocketProvider`, the receivers in hooks several levels down, and a context would
+ * make every one of them a subscriber to a value that never changes.
  */
-const handlers = new Map<string, Set<(payload: never) => void>>();
+const emitter = mitt<RealtimeEvents>();
 
 /**
  * Registers a listener and returns the function that removes it again.
  *
- * An unsubscribe function rather than a matching `off(type, fn)`: a `useEffect` can return
- * it directly, and there is no way to accidentally pass a different function reference to
- * the removal than was given to the registration — which with `removeEventListener` is a
- * silent leak.
+ * An unsubscribe function rather than mitt's `off(type, handler)`: a `useEffect` can
+ * return it directly, and there is no way to accidentally pass a different function
+ * reference to the removal than was given to the registration — which is a silent leak.
+ *
+ * The handler is wrapped rather than registered directly, which also gives it the error
+ * isolation mitt does not do: it calls its listeners in a plain loop, so one that throws
+ * would stop the ones behind it. The wrapper is a fresh function on every call, so two
+ * registrations of the same handler stay two independent subscriptions with two
+ * independent unsubscribes.
  */
 export function subscribe<K extends keyof RealtimeEvents>(
     type: K,
     handler: Handler<K>,
 ): () => void {
-    let set = handlers.get(type);
-    if (!set) {
-        set = new Set();
-        handlers.set(type, set);
-    }
-    const entry = handler as (payload: never) => void;
-    set.add(entry);
+    const wrapped: Handler<K> = (payload) => {
+        try {
+            handler(payload);
+        } catch (e) {
+            console.error(`Realtime handler for "${String(type)}" threw`, e);
+        }
+    };
+
+    emitter.on(type, wrapped);
     return () => {
-        set.delete(entry);
+        emitter.off(type, wrapped);
     };
 }
 
-/**
- * Delivers an event to everyone listening for it.
- *
- * Iterates over a copy: a handler that unsubscribes itself while being called would
- * otherwise mutate the set mid-iteration. One throwing handler must not stop the others,
- * so each is called in its own try.
- */
+/** Delivers an event to everyone listening for it. */
 export function emit<K extends keyof RealtimeEvents>(
     type: K,
     payload: RealtimeEvents[K],
 ): void {
-    const set = handlers.get(type) as Set<Handler<K>> | undefined;
-    if (!set || set.size === 0) return;
-
-    for (const handler of [...set]) {
-        try {
-            handler(payload);
-        } catch (e) {
-            console.error(`Realtime handler for "${type}" threw`, e);
-        }
-    }
+    emitter.emit(type, payload);
 }
