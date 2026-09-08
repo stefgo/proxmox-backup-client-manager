@@ -10,9 +10,26 @@ import { logger } from "@pbcm/shared/node";
  * no API surface.
  */
 export class SettingsService {
+    /**
+     * One setting as a string, whatever YAML made of it.
+     *
+     * The settings block is a loose object, so a value arrives as whatever the file says:
+     * `retention_job_history_days: 30` without quotes is a *number* to the YAML parser,
+     * while the settings page writes the same value as `"30"`. Both mean the same thing to
+     * every caller here — they all hand the result to `parseInt` — so the two spellings
+     * are levelled out at this boundary instead of at four call sites.
+     */
     static getSetting(key: string): string | null {
         try {
-            return appConfig.settings[key] || null;
+            const value = appConfig.settings[key];
+            if (value === undefined || value === null || value === "") return null;
+            if (typeof value === "string") return value;
+            if (typeof value === "number" || typeof value === "boolean") {
+                return String(value);
+            }
+            // An object or array here is a malformed setting, not a value to coerce.
+            logger.warn({ key }, "Setting is not a scalar value, ignoring it");
+            return null;
         } catch (e) {
             logger.error({ err: e, key }, "Failed to get setting");
             return null;
