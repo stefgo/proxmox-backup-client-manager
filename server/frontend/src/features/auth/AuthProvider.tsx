@@ -1,21 +1,6 @@
-import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
+import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { setUnauthorizedHandler, TOKEN_STORAGE_KEY } from '../../lib/apiFetch';
-
-interface AuthContextType {
-    token: string | null;
-    login: (token: string) => void;
-    logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
-};
+import { AuthContext } from './AuthContext';
 
 interface AuthProviderProps {
     children: ReactNode;

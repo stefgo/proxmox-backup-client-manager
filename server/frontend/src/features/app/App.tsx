@@ -16,9 +16,11 @@ import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } fro
 
 import Login from '../../pages/Login';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { AuthProvider, useAuth } from '../auth/AuthContext';
-import { WebSocketProvider } from './context/WebSocketContext';
+import { ThemeProvider } from './context/ThemeProvider';
+import { useTheme } from './context/ThemeContext';
+import { AuthProvider } from '../auth/AuthProvider';
+import { useAuth } from '../auth/AuthContext';
+import { WebSocketProvider } from './context/WebSocketProvider';
 
 // Hooks & Stores
 import { useClientStore } from '../../stores/useClientStore';

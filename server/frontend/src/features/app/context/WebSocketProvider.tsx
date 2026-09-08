@@ -1,16 +1,7 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
-
-interface WebSocketContextType {
-    isConnected: boolean;
-}
-
-const WebSocketContext = createContext<WebSocketContextType | null>(null);
-
-export const useWebSocket = () => {
-    return useContext(WebSocketContext);
-};
+import { WebSocketContext } from './WebSocketContext';
 
 interface WebSocketProviderProps {
     children: ReactNode;

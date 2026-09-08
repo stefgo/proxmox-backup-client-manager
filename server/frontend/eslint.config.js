@@ -65,10 +65,6 @@ export default defineConfig([
             // rather than a quick edit.
             "react-hooks/set-state-in-effect": "warn",
             "react-hooks/immutability": "warn",
-            // Every context here deliberately exports its provider next to its hook
-            // (useAuth, useTheme, useWebSocket). That costs Fast Refresh in those three
-            // files and nothing else, so it stays a hint rather than a build blocker.
-            "react-refresh/only-export-components": "warn",
         },
     },
 ]);
