@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
-import { Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
+import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
@@ -14,7 +14,7 @@ import { RepositorySnapshotList } from '../../repositories/components/Repository
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
-import { ActionMenu, Card, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Card, ConfirmDialog, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 
 
 /**
@@ -125,11 +125,24 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     };
 
-    const handleDeleteJob = async (jobId: string) => {
+    /**
+     * The job itself, not just its id: the dialog names it, and one dialog serves the
+     * whole list. Same wording as the global job list -- it is the same operation.
+     */
+    const [pendingDeleteJob, setPendingDeleteJob] = useState<BackupJob | null>(null);
+    const [isDeletingJob, setIsDeletingJob] = useState(false);
+
+    const confirmDeleteJob = async () => {
+        if (!pendingDeleteJob?.id) return;
+        setIsDeletingJob(true);
         try {
-            await deleteJob(client.id, jobId);
+            await deleteJob(client.id, pendingDeleteJob.id);
+            setPendingDeleteJob(null);
         } catch (e: unknown) {
+            // Left open: the message and the button that retries belong together.
             alert(getErrorMessage(e));
+        } finally {
+            setIsDeletingJob(false);
         }
     };
 
@@ -279,7 +292,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     jobs={configuredJobs}
                                     onEditJob={(job) => openJobEditor(job.id ?? undefined)}
                                     onTriggerJob={handleTriggerJob}
-                                    onDeleteJob={handleDeleteJob}
+                                    onDeleteJob={(jobId) => {
+                                        const job = configuredJobs.find((j) => j.id === jobId);
+                                        if (job) setPendingDeleteJob(job);
+                                    }}
                                     onCreateJob={() => openJobEditor()}
                                 />
                                 <div className="mt-6">
@@ -321,6 +337,21 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 </>
             )
             }
+
+            {/*
+              * Runs through the agent (JOB_DELETE_CONFIG), so it needs the client online.
+              * The configuration goes, the backups do not.
+              */}
+            <ConfirmDialog
+                isOpen={!!pendingDeleteJob}
+                onClose={() => setPendingDeleteJob(null)}
+                onConfirm={confirmDeleteJob}
+                title={`Delete job "${pendingDeleteJob?.name}"?`}
+                description="The agent drops the job and its schedule, so this client has to be online for it. Snapshots already in the repository and the run history stay."
+                confirmLabel="Delete job"
+                variant="danger"
+                isConfirming={isDeletingJob}
+            />
         </div >
     );
 };

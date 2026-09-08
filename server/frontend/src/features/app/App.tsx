@@ -80,9 +80,9 @@ function ClientsRoute() {
             onRefresh={() => {
                 if (isAuthenticated) fetchClients();
             }}
-            onDelete={(id) => {
-                if (isAuthenticated) deleteClient(id);
-            }}
+            onDelete={(id) =>
+                isAuthenticated ? deleteClient(id) : Promise.resolve()
+            }
             onAdd={() => open('/clients/new')}
             onEdit={(c) => open(`/client/${c.id}/edit`)}
             onEditTunnel={(c) => open(`/client/${c.id}/tunnel`)}

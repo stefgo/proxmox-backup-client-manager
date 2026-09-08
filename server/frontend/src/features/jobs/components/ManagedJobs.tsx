@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CLIENT_STATUS } from "@pbcm/shared";
+import { ConfirmDialog } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -18,6 +19,9 @@ export const ManagedJobs = () => {
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
+    // The job itself, so the dialog can name it and its client -- one dialog, every row.
+    const [pendingDelete, setPendingDelete] = useState<GlobalJob | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     // Only the action: the repository list itself is read through getState() below,
     // so this view no longer re-renders on every repository status change.
     const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
@@ -55,19 +59,24 @@ export const ManagedJobs = () => {
         }
     };
 
-    const handleDeleteJob = async (clientId: string, jobId: string) => {
-        if (!isAuthenticated) return;
+    const confirmDeleteJob = async () => {
+        if (!isAuthenticated || !pendingDelete) return;
+        setIsDeleting(true);
         try {
             const res = await apiFetch(
-                `/api/v1/clients/${clientId}/jobs/${jobId}`,
+                `/api/v1/clients/${pendingDelete.clientId}/jobs/${pendingDelete.id}`,
                 {
                     method: "DELETE",
                 },
             );
             if (!res.ok) throw new Error("Failed to delete job");
+            setPendingDelete(null);
             handleRefresh();
         } catch (e: unknown) {
+            // The dialog stays open so the retry is one click away.
             alert(getErrorMessage(e));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -112,7 +121,12 @@ export const ManagedJobs = () => {
                     onEditJob={openJobEditor}
                     onCreateJob={() => openJobEditor()}
                     onTriggerJob={handleTriggerJob}
-                    onDeleteJob={handleDeleteJob}
+                    onDeleteJob={(clientId, jobId) => {
+                        const job = globalJobs.find(
+                            (j) => j.clientId === clientId && j.id === jobId,
+                        );
+                        if (job) setPendingDelete(job);
+                    }}
                     getClientStatus={getClientStatus}
                     getClientName={getClientName}
                 />
@@ -126,6 +140,23 @@ export const ManagedJobs = () => {
                     emptyMessage="No data available in the observation period."
                 />
             </div>
+
+            {/*
+              * The request runs through the agent (JOB_DELETE_CONFIG), which drops the
+              * config and its schedule state -- so it needs the client online, and the
+              * dialog says so. Deleted is the configuration, not the backups: the
+              * snapshots in the repository and the history rows both stay.
+              */}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                onClose={() => setPendingDelete(null)}
+                onConfirm={confirmDeleteJob}
+                title={`Delete job "${pendingDelete?.name}"?`}
+                description={`The agent on ${pendingDelete ? getClientName(pendingDelete.clientId) : ""} drops the job and its schedule, so the client has to be online for this. Snapshots already in the repository and the run history stay.`}
+                confirmLabel="Delete job"
+                variant="danger"
+                isConfirming={isDeleting}
+            />
         </div>
     );
 };
