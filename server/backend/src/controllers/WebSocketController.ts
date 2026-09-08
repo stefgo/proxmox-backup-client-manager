@@ -1,5 +1,4 @@
 import { FastifyInstance } from "fastify";
-import { WebSocket } from "ws";
 import {
     WS_EVENTS,
     JOB_STATUS,
@@ -29,6 +28,7 @@ import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
 import { SESSION_COOKIE } from "../services/SessionCookie.js";
+import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
 import { probeCertificate } from "@pbcm/shared/node";
 
 type AgentLogger = {
@@ -36,18 +36,6 @@ type AgentLogger = {
     warn: (o: any) => void;
     error: (o: any) => void;
 };
-
-/**
- * A socket carrying the liveness flag of the ping/pong heartbeat.
- *
- * `ws` has no place for it, so the three heartbeat loops here hang it on the socket
- * object. Declared rather than cast at each use: the flag is written in one place and read
- * in another 30 seconds later, and a typo between the two would simply mean a dead
- * connection is never terminated.
- */
-interface HeartbeatSocket extends WebSocket {
-    isAlive?: boolean;
-}
 
 /** The query string both WebSocket routes accept the bearer token in. */
 type TokenQuery = { token?: string };
@@ -73,26 +61,9 @@ export class WebSocketController {
         fastify: FastifyInstance,
     ) {
         const socket: HeartbeatSocket = connection.socket || connection;
-        socket.isAlive = true;
-
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
-
-        // Registered before the auth checks below: those close the socket and return
-        // early, and without this handler their ping interval would never be cleared.
-        socket.on("close", () => {
-            clearInterval(pingInterval);
-        });
+        // Attached before the auth checks below: those close the socket and return early,
+        // and attachHeartbeat registers the close handler that clears the interval.
+        attachHeartbeat(socket);
 
         // Read from the cookie, which the browser attaches to the WebSocket handshake by
         // itself. It used to arrive as ?token=<JWT> — the browser WebSocket API cannot
@@ -134,29 +105,13 @@ export class WebSocketController {
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
         const socket: HeartbeatSocket = connection.socket || connection;
-        socket.isAlive = true;
-
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                fastify.log.warn({
-                    msg: "Agent client connection timed out (no pong). Terminating.",
-                    ip: clientIp,
-                    clientId,
-                });
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
-
-        socket.on("close", () => {
-            clearInterval(pingInterval);
-        });
+        attachHeartbeat(socket, () =>
+            fastify.log.warn({
+                msg: "Agent client connection timed out (no pong). Terminating.",
+                ip: clientIp,
+                clientId,
+            }),
+        );
         let isAuthenticated = false;
         let clientId: string | null = null;
         let authTimeout: NodeJS.Timeout;
@@ -668,19 +623,7 @@ export class WebSocketController {
             "Outbound agent connection established, awaiting AUTH",
         );
 
-        socket.isAlive = true;
-        socket.on("pong", () => {
-            socket.isAlive = true;
-        });
-
-        const pingInterval = setInterval(() => {
-            if (socket.isAlive === false) {
-                socket.terminate();
-                return;
-            }
-            socket.isAlive = false;
-            socket.ping();
-        }, 30000);
+        attachHeartbeat(socket);
 
         let isAuthenticated = false;
         let authResultSent = false;
@@ -750,7 +693,8 @@ export class WebSocketController {
         });
 
         socket.on("close", () => {
-            clearInterval(pingInterval);
+            // The heartbeat clears itself — attachHeartbeat registers its own close
+            // handler for exactly that.
             clearTimeout(authTimeout);
             notifyAuthResult(false);
             if (isAuthenticated) {
