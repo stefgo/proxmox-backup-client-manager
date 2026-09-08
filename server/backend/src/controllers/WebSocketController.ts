@@ -320,6 +320,12 @@ export class WebSocketController {
         data: WsMessage,
         log: AgentLogger,
     ) {
+            // Answers to requests the server sent. Nothing else in this function looks at
+            // requestId, and resolvePending ignores messages without one, so this is safe
+            // to run first for every message — it is what replaced the per-request
+            // listeners that used to be attached to the socket.
+            ProxyService.resolvePending(clientId, data as WsMessage<any>);
+
             // Handle Messages from Agent
             // 1. Status Updates (Forward to Dashboard + Save to DB if final)
             if (data.type === WS_EVENTS.STATUS_UPDATE) {
