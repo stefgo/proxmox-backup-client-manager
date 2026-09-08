@@ -1,3 +1,10 @@
+# [1.4.0-beta.12](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.11...v1.4.0-beta.12) (2026-09-08)
+
+
+### Bug Fixes
+
+* Job-Anzahl in der Sidebar folgt dem Client-Status ([374658d](https://github.com/stefgo/proxmox-backup-client-manager/commit/374658daac7d9566a82dfbbe71b0283097f62967))
+
 # [1.4.0-beta.11](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.10...v1.4.0-beta.11) (2026-09-08)
 
 
