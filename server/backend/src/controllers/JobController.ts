@@ -4,7 +4,7 @@ import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
-import { WebSocketController } from "./WebSocketController.js";
+import { TunnelLease } from "./websocket/TunnelLease.js";
 
 /**
  * Whether a tunnel is available to this client's jobs at all.
@@ -181,7 +181,7 @@ export class JobController {
                 // A restore carries no jobId, so the client cannot reference a stored job
                 // when asking for its tunnel. Pre-authorise the target for this runId —
                 // the client still never names a host itself.
-                const target = WebSocketController.repositoryTarget(
+                const target = TunnelLease.repositoryTarget(
                     repository.baseUrl,
                 );
                 if (!target) {
