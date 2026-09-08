@@ -219,32 +219,20 @@ function RepositoryEditRoute() {
     const navigate = useNavigate();
     const { state } = useLocation();
     const { repositories, updateRepository } = useRepositoryStore();
-    const [isSaving, setIsSaving] = useState(false);
 
     const repo = repositories.find((r) => String(r.id) === repoId);
     const back = (state as { from?: string } | null)?.from ?? `/repository/${repoId}`;
 
     if (!repo) return <Navigate to="/repositories" replace />;
 
-    const handleSave = async (data: Partial<Repository>) => {
-        setIsSaving(true);
-        try {
-            await updateRepository(repo.id, data);
-            navigate(back);
-        } catch (e) {
-            console.error(e);
-            alert('Failed to save repository');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
     return (
         <RepositoryEditor
             repository={repo}
-            onSave={handleSave}
+            // Errors are not caught here: like the client editor, the form stays open and
+            // reports in its own footer. Saving does not navigate away either -- the page
+            // says "Repository saved" and the operator decides when to leave.
+            onSave={(data: Partial<Repository>) => updateRepository(repo.id, data)}
             onCancel={() => navigate(back)}
-            isSaving={isSaving}
         />
     );
 }

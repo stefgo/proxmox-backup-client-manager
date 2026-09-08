@@ -14,24 +14,17 @@ interface ManagedRepositoriesProps {
 export const ManagedRepositories = ({ repositories, onSelect, onAdd, onUpdate, onDelete }: ManagedRepositoriesProps) => {
     const [isCreatingRepo, setIsCreatingRepo] = useState(false);
     const [editingRepo, setEditingRepo] = useState<Repository | null>(null);
-    const [isSavingRepo, setIsSavingRepo] = useState(false);
 
+    // A failure is deliberately not caught here: the editor shows it in its own footer,
+    // beside the fields it belongs to, and keeps the form open with the values intact.
     const handleSaveRepository = async (repoData: Partial<Repository>) => {
-        setIsSavingRepo(true);
-        try {
-            if (editingRepo) {
-                await onUpdate(editingRepo.id, repoData);
-            } else {
-                await onAdd(repoData);
-            }
-            setIsCreatingRepo(false);
-            setEditingRepo(null);
-        } catch (e) {
-            console.error(e);
-            alert('Failed to save repository');
-        } finally {
-            setIsSavingRepo(false);
+        if (editingRepo) {
+            await onUpdate(editingRepo.id, repoData);
+        } else {
+            await onAdd(repoData);
         }
+        setIsCreatingRepo(false);
+        setEditingRepo(null);
     };
 
     const handleDeleteRepository = async (id: string | number) => {
@@ -48,7 +41,6 @@ export const ManagedRepositories = ({ repositories, onSelect, onAdd, onUpdate, o
                     repository={editingRepo}
                     onSave={handleSaveRepository}
                     onCancel={() => { setIsCreatingRepo(false); setEditingRepo(null); }}
-                    isSaving={isSavingRepo}
                 />
             ) : (
                 <RepositoryList
