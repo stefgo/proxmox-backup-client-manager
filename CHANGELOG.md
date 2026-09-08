@@ -1,3 +1,19 @@
+# [1.4.0-beta.9](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.8...v1.4.0-beta.9) (2026-09-08)
+
+
+### Bug Fixes
+
+* Aktions-Icons im Job-Editor sind dauerhaft sichtbar ([d9753b7](https://github.com/stefgo/proxmox-backup-client-manager/commit/d9753b73aa61ca55d48f41e58532053594209282))
+* Aktionsspalte heisst in allen Tabellen "Actions" ([d6cae83](https://github.com/stefgo/proxmox-backup-client-manager/commit/d6cae835d11881f31648beb63b9eea3108926e6d))
+
+
+### Features
+
+* Job-Editor bekommt eigene Routen und einen waehlbaren Client ([0ef0f34](https://github.com/stefgo/proxmox-backup-client-manager/commit/0ef0f343d07a27ecb5655bdb2b6fc19edbfc84ad))
+* Job-Editor speichert und schliesst wie der Client-Editor ([3e70042](https://github.com/stefgo/proxmox-backup-client-manager/commit/3e700427b45a2128edb43f4cf8db1e86ad13e727))
+* Repository-Detailseite bekommt ein Aktionsmenue mit Editor-Route ([8bb7814](https://github.com/stefgo/proxmox-backup-client-manager/commit/8bb78147465d9417f95fd70d9c66b691fcd73eb2))
+* Repository-Editor speichert und schliesst wie der Client-Editor ([a177a47](https://github.com/stefgo/proxmox-backup-client-manager/commit/a177a471ed631514fd327ec383f229652fe3aff0))
+
 # [1.4.0-beta.8](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.7...v1.4.0-beta.8) (2026-09-08)
 
 
