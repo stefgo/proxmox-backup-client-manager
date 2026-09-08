@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
 import { WebSocketContext } from './WebSocketContext';
+import { emit } from '../../../lib/realtimeEvents';
 
 interface WebSocketProviderProps {
     children: ReactNode;
@@ -55,16 +56,19 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         useClientStore.getState().setTunnelState(data.payload);
                     }
 
+                    // Streamed rather than stored: these arrive many times a second for
+                    // one visible component, and a store would re-render every
+                    // subscriber per chunk. See lib/realtimeEvents.ts.
                     if (data.type === 'JOB_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:job_update', { detail: data.payload }));
+                        emit('jobUpdate', data.payload);
                     }
 
                     if (data.type === 'LOG_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:log_update', { detail: data.payload }));
+                        emit('logUpdate', data.payload);
                     }
 
                     if (data.type === 'JOB_NEXT_RUN_UPDATE') {
-                        window.dispatchEvent(new CustomEvent('pbcm:job_next_run_update', { detail: data.payload }));
+                        emit('jobNextRunUpdate', data.payload);
                     }
 
                 } catch (e) {
