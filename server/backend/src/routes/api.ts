@@ -11,7 +11,18 @@ import { TunnelController } from "../controllers/TunnelController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
-    fastify.post("/login", AuthController.login);
+    // The one unauthenticated endpoint that guesses can be aimed at, and the default
+    // admin account exists until somebody changes it. Ten attempts per quarter hour is
+    // far above what a person typing a password needs and far below what guessing needs.
+    fastify.post(
+        "/login",
+        {
+            config: {
+                rateLimit: { max: 10, timeWindow: "15 minutes" },
+            },
+        },
+        AuthController.login,
+    );
     fastify.get("/auth/config", AuthController.getConfig);
     fastify.get("/auth/login", AuthController.oidcLogin);
     fastify.get("/auth/callback", AuthController.oidcCallback);

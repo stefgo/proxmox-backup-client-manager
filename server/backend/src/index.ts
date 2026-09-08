@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import staticFiles from "@fastify/static";
 import jwt from "@fastify/jwt";
 import path from "path";
@@ -60,6 +61,11 @@ server.addHook("onResponse", async (req, reply) => {
 
 // Plugins
 await server.register(cors);
+
+// Registered without a global limit: the only route that needs one is the login, and a
+// blanket limit would also count the dashboard's own polling and the agent handshakes,
+// where a busy fleet legitimately produces bursts. Routes opt in via `config.rateLimit`.
+await server.register(rateLimit, { global: false });
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
     sign: appConfig.jwtExpiresIn ? { expiresIn: appConfig.jwtExpiresIn } : {},
