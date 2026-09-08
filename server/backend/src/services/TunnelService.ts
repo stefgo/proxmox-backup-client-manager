@@ -61,6 +61,20 @@ interface TunnelEntry {
     idleTimer: NodeJS.Timeout | null;
     lastRequestAt: number;
     lastError: string | null;
+    /**
+     * Whether this client currently occupies one of the maxConcurrentTunnels slots.
+     *
+     * The occupancy used to be derived by counting entries with `ssh || connectPromise`,
+     * which had a gap: the async IIFE in connectShared() is only assigned to
+     * `connectPromise` *after* its expression is evaluated, so during its own first
+     * `await` the connection it is opening was not counted yet. Two concurrent acquires
+     * for different clients could therefore both pass the limit check.
+     *
+     * A flag rather than a bare counter, because four different paths tear a connection
+     * down — the connect error, connection loss, the idle teardown and closeClient — and
+     * every one of them must give the slot back exactly once.
+     */
+    holdsSlot: boolean;
 }
 
 const targetKeyOf = (t: TunnelTarget) => `${t.host}:${t.port}`;
@@ -68,6 +82,8 @@ const targetKeyOf = (t: TunnelTarget) => `${t.host}:${t.port}`;
 export class TunnelService {
     private static tunnels = new Map<string, TunnelEntry>();
     private static leases = new Map<string, Lease>();
+    /** Slots currently held. Authoritative — never recomputed from the entries. */
+    private static openConnections = 0;
     /** Restore runs carry no jobId, so the server pre-authorises their target by runId. */
     private static pendingRunTargets = new Map<
         string,
@@ -97,6 +113,7 @@ export class TunnelService {
                 idleTimer: null,
                 lastRequestAt: 0,
                 lastError: null,
+                holdsSlot: false,
             };
             this.tunnels.set(clientId, e);
         }
@@ -125,24 +142,29 @@ export class TunnelService {
         }
     }
 
-    /** Number of clients holding an open or opening SSH connection. */
-    private static openConnectionCount(): number {
-        let count = 0;
-        for (const e of this.tunnels.values()) {
-            if (e.ssh || e.connectPromise) count++;
-        }
-        return count;
-    }
-
     /**
-     * Waits for a free slot when maxConcurrentTunnels is reached. Queueing rather than
-     * rejecting: many clients share the same cron schedule and would otherwise all fail
-     * at once instead of simply running a few seconds later.
+     * Takes one of the maxConcurrentTunnels slots for this client, waiting if none is
+     * free. Queueing rather than rejecting: many clients share the same cron schedule and
+     * would otherwise all fail at once instead of simply running a few seconds later.
+     *
+     * The check and the reservation happen together, before this function awaits
+     * anything. That ordering is the whole point — a counter incremented after
+     * `await openSsh()` would leave exactly the gap this replaces.
+     *
+     * A client that already holds a slot does not take a second one; concurrent acquires
+     * for the same client share one connection anyway (connectPromise).
      */
-    private static async waitForSlot(): Promise<void> {
-        if (this.openConnectionCount() < this.cfg().maxConcurrentTunnels) return;
+    private static async acquireSlot(clientId: string): Promise<void> {
+        const e = this.entry(clientId);
+        if (e.holdsSlot) return;
 
-        return new Promise<void>((resolve, reject) => {
+        if (this.openConnections < this.cfg().maxConcurrentTunnels) {
+            this.openConnections++;
+            e.holdsSlot = true;
+            return;
+        }
+
+        await new Promise<void>((resolve, reject) => {
             const timer = setTimeout(() => {
                 const idx = this.waiting.findIndex((w) => w.timer === timer);
                 if (idx >= 0) this.waiting.splice(idx, 1);
@@ -154,14 +176,50 @@ export class TunnelService {
             }, this.cfg().acquireTimeoutMs);
             this.waiting.push({ resolve, reject, timer });
         });
+
+        // Woken by releaseSlot(), which handed its slot straight over — openConnections
+        // was never decremented for it, so there is nothing to increment here.
+        //
+        // The entry is looked up again rather than reusing `e`: closeClient() may have
+        // removed this client while we waited, and marking a detached object as holding
+        // a slot would occupy it for the life of the process with nothing left to release
+        // it.
+        const live = this.tunnels.get(clientId);
+        if (!live) {
+            this.openConnections--;
+            this.wakeNextWaiter();
+            throw new Error("Tunnel was closed while waiting for a slot");
+        }
+        live.holdsSlot = true;
     }
 
-    private static releaseSlot() {
+    /** Hands a free slot to the next waiter, or leaves it free if nobody is queued. */
+    private static wakeNextWaiter(): boolean {
         const next = this.waiting.shift();
-        if (next) {
-            clearTimeout(next.timer);
-            next.resolve();
-        }
+        if (!next) return false;
+        clearTimeout(next.timer);
+        next.resolve();
+        return true;
+    }
+
+    /**
+     * Gives this client's slot back, if it holds one.
+     *
+     * Guarded by holdsSlot because four paths can lead here for the same connection: the
+     * failed connect, connection loss, the idle teardown and closeClient. Without the
+     * guard the ones that overlap would release twice and inflate the effective limit.
+     *
+     * A waiting caller is handed the slot directly instead of the counter being
+     * decremented and re-checked, so a third caller cannot slip in between.
+     */
+    private static releaseSlot(clientId: string) {
+        const e = this.tunnels.get(clientId);
+        if (!e?.holdsSlot) return;
+        e.holdsSlot = false;
+
+        // Handed over directly rather than decremented and re-checked, so a third caller
+        // cannot slip into the slot between the two steps.
+        if (!this.wakeNextWaiter()) this.openConnections--;
     }
 
     // ---------------------------------------------------------- ssh machinery
@@ -236,7 +294,7 @@ export class TunnelService {
         this.setStatus(clientId, "connecting");
 
         e.connectPromise = (async () => {
-            await this.waitForSlot();
+            await this.acquireSlot(clientId);
             const ssh = await this.openSsh(creds, creds.hostKeySha256);
 
             ssh.on("close", () => this.handleConnectionLost(clientId));
@@ -250,6 +308,10 @@ export class TunnelService {
         })().catch((err) => {
             e.connectPromise = null;
             e.ssh = null;
+            // A connect that failed still holds the slot it reserved above. Without this
+            // the next caller waited out acquireTimeoutMs for a slot that was already
+            // free in every sense but the bookkeeping.
+            this.releaseSlot(clientId);
             const raw = err instanceof Error ? err.message : String(err);
             const message = raw.slice(0, 500);
             this.setStatus(clientId, "error", message);
@@ -382,7 +444,7 @@ export class TunnelService {
         e.forwardPromises.clear();
         this.dropClientLeases(clientId);
         this.setStatus(clientId, "idle");
-        this.releaseSlot();
+        this.releaseSlot(clientId);
     }
 
     // ------------------------------------------------------------ public API
@@ -554,7 +616,7 @@ export class TunnelService {
                     /* ignore */
                 }
                 this.setStatus(clientId, "idle");
-                this.releaseSlot();
+                this.releaseSlot(clientId);
             } else {
                 this.broadcast(clientId);
             }
@@ -587,7 +649,6 @@ export class TunnelService {
         if (!e) return;
 
         if (e.idleTimer) clearTimeout(e.idleTimer);
-        const hadConnection = !!e.ssh;
         if (e.ssh) {
             try {
                 e.ssh.end();
@@ -595,8 +656,10 @@ export class TunnelService {
                 /* ignore */
             }
         }
+        // Before the entry is dropped: releaseSlot reads holdsSlot off it, so deleting
+        // first would silently keep the slot occupied for the life of the process.
+        this.releaseSlot(clientId);
         this.tunnels.delete(clientId);
-        if (hadConnection) this.releaseSlot();
     }
 
     static getStatus(clientId: string): TunnelState {
