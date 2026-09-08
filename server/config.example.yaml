@@ -20,11 +20,15 @@ jwtSecret:
 jwtExpiresIn: "24h"
 
 # General server settings
+# The values below are the same ones the server falls back to when a key is missing, so
+# this block documents the defaults rather than changing them. A "0" is not "off": zero
+# days puts the cutoff at the current moment, and zero kept entries means nothing is
+# exempt from it -- together they delete everything eligible on the next cleanup run.
 settings:
     # Number of days an invalid token remains in the database before being deleted
-    retention_invalid_tokens_days: "0"
+    retention_invalid_tokens_days: "30"
     # Ensure at least this many invalid tokens are always kept, overriding the days setting if needed
-    retention_invalid_tokens_count: "0"
+    retention_invalid_tokens_count: "10"
     # Number of days job history entries remain in the database before being deleted
     retention_job_history_days: "90"
     # Ensure at least this many job history entries are kept per client
