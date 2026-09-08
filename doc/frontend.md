@@ -104,6 +104,16 @@ same contracts the WebSocket messages are validated against, so the channel cann
 from the socket that feeds it. `subscribe(type, handler)` returns the unsubscribe
 function, which a `useEffect` can return directly.
 
+Underneath sits **`mitt`** (~200 bytes), not a hand-written registry. The first version of
+this module was one: a `Map<string, Set<…>>` that needed a cast, because a
+`{ [K in keyof Events]?: Set<Handler<K>> }` cannot be written to through a generic key.
+mitt is generic over the event map and has no such gap, so the cast is gone. Two things
+stay in this module because mitt deliberately omits them — the unsubscribe function, and
+wrapping each handler so one that throws cannot stop the ones behind it. The event map is
+a `type` and not an `interface` for a compiler reason: mitt constrains it to
+`Record<EventType, unknown>`, and an interface satisfies no index signature it does not
+declare.
+
 This was `window.dispatchEvent(new CustomEvent('pbcm:log_update', …))` until the ARC-2
 cleanup. The decoupling was right; the transport was not — the payload type was *asserted*
 at each listener rather than guaranteed, the events were invisible to the React DevTools,
