@@ -46,6 +46,16 @@ export interface JobFormContextType {
     setScheduleStartTime: (val: string) => void;
 
     saveBackupJob: () => void;
+    /** True while the save request is in flight. */
+    isSaving: boolean;
+    /** Why the last save failed, shown in the editor's footer. */
+    saveError: string | null;
+    /** True while what is on screen is what was last stored. */
+    saved: boolean;
+    /** Whether anything was changed since the form was seeded or last saved. */
+    isDirty: boolean;
+    /** Whether the job is complete enough and changed enough to be worth saving. */
+    canSaveJob: boolean;
 
     // Repos
     repositories: Repository[];

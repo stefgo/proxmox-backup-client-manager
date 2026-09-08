@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useClientStore } from '../../../stores/useClientStore';
@@ -6,7 +6,8 @@ import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
 
 interface UseJobFormProps {
     clientId: string | null;
-    onSaveSuccess?: () => void;
+    /** `wasEditing` says whether an existing job was updated or a new one created. */
+    onSaveSuccess?: (wasEditing: boolean) => void;
 }
 
 export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
@@ -48,6 +49,12 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     // File Browser State
     const [fileBrowserPath, setFileBrowserPath] = useState('.');
 
+    // Save State -- reported in the editor's footer rather than through a browser dialog,
+    // the same arrangement the client and repository editors use.
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const [justSaved, setJustSaved] = useState(false);
+
     // Scheduler State
     const [scheduleEnabled, setScheduleEnabled] = useState(false);
     const [scheduleInterval, setScheduleInterval] = useState(24);
@@ -83,6 +90,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setEncryptionEnabled(false);
         setEncryptionKeyContent(null);
         setTunnelRequired(false);
+
+        setSaveError(null);
+        setJustSaved(false);
     };
 
     const startEditJob = (job: BackupJob) => {
@@ -128,6 +138,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         }
 
         setIsSelectingRepository(false);
+
+        setSaveError(null);
+        setJustSaved(false);
     };
 
     const sanitizeArchiveName = (name: string) => name.replace(/[^a-zA-Z0-9\-_ ]/g, '');
@@ -188,25 +201,63 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         }
     };
 
+    /**
+     * Everything the job itself consists of, in one comparable value. The editor's fields
+     * are too many for an honest `||` chain -- one forgotten field there means the exit
+     * stops asking and the operator's work goes silently. UI state (the open file browser,
+     * the half-typed archive) is left out: it is not part of the job.
+     */
+    const snapshot = JSON.stringify({
+        newJobName,
+        jobArchives,
+        jobRepository,
+        scheduleEnabled,
+        scheduleInterval,
+        scheduleUnit,
+        scheduleWeekdays,
+        scheduleStartDate,
+        scheduleStartTime,
+        encryptionEnabled,
+        encryptionKeyContent,
+        tunnelRequired,
+    });
+
+    /**
+     * The state the job was last known to be in -- what it was seeded with, and after a
+     * save what was stored. Captured in an effect rather than inside the two seeding
+     * functions: those set the fields through a dozen setters, and the snapshot only
+     * exists once React has applied them.
+     */
+    const [baseline, setBaseline] = useState<string | null>(null);
+    useEffect(() => {
+        if (isCreatingJob && baseline === null) setBaseline(snapshot);
+    }, [isCreatingJob, baseline, snapshot]);
+
+    const isDirty = baseline !== null && snapshot !== baseline;
+    // The note stands only as long as what is on screen is what was stored.
+    const saved = justSaved && !isDirty;
+
+    /**
+     * What the save button asks before enabling itself. The backend rejects a job without
+     * a repository with a bare 400, and a schedule without a start has no first run -- so
+     * both are decided here instead of in a dialog after the click.
+     */
+    const canSaveJob =
+        isDirty &&
+        !!clientId &&
+        !!newJobName.trim() &&
+        jobArchives.length > 0 &&
+        !!jobRepository &&
+        !(scheduleEnabled && (!scheduleStartDate || !scheduleStartTime));
+
     const saveBackupJob = async () => {
-        if (!clientId || !newJobName || jobArchives.length === 0) {
-            alert("Please provide a Job Name and at least one Archive.");
-            return;
-        }
+        // `canSaveJob` already covers this, but saveBackupJob is exported through
+        // JobFormContextType and cannot rely on its caller for that.
+        if (!canSaveJob || !clientId || !jobRepository) return;
 
-        // The editor button disables itself on the same condition, but saveBackupJob is
-        // exported through JobFormContextType and cannot rely on its caller for that.
-        // Without a repository the backend rejects the payload with a bare 400.
-        if (!jobRepository) {
-            alert("Please select a repository for this job.");
-            return;
-        }
-
-        if (scheduleEnabled && (!scheduleStartDate || !scheduleStartTime)) {
-            alert("Please provide a Start Date and Time for the schedule.");
-            return;
-        }
-
+        setIsSaving(true);
+        setSaveError(null);
+        setJustSaved(false);
         try {
             // Annotated so the payload is checked against the schema the backend
             // parses it with. That requires a real boolean: the 1/0 sent before
@@ -242,18 +293,25 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
             });
 
             if (res.ok) {
-                setIsCreatingJob(false);
-                setEditingJobId(null);
-                if (onSaveSuccess) onSaveSuccess();
+                // What is on screen is now what is stored, so the form is pristine again
+                // and the exit has nothing left to ask about.
+                setBaseline(snapshot);
+                setJustSaved(true);
+                if (onSaveSuccess) onSaveSuccess(!!editingJobId);
             } else {
                 // The backend refuses a job whose route the client cannot serve, and that
                 // message names the setting that has to change. Dropping it left the
                 // operator with a failure and no cause.
                 const err = await res.json().catch(() => ({}));
                 console.error('Failed to save backup job:', res.status, res.statusText, err);
-                alert('Failed to save job: ' + (err.error || res.statusText));
+                setSaveError(err.error || res.statusText || 'Failed to save job');
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            setSaveError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const generateKey = async (): Promise<boolean> => {
@@ -305,6 +363,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         encryptionKeyContent, setEncryptionKeyContent,
         generateKey,
         isSelectingRepository, setIsSelectingRepository,
+
+        // Save
+        isSaving, saveError, saved, isDirty, canSaveJob,
 
         // Actions
         startCreateJob,

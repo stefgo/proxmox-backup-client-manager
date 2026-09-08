@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BackupJob } from '@pbcm/shared';
+import { ConfirmDialog } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
 import { ClientSelect } from '../../clients/components/ClientSelect';
@@ -50,13 +51,20 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
 
     const [selectedClientId, setSelectedClientId] = useState(lockedClientId ?? '');
     const [isSelectingClient, setIsSelectingClient] = useState(false);
+    const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-    // Both lists this page returns to are fed from stores, and neither is mounted while
-    // the editor is. Refreshing them here is what makes the saved job visible on arrival.
-    const handleSaveSuccess = useCallback(() => {
+    /**
+     * Both lists this page returns to are fed from stores, and neither is mounted while
+     * the editor is. Refreshing them here is what makes the saved job visible on arrival.
+     *
+     * Only a newly created job leaves afterwards -- there is nothing left to do with a
+     * form that has already produced its job. Editing stays put and says so in the
+     * footer, the way the client and repository editors do.
+     */
+    const handleSaveSuccess = useCallback((wasEditing: boolean) => {
         fetchAllJobs();
         if (selectedClientId) fetchClientData(selectedClientId);
-        navigate(back);
+        if (!wasEditing) navigate(back);
     }, [fetchAllJobs, fetchClientData, selectedClientId, navigate, back]);
 
     const jobForm = useJobForm({
@@ -90,9 +98,24 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     }, [token, selectedClientId, fileBrowserPath, fetchFileList]);
 
     /**
-     * Escape does what the header's X does, and steps out one level at a time: an open
-     * client or repository list closes back into the form — leaving the page from there
-     * would throw away a half-filled form for a key pressed to close a list.
+     * Leaving asks first while the form holds unsaved work — the exit sits a few pixels
+     * from the fields it would throw away, and the same dialog the client and repository
+     * editors use is what stands between the two.
+     */
+    const { isDirty } = jobForm;
+    const leave = useCallback(() => {
+        if (isDirty) {
+            setConfirmDiscard(true);
+            return;
+        }
+        navigate(back);
+    }, [isDirty, navigate, back]);
+
+    /**
+     * Escape steps out one level at a time: an open client or repository list closes back
+     * into the form — leaving the page from there would throw away a half-filled form for
+     * a key pressed to close a list. Past those it does what the header's X does,
+     * including asking.
      */
     const { isSelectingRepository, setIsSelectingRepository } = jobForm;
     const requestClose = useCallback(() => {
@@ -104,8 +127,8 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
             setIsSelectingRepository(false);
             return;
         }
-        navigate(back);
-    }, [isSelectingClient, isSelectingRepository, setIsSelectingRepository, navigate, back]);
+        leave();
+    }, [isSelectingClient, isSelectingRepository, setIsSelectingRepository, leave]);
 
     // Not while a select, a dialog or an autocomplete is using Escape for itself.
     useEffect(() => {
@@ -137,18 +160,32 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     );
 
     return (
-        <ClientJobEditor
-            {...jobForm}
-            clientField={clientField}
-            isSelectingClient={isSelectingClient}
-            hasClient={!!selectedClientId}
-            // The header's X and Cancel leave the editor outright -- that is what they say
-            // they do. Only Escape steps out of an open sub-list first, because a key
-            // pressed to close a list must not throw the form away with it.
-            onClose={() => navigate(back)}
-            repositories={repositories}
-            fileList={fileList}
-            isLoadingFiles={isLoadingFiles}
-        />
+        <>
+            <ClientJobEditor
+                {...jobForm}
+                clientField={clientField}
+                isSelectingClient={isSelectingClient}
+                hasClient={!!selectedClientId}
+                // The header's X leaves the editor outright -- that is what it says it
+                // does, asking only about unsaved work. Only Escape steps out of an open
+                // sub-list first, because a key pressed to close a list must not throw
+                // the form away with it.
+                onClose={leave}
+                repositories={repositories}
+                fileList={fileList}
+                isLoadingFiles={isLoadingFiles}
+            />
+
+            <ConfirmDialog
+                isOpen={confirmDiscard}
+                onClose={() => setConfirmDiscard(false)}
+                onConfirm={() => navigate(back)}
+                title="Discard your changes?"
+                description="The job has not been saved. Leaving now keeps it as it was."
+                confirmLabel="Discard"
+                cancelLabel="Keep editing"
+                variant="danger"
+            />
+        </>
     );
 };

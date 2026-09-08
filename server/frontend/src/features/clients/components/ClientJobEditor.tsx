@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Save, X } from 'lucide-react';
 import { JobScheduleSettings } from './job-editor/JobScheduleSettings';
 import { JobRepositorySelect } from './job-editor/JobRepositorySelect';
 import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
@@ -37,7 +37,6 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
         editingJobId,
         newJobName,
         setNewJobName,
-        jobArchives,
         jobRepository,
         isAddingArchive,
         isSelectingRepository,
@@ -45,6 +44,10 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
         repositories,
         setJobRepository,
         saveBackupJob,
+        isSaving,
+        saveError,
+        saved,
+        canSaveJob,
     } = props;
 
     if (!isCreatingJob) return null;
@@ -118,18 +121,19 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                     )}
                 </div>
 
-                {/* Footer */}
-                <div className="p-6 bg-card flex justify-end gap-3">
-                    <Button
-                        variant="secondary"
-                        onClick={close}
-                    >
-                        Cancel
-                    </Button>
+                {/* Footer -- the same shape the client and repository editors use: one
+                    button for the form it sits under, and the outcome beside it rather
+                    than in a browser dialog. Leaving is the X in the header, which is in
+                    reach from every scroll position. */}
+                <div className="p-6 bg-card flex items-center justify-end gap-4 border-t border-border">
+                    {saveError && <span className="text-sm text-error mr-auto">{saveError}</span>}
+                    {!saveError && saved && <span className="text-sm text-success mr-auto">Job saved</span>}
                     <Button
                         variant="primary"
                         onClick={saveBackupJob}
-                        disabled={!hasClient || !newJobName || !jobRepository || jobArchives.length === 0}
+                        isLoading={isSaving}
+                        disabled={!hasClient || !canSaveJob}
+                        icon={Save}
                         className="shadow-glow-accent"
                     >
                         Save Job
