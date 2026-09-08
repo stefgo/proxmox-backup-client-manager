@@ -1,6 +1,5 @@
 import path from "path";
 import fs from "fs";
-import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
 import { logger } from "@pbcm/shared/node";
@@ -15,7 +14,12 @@ export interface ClientConfig {
     serverUrl?: string;
     websocketURL?: string;
     executable: string;
-    clientId: string;
+    /**
+     * The identity the server issued during registration, together with authToken.
+     * Absent until then: an agent has no id of its own, because the id is also the PBS
+     * `--backup-id` and the server is the side that decides which client that names.
+     */
+    clientId?: string;
     authToken?: string;
     /**
      * One-time secret for outbound mode: the server dials this agent and registers
@@ -70,7 +74,6 @@ let configDoc: YAML.Document = new YAML.Document({});
 // Default Config
 export const config: ClientConfig = {
     executable: "proxmox-backup-client",
-    clientId: randomUUID(),
     tunnelAcquireJitterSeconds: 30,
     listenPort: parsePort(process.env.PBCM_CLIENT_PORT) ?? 3001,
     allowedNetworks: [],
@@ -145,12 +148,8 @@ if (fs.existsSync(CONFIG_PATH)) {
             config.executable = loadedConfig.executable;
         }
 
-        if (loadedConfig.clientId) {
+        if (typeof loadedConfig.clientId === "string") {
             config.clientId = loadedConfig.clientId;
-        } else {
-            // Save generated ID if not present in file
-            config.clientId = config.clientId; // Keep default
-            saveConfig();
         }
 
         if (loadedConfig.authToken) {
@@ -227,11 +226,40 @@ if (fs.existsSync(CONFIG_PATH)) {
 logger.level = config.logLevel;
 
 /**
- * Stores the auth token the server generated during outbound registration.
+ * Stores the identity the server issued during registration. Both halves are written in
+ * one go: every later connection is checked as a pair, so a config holding one without
+ * the other could not connect and would have to be registered again anyway.
  */
-export function persistAuthToken(authToken: string): void {
+export function persistIdentity(clientId: string, authToken: string): void {
+    config.clientId = clientId;
     config.authToken = authToken;
     saveConfig();
+}
+
+/**
+ * True once this agent has been registered. Both values are set together, so either one
+ * answers the question -- checking both keeps a hand-edited config from getting halfway in.
+ *
+ * This is the gate for everything the agent does on its own: an unregistered client has no
+ * identity to run under, so it runs nothing. See core/Lifecycle.ts.
+ */
+export function isRegistered(): boolean {
+    return !!config.clientId && !!config.authToken;
+}
+
+/**
+ * The client's id for the places that cannot proceed without one. Throws instead of
+ * returning undefined: the callers are past the lifecycle gate, so a missing id there is a
+ * bug -- and the one caller that matters builds the PBS `--backup-id`, where carrying on
+ * without a value silently files the snapshot under the machine's hostname.
+ */
+export function requireClientId(): string {
+    if (!config.clientId) {
+        throw new Error(
+            "This client has no identity. It has to be registered before it can run anything.",
+        );
+    }
+    return config.clientId;
 }
 
 /**
@@ -254,5 +282,5 @@ export function deleteRegistrationSecret(): void {
  */
 export function isOutboundMode(): boolean {
     if (config.registrationSecret) return true;
-    return !!config.authToken && !config.serverUrl;
+    return isRegistered() && !config.serverUrl;
 }

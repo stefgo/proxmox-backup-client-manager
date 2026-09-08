@@ -6,7 +6,7 @@ import os from "os";
 import { randomUUID } from "crypto";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { JobRepository } from "../repositories/JobRepository.js";
-import { config } from "../core/Config.js";
+import { config, isRegistered, requireClientId } from "../core/Config.js";
 import {
     WS_EVENTS,
     ProtocolMap,
@@ -611,6 +611,25 @@ export class Executor {
      * @param jobId - The database ID of the job configuration to execute.
      */
     static async executeBackup(runId: string, jobId: string) {
+        // Backstop to the lifecycle gate in core/Lifecycle.ts. Nothing should reach here
+        // unregistered -- the scheduler is not running and the socket cannot be opened --
+        // but a run that did would be filed in PBS under this machine's hostname, which is
+        // what --backup-id falls back to, and belong to no client at all.
+        if (!isRegistered()) {
+            const message =
+                "Backup refused: this client is not registered and has no identity to back up under.";
+            logger.error({ jobId }, message);
+            this.finishFailedRun(
+                runId,
+                jobId,
+                "Unknown Backup",
+                new Date().toISOString(),
+                "backup",
+                message,
+            );
+            return;
+        }
+
         let jobName: string | undefined;
         let pbsPassword: string | undefined;
         let tempKeyfilePath: string | undefined;
@@ -785,9 +804,7 @@ export class Executor {
                 });
             }
 
-            if (config.clientId) {
-                args.push("--backup-id", config.clientId);
-            }
+            args.push("--backup-id", requireClientId());
 
             if (
                 Array.isArray(config.backupParams) &&
@@ -881,6 +898,24 @@ export class Executor {
         const jobName = `Restore: ${snapshot}`;
 
         const startTime = new Date().toISOString();
+
+        // Same gate as executeBackup: an unregistered agent has no client to report this
+        // run to, so it does not start one.
+        if (!isRegistered()) {
+            const message =
+                "Restore refused: this client is not registered.";
+            logger.error({ runId }, message);
+            this.finishFailedRun(
+                runId,
+                undefined,
+                jobName,
+                startTime,
+                jobType,
+                message,
+            );
+            return;
+        }
+
         try {
             if (encryption?.keyContent) {
                 try {

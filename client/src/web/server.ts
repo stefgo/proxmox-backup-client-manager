@@ -7,12 +7,13 @@ import os from "os";
 import { fileURLToPath } from "url";
 import {
     config,
-    saveConfig,
     setServerUrl,
-    persistAuthToken,
+    persistIdentity,
+    isRegistered,
     deleteRegistrationSecret,
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
+import { startAgentActivity } from "../core/Lifecycle.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
@@ -29,8 +30,8 @@ const WebRegisterSchema = z.object({
     url: z.url(),
 });
 
-/** The token both WebSocket routes accept in the query string. */
-type TokenQuery = { token?: string };
+/** The identity the server presents on the agent session it opens. */
+type AgentQuery = { token?: string; clientId?: string };
 
 /** The optional server URL the status endpoint may be asked to check instead of the configured one. */
 type StatusQuery = { url?: string };
@@ -77,7 +78,7 @@ export async function startWebServer() {
 
     // Redirect / based on auth token status
     fastify.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (config.authToken && config.authToken.trim().length > 0) {
+        if (isRegistered()) {
             return reply.redirect("/status");
         } else {
             return reply.redirect("/register");
@@ -154,8 +155,7 @@ export async function startWebServer() {
         "/api/status/auth",
         async (request: FastifyRequest, reply: FastifyReply) => {
             return {
-                hasAuthToken:
-                    !!config.authToken && config.authToken.trim().length > 0,
+                hasAuthToken: isRegistered(),
             };
         },
     );
@@ -194,6 +194,15 @@ export async function startWebServer() {
             }
             const { token, url } = parsed.data;
 
+            // Same rule the outbound handshake has always had: an agent that already
+            // owns an identity does not get a second one. Registering again would leave
+            // the client's old row on the server behind, jobs and history included.
+            if (isRegistered()) {
+                return reply.status(409).send({
+                    error: "This client is already registered. Remove clientId and authToken from its config.yaml to register it again.",
+                });
+            }
+
             logger.info(`Web UI Registration requested with ${url}...`);
 
             try {
@@ -206,7 +215,6 @@ export async function startWebServer() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             token,
-                            clientId: config.clientId,
                             hostname: os.hostname(),
                         }),
                     },
@@ -226,13 +234,15 @@ export async function startWebServer() {
 
                 const data = JSON.parse(response.text);
 
-                if (data.token) {
-                    config.authToken = data.token;
+                if (data.token && data.clientId) {
                     setServerUrl(url);
-                    saveConfig();
+                    persistIdentity(data.clientId, data.token);
                     logger.info(
-                        "Web Registration successful! Auth Token received.",
+                        "Web Registration successful! Identity received.",
                     );
+
+                    // The agent has been idling without an identity; now it has one.
+                    await startAgentActivity();
 
                     return {
                         success: true,
@@ -240,7 +250,7 @@ export async function startWebServer() {
                     };
                 } else {
                     return reply.status(500).send({
-                        error: "Registration failed: No token received from server.",
+                        error: "Registration failed: The server did not return a complete identity.",
                     });
                 }
             } catch (e: unknown) {
@@ -285,7 +295,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                 socket.close(4003, "Access denied");
                 return;
             }
-            if (config.authToken) {
+            if (isRegistered()) {
                 socket.close(4003, "Already registered");
                 return;
             }
@@ -307,7 +317,8 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                     const message = JSON.parse(data.toString());
                     if (message.type !== WS_EVENTS.REGISTRATION_REQUEST) return;
 
-                    const { secret, authToken } = message.payload || {};
+                    const { secret, authToken, clientId } =
+                        message.payload || {};
                     if (!secret || secret !== config.registrationSecret) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
@@ -321,11 +332,33 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                         return;
                     }
 
-                    persistAuthToken(authToken);
+                    // Both halves or none: an agent holding a token without the id it
+                    // belongs to could not open a session, and the secret would already
+                    // be spent by then.
+                    if (!authToken || !clientId) {
+                        clearTimeout(timeout);
+                        logger.warn(
+                            "Registration rejected: server sent an incomplete identity",
+                        );
+                        socket.send(
+                            JSON.stringify({
+                                type: WS_EVENTS.REGISTRATION_FAILURE,
+                                payload: { error: "Incomplete identity" },
+                            }),
+                        );
+                        socket.close(4000, "Incomplete identity");
+                        return;
+                    }
+
+                    persistIdentity(clientId, authToken);
                     deleteRegistrationSecret();
                     clearTimeout(timeout);
 
-                    logger.info("Registration successful, authToken stored");
+                    logger.info("Registration successful, identity stored");
+
+                    // Scheduler and cleanup were held back for the unregistered agent.
+                    // The server opens the agent session itself right after this.
+                    void startAgentActivity();
                     socket.send(
                         JSON.stringify({
                             type: WS_EVENTS.REGISTRATION_SUCCESS,
@@ -358,10 +391,22 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                 return;
             }
 
-            const token = (req.query as TokenQuery)?.token;
+            const { token, clientId } = (req.query as AgentQuery) ?? {};
 
+            // The id is checked as well as the token: the server has to be dialling the
+            // client it thinks it is, or a target address pointed at the wrong host
+            // would hand that host somebody else's jobs.
             if (!token || !config.authToken || token !== config.authToken) {
                 logger.warn("Inbound agent connection rejected: invalid token");
+                socket.close(4001, "Unauthorized");
+                return;
+            }
+
+            if (!clientId || clientId !== config.clientId) {
+                logger.warn(
+                    { presented: clientId },
+                    "Inbound agent connection rejected: client id mismatch",
+                );
                 socket.close(4001, "Unauthorized");
                 return;
             }

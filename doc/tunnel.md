@@ -82,6 +82,13 @@ From this the agent infers outbound mode: it does not dial the server, and inste
 `/ws/register` and `/ws/agent` on port 3001. The secret is removed from the configuration once
 registration succeeds.
 
+The registration handshake hands the agent its identity — `clientId` and `authToken`, both
+issued by the server — and the agent writes them to its `config.yaml` together. Every session
+the server then opens presents both (`/ws/agent?clientId=…&token=…`), and the agent checks the
+id against its own: the server has to be dialling the client it thinks it is, or a target
+address pointed at the wrong host would hand that host somebody else's jobs. An agent that
+already holds an identity answers a new registration with `4003 Already registered`.
+
 > **Agent in a container:** the reverse forward terminates in the sshd's network namespace,
 > that is, on the host. A container on a bridge network has its own `127.0.0.1` and cannot
 > reach the forward — the run then fails with `SSH tunnel not reachable … ECONNREFUSED`.

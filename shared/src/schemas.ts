@@ -134,12 +134,19 @@ export const RestoreJobSchema = JobSchema.extend({
     tunnel: TunnelModeSchema.optional(),
 });
 
+/**
+ * What an agent sends to `POST /api/v1/register`. It brings no identity of its own:
+ * the server issues both `clientId` and `authToken` and returns them below.
+ */
 export const RegistrationPayloadSchema = z.object({
     token: z.string(),
-    clientId: z.string(),
     hostname: z.string().optional(),
 });
 
+/**
+ * The identity the server issues. The agent stores both values together -- one without
+ * the other is useless, because every later connection is checked as a pair.
+ */
 export const RegistrationResponseSchema = z.object({
     token: z.string(),
     clientId: z.string(),
@@ -375,6 +382,9 @@ export const JobNextRunUpdatePayloadSchema = z.object({
 export const RegistrationRequestSchema = z.object({
     secret: z.string().min(1),
     authToken: z.string().min(1),
+    /** The identity the server assigned this client -- the outbound counterpart of
+     *  RegistrationResponseSchema. */
+    clientId: z.string().min(1),
 });
 
 export const RegistrationResultSchema = z.object({

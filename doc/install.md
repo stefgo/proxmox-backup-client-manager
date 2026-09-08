@@ -134,7 +134,7 @@ This file is created automatically or can be created manually.
 | Key             | Description                                                                        |
 | :-------------- | :--------------------------------------------------------------------------------- |
 | `serverUrl`     | URL to the management server (e.g., `wss://backup-server:3000/ws`).                |
-| `clientId`      | Unique ID of the client (generated automatically).                                 |
+| `clientId`      | Identity of the client. Issued by the server during registration and written together with `authToken` — never set or changed by hand. |
 | `executable`    | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
 | `retentionTime` | Number of days to keep job history and schedule states (default: `90`).            |
 | `allowedNetworks` | Outbound mode only: list of CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it. |
@@ -194,3 +194,42 @@ client rather than to all of them.
 > ```
 >
 > A leftover `trusted_networks:` key in an existing `config.yaml` is ignored.
+
+### Client identity
+
+A client is identified by a pair: the `clientId` and the `authToken` in its `config.yaml`.
+Both are issued by the **server** during registration and stored together; the agent never
+picks either for itself. Every agent connection presents both
+(`/ws/agent?clientId=…&token=…`), and the server only admits it if the two name the same
+client. Neither half is sufficient on its own — and the id in particular is not a secret,
+since the same value is the PBS `--backup-id` and can be read from any snapshot name.
+
+The `clientId` also decides which snapshots the UI shows under a client. It must therefore
+never be edited by hand: a changed id starts a new snapshot group in PBS and orphans
+everything backed up so far.
+
+An agent that already holds an identity refuses to register again — `409` on the Web UI
+path, close code `4003 Already registered` in outbound mode. To re-register a host on
+purpose, remove `clientId` and `authToken` from its `config.yaml` first, and delete the
+client's old row in the UI afterwards.
+
+> **Upgrade note:** agents and server must be updated together. An older agent sends no
+> `clientId` and is refused at `/ws/agent` with close code `4001`.
+>
+> **Inbound** clients need nothing beyond the agent update: their existing `clientId` is
+> already the one the server has, so the pair matches on the first attempt.
+>
+> **Outbound** clients have to be set up once more. Their agent generated its own id, which
+> was never the id the server stored for them, so the pair can never match. Per client: stop
+> the agent, remove `clientId` and `authToken` from its `config.yaml`, set a new
+> `registrationSecret`, start it again, then delete the old client in the UI and add it again
+> through the wizard. Its `--backup-id` changes in the process — snapshots taken before the
+> upgrade stay under the old id and are not shown under the new client. They were never
+> attributed to it before either, because that mismatch is exactly what this change removes.
+>
+> The affected clients are all of them in this list:
+>
+> ```sql
+> SELECT id, hostname, outbound_target_address FROM clients
+> WHERE connection_mode = 'outbound';
+> ```

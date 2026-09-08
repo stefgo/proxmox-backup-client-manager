@@ -53,7 +53,7 @@ export const TokenController = {
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
-        const { token, clientId } = parsed.data;
+        const { token } = parsed.data;
         const hostname = parsed.data.hostname || "unknown";
 
         const tokenRow = TokenRepository.findValidByToken(token);
@@ -81,7 +81,10 @@ export const TokenController = {
                 });
             }
 
-            // Generate Auth Token
+            // The server issues the identity, both halves of it. The agent brings
+            // nothing: an id it chose itself could name a client that already exists,
+            // and the insert below would then have to decide whose row that is.
+            const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");
 
             // Only the operator's choice is a decision, so only it is stored. The
@@ -93,7 +96,12 @@ export const TokenController = {
 
             TokenRepository.markUsed(token);
 
-            ClientRepository.upsert(clientId, hostname, authToken, allowedIp);
+            ClientRepository.createInbound(
+                clientId,
+                hostname,
+                authToken,
+                allowedIp,
+            );
 
             if (tokenRow.display_name) {
                 ClientRepository.updateDisplayName(

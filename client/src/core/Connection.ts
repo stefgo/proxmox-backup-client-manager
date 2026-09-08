@@ -136,11 +136,13 @@ export class Connection {
             });
         }
 
-        if (!config.authToken) {
-            logger.warn("No Token. Please register first. Connection skipped.");
+        if (!config.authToken || !config.clientId) {
+            logger.warn(
+                "No identity. Please register first. Connection skipped.",
+            );
             return Promise.resolve({
                 connected: false,
-                error: "No Token. Register first.",
+                error: "No identity. Register first.",
             });
         }
 
@@ -153,6 +155,7 @@ export class Connection {
         }
 
         const wsUrl = new URL(config.websocketURL);
+        wsUrl.searchParams.set("clientId", config.clientId);
         wsUrl.searchParams.set("token", config.authToken);
 
         logger.info(`Connecting to ${wsUrl.toString()}...`);

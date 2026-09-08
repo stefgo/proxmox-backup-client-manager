@@ -37,12 +37,29 @@ client/src/
 
 ## 🏗 Core Components
 
+### 0. Lifecycle Gate (`src/core/Lifecycle.ts`)
+
+`startAgentActivity()` is the single gate between "the process is running" and "the agent is
+working". Scheduler, cleanup cron, the recovery of interrupted runs and the outgoing server
+connection all start there, and only for a **registered** agent.
+
+Everything the agent does happens under its identity — a backup is filed in PBS under
+`--backup-id`, a status update names a client the server has to recognise, a history row is
+synced to that client. An unregistered agent has no identity to do any of it under, so it
+starts none of it: it serves its Web UI and waits. The gate is one function rather than a
+check at each starting point because two paths lead to it — a registered agent starting up,
+and a registration completing while the process runs. The second is why the call cannot live
+in `index.ts` alone: an agent registered through its Web UI has to start working without a
+restart. `Executor.executeBackup` and `executeRestore` check the same condition again as a
+backstop.
+
 ### 1. Core Connection (`src/core/Connection.ts`)
 
 The `Connection` class manages the persistent WebSocket connection to the central server.
 
 - **Features**: Automatic reconnection with exponential backoff, ping/pong health checks, and secure transmission of all payload data.
-- **Registration Flow**: If the client is unauthenticated, the user must provide a temporary registration `token`. The client POSTs this to the server, exchanges it for a permanent client configuration (auth token + clientId), and saves it locally to `config.yaml`.
+- **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `config.yaml`. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
+- **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, remove `clientId` and `authToken` from its `config.yaml` first.
 
 ### 2. Job Scheduler (`src/features/Scheduler.ts`)
 

@@ -1237,20 +1237,26 @@ unattended, so anything not set here has to be corrected by hand afterwards.
 | Field      | Type   | Required | Description                                 |
 | :--------- | :----- | :------- | :------------------------------------------ |
 | `token`    | string | **Yes**  | A valid, unused registration token.         |
-| `clientId` | string | **Yes**  | Client-generated UUID for the client identity. |
 | `hostname` | string | No       | Hostname of the client device.              |
+
+The agent brings no identity of its own. The **server** issues both `clientId` and the
+permanent `token` below, and the agent stores them together in its `config.yaml`. An id
+chosen by the caller used to be accepted here, which let anyone holding a registration
+token name an existing client and take over its row.
 
 **Example Request:**
 
 ```json
 {
     "token": "a1b2c3d4e5...",
-    "clientId": "550e8400-...",
     "hostname": "backup-client-01"
 }
 ```
 
 #### Response
+
+Both values belong together: every later connection is checked as a pair, so an agent
+that stores only one of them cannot connect.
 
 **Example Response:**
 
@@ -1349,7 +1355,13 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 `GET /ws/agent`
 
-**Description:** WebSocket endpoint for client agents. Requires an active `authToken`.
+**Description:** WebSocket endpoint for client agents. Requires the identity issued at
+registration, presented as the query parameters `clientId` and `token`
+(`/ws/agent?clientId=<uuid>&token=<authToken>`; the token may also travel as a
+`Bearer` header). Both have to name the same client — neither half authenticates on its
+own, and the id is no secret, since it is also the PBS `--backup-id` and therefore
+readable from any snapshot name. A mismatch is refused with close code **4003** before
+the AUTH handshake begins.
 
 > For clients with `connectionMode: "outbound"` the direction is reversed: the **server**
 > connects to the agent's own `/ws/register` and `/ws/agent` endpoints (port 3001). The
