@@ -92,8 +92,13 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
 
-**Into the stores** go `CLIENTS_UPDATE` and `TUNNEL_UPDATE`. These are *state*: a handful
-of messages describing something the whole application reads.
+**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE` and `JOBS_UPDATE`. These are
+*state*: a handful of messages describing something the whole application reads.
+
+`JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
+`GET /api/v1/jobs` returns nothing for an offline client. Without the broadcast, a
+dashboard that was already open kept the list it fetched on mount, and the sidebar's job
+count stayed at whatever it was when the page loaded.
 
 **Through `lib/realtimeEvents.ts`** go `jobUpdate`, `logUpdate` and `jobNextRunUpdate`.
 These are a *stream*: log lines arrive many times a second for exactly one visible

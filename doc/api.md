@@ -1405,6 +1405,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | Event                | Payload Structure                                                     | Description                              |
 | :------------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
 | `CLIENTS_UPDATE`     | `Client[]`                                                            | Full list of clients and statuses.       |
+| `JOBS_UPDATE`        | `{ clientId: string, jobs: BackupJob[] }`                             | One client's job configs; the cache only exists while its agent is connected, so this fires on connect, on disconnect (empty list) and after every job change. |
 | `JOB_UPDATE`         | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.                |
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
 | `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
