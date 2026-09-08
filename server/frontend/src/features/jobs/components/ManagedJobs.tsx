@@ -13,7 +13,7 @@ import { getErrorMessage } from "../../../utils";
 import { apiFetch } from "../../../lib/apiFetch";
 
 export const ManagedJobs = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
@@ -23,7 +23,7 @@ export const ManagedJobs = () => {
     const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
 
     useEffect(() => {
-        if (!token) return;
+        if (!isAuthenticated) return;
         fetchAllJobs();
         // Read the two stores through getState() rather than the subscribed values:
         // this only fills them if they are still empty, and depending on their
@@ -32,16 +32,16 @@ export const ManagedJobs = () => {
         if (useRepositoryStore.getState().repositories.length === 0) {
             fetchRepositories();
         }
-    }, [token, fetchAllJobs, fetchClients, fetchRepositories]);
+    }, [isAuthenticated, fetchAllJobs, fetchClients, fetchRepositories]);
 
     useGlobalSubscription();
 
     const handleRefresh = () => {
-        if (token) fetchAllJobs();
+        if (isAuthenticated) fetchAllJobs();
     };
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
-        if (!token) return;
+        if (!isAuthenticated) return;
         try {
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
@@ -56,7 +56,7 @@ export const ManagedJobs = () => {
     };
 
     const handleDeleteJob = async (clientId: string, jobId: string) => {
-        if (!token) return;
+        if (!isAuthenticated) return;
         try {
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,

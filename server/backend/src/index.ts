@@ -3,6 +3,8 @@ import Fastify from "fastify";
 import websocket from "@fastify/websocket";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import cookie from "@fastify/cookie";
+import { SESSION_COOKIE } from "./services/SessionCookie.js";
 import staticFiles from "@fastify/static";
 import jwt from "@fastify/jwt";
 import path from "path";
@@ -71,11 +73,18 @@ await server.register(cors, { origin: false });
 // blanket limit would also count the dashboard's own polling and the agent handshakes,
 // where a busy fleet legitimately produces bursts. Routes opt in via `config.rateLimit`.
 await server.register(rateLimit, { global: false });
+// Before @fastify/jwt, which reads the token out of the cookie below.
+await server.register(cookie);
+
 // jwtExpiresIn always carries a value now (the config schema defaults it), so there is
 // no longer a branch that signs a token which never expires.
 await server.register(jwt, {
     secret: appConfig.jwtSecret,
     sign: { expiresIn: appConfig.jwtExpiresIn },
+    // The browser sends the session as a cookie. The Authorization header keeps working
+    // alongside it — that is how anything scripted against this API authenticates, and
+    // it costs nothing to leave in place.
+    cookie: { cookieName: SESSION_COOKIE, signed: false },
 });
 
 await server.register(staticFiles, {

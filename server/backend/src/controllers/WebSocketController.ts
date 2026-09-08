@@ -28,6 +28,7 @@ import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.j
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
+import { SESSION_COOKIE } from "../services/SessionCookie.js";
 import { probeCertificate } from "@pbcm/shared/node";
 
 type AgentLogger = {
@@ -93,7 +94,11 @@ export class WebSocketController {
             clearInterval(pingInterval);
         });
 
-        const token = (req.query as TokenQuery).token;
+        // Read from the cookie, which the browser attaches to the WebSocket handshake by
+        // itself. It used to arrive as ?token=<JWT> — the browser WebSocket API cannot
+        // set headers, so the query string was the only place a bearer token could go,
+        // and it landed in every proxy and server access log along the way.
+        const token = req.cookies?.[SESSION_COOKIE];
         if (!token) {
             socket.close(4001, "Unauthorized");
             return;

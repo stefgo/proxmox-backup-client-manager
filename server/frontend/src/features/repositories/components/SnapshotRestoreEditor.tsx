@@ -20,7 +20,7 @@ interface SnapshotRestoreEditorProps {
 const EMPTY_CLIENTS: Client[] = [];
 
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     // ClientSelect only opens its list when it is told to. Without this state the
     // "Set Client" button had nothing to call and the preselected client was final.
@@ -92,10 +92,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     // Fetch files when path or client changes
     useEffect(() => {
-        if (selectedClientId && token) {
+        if (selectedClientId && isAuthenticated) {
             fetchFileList(selectedClientId, browserPath);
         }
-    }, [selectedClientId, browserPath, token, fetchFileList]);
+    }, [selectedClientId, browserPath, isAuthenticated, fetchFileList]);
 
     const handleRestore = async () => {
         setError(null);

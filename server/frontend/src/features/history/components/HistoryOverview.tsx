@@ -5,14 +5,14 @@ import { apiFetch } from "../../../lib/apiFetch";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 
 export const HistoryOverview = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [history, setHistory] = useState<BaseHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchHistory = async () => {
-            if (!token) return;
+            if (!isAuthenticated) return;
             try {
                 const response = await apiFetch("/api/v1/history?limit=1000", {
                     headers: {
@@ -32,7 +32,7 @@ export const HistoryOverview = () => {
         };
 
         fetchHistory();
-    }, [token]);
+    }, [isAuthenticated]);
 
     if (loading) {
         return <LoadingIndicator className="flex-1 h-full" />;

@@ -8,14 +8,14 @@ interface WebSocketProviderProps {
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { setClients } = useClientStore();
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (!token) return;
+        if (!isAuthenticated) return;
 
         let isClosing = false;
         let connectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -24,7 +24,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard?token=${token}`;
+            // No token in the URL: the browser attaches the session cookie to the
+            // handshake by itself. As a query parameter the JWT was written into every
+            // proxy and server access log this connection passed through.
+            const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
             console.log('Connecting to WebSocket:', wsUrl);
             const socket = new WebSocket(wsUrl);
@@ -112,7 +115,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [token, setClients]);
+    }, [isAuthenticated, setClients]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected }}>

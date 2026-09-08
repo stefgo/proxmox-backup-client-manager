@@ -32,7 +32,7 @@ interface ClientOverviewProps {
 
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const { pathname, search, state } = useLocation();
     // The list is the only surface that opens this page today, and the honest fallback for a
@@ -61,22 +61,22 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { repositories, fetchRepositories } = useRepositoryStore();
 
     const deleteJob = (clientId: string, jobId: string) => {
-        if (token) return storeDeleteJob(clientId, jobId);
-        return Promise.reject('No token');
+        if (isAuthenticated) return storeDeleteJob(clientId, jobId);
+        return Promise.reject('Not authenticated');
     };
 
     const triggerJob = (clientId: string, jobId: string) => {
-        if (token) return storeTriggerJob(clientId, jobId);
-        return Promise.reject('No token');
+        if (isAuthenticated) return storeTriggerJob(clientId, jobId);
+        return Promise.reject('Not authenticated');
     };
 
     // Init Data & Subscriptions
     useEffect(() => {
-        if (client.id && token) {
+        if (client.id && isAuthenticated) {
             fetchClientData(client.id);
             fetchRepositories();
         }
-    }, [client.id, token, fetchClientData, fetchRepositories]);
+    }, [client.id, isAuthenticated, fetchClientData, fetchRepositories]);
 
     // Which repositories exist, not the array holding them: fetchRepositories kicks
     // off a checkRepositoryStatus per repository, and each of those replaces the
@@ -88,15 +88,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     );
 
     useEffect(() => {
-        if (client.id && token && repositories.length > 0) {
+        if (client.id && isAuthenticated && repositories.length > 0) {
             fetchClientSnapshots(client.id, repositories);
         }
         // repositoryIds deliberately stands in for repositories -- see above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [client.id, token, repositoryIds, fetchClientSnapshots]);
+    }, [client.id, isAuthenticated, repositoryIds, fetchClientSnapshots]);
 
     useClientSubscription(client.id, (job) => {
-        if (job.status === JOB_STATUS.SUCCESS && token) {
+        if (job.status === JOB_STATUS.SUCCESS && isAuthenticated) {
             fetchClientSnapshots(client.id, repositories);
         }
     });

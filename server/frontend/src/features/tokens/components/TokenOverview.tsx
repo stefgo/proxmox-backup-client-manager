@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { apiFetch } from '../../../lib/apiFetch';
 
 export const TokenOverview = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [tokens, setTokens] = useState<Token[]>([]);
 
     // Declared before the effect that uses it: the other way round the effect read
@@ -29,7 +29,7 @@ export const TokenOverview = () => {
             if (!cancelled && list) setTokens(list);
         })();
         return () => { cancelled = true; };
-    }, [token]);
+    }, [isAuthenticated]);
 
     const refreshTokens = async () => {
         const list = await loadTokens();

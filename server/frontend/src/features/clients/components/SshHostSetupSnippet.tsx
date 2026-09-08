@@ -4,7 +4,6 @@ import { Button, cn, FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 
 interface SshHostSetupSnippetProps {
-    token: string | null;
     privateKey: string;
     passphrase?: string;
     sshUser: string;

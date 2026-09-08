@@ -23,6 +23,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
         },
         AuthController.login,
     );
+    // Unauthenticated on purpose: it only clears cookies, and a caller without a session
+    // has nothing to lose by it. Requiring a valid JWT would make an expired session
+    // impossible to log out of.
+    fastify.post("/auth/logout", AuthController.logout);
     fastify.get("/auth/config", AuthController.getConfig);
     fastify.get("/auth/login", AuthController.oidcLogin);
     fastify.get("/auth/callback", AuthController.oidcCallback);
@@ -39,6 +43,11 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                         reply.send(err);
                     }
                 });
+
+                // The session's own identity. Behind the JWT hook like everything else
+                // here, so an expired session answers 401 and the UI logs out through
+                // the same path as any other call.
+                protectedRoutes.get("/me", AuthController.me);
 
                 // Users
                 protectedRoutes.get("/users", UserController.list);

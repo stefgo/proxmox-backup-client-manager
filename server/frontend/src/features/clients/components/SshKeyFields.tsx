@@ -6,7 +6,6 @@ import { apiFetch } from '../../../lib/apiFetch';
 export type SshKeyMode = 'keep' | 'generate' | 'manual';
 
 interface SshKeyFieldsProps {
-    token: string | null;
     mode: SshKeyMode;
     onModeChange: (mode: SshKeyMode) => void;
     privateKey: string;

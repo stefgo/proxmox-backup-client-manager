@@ -49,8 +49,8 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-    const { token } = useAuth();
-    if (!token) {
+    const { isAuthenticated } = useAuth();
+    if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
     return <>{children}</>;
@@ -67,7 +67,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 function ClientsRoute() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { clients, fetchClients, deleteClient } = useClientStore();
 
     // Every editor route knows where back is because the surface that opened it says so.
@@ -78,10 +78,10 @@ function ClientsRoute() {
             clients={clients}
             onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate('/'))}
             onRefresh={() => {
-                if (token) fetchClients();
+                if (isAuthenticated) fetchClients();
             }}
             onDelete={(id) => {
-                if (token) deleteClient(id);
+                if (isAuthenticated) deleteClient(id);
             }}
             onAdd={() => open('/clients/new')}
             onEdit={(c) => open(`/client/${c.id}/edit`)}
@@ -187,16 +187,16 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
 function RepositoriesRoute() {
     const navigate = useNavigate();
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const { repositories, addRepository, updateRepository, deleteRepository } = useRepositoryStore();
 
     return (
         <ManagedRepositories
             repositories={repositories}
             onSelect={(r) => (r ? navigate(`/repository/${r.id}`) : navigate('/'))}
-            onAdd={(r) => (token ? addRepository(r) : Promise.reject())}
-            onUpdate={(id, r) => (token ? updateRepository(id, r) : Promise.reject())}
-            onDelete={(id) => (token ? deleteRepository(id) : Promise.reject())}
+            onAdd={(r) => (isAuthenticated ? addRepository(r) : Promise.reject())}
+            onUpdate={(id, r) => (isAuthenticated ? updateRepository(id, r) : Promise.reject())}
+            onDelete={(id) => (isAuthenticated ? deleteRepository(id) : Promise.reject())}
         />
     );
 }
@@ -260,7 +260,7 @@ function NotFound() {
 }
 
 function AppLayout() {
-    const { token, logout } = useAuth();
+    const { isAuthenticated, username, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -275,12 +275,12 @@ function AppLayout() {
 
     // Initial Fetch
     useEffect(() => {
-        if (token) {
+        if (isAuthenticated) {
             fetchClients();
             refreshRepos();
             fetchAllJobs();
         }
-    }, [token, fetchClients, refreshRepos, fetchAllJobs]);
+    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs]);
 
     // Stats
     const stats = useMemo(
@@ -304,15 +304,10 @@ function AppLayout() {
         [clients, repos, globalJobs],
     );
 
-    let username = 'User';
-    try {
-        if (token) {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            username = payload.username || payload.email || 'User';
-        }
-    } catch (e) {
-        console.error('Failed to parse token', e);
-    }
+    // Comes from /api/v1/me now. It used to be base64-decoded out of the JWT here, which
+    // the page cannot do any more — and should not: the name belongs to the server that
+    // issued the session, not to a payload the browser takes apart itself.
+    const displayName = username ?? 'User';
 
     const logo = (
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-white leading-none">
@@ -429,7 +424,7 @@ function AppLayout() {
         <Dashboard
             logo={logo}
             title={title}
-            username={username}
+            username={displayName}
             onLogout={logout}
             theme={theme}
             onToggleTheme={toggleTheme}
@@ -482,11 +477,11 @@ function App() {
 }
 
 function AppRoutes() {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     return (
         <BrowserRouter>
             <Routes>
-                <Route path="/login" element={token ? <Navigate to="/" /> : <Login />} />
+                <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login />} />
                 <Route
                     path="/*"
                     element={
