@@ -138,7 +138,7 @@ export const JobRepositorySelect = ({
 
                 <div className="flex-1 border border-border rounded-lg bg-app-bg overflow-y-auto p-2 space-y-2">
                     {selectedRepository ? (
-                        <div className="bg-card border border-border rounded overflow-hidden group transition-all">
+                        <div className="bg-card border border-border rounded overflow-hidden transition-all">
                             <div className="flex flex-col">
                                 <div className="px-3 py-2 flex justify-between items-center gap-2">
                                     <div className="flex items-center gap-2 overflow-hidden">
@@ -152,7 +152,7 @@ export const JobRepositorySelect = ({
                                             {selectedRepository.username}@{selectedRepository.baseUrl}:{selectedRepository.datastore}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-2">
                                         <ActionButton
                                             icon={Trash2}
                                             size="sm"

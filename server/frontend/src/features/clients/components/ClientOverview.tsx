@@ -4,18 +4,15 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
 import { Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
-import { ClientJobEditor } from './ClientJobEditor';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
-import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
-import { useJobForm } from '../hooks/useJobForm';
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { ActionMenu, Card, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 
@@ -37,7 +34,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { token } = useAuth();
     const navigate = useNavigate();
-    const { pathname, state } = useLocation();
+    const { pathname, search, state } = useLocation();
     // The list is the only surface that opens this page today, and the honest fallback for a
     // directly opened URL -- the same `from` convention the editors reached from here use.
     const back = (state as { from?: string } | null)?.from ?? '/clients';
@@ -61,13 +58,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         fetchClientSnapshots
     } = useClientDetailStore();
 
-    const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
-
     const { repositories, fetchRepositories } = useRepositoryStore();
-
-    const refreshCurrentClient = () => {
-        if (token) fetchClientData(client.id);
-    };
 
     const deleteJob = (clientId: string, jobId: string) => {
         if (token) return storeDeleteJob(clientId, jobId);
@@ -110,25 +101,16 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         }
     });
 
-    // Form Hook
-    const jobForm = useJobForm({
-        clientId: client.id,
-        onSaveSuccess: refreshCurrentClient
-    });
-
-    // File Browser Sync
-    useEffect(() => {
-        if (jobForm.isCreatingJob && client.id && token) {
-            fetchFileList(client.id, jobForm.fileBrowserPath);
-        }
-    }, [
-        jobForm.isCreatingJob,
-        jobForm.fileBrowserPath,
-        client.id,
-        token,
-        fetchFileList,
-    ]);
-
+    /**
+     * The job editor is a page of its own. `from` carries the open tab along, so saving or
+     * cancelling comes back to the job list this was started from rather than to the
+     * client's default tab.
+     */
+    const openJobEditor = (jobId?: string) => {
+        navigate(`/client/${client.id}/jobs/${jobId ?? 'new'}`, {
+            state: { from: pathname + search },
+        });
+    };
 
     const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
 
@@ -153,26 +135,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     /**
      * Escape does what the closest close button does, exactly as in the client editor. The
-     * page nests two editors inside itself, so it steps out of them one at a time: from the
-     * job editor or the restore editor back to the overview -- the same thing their own `X`
-     * does, and without a confirmation because neither button asks for one -- and only from
-     * the bare overview back to the list. Leaving straight for the list out of a half-filled
-     * job form would discard it, which is not what the operator pressed the key for.
+     * restore editor still opens inside this page, so it is stepped out of first -- the same
+     * thing its own `X` does, and without a confirmation because that button does not ask
+     * either -- and only the bare overview leaves for the list. The job editor is a route of
+     * its own and handles its own Escape.
      */
-    const { isCreatingJob, setIsCreatingJob } = jobForm;
     const requestClose = useCallback(() => {
         if (restoreSnapshot) {
             setRestoreSnapshot(null);
             return;
         }
-        if (isCreatingJob) {
-            setIsCreatingJob(false);
-            return;
-        }
         navigate(back);
-        // `jobForm` itself is a fresh object on every render; the two members it is read for
-        // are not, so the listener below is registered once instead of on each render.
-    }, [restoreSnapshot, isCreatingJob, setIsCreatingJob, navigate, back]);
+    }, [restoreSnapshot, navigate, back]);
 
     // Not while a select, a dialog or an autocomplete is using Escape for itself.
     useEffect(() => {
@@ -266,96 +240,84 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
             {client.status === CLIENT_STATUS.ONLINE && (
                 <>
-                    {jobForm.isCreatingJob ? (
-                        <ClientJobEditor
-                            {...jobForm}
-                            repositories={repositories}
-                            fileList={fileList}
-                            isLoadingFiles={isLoadingFiles}
+                    {/* Client Stats Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <StatCard
+                            label="Backup Jobs"
+                            value={configuredJobs.length.toString()}
+                            sub="Configurations"
+                            icon={HardDrive}
+                            classNames={{ icon: "text-text-muted" }}
+                            selected={activeTab === 'jobs'}
+                            onClick={() => setActiveTab('jobs')}
                         />
-                    ) : (
-                        <>
-                            {/* Client Stats Row */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                <StatCard
-                                    label="Backup Jobs"
-                                    value={configuredJobs.length.toString()}
-                                    sub="Configurations"
-                                    icon={HardDrive}
-                                    classNames={{ icon: "text-text-muted" }}
-                                    selected={activeTab === 'jobs'}
-                                    onClick={() => setActiveTab('jobs')}
-                                />
-                                <StatCard
-                                    label="Snapshots"
-                                    value={clientSnapshots.length.toString()}
-                                    sub="Available Backups"
-                                    icon={FileBox}
-                                    classNames={{ icon: "text-text-muted" }}
-                                    selected={activeTab === 'snapshots'}
-                                    onClick={() => setActiveTab('snapshots')}
-                                />
-                                <StatCard
-                                    label="Job History"
-                                    value={backupJobs.length.toString()}
-                                    sub="Recorded Runs"
-                                    icon={Activity}
-                                    classNames={{ icon: "text-text-muted" }}
-                                    selected={activeTab === 'history'}
-                                    onClick={() => setActiveTab('history')}
-                                />
-                            </div>
+                        <StatCard
+                            label="Snapshots"
+                            value={clientSnapshots.length.toString()}
+                            sub="Available Backups"
+                            icon={FileBox}
+                            classNames={{ icon: "text-text-muted" }}
+                            selected={activeTab === 'snapshots'}
+                            onClick={() => setActiveTab('snapshots')}
+                        />
+                        <StatCard
+                            label="Job History"
+                            value={backupJobs.length.toString()}
+                            sub="Recorded Runs"
+                            icon={Activity}
+                            classNames={{ icon: "text-text-muted" }}
+                            selected={activeTab === 'history'}
+                            onClick={() => setActiveTab('history')}
+                        />
+                    </div>
 
-                            <div className="space-y-6">
-                                {/* Configured Backup Jobs */}
-                                {activeTab === 'jobs' && (
-                                    <>
-                                        <ClientJobList
-                                            jobs={configuredJobs}
-                                            onEditJob={jobForm.startEditJob}
-                                            onTriggerJob={handleTriggerJob}
-                                            onDeleteJob={handleDeleteJob}
-                                            onCreateJob={jobForm.startCreateJob}
-                                        />
-                                        <div className="mt-6">
-                                            <ClientHistoryList
-                                                title="Last History"
-                                                history={lastHistory}
-                                                emptyMessage="No data available in the observation period."
-                                            />
-                                        </div>
-                                    </>
-                                )}
-
-                                {/* Snapshots */}
-                                {activeTab === 'snapshots' && (
-                                    restoreSnapshot ? (
-                                        <SnapshotRestoreEditor
-                                            snapshot={restoreSnapshot}
-                                            repo={restoreSnapshot.repository}
-                                            selectedClient={client}
-                                            onCancel={() => setRestoreSnapshot(null)}
-                                        />
-                                    ) : (
-                                        <RepositorySnapshotList
-                                            snapshots={clientSnapshots}
-                                            showClientColumn={false}
-                                            onRestore={setRestoreSnapshot}
-                                        />
-                                    )
-                                )}
-
-                                {/* Job History */}
-                                {activeTab === 'history' && (
+                    <div className="space-y-6">
+                        {/* Configured Backup Jobs */}
+                        {activeTab === 'jobs' && (
+                            <>
+                                <ClientJobList
+                                    jobs={configuredJobs}
+                                    onEditJob={(job) => openJobEditor(job.id ?? undefined)}
+                                    onTriggerJob={handleTriggerJob}
+                                    onDeleteJob={handleDeleteJob}
+                                    onCreateJob={() => openJobEditor()}
+                                />
+                                <div className="mt-6">
                                     <ClientHistoryList
-                                        history={backupJobs}
-                                        type="backup"
+                                        title="Last History"
+                                        history={lastHistory}
+                                        emptyMessage="No data available in the observation period."
                                     />
-                                )}
-                            </div>
-                        </>
-                    )
-                    }
+                                </div>
+                            </>
+                        )}
+
+                        {/* Snapshots */}
+                        {activeTab === 'snapshots' && (
+                            restoreSnapshot ? (
+                                <SnapshotRestoreEditor
+                                    snapshot={restoreSnapshot}
+                                    repo={restoreSnapshot.repository}
+                                    selectedClient={client}
+                                    onCancel={() => setRestoreSnapshot(null)}
+                                />
+                            ) : (
+                                <RepositorySnapshotList
+                                    snapshots={clientSnapshots}
+                                    showClientColumn={false}
+                                    onRestore={setRestoreSnapshot}
+                                />
+                            )
+                        )}
+
+                        {/* Job History */}
+                        {activeTab === 'history' && (
+                            <ClientHistoryList
+                                history={backupJobs}
+                                type="backup"
+                            />
+                        )}
+                    </div>
                 </>
             )
             }
