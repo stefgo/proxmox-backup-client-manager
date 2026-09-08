@@ -58,7 +58,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         cols.push({
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (repo) => (

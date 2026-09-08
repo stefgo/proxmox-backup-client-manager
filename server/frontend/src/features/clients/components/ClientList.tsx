@@ -123,7 +123,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         });
 
         cols.push({
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (client) => (
