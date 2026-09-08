@@ -1,3 +1,10 @@
+# [1.4.0-beta.7](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.6...v1.4.0-beta.7) (2026-09-08)
+
+
+### Features
+
+* Adresspruefung eines Inbound-Clients ist abschaltbar ([662da60](https://github.com/stefgo/proxmox-backup-client-manager/commit/662da60e651770cb76f4cad37fef2e37ecec0321))
+
 # [1.4.0-beta.6](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.5...v1.4.0-beta.6) (2026-09-08)
 
 
