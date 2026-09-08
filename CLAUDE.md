@@ -128,9 +128,11 @@ by hand.**
 - The **root `package.json` is the single source of truth** for the version.
   The workspace manifests keep their own `1.0.0`; they are private and never
   published, and nothing reads them.
-- The tag is what produces images: `build.yml` reacts to `v*.*.*`, so a release
-  and its container images cannot drift apart. Pushing to `dev` also publishes a
-  rolling `:dev` image.
+- The tag is what produces images, so a release and its container images cannot
+  drift apart -- but `build.yml`'s `v*.*.*` filter does not see it: a tag pushed
+  over `GITHUB_TOKEN` creates no workflow run, so `release.yml` dispatches the
+  build on the tag ref itself. Only a stable tag does; that dispatch is what
+  moves `latest`. Pushing to `dev` publishes a rolling `:dev` image instead.
 - Everything that needs the version string derives it in the same order --
   build argument, then root `package.json`, then git. That order lives in
   [`scripts/generate-version.sh`](scripts/generate-version.sh) and, mirrored, in

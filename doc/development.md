@@ -90,15 +90,27 @@ and `dev`, gated by the same `ci.yml` checks a pull request gets:
 push to main
   └─► release.yml → semantic-release
         ├─ commits CHANGELOG.md + package.json   [skip ci]  (no second build)
-        └─ pushes tag v1.4.0
-              └─► build.yml (on: tags v*.*.*) → images to GHCR
+        ├─ pushes tag v1.4.0
+        └─ gh workflow run build.yml --ref v1.4.0
+              └─► build.yml → images to GHCR
 ```
 
+The last arrow is a `workflow_dispatch`, not the `on: tags` filter, and the
+detour is not decoration: semantic-release pushes the tag over `GITHUB_TOKEN`,
+and GitHub creates no workflow run for such an event -- `workflow_dispatch` and
+`repository_dispatch` are the only exceptions. Without that step a release ends
+at the tag and never produces an image. The dispatch targets the **tag** ref, so
+`github.ref` inside `build.yml` is `refs/tags/v1.4.0` and its semver and `latest`
+rules apply; dispatching `main` instead would tag the images `main` again.
+
 - **`main`** produces a stable release: `v1.4.0`, images tagged `1.4.0`, `1.4`
-  and `latest`.
-- **`dev`** produces a prerelease on the `beta` channel: `v1.4.0-beta.1`, images
-  tagged `1.4.0-beta.1`. A prerelease never moves `latest`. Every push to `dev`
-  additionally publishes a rolling `:dev` image, whether or not it releases.
+  and `latest`. Only a stable tag moves `latest`, and it moves on every release
+  -- `release.yml` recognises one by its shape (`v1.4.0`, no hyphen).
+- **`dev`** produces a prerelease on the `beta` channel: `v1.4.0-beta.1`. It is
+  a version number and a GitHub release, not an image: no dispatch fires for it,
+  and `latest` never points at a prerelease. Every push to `dev` publishes a
+  rolling `:dev` image instead, whether or not it releases, which is what makes
+  the current state of development pullable.
 - The version comes solely from the commit types since the last tag: `fix:`
   bumps the patch, `feat:` the minor, a `!` or a `BREAKING CHANGE:` footer the
   major. Commits typed `docs:`, `chore:`, `refactor:` or `build:` release
@@ -120,8 +132,8 @@ gh workflow run build.yml --ref feat/my-branch
 
 Images are built and published by GitHub Actions, not from a developer machine.
 [`build.yml`](../.github/workflows/build.yml) runs on every push to `dev`, on
-`v*.*.*` tags (including the prereleases from `dev`) and on manual dispatch, and
-pushes to GHCR:
+`v*.*.*` tags and on manual dispatch -- which is how a release reaches it, see
+[Release](#release) -- and pushes to GHCR:
 
 - `ghcr.io/<owner>/pbcm-server` – a real multi-arch manifest (`linux/amd64`,
   `linux/arm64`), built natively per architecture and merged afterwards
@@ -129,9 +141,10 @@ pushes to GHCR:
 - `ghcr.io/<owner>/pbcm-client-arm64` – `linux/arm64`, a separate image name
   rather than a manifest entry
 
-A stable tag publishes `<version>`, `<major>.<minor>` and `latest`; a prerelease
-tag publishes `<version>` only and leaves `latest` where it is. A branch push or
-a manual dispatch publishes `<branch>` and `sha-<short>`.
+A stable tag publishes `<version>`, `<major>.<minor>` and `latest`; a tag
+dispatched by hand for a prerelease publishes `<version>` only and leaves
+`latest` where it is. A branch push or a manual dispatch on a branch publishes
+`<branch>` and `sha-<short>`, never `latest`.
 
 ### Registry authentication
 

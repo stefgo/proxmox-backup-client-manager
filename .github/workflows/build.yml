@@ -4,10 +4,14 @@ on:
     push:
         # dev publishes a rolling :dev image on every push, so the current state
         # of development is always pullable without waiting for a release.
-        # main is not listed: semantic-release tags every releasable commit
-        # seconds later, and that tag build would be the same code twice.
+        # main is not listed: a release on main arrives here as its tag instead,
+        # so the image is tied to the tag and main is not built twice.
         branches: ["dev"]
-        # Includes prereleases from the dev branch (v1.4.0-beta.1).
+        # A stable tag reaches this workflow only through the workflow_dispatch
+        # that release.yml fires -- semantic-release pushes the tag over
+        # GITHUB_TOKEN, and such a push creates no workflow run. The filter still
+        # covers a tag pushed by hand, and would cover a prerelease (v1.4.0-beta.1)
+        # the same way.
         tags: ["v*.*.*"]
     workflow_dispatch: # Allows manual trigger in the Actions tab, for any branch
 
