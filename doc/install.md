@@ -164,17 +164,29 @@ questions:
 | `clients.inbound_allowed_ip` (per client, set with the registration token and editable in the client editor) | one client | Does this address belong to *this* token? |
 | `allowedNetworks` (client) | one agent's listener | May the server dial this agent from this network? |
 
-An empty network list means "no restriction configured" and allows everything. A client
-without an allowed address is the opposite: the check has nothing to verify against and
-the connection is refused. That is why the client editor does not accept an empty value,
-and why a `/0` network is rejected everywhere a per-client address is stored -- it would
-switch the check off while looking like a restriction.
+All three are opt-in and mean the same thing when unset: no restriction. An empty network
+list allows every address, and a client whose `inbound_allowed_ip` is `NULL` is not checked
+against an address at all -- its token alone admits it, from anywhere the server-wide
+`allowed_networks` permits.
+
+The per-client check is switched on in the client editor ("Restrict connections to an IP or
+network"); the field is required only while that box is ticked. A registration token may
+carry the value instead, in which case the client starts out restricted. A token without
+one leaves the column `NULL`: the address an agent happens to register from is not a
+decision anyone made, and binding a client to it is how a container on a bridge network
+locks itself out the next time its subnet changes.
+
+Leave the check off for hosts whose address is assigned by their environment -- containers,
+DHCP without a reservation. Turn it on where the address is fixed and the token would
+otherwise be usable from anywhere: it is the only check that ties an address to *one*
+client rather than to all of them.
 
 > **Upgrade note:** `security.trusted_networks` no longer exists. It used to skip the
 > per-client address check for agents connecting from a listed network, which meant a
 > client whose address had drifted (DHCP, for example) still connected. Such a client is
 > now refused at its next reconnect. Before upgrading, compare each inbound client's last
-> seen address with its allowed one and correct it in the client editor:
+> seen address with its allowed one, and either correct it in the client editor or untick
+> the restriction there:
 >
 > ```sql
 > SELECT id, hostname, ip_address, inbound_allowed_ip FROM clients

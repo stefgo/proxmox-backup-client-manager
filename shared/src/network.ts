@@ -74,22 +74,16 @@ export function isIpInNetworks(
  * and maps everything it cannot parse -- every real IPv6 address -- to `0`, so routing a
  * plain address through it would make any two IPv6 clients match each other.
  *
- * Absent means denied: unlike a network list, where empty says "no restriction
- * configured", a missing pin is a missing proof, and a missing proof is not permission.
+ * Absent means the check is switched off for this client -- a choice, not an oversight:
+ * it is what the client editor stores when the restriction is unticked, and what a
+ * registration token without a network leaves behind. A machine whose address is handed
+ * to it by its environment, a container on a bridge network being the usual case, has no
+ * stable address to be held to, and pinning it to whichever one it had first turns the
+ * check into a delayed outage rather than a guarantee.
  */
 export function isIpAllowed(ip: string, allowed: string | null): boolean {
-    if (!allowed) return false;
+    if (!allowed) return true;
     return allowed.includes("/")
         ? isIpInCidr(ip, allowed)
         : allowed === normaliseIp(ip);
-}
-
-/**
- * Whether a value permits every address (`/0`). Such a value is not a restriction but the
- * removal of one, and the surfaces that store a pin reject it: switching the check off has
- * to be a visible decision, not a quietly accepted input.
- */
-export function isWildcardNetwork(value: string): boolean {
-    const [, bits] = value.trim().split("/");
-    return bits !== undefined && parseInt(bits) === 0;
 }

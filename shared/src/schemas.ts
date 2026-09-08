@@ -38,8 +38,12 @@ export const ClientSchema = z.object({
      * Inbound clients only: the address or network their connections must come from.
      * Editable, because a client that moves is otherwise locked out with no way back --
      * the agent cannot argue its own case, only the operator can.
+     *
+     * `null` switches the check off, and the three states are distinct on the wire: a
+     * value restricts, `null` disables, and an absent key in a PUT leaves the stored
+     * setting untouched.
      */
-    inboundAllowedIp: Ipv4OrCidrSchema.optional(),
+    inboundAllowedIp: Ipv4OrCidrSchema.nullish(),
     /**
      * The address of the last successful agent connect. Nothing decides on it; it is here
      * so the editor can show what `inboundAllowedIp` is about to be measured against.

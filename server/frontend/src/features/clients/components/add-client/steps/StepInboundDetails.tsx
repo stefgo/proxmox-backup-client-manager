@@ -31,8 +31,8 @@ export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsP
                 value={form.allowedIp}
                 onChange={(e) => onPatch({ allowedIp: e.target.value })}
                 placeholder="192.168.1.50 or 192.168.1.0/24"
-                error={ipInvalid ? 'Enter an IPv4 address or a network in CIDR notation. A /0 network is not a restriction.' : undefined}
-                hint="Where the token may be redeemed from, and what the client stays pinned to. Leave it empty to pin the client to the address it registers from."
+                error={ipInvalid ? 'Enter an IPv4 address or a network in CIDR notation.' : undefined}
+                hint="Where the token may be redeemed from, and what the client stays restricted to afterwards. Leave it empty to accept connections from any address — the client editor can add the restriction later."
             />
 
             {/* Doubly true in this mode: no client is set up with a tunnel, and an

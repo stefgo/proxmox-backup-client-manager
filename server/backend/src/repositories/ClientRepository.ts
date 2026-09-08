@@ -60,7 +60,7 @@ export class ClientRepository {
         id: string,
         hostname: string,
         authToken: string,
-        allowedIp: string,
+        allowedIp: string | null,
     ): void {
         const stmt = db.prepare(`
             INSERT INTO clients (id, hostname, auth_token, inbound_allowed_ip, connection_mode, last_seen)
@@ -130,7 +130,7 @@ export class ClientRepository {
      */
     static updateInboundAllowedIp(
         id: string,
-        allowedIp: string,
+        allowedIp: string | null,
     ): { changes: number } {
         return db
             .prepare(

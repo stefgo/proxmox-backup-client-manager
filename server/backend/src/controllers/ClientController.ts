@@ -6,7 +6,6 @@ import {
     CONNECTION_MODE,
     ClientSchema,
     normaliseTargetAddress,
-    isWildcardNetwork,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
@@ -170,13 +169,6 @@ export class ClientController {
             if (client.connection_mode === CONNECTION_MODE.OUTBOUND) {
                 return reply.code(400).send({
                     error: "Only inbound clients have an allowed address",
-                });
-            }
-            // A pin that matches everything is not a restriction but its removal, and
-            // removing it has to be a visible decision -- there is no quiet way to it.
-            if (isWildcardNetwork(body.inboundAllowedIp)) {
-                return reply.code(400).send({
-                    error: "A /0 network allows every address and is not a valid pin",
                 });
             }
         }

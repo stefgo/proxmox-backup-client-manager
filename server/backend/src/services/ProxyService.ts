@@ -227,7 +227,8 @@ export class ProxyService {
         data: {
             displayName?: string;
             outboundTargetAddress?: string;
-            inboundAllowedIp?: string;
+            /** `null` switches the check off; absent leaves the stored value alone. */
+            inboundAllowedIp?: string | null;
         },
     ) {
         let changed = false;

@@ -5,11 +5,10 @@ import {
     CONNECTION_MODE,
     Ipv4OrCidrSchema,
     isIpAllowed,
-    isWildcardNetwork,
     normaliseTargetAddress,
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
-import { Badge, Button, Card, Input } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, Checkbox, Input } from '@stefgo/react-ui-components';
 import { StatusDot } from './StatusDot';
 import { STATUS_TONE } from './statusTone';
 import { formatDate } from '../../../utils';
@@ -18,7 +17,7 @@ interface ClientIdentityCardProps {
     client: Client;
     onSave: (
         id: string,
-        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string },
+        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string | null },
     ) => Promise<void>;
     /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
     onDirtyChange?: (dirty: boolean) => void;
@@ -43,6 +42,7 @@ interface ClientIdentityCardProps {
 export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: ClientIdentityCardProps) => {
     const [displayName, setDisplayName] = useState(client.displayName || '');
     const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
+    const [restrictIp, setRestrictIp] = useState(!!client.inboundAllowedIp);
     const [allowedIp, setAllowedIp] = useState(client.inboundAllowedIp || '');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,16 +55,15 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
     const addressInvalid =
         isOutbound && !!targetAddress.trim() && !normaliseTargetAddress(targetAddress);
 
-    // Same two rules the backend applies, so a rejected value is caught in the field
-    // instead of coming back as a request error. Unlike the wizard, empty is not valid
-    // here: `isIpAllowed` denies a client without a value, so saving one would lock the
-    // agent out of the server it is already talking to.
+    // Same rule the backend applies, so a rejected value is caught in the field instead
+    // of coming back as a request error. Only while the restriction is on: an unticked
+    // box submits null and whatever is left in the field is not sent anywhere.
     const allowedIpTrimmed = allowedIp.trim();
     const allowedIpInvalid =
         !isOutbound &&
+        restrictIp &&
         !!allowedIpTrimmed &&
-        (!Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success ||
-            isWildcardNetwork(allowedIpTrimmed));
+        !Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success;
 
     /**
      * The agent cannot object to a value that shuts it out, and the mistake only surfaces
@@ -74,6 +73,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
      */
     const wouldLockOut =
         !isOutbound &&
+        restrictIp &&
         !!client.ipAddress &&
         !!allowedIpTrimmed &&
         !allowedIpInvalid &&
@@ -82,14 +82,18 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
     const isDirty =
         displayName !== (client.displayName || '') ||
         (isOutbound && targetAddress !== (client.outboundTargetAddress || '')) ||
-        (!isOutbound && allowedIp !== (client.inboundAllowedIp || ''));
+        // Turning the restriction off is a change in its own right, even though it leaves
+        // the field untouched — otherwise unticking the box would not enable Save.
+        (!isOutbound && restrictIp !== !!client.inboundAllowedIp) ||
+        (!isOutbound && restrictIp && allowedIp !== (client.inboundAllowedIp || ''));
 
     const canSave =
         isDirty &&
         !addressInvalid &&
         !allowedIpInvalid &&
         !(isOutbound && !targetAddress.trim()) &&
-        !(!isOutbound && !allowedIpTrimmed);
+        // Required only while the box is ticked: that is what ticking it means.
+        !(!isOutbound && restrictIp && !allowedIpTrimmed);
 
     useEffect(() => {
         onDirtyChange?.(isDirty);
@@ -109,7 +113,13 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                 outboundTargetAddress: isOutbound ? targetAddress.trim() : undefined,
                 // Mirror image of the line above: the backend rejects this field for
                 // outbound clients, which are dialed and never checked against one.
-                inboundAllowedIp: isOutbound ? undefined : allowedIpTrimmed,
+                // `null` is not "unchanged" here but "switch the check off" — only the
+                // absent key leaves the stored value alone.
+                inboundAllowedIp: isOutbound
+                    ? undefined
+                    : restrictIp
+                      ? allowedIpTrimmed
+                      : null,
             });
             setSaved(true);
         } catch (e) {
@@ -208,20 +218,41 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                         autoFocus
                     />
 
+    {/* The check is opt-in, so the box carries the decision and the field only the
+                        value. A Checkbox rather than a Switch: this form is submitted by its
+                        save button, and a switch would claim to take effect on the spot. */}
                     {!isOutbound && (
-                        <Input
-                            label="Allowed IP or Network"
-                            value={allowedIp}
-                            onChange={(e) => { setAllowedIp(e.target.value); setSaved(false); }}
-                            placeholder="192.168.1.50 or 192.168.1.0/24"
-                            disabled={isSaving}
-                            error={allowedIpInvalid ? 'Enter an IPv4 address or a network in CIDR notation. A /0 network is not a restriction.' : undefined}
-                            hint={
-                                client.ipAddress
-                                    ? `Where the agent's connections must come from. Its last connection came from ${client.ipAddress}.`
-                                    : "Where the agent's connections must come from."
-                            }
-                        />
+                        <div className="space-y-4">
+                            <Checkbox
+                                label="Restrict connections to an IP or network"
+                                checked={restrictIp}
+                                onChange={(e) => { setRestrictIp(e.target.checked); setSaved(false); }}
+                                disabled={isSaving}
+                                hint={
+                                    restrictIp
+                                        ? "The agent is rejected when it connects from anywhere else."
+                                        : `Any address may connect with this client's token.${
+                                              client.ipAddress ? ` It last connected from ${client.ipAddress}.` : ''
+                                          }`
+                                }
+                            />
+
+                            {restrictIp && (
+                                <Input
+                                    label="Allowed IP or Network"
+                                    value={allowedIp}
+                                    onChange={(e) => { setAllowedIp(e.target.value); setSaved(false); }}
+                                    placeholder="192.168.1.50 or 192.168.1.0/24"
+                                    disabled={isSaving}
+                                    error={allowedIpInvalid ? 'Enter an IPv4 address or a network in CIDR notation.' : undefined}
+                                    hint={
+                                        client.ipAddress
+                                            ? `Its last connection came from ${client.ipAddress}.`
+                                            : undefined
+                                    }
+                                />
+                            )}
+                        </div>
                     )}
 
                     {/* Not the field's `error`: the value is well-formed and storable, and

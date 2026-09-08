@@ -10,7 +10,7 @@ interface ClientEditorProps {
     client: Client;
     onSave: (
         id: string,
-        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string },
+        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string | null },
     ) => Promise<void>;
 }
 
