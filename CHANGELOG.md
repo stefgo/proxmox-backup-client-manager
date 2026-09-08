@@ -1,3 +1,10 @@
+# [1.4.0-beta.10](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.9...v1.4.0-beta.10) (2026-09-08)
+
+
+### Bug Fixes
+
+* Live-History zeigt den Client-Namen statt "Unknown Client" ([55f969e](https://github.com/stefgo/proxmox-backup-client-manager/commit/55f969eb342f5c0137b39178c12042eb8c16f0b3))
+
 # [1.4.0-beta.9](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.8...v1.4.0-beta.9) (2026-09-08)
 
 
