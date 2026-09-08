@@ -1,4 +1,4 @@
-import { ReactNode, Suspense, lazy, useMemo, useEffect } from 'react';
+import { ReactNode, Suspense, lazy, useMemo, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
     Monitor,
@@ -15,6 +15,7 @@ import { Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING } fro
 import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
+import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AuthProvider, useAuth } from '../auth/AuthContext';
 import { WebSocketProvider } from './context/WebSocketContext';
@@ -35,6 +36,7 @@ const ClientOverview = lazy(() => import('../clients/components/ClientOverview')
 const AddClientWizard = lazy(() => import('../clients/components/add-client/AddClientWizard').then(m => ({ default: m.AddClientWizard })));
 const ClientEditor = lazy(() => import('../clients/components/ClientEditor').then(m => ({ default: m.ClientEditor })));
 const ClientTunnelEditor = lazy(() => import('../clients/components/ClientTunnelEditor').then(m => ({ default: m.ClientTunnelEditor })));
+const JobEditorPage = lazy(() => import('../jobs/components/JobEditorPage').then(m => ({ default: m.JobEditorPage })));
 const RepositoryOverview = lazy(() => import('../repositories/components/RepositoryOverview').then(m => ({ default: m.RepositoryOverview })));
 const UserOverview = lazy(() => import('../users/components/UserOverview').then(m => ({ default: m.UserOverview })));
 const Settings = lazy(() => import('../../pages/Settings'));
@@ -126,6 +128,58 @@ function ClientTunnelRoute() {
     if (!client) return <Navigate to="/clients" replace />;
 
     return <ClientTunnelEditor client={client} />;
+}
+
+/**
+ * The job editor sits under two path families for the same page: under the client when it
+ * was opened from there, under `/jobs` when it was opened from the list across all clients.
+ * The sidebar then keeps marking the place the operator came from, and both URLs stay
+ * honest about what they show.
+ *
+ * Creating is the only case where the client is open to choice, and only from `/jobs/new`:
+ * a job is saved through `POST /api/v1/clients/:clientId/jobs`, so an existing one cannot
+ * change hands, and one started from a client already has its answer.
+ */
+function NewClientJobRoute() {
+    const client = useRouteClient();
+    if (!client) return <Navigate to="/clients" replace />;
+
+    return <JobEditorPage lockedClientId={client.id} fallbackBack={`/client/${client.id}`} />;
+}
+
+function NewJobRoute() {
+    return <JobEditorPage fallbackBack="/jobs" />;
+}
+
+/**
+ * Resolves the job to edit from the global store, which holds every client's jobs.
+ *
+ * It fetches once itself rather than trusting AppLayout's initial load: a directly opened
+ * URL can arrive before that returns, and "the list is empty" alone cannot tell a pending
+ * fetch from a deleted job. Only once this fetch has settled is a missing job really gone.
+ */
+function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) {
+    const { clientId, jobId } = useParams();
+    const globalJobs = useGlobalJobsStore((s) => s.globalJobs);
+    const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);
+    const [resolved, setResolved] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        fetchAllJobs().finally(() => {
+            if (active) setResolved(true);
+        });
+        return () => {
+            active = false;
+        };
+    }, [fetchAllJobs]);
+
+    const job = globalJobs.find((j) => j.clientId === clientId && j.id === jobId);
+    if (!job) {
+        return resolved ? <Navigate to="/jobs" replace /> : <LoadingIndicator />;
+    }
+
+    return <JobEditorPage lockedClientId={job.clientId} job={job} fallbackBack={fallback(job.clientId)} />;
 }
 
 function RepositoriesRoute() {
@@ -260,7 +314,11 @@ function AppLayout() {
     const pages: DashboardPage[] = useMemo(() => [
         {
             id: 'clients',
-            path: ['/', '/clients', '/clients/new', '/client/:clientId', '/client/:clientId/edit', '/client/:clientId/tunnel'],
+            path: [
+                '/', '/clients', '/clients/new',
+                '/client/:clientId', '/client/:clientId/edit', '/client/:clientId/tunnel',
+                '/client/:clientId/jobs/new', '/client/:clientId/jobs/:jobId',
+            ],
             nav: {
                 groupId: 'resources',
                 label: 'Clients',
@@ -271,7 +329,7 @@ function AppLayout() {
         },
         {
             id: 'jobs',
-            path: '/jobs',
+            path: ['/jobs', '/jobs/new', '/jobs/:clientId/:jobId'],
             nav: {
                 groupId: 'resources',
                 label: 'Jobs',
@@ -358,7 +416,14 @@ function AppLayout() {
                     <Route path="/client/:clientId" element={<ClientDetailRoute />} />
                     <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
                     <Route path="/client/:clientId/tunnel" element={<ClientTunnelRoute />} />
+                    <Route path="/client/:clientId/jobs/new" element={<NewClientJobRoute />} />
+                    <Route
+                        path="/client/:clientId/jobs/:jobId"
+                        element={<EditJobRoute fallback={(clientId) => `/client/${clientId}`} />}
+                    />
                     <Route path="/jobs" element={<ManagedJobs />} />
+                    <Route path="/jobs/new" element={<NewJobRoute />} />
+                    <Route path="/jobs/:clientId/:jobId" element={<EditJobRoute fallback={() => '/jobs'} />} />
                     <Route path="/repositories" element={<RepositoriesRoute />} />
                     <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />
                     <Route path="/history" element={<HistoryOverview />} />

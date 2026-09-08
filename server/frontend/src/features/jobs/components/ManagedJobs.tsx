@@ -1,14 +1,12 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { CLIENT_STATUS } from "@pbcm/shared";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { JobList } from "./JobList";
 import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
-import { ClientJobEditor } from "../../clients/components/ClientJobEditor";
-import { useJobForm } from "../../clients/hooks/useJobForm";
 import { useRepositoryStore } from "../../../stores/useRepositoryStore";
-import { useClientFileSystemStore } from "../../../stores/useClientFileSystemStore";
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 import { getErrorMessage } from "../../../utils";
@@ -16,15 +14,13 @@ import { apiFetch } from "../../../lib/apiFetch";
 
 export const ManagedJobs = () => {
     const { token } = useAuth();
+    const navigate = useNavigate();
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
     // Only the action: the repository list itself is read through getState() below,
     // so this view no longer re-renders on every repository status change.
     const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
-
-    const [isEditing, setIsEditing] = useState(false);
-    const [editingJob, setEditingJob] = useState<GlobalJob | null>(null);
 
     useEffect(() => {
         if (!token) return;
@@ -85,11 +81,15 @@ export const ManagedJobs = () => {
         return client?.displayName || client?.hostname || clientId;
     };
 
-    const handleEditJob = (job: GlobalJob) => {
-        setEditingJob(job);
-        // We need to bypass the standard startEditJob of useJobForm because it assumes a fixed clientId.
-        // Or we just re-mount the form when a job is selected.
-        setIsEditing(true);
+    /**
+     * The editor is a page of its own. Under `/jobs` rather than under the client, so the
+     * sidebar keeps marking the list this was opened from -- the client is carried in the
+     * path because the job is saved through its client's endpoint.
+     */
+    const openJobEditor = (job?: GlobalJob) => {
+        navigate(job ? `/jobs/${job.clientId}/${job.id}` : "/jobs/new", {
+            state: { from: "/jobs" },
+        });
     };
 
     if (isLoading && globalJobs.length === 0) {
@@ -104,27 +104,13 @@ export const ManagedJobs = () => {
         );
     }
 
-    if (isEditing && editingJob) {
-        // Render a dedicated JobEditor per selected job so the hook gets the right clientId on mount
-        return (
-            <JobsEditorWrapper
-                job={editingJob}
-                onCancel={() => setIsEditing(false)}
-                onSaveSuccess={() => {
-                    setIsEditing(false);
-                    setEditingJob(null);
-                    handleRefresh();
-                }}
-            />
-        );
-    }
-
     return (
         <div className="space-y-6 flex flex-col">
             <div>
                 <JobList
                     jobs={globalJobs}
-                    onEditJob={handleEditJob}
+                    onEditJob={openJobEditor}
+                    onCreateJob={() => openJobEditor()}
                     onTriggerJob={handleTriggerJob}
                     onDeleteJob={handleDeleteJob}
                     getClientStatus={getClientStatus}
@@ -141,59 +127,5 @@ export const ManagedJobs = () => {
                 />
             </div>
         </div>
-    );
-};
-
-// Wrapper component to isolate the useJobForm hook with the specific clientId
-const JobsEditorWrapper = ({
-    job,
-    onCancel,
-    onSaveSuccess,
-}: {
-    job: GlobalJob;
-    onCancel: () => void;
-    onSaveSuccess: () => void;
-}) => {
-    const { token } = useAuth();
-    const { repositories } = useRepositoryStore();
-    const { fileList, isLoadingFiles, fetchFileList } =
-        useClientFileSystemStore();
-
-    const jobForm = useJobForm({
-        clientId: job.clientId,
-        onSaveSuccess: onSaveSuccess,
-    });
-
-    // Seeds the form from the selected job exactly once. Neither jobForm nor
-    // startEditJob keeps its identity across renders, so there is no honest
-    // dependency array to write here -- the guard does the job instead.
-    const seeded = useRef(false);
-    useEffect(() => {
-        if (seeded.current) return;
-        seeded.current = true;
-        jobForm.startEditJob(job);
-    });
-
-    useEffect(() => {
-        if (token && job.clientId) {
-            fetchFileList(job.clientId, jobForm.fileBrowserPath);
-        }
-    }, [jobForm.fileBrowserPath, token, job.clientId, fetchFileList]);
-
-    // JobFormContextType types this prop as (val: boolean) => void, so the
-    // updater form was unreachable through it.
-    const customSetIsCreatingJob = (val: boolean) => {
-        jobForm.setIsCreatingJob(val);
-        if (!val) onCancel();
-    };
-
-    return (
-        <ClientJobEditor
-            {...jobForm}
-            setIsCreatingJob={customSetIsCreatingJob}
-            repositories={repositories}
-            fileList={fileList}
-            isLoadingFiles={isLoadingFiles}
-        />
     );
 };
