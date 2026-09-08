@@ -1,3 +1,11 @@
+# [1.4.0-beta.8](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.7...v1.4.0-beta.8) (2026-09-08)
+
+
+### Features
+
+* Client-Overview zeigt den Tunnel und laesst sich per Esc verlassen ([f9c0d95](https://github.com/stefgo/proxmox-backup-client-manager/commit/f9c0d955415553fa3c71f72aa86c0a8be15e3200))
+* Server vergibt die Client-Identity und prueft sie bei jeder Verbindung ([8451177](https://github.com/stefgo/proxmox-backup-client-manager/commit/84511771450d925d23babdac256193c79899be9d))
+
 # [1.4.0-beta.7](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.6...v1.4.0-beta.7) (2026-09-08)
 
 
