@@ -613,8 +613,17 @@ export const AppConfigSchema = z.looseObject({
              * caught at startup instead of silently rejecting every agent.
              */
             allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
+            /**
+             * Whether to send Strict-Transport-Security.
+             *
+             * Off by default, unlike helmet's own setting. A large share of installations
+             * run on plain HTTP inside a home network, and that header tells the browser
+             * to refuse http:// for this host from then on — remembered for months, and
+             * not undone by turning the header off again. Only switch it on behind TLS.
+             */
+            hsts: z.boolean().default(false),
         })
-        .default({ allowed_networks: [] }),
+        .default({ allowed_networks: [], hsts: false }),
     tunnel: TunnelSettingsSchema.default(TunnelSettingsSchema.parse({})),
 });
 
