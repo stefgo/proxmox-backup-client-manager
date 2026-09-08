@@ -26,12 +26,12 @@ export const JobArchiveList = () => {
 
             <div className="flex-1 border rounded-lg bg-app-bg overflow-y-auto p-2 space-y-2">
                 {jobArchives.map((bk, idx) => (
-                    <div key={idx} className=" p-3 rounded border flex justify-between items-center group transition-all">
+                    <div key={idx} className=" p-3 rounded border flex justify-between items-center transition-all">
                         <div>
                             <div className="font-bold text-text-primary text-sm">{bk.name}</div>
                             <div className="text-xs text-primary opacity-80 font-mono mb-1">{bk.path}</div>
                         </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-2">
                             <ActionButton icon={Pencil} size="sm" color="orange" tooltip="Edit archive" onClick={() => handleEditArchiveItem(idx)} />
                             <ActionButton icon={Trash2} size="sm" color="orange" tooltip="Remove archive" onClick={() => setJobArchives(jobArchives.filter((_, i) => i !== idx))} />
                         </div>
