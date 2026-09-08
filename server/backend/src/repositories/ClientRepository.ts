@@ -12,8 +12,8 @@ export interface ClientRow {
     display_name: string | null;
     auth_token: string | null;
     connection_mode: ConnectionMode;
-    /** Inbound clients only: the IP they registered from and are pinned to. */
-    inbound_registered_ip: string | null;
+    /** Inbound clients only: the IP or network their connections must come from. */
+    inbound_allowed_ip: string | null;
     /** Outbound clients only: the address the server dials. */
     outbound_target_address: string | null;
     ip_address: string | null;
@@ -38,14 +38,14 @@ export class ClientRepository {
     static findByToken(
         token: string,
     ):
-        | Pick<ClientRow, "id" | "inbound_registered_ip" | "connection_mode">
+        | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
         | undefined {
         return db
             .prepare(
-                "SELECT id, inbound_registered_ip, connection_mode FROM clients WHERE auth_token = ?",
+                "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE auth_token = ?",
             )
             .get(token) as
-            | Pick<ClientRow, "id" | "inbound_registered_ip" | "connection_mode">
+            | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
             | undefined;
     }
 
@@ -63,12 +63,12 @@ export class ClientRepository {
         allowedIp: string,
     ): void {
         const stmt = db.prepare(`
-            INSERT INTO clients (id, hostname, auth_token, inbound_registered_ip, connection_mode, last_seen)
+            INSERT INTO clients (id, hostname, auth_token, inbound_allowed_ip, connection_mode, last_seen)
             VALUES (?, ?, ?, ?, 'inbound', datetime('now'))
             ON CONFLICT(id) DO UPDATE SET
                 hostname = excluded.hostname,
                 auth_token = excluded.auth_token,
-                inbound_registered_ip = excluded.inbound_registered_ip,
+                inbound_allowed_ip = excluded.inbound_allowed_ip,
                 updated_at = datetime('now')
         `);
         stmt.run(id, hostname, authToken, allowedIp);

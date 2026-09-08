@@ -3,12 +3,11 @@ import crypto from "crypto";
 import {
     CreateRegistrationTokenSchema,
     RegistrationPayloadSchema,
+    isIpInCidr,
 } from "@pbcm/shared";
 import { firstIssue } from "../utils/validation.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { isIpInCidr } from "../utils/networkUtils.js";
-
 import { ProxyService } from "../services/ProxyService.js";
 
 export const TokenController = {

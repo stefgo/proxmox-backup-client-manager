@@ -4,4 +4,5 @@ export * from "./schemas.js";
 export * from "./fingerprint.js";
 export * from "./repositoryUrl.js";
 export * from "./targetAddress.js";
+export * from "./network.js";
 

@@ -16,11 +16,12 @@ import {
     FingerprintObservedSchema,
     parseRepositoryEndpoint,
     normalizeFingerprint,
+    isIpAllowed,
+    isIpInNetworks,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { appConfig } from "../config/AppConfig.js";
-import { isIpInCidr, isIpInNetworks } from "../utils/networkUtils.js";
 import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
@@ -60,24 +61,6 @@ const TERMINAL_JOB_STATUSES: string[] = [
     JOB_STATUS.FAILED,
     JOB_STATUS.ABORTED,
 ];
-
-/**
- * Does an inbound client's connection come from the address it is pinned to?
- *
- * The pin is a single address for a client that registered without one being
- * specified, and an IPv4 network for a client whose registration token carried
- * one -- a machine on DHCP is one address today and another one tomorrow, and
- * pinning it to the first was never the intent, only the default.
- *
- * A pin without a `/` keeps the exact comparison it always had. `isIpInCidr`
- * works on 32-bit integers and maps everything it cannot parse -- every IPv6
- * address -- to `0`, so routing a plain address through it would make any two
- * IPv6 clients match each other.
- */
-const matchesPin = (clientIp: string, pin: string | null): boolean => {
-    if (!pin) return false;
-    return pin.includes("/") ? isIpInCidr(clientIp, pin) : pin === clientIp;
-};
 
 export class WebSocketController {
     static async handleDashboardConnection(
@@ -213,14 +196,14 @@ export class WebSocketController {
         const trustedNetworks = appConfig.security?.trusted_networks || [];
         const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
 
-        // Outbound clients are dialed BY the server and have no registered IP to pin against.
+        // Outbound clients are dialed BY the server and have no allowed address to check.
         const isInbound =
             client.connection_mode !== CONNECTION_MODE.OUTBOUND;
 
-        if (isInbound && !isTrusted && !matchesPin(clientIp, client.inbound_registered_ip)) {
+        if (isInbound && !isTrusted && !isIpAllowed(clientIp, client.inbound_allowed_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
-                expected: client.inbound_registered_ip,
+                expected: client.inbound_allowed_ip,
                 actual: clientIp,
                 clientId: client.id,
             });
