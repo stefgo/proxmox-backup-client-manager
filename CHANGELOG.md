@@ -1,3 +1,11 @@
+# [1.4.0-beta.6](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.5...v1.4.0-beta.6) (2026-09-08)
+
+
+### Features
+
+* erlaubte IP eines Inbound-Clients ist editierbar ([cbdd624](https://github.com/stefgo/proxmox-backup-client-manager/commit/cbdd6240e8707bac96f48b54b44821495b3e6518))
+* trusted_networks entfaellt, Agent prueft erlaubte Netze ([0d31805](https://github.com/stefgo/proxmox-backup-client-manager/commit/0d318053948e29fc49a113ca9da801451a83fea2))
+
 # [1.4.0-beta.5](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.4...v1.4.0-beta.5) (2026-09-07)
 
 
