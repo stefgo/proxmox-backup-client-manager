@@ -195,9 +195,14 @@ export async function startWebServer() {
         async (request: FastifyRequest, reply: FastifyReply) => {
             const parsed = WebRegisterSchema.safeParse(request.body);
             if (!parsed.success) {
-                return reply
-                    .status(400)
-                    .send({ error: parsed.error.issues[0].message });
+                // The path is prefixed for the same reason the server does it: on its
+                // own, "expected string, received undefined" leaves the caller to guess
+                // which of three fields it meant.
+                const issue = parsed.error.issues[0];
+                const path = issue.path.join(".");
+                return reply.status(400).send({
+                    error: path ? `${path}: ${issue.message}` : issue.message,
+                });
             }
             const { token, url, pin } = parsed.data;
 
