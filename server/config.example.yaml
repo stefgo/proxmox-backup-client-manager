@@ -32,7 +32,11 @@ settings:
 
 # Security network settings
 security:
-    # List of CIDR subnets allowed to connect to the clients API endpoints. If empty, all are allowed.
+    # List of CIDR subnets an agent may open its WebSocket session from (/ws/agent).
+    # If empty, every address is allowed.
+    # This is the perimeter and applies to all agents alike. Which address a single
+    # client is bound to is a property of that client (inbound_allowed_ip, set with
+    # its registration token and editable in the client editor) — an empty list here
+    # means no perimeter was configured, while a client without an allowed address is
+    # refused outright.
     allowed_networks: []
-    # List of CIDR subnets that are trusted and skip token validation for registration.
-    trusted_networks: []

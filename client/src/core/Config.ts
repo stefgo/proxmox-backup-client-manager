@@ -33,6 +33,16 @@ export interface ClientConfig {
      * "Zieladresse" on the server side.
      */
     listenPort: number;
+    /**
+     * Networks the server may dial this agent from -- outbound mode only, where the two
+     * endpoints below are reachable for anyone who can route to `listenPort`. Empty means
+     * no restriction, as on the server side.
+     *
+     * Deliberately not applied to the local Web UI on the same port: that is the surface
+     * an operator uses to set the registration secret, and a list holding only the
+     * server's address would shut them out of it.
+     */
+    allowedNetworks?: string[];
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
@@ -63,6 +73,7 @@ export const config: ClientConfig = {
     clientId: randomUUID(),
     tunnelAcquireJitterSeconds: 30,
     listenPort: parsePort(process.env.PBCM_CLIENT_PORT) ?? 3001,
+    allowedNetworks: [],
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
@@ -173,6 +184,10 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (typeof loadedConfig.registrationSecret === "string") {
             config.registrationSecret = loadedConfig.registrationSecret;
+        }
+
+        if (Array.isArray(loadedConfig.allowedNetworks)) {
+            config.allowedNetworks = loadedConfig.allowedNetworks;
         }
 
         // The environment variable wins: in a container it is set without touching the

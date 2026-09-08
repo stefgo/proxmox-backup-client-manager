@@ -72,6 +72,17 @@ The client includes a micro-server (Fastify) for local management and initial se
   variable `PBCM_CLIENT_PORT`. In outbound mode the same server also serves `/ws/register`
   and `/ws/agent`, so a changed port must match the client's target address on the server —
   editable in the client editor.
+- **Allowed networks**: `allowedNetworks` in `config.yaml` — a list of CIDR networks the
+  server may dial `/ws/register` and `/ws/agent` from. Empty (the default) allows every
+  address, which is what the agent did before the setting existed. It matters most for
+  `/ws/register`: there the *caller* supplies the auth token the agent then stores, and the
+  listener binds every interface the host has. The local Web UI on the same port is
+  deliberately **not** restricted — it is the surface an operator uses to set the
+  registration secret, and a list holding only the server's address would shut them out of
+  it. The address checked is the socket's peer (no `trustProxy`), so an agent behind a
+  reverse proxy must allow the proxy's address, not the server's. A wrong value is only
+  repairable locally on the client host: the connection one would fix it over is the one
+  being refused.
 
 ### 5. Event Handlers (`src/features/Handlers.ts`)
 

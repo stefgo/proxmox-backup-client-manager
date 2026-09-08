@@ -472,7 +472,6 @@ export const CleanupSettingsSchema = z.looseObject({
     security: z
         .object({
             allowed_networks: z.array(z.string()).optional(),
-            trusted_networks: z.array(z.string()).optional(),
         })
         .optional(),
 });

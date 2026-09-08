@@ -137,6 +137,7 @@ This file is created automatically or can be created manually.
 | `clientId`      | Unique ID of the client (generated automatically).                                 |
 | `executable`    | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). |
 | `retentionTime` | Number of days to keep job history and schedule states (default: `90`).            |
+| `allowedNetworks` | Outbound mode only: list of CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it. |
 
 #### Server Config (`server/config.yaml`)
 
@@ -150,3 +151,34 @@ This file contains advanced settings for the server, specifically for authentica
 |             | `client_secret` | OIDC Client Secret.                     |
 |             | `redirect_uri`  | OIDC Redirect URI.                      |
 | `jwtSecret` | (Root)          | Generated automatically if not present. |
+| `security`  | `allowed_networks` | List of CIDR networks an agent may connect to `/ws/agent` from. Empty (default) allows every address. |
+
+### Address checks for agent connections
+
+Three settings decide where an agent connection may come from, and they answer different
+questions:
+
+| Setting | Scope | Question |
+| :------ | :---- | :------- |
+| `security.allowed_networks` (server) | all agents | May *any* agent connect from this network? |
+| `clients.inbound_allowed_ip` (per client, set with the registration token and editable in the client editor) | one client | Does this address belong to *this* token? |
+| `allowedNetworks` (client) | one agent's listener | May the server dial this agent from this network? |
+
+An empty network list means "no restriction configured" and allows everything. A client
+without an allowed address is the opposite: the check has nothing to verify against and
+the connection is refused. That is why the client editor does not accept an empty value,
+and why a `/0` network is rejected everywhere a per-client address is stored -- it would
+switch the check off while looking like a restriction.
+
+> **Upgrade note:** `security.trusted_networks` no longer exists. It used to skip the
+> per-client address check for agents connecting from a listed network, which meant a
+> client whose address had drifted (DHCP, for example) still connected. Such a client is
+> now refused at its next reconnect. Before upgrading, compare each inbound client's last
+> seen address with its allowed one and correct it in the client editor:
+>
+> ```sql
+> SELECT id, hostname, ip_address, inbound_allowed_ip FROM clients
+> WHERE connection_mode = 'inbound' AND ip_address IS NOT NULL;
+> ```
+>
+> A leftover `trusted_networks:` key in an existing `config.yaml` is ignored.

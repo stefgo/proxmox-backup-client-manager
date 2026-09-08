@@ -27,8 +27,12 @@ export interface AppConfig {
         [key: string]: string;
     };
     security?: {
+        /**
+         * Networks an agent may connect from at all. Empty means no restriction --
+         * unlike a client's own allowed address, this is a perimeter nobody has to
+         * configure, and an empty list says none was chosen, not that none may pass.
+         */
         allowed_networks?: string[];
-        trusted_networks?: string[];
     };
     tunnel: TunnelSettings;
     [key: string]: any;
@@ -97,12 +101,10 @@ function loadConfig() {
     // Ensure security object exists
     if (!config.security) {
         config.security = {
-            allowed_networks: [],
-            trusted_networks: []
+            allowed_networks: []
         };
     } else {
         if (!config.security.allowed_networks) config.security.allowed_networks = [];
-        if (!config.security.trusted_networks) config.security.trusted_networks = [];
     }
 
     // Ensure tunnel object exists and is complete

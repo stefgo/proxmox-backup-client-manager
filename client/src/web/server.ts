@@ -15,7 +15,7 @@ import {
 import { Connection } from "../core/Connection.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
 import { logger } from "@pbcm/shared/node";
-import { WS_EVENTS } from "@pbcm/shared";
+import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
 import { z } from "zod";
 
 /**
@@ -254,13 +254,37 @@ export async function startWebServer() {
         },
     );
 
+/**
+ * The two endpoints below are the only way in for the server, and in outbound mode the
+ * agent listens on every interface it has. Without a list this changes nothing -- with
+ * one, the registration handshake in particular stops being reachable from the whole
+ * routable network: it is the caller there who supplies the authToken the agent then
+ * stores, so who may knock at all is worth deciding.
+ *
+ * The reason is logged, never sent: the caller learns that it was refused, not why.
+ *
+ * `req.ip` is the peer address of the socket -- this Fastify runs without `trustProxy`,
+ * so no forwarding header can talk its way past the list. An agent behind a reverse proxy
+ * therefore has to allow the proxy's address, not the server's.
+ */
+const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
+    isIpInNetworks(req.ip, config.allowedNetworks ?? [], true);
+
     // Outbound connection mode: the server dials this agent instead of the other way
     // round. Registration is only possible while a one-time secret is configured and no
     // auth token exists yet.
     fastify.get(
         "/ws/register",
         { websocket: true },
-        (socket: any, _req: FastifyRequest) => {
+        (socket: any, req: FastifyRequest) => {
+            if (!isFromAllowedNetwork(req)) {
+                logger.warn(
+                    { ip: req.ip },
+                    "Registration connection denied: not in allowed networks",
+                );
+                socket.close(4003, "Access denied");
+                return;
+            }
             if (config.authToken) {
                 socket.close(4003, "Already registered");
                 return;
@@ -325,6 +349,15 @@ export async function startWebServer() {
         "/ws/agent",
         { websocket: true },
         (socket: any, req: FastifyRequest) => {
+            if (!isFromAllowedNetwork(req)) {
+                logger.warn(
+                    { ip: req.ip },
+                    "Agent connection denied: not in allowed networks",
+                );
+                socket.close(4003, "Access denied");
+                return;
+            }
+
             const token = (req.query as TokenQuery)?.token;
 
             if (!token || !config.authToken || token !== config.authToken) {

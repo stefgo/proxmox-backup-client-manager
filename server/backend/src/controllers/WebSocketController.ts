@@ -192,15 +192,11 @@ export class WebSocketController {
             return;
         }
 
-        // Strict IP Check (Skip if in trusted networks)
-        const trustedNetworks = appConfig.security?.trusted_networks || [];
-        const isTrusted = isIpInNetworks(clientIp, trustedNetworks, false);
-
         // Outbound clients are dialed BY the server and have no allowed address to check.
         const isInbound =
             client.connection_mode !== CONNECTION_MODE.OUTBOUND;
 
-        if (isInbound && !isTrusted && !isIpAllowed(clientIp, client.inbound_allowed_ip)) {
+        if (isInbound && !isIpAllowed(clientIp, client.inbound_allowed_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
                 expected: client.inbound_allowed_ip,
