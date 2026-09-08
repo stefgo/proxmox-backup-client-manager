@@ -16,6 +16,8 @@ import {
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
+import { CappedLog } from "../core/CappedLog.js";
+import { LogStream } from "../core/LogStream.js";
 import { TunnelClient, TunnelLease } from "./TunnelClient.js";
 import { probeCertificate } from "@pbcm/shared/node";
 
@@ -406,8 +408,11 @@ export class Executor {
         };
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
-        let stdoutBuffer = "";
-        let stderrBuffer = "";
+        // Bounded, because all three destinations of this output — memory for the length
+        // of the run, a SQLite BLOB, and the sync to the server — pay for every byte.
+        const stdoutLog = new CappedLog(config.logCapBytes);
+        const stderrLog = new CappedLog(config.logCapBytes);
+        const logStream = new LogStream(runId);
 
         // A job configured for the tunnel reaches the PBS only through it. The lease is
         // requested here, immediately before the spawn, and released again in every exit
@@ -468,14 +473,13 @@ export class Executor {
             source.on("data", (data: Buffer) => {
                 const chunk = data.toString();
                 local.write(chunk);
-                if (channel === "stdout") stdoutBuffer += chunk;
-                else stderrBuffer += chunk;
+                if (channel === "stdout") stdoutLog.append(chunk);
+                else stderrLog.append(chunk);
                 logger.debug({ output: chunk }, channel);
-                Connection.send(WS_EVENTS.LOG_UPDATE, {
-                    jobId: runId,
-                    output: chunk,
-                    stream: channel,
-                });
+                // Batched rather than one frame per chunk: a chatty run produced
+                // thousands of tiny messages, each of which the server then fanned out
+                // to every open dashboard.
+                logStream.push(channel, chunk);
             });
         };
         pipeOutput(child.stdout, process.stdout, "stdout");
@@ -485,10 +489,20 @@ export class Executor {
             TunnelClient.release(lease);
             lease = undefined;
             this.removeTempKeyfile(keyfilePath);
+            // Before the status update below: the batched log frames are display-only,
+            // but they must not arrive after the message that says the run is over.
+            logStream.close();
 
             const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
             const endTime = new Date().toISOString();
             logger.info(`${jobType} ${runId} finished with code ${code}`);
+
+            if (stdoutLog.truncated || stderrLog.truncated) {
+                logger.warn(
+                    { runId, logCapBytes: config.logCapBytes },
+                    "Run output exceeded logCapBytes; the middle was dropped from the stored log",
+                );
+            }
 
             try {
                 JobHistoryRepository.finishJob(
@@ -496,8 +510,8 @@ export class Executor {
                     status,
                     endTime,
                     code,
-                    stdoutBuffer || null,
-                    stderrBuffer || null,
+                    stdoutLog.toDbValue(),
+                    stderrLog.toDbValue(),
                 );
             } catch (e) {
                 logger.error({ err: e }, "DB Update Error");
@@ -511,8 +525,8 @@ export class Executor {
                 status: status,
                 exitCode: code ?? undefined,
                 endTime: endTime,
-                stdout: stdoutBuffer,
-                stderr: stderrBuffer,
+                stdout: stdoutLog.toString(),
+                stderr: stderrLog.toString(),
                 type: jobType,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
@@ -531,7 +545,7 @@ export class Executor {
 
                     logger.error("Post-execution script failed.");
                     const stderrWithScript =
-                        (stderrBuffer || "") + "\nPost-execution script failed.";
+                        stderrLog.toString() + "\nPost-execution script failed.";
 
                     const downgraded: ProtocolMap["STATUS_UPDATE"]["req"] = {
                         id: runId,
@@ -541,7 +555,7 @@ export class Executor {
                         status: JOB_STATUS.FAILED,
                         exitCode: code ?? undefined,
                         endTime: endTime,
-                        stdout: stdoutBuffer,
+                        stdout: stdoutLog.toString(),
                         stderr: stderrWithScript,
                         type: jobType,
                     };
@@ -566,11 +580,12 @@ export class Executor {
             lease = undefined;
             releaseSlotIfHeld();
             this.removeTempKeyfile(keyfilePath);
+            logStream.close();
             logger.error({ err: err }, "Spawn Error");
 
             const errorMsg = err.message;
             const endTime = new Date().toISOString();
-            stderrBuffer += "\nSpawn Error: " + errorMsg;
+            stderrLog.append("\nSpawn Error: " + errorMsg);
 
             const errorPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
                 id: runId,
@@ -580,7 +595,7 @@ export class Executor {
                 status: JOB_STATUS.FAILED,
                 endTime: endTime,
                 error: errorMsg,
-                stderr: stderrBuffer,
+                stderr: stderrLog.toString(),
                 type: jobType,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, errorPayload);
@@ -594,7 +609,7 @@ export class Executor {
                     endTime,
                     null,
                     null,
-                    stderrBuffer || null,
+                    stderrLog.toDbValue(),
                 );
             } catch (e) {
                 logger.error({ err: e }, "DB Update Error (Spawn Failure)");
