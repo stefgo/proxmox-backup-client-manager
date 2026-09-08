@@ -355,17 +355,6 @@ function AppLayout() {
             },
         },
         {
-            id: 'jobs',
-            path: ['/jobs', '/jobs/new', '/jobs/:clientId/:jobId'],
-            nav: {
-                groupId: 'resources',
-                label: 'Jobs',
-                icon: HardDrive,
-                badge: `${stats.jobs.active}`,
-                onClick: () => navigate('/jobs'),
-            },
-        },
-        {
             id: 'repositories',
             path: ['/repositories', '/repository/:repoId', '/repository/:repoId/edit'],
             nav: {
@@ -374,6 +363,17 @@ function AppLayout() {
                 icon: ServerIcon,
                 badge: `${stats.repositories.active} / ${stats.repositories.total}`,
                 onClick: () => navigate('/repositories'),
+            },
+        },
+        {
+            id: 'jobs',
+            path: ['/jobs', '/jobs/new', '/jobs/:clientId/:jobId'],
+            nav: {
+                groupId: 'resources',
+                label: 'Jobs',
+                icon: HardDrive,
+                badge: `${stats.jobs.active}`,
+                onClick: () => navigate('/jobs'),
             },
         },
         {
