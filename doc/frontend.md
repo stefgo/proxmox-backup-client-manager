@@ -88,6 +88,27 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 - **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
 
+### Two realtime channels, and why
+
+Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
+
+**Into the stores** go `CLIENTS_UPDATE` and `TUNNEL_UPDATE`. These are *state*: a handful
+of messages describing something the whole application reads.
+
+**Through `lib/realtimeEvents.ts`** go `jobUpdate`, `logUpdate` and `jobNextRunUpdate`.
+These are a *stream*: log lines arrive many times a second for exactly one visible
+component, and holding them in a store would re-render every subscriber on every chunk.
+
+The emitter carries a typed event map, its payload types taken from `@pbcm/shared` — the
+same contracts the WebSocket messages are validated against, so the channel cannot drift
+from the socket that feeds it. `subscribe(type, handler)` returns the unsubscribe
+function, which a `useEffect` can return directly.
+
+This was `window.dispatchEvent(new CustomEvent('pbcm:log_update', …))` until the ARC-2
+cleanup. The decoupling was right; the transport was not — the payload type was *asserted*
+at each listener rather than guaranteed, the events were invisible to the React DevTools,
+and every subscriber needed an `as EventListener` cast to compile.
+
 ---
 
 Generic UI components (Buttons, Inputs, Cards, etc.) are primarily sourced from the external library **`@stefgo/react-ui-components`**. Components within `src/components/` in this project are reserved for domain-specific or complex composite views.

@@ -60,6 +60,14 @@ All protected routes require a valid JWT. The browser sends it as the `pbcm_sess
 Real-time communication is handled via WebSockets (using `@fastify/websocket`).
 The `WebSocketController` acts as the entry point, while `ProxyService` manages the lifecycle of these connections.
 
+`WebSocketController.ts` holds only the entry points its callers use — the two handshakes for `index.ts`, `handleOutboundAgentConnection` for `ClientConnector`. The rest sits under `controllers/websocket/`:
+
+| Module                  | Responsibility                                                                 |
+| :---------------------- | :----------------------------------------------------------------------------- |
+| `Heartbeat.ts`          | `attachHeartbeat(socket, onTimeout?)` — the 30-second ping/pong. Existed three times over, once per connection kind; the copies differed only in whether they logged the drop. |
+| `AgentMessageRouter.ts` | A `type → handler` table for everything an authenticated agent sends. Was an `if` chain of seven branches, so each message was compared against all seven. Same shape as `INBOUND_SCHEMAS` in the agent's `core/Connection.ts`. |
+| `TunnelLease.ts`        | Lease authorisation and the fingerprint handling. Together because that is where the tunnel's security property lives: the requesting client never names a host, the server derives the target from the job it pushed out. `repositoryTarget` lives here too, and `JobController` imports it from here. |
+
 - **Authentication**: Incoming agent connections are validated against tokens and IP restrictions. Dashboard connections authenticate with the `pbcm_session` cookie, which the browser attaches to the handshake itself — there is no token in the URL.
 - **Connection Management**: `ProxyService` tracks online agents and active dashboard sessions.
 - **Request correlation**: Requests to agents are tracked in one `pending` map keyed by `requestId`, and `handleAgentMessage` routes every incoming message through `resolvePending`. This replaced a per-request `message` listener on the agent's socket: that shape tripped Node's `MaxListenersExceededWarning` at eleven concurrent requests and re-parsed every arriving message once per attached listener. It mirrors `Connection.request` in the agent, which has always worked this way. A closing socket rejects the client's outstanding requests immediately instead of leaving each to its own timeout.

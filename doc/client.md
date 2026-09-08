@@ -73,6 +73,14 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
 
 ### 3. Job Executor (`src/features/Executor.ts`)
 
+`Executor` keeps the four entry points its callers use, the concurrency queue, and the orchestration. The steps of a run live under `features/execution/`:
+
+| Module               | Responsibility                                                                    |
+| :------------------- | :-------------------------------------------------------------------------------- |
+| `RunPreparation.ts`  | Everything both kinds of run need before the spawn: the temporary keyfile, the repository environment (`PBS_REPOSITORY`, `PBS_PASSWORD_FD`, `PBS_FINGERPRINT`), and the fingerprint resolution. Backup and restore each kept their own copy of this — the arrangement in which the keyfile cleanup already went missing once. |
+| `CommandBuilder.ts`  | `buildBackupArgs` / `buildRestoreArgs`. Pure functions with no I/O, and therefore the first part of the agent that can be checked without a running process. |
+| `ProcessRunner.ts`   | `runProxmoxClient`, `runScript`, `finishFailedRun` — everything that starts a child process and reports what became of it. Takes an `onSlotRelease` callback rather than knowing about the queue. |
+
 The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI binaries.
 
 - It translates abstract JSON job configurations into CLI arguments for `proxmox-backup-client backup` or `proxmox-backup-client restore`.
