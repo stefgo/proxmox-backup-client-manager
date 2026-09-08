@@ -209,6 +209,7 @@ export class ProxyService {
             version: client.version,
             connectionMode: client.connection_mode || CONNECTION_MODE.INBOUND,
             outboundTargetAddress: client.outbound_target_address,
+            inboundAllowedIp: client.inbound_allowed_ip,
             // Keyed on the tunnel itself, not on the connection mode: a tunnel is optional
             // in either mode, so an inbound client can have one and an outbound one can do
             // without. Whether a given run takes it is the job's own setting.
@@ -223,7 +224,11 @@ export class ProxyService {
 
     static updateClient(
         id: string,
-        data: { displayName?: string; outboundTargetAddress?: string },
+        data: {
+            displayName?: string;
+            outboundTargetAddress?: string;
+            inboundAllowedIp?: string;
+        },
     ) {
         let changed = false;
 
@@ -239,6 +244,14 @@ export class ProxyService {
             const info = ClientRepository.updateOutboundTargetAddress(
                 id,
                 data.outboundTargetAddress,
+            );
+            changed = changed || info.changes > 0;
+        }
+
+        if (data.inboundAllowedIp !== undefined) {
+            const info = ClientRepository.updateInboundAllowedIp(
+                id,
+                data.inboundAllowedIp,
             );
             changed = changed || info.changes > 0;
         }

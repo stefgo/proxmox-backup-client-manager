@@ -3,6 +3,9 @@ import {
     Client,
     CLIENT_STATUS,
     CONNECTION_MODE,
+    Ipv4OrCidrSchema,
+    isIpAllowed,
+    isWildcardNetwork,
     normaliseTargetAddress,
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
@@ -13,7 +16,10 @@ import { formatDate } from '../../../utils';
 
 interface ClientIdentityCardProps {
     client: Client;
-    onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
+    onSave: (
+        id: string,
+        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string },
+    ) => Promise<void>;
     /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
     onDirtyChange?: (dirty: boolean) => void;
     /**
@@ -37,6 +43,7 @@ interface ClientIdentityCardProps {
 export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: ClientIdentityCardProps) => {
     const [displayName, setDisplayName] = useState(client.displayName || '');
     const [targetAddress, setTargetAddress] = useState(client.outboundTargetAddress || '');
+    const [allowedIp, setAllowedIp] = useState(client.inboundAllowedIp || '');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
@@ -48,11 +55,41 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
     const addressInvalid =
         isOutbound && !!targetAddress.trim() && !normaliseTargetAddress(targetAddress);
 
+    // Same two rules the backend applies, so a rejected value is caught in the field
+    // instead of coming back as a request error. Unlike the wizard, empty is not valid
+    // here: `isIpAllowed` denies a client without a value, so saving one would lock the
+    // agent out of the server it is already talking to.
+    const allowedIpTrimmed = allowedIp.trim();
+    const allowedIpInvalid =
+        !isOutbound &&
+        !!allowedIpTrimmed &&
+        (!Ipv4OrCidrSchema.safeParse(allowedIpTrimmed).success ||
+            isWildcardNetwork(allowedIpTrimmed));
+
+    /**
+     * The agent cannot object to a value that shuts it out, and the mistake only surfaces
+     * at its next reconnect -- possibly hours later. The address of its last connect is
+     * the one piece of evidence available now, so the field says outright when the value
+     * under the cursor would not let that address back in.
+     */
+    const wouldLockOut =
+        !isOutbound &&
+        !!client.ipAddress &&
+        !!allowedIpTrimmed &&
+        !allowedIpInvalid &&
+        !isIpAllowed(client.ipAddress, allowedIpTrimmed);
+
     const isDirty =
         displayName !== (client.displayName || '') ||
-        (isOutbound && targetAddress !== (client.outboundTargetAddress || ''));
+        (isOutbound && targetAddress !== (client.outboundTargetAddress || '')) ||
+        (!isOutbound && allowedIp !== (client.inboundAllowedIp || ''));
 
-    const canSave = isDirty && !addressInvalid && !(isOutbound && !targetAddress.trim());
+    const canSave =
+        isDirty &&
+        !addressInvalid &&
+        !allowedIpInvalid &&
+        !(isOutbound && !targetAddress.trim()) &&
+        !(!isOutbound && !allowedIpTrimmed);
 
     useEffect(() => {
         onDirtyChange?.(isDirty);
@@ -70,6 +107,9 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                 // Only sent for outbound clients: the backend rejects the field for
                 // inbound ones, which have no target address to begin with.
                 outboundTargetAddress: isOutbound ? targetAddress.trim() : undefined,
+                // Mirror image of the line above: the backend rejects this field for
+                // outbound clients, which are dialed and never checked against one.
+                inboundAllowedIp: isOutbound ? undefined : allowedIpTrimmed,
             });
             setSaved(true);
         } catch (e) {
@@ -167,6 +207,32 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                         hint={`Leave empty to use the hostname (${client.hostname})`}
                         autoFocus
                     />
+
+                    {!isOutbound && (
+                        <Input
+                            label="Allowed IP or Network"
+                            value={allowedIp}
+                            onChange={(e) => { setAllowedIp(e.target.value); setSaved(false); }}
+                            placeholder="192.168.1.50 or 192.168.1.0/24"
+                            disabled={isSaving}
+                            error={allowedIpInvalid ? 'Enter an IPv4 address or a network in CIDR notation. A /0 network is not a restriction.' : undefined}
+                            hint={
+                                client.ipAddress
+                                    ? `Where the agent's connections must come from. Its last connection came from ${client.ipAddress}.`
+                                    : "Where the agent's connections must come from."
+                            }
+                        />
+                    )}
+
+                    {/* Not the field's `error`: the value is well-formed and storable, and
+                        the agent may well have moved on purpose. It is a consequence worth
+                        seeing before saving, not a reason to refuse. */}
+                    {wouldLockOut && (
+                        <p className="-mt-4 text-xs text-error leading-relaxed ml-1">
+                            This value would not let {client.ipAddress} back in — the agent
+                            is rejected at its next reconnect.
+                        </p>
+                    )}
 
                     {isOutbound && (
                         <Input

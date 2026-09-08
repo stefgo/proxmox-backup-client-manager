@@ -16,6 +16,15 @@ export const RepositorySchema = z.object({
     secret: z.string(),
 });
 
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation.
+ *
+ * Only v4: the pin is checked with `isIpInCidr` on the server, which works on
+ * 32-bit integers. Accepting a v6 literal here would store a value that check
+ * cannot evaluate.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
@@ -25,6 +34,17 @@ export const ClientSchema = z.object({
     version: z.string().optional(),
     connectionMode: z.enum(CONNECTION_MODE).optional(),
     outboundTargetAddress: z.string().optional(),
+    /**
+     * Inbound clients only: the address or network their connections must come from.
+     * Editable, because a client that moves is otherwise locked out with no way back --
+     * the agent cannot argue its own case, only the operator can.
+     */
+    inboundAllowedIp: Ipv4OrCidrSchema.optional(),
+    /**
+     * The address of the last successful agent connect. Nothing decides on it; it is here
+     * so the editor can show what `inboundAllowedIp` is about to be measured against.
+     */
+    ipAddress: z.string().optional(),
     /**
      * Whether SSH credentials are stored for this client, so its jobs and restores may
      * choose the tunnel. Independent of `connectionMode`: the tunnel is a route to the
@@ -120,15 +140,6 @@ export const RegistrationResponseSchema = z.object({
     token: z.string(),
     clientId: z.string(),
 });
-
-/**
- * A single IPv4 address or an IPv4 network in CIDR notation.
- *
- * Only v4: the pin is checked with `isIpInCidr` on the server, which works on
- * 32-bit integers. Accepting a v6 literal here would store a value that check
- * cannot evaluate.
- */
-export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
 
 export const TokenSchema = z.object({
     token: z.string(),

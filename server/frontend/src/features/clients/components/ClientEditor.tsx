@@ -8,7 +8,10 @@ import { ClientIdentityCard } from './ClientIdentityCard';
 
 interface ClientEditorProps {
     client: Client;
-    onSave: (id: string, data: { displayName?: string; outboundTargetAddress?: string }) => Promise<void>;
+    onSave: (
+        id: string,
+        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string },
+    ) => Promise<void>;
 }
 
 /**

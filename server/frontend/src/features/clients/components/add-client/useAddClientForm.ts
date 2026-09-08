@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Ipv4OrCidrSchema, ConnectionMode } from '@pbcm/shared';
+import { Ipv4OrCidrSchema, ConnectionMode, isWildcardNetwork } from '@pbcm/shared';
 
 export interface InboundForm {
     displayName: string;
@@ -29,9 +29,17 @@ const EMPTY_OUTBOUND: OutboundForm = {
     registrationSecret: '',
 };
 
-/** Empty is valid: without a pin the client is bound to the address it registers from. */
-export const isAllowedIpValid = (value: string): boolean =>
-    value.trim() === '' || Ipv4OrCidrSchema.safeParse(value.trim()).success;
+/**
+ * Empty is valid: without a value the client is bound to the address it registers from.
+ * A `/0` network is not -- it would accept every address and so switch the per-client
+ * check off, which is a decision that belongs in the trusted-network configuration
+ * rather than in a field that looks like a restriction.
+ */
+export const isAllowedIpValid = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (trimmed === '') return true;
+    return Ipv4OrCidrSchema.safeParse(trimmed).success && !isWildcardNetwork(trimmed);
+};
 
 /**
  * The whole state of the add-client wizard, held above the steps.

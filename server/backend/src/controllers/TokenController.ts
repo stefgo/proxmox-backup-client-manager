@@ -4,6 +4,7 @@ import {
     CreateRegistrationTokenSchema,
     RegistrationPayloadSchema,
     isIpInCidr,
+    isWildcardNetwork,
 } from "@pbcm/shared";
 import { firstIssue } from "../utils/validation.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
@@ -31,6 +32,18 @@ export const TokenController = {
         );
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+
+        // Rejected here as well as in the client editor: this is the other way a value
+        // reaches clients.inbound_allowed_ip, and a /0 there would switch the per-client
+        // address check off for every agent registered with this token.
+        if (
+            parsed.data.allowedIp !== undefined &&
+            isWildcardNetwork(parsed.data.allowedIp)
+        ) {
+            return reply.code(400).send({
+                error: "A /0 network allows every address and is not a valid pin",
+            });
         }
 
         const token = crypto.randomBytes(16).toString("hex");

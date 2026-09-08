@@ -123,6 +123,22 @@ export class ClientRepository {
             .run(address, id);
     }
 
+    /**
+     * Changes the address or network an inbound client's connections must come from.
+     * Only meaningful for those -- an outbound client is dialed by the server and is
+     * never checked against one.
+     */
+    static updateInboundAllowedIp(
+        id: string,
+        allowedIp: string,
+    ): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET inbound_allowed_ip = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'inbound'",
+            )
+            .run(allowedIp, id);
+    }
+
     static updateAuthSuccess(
         id: string,
         ipAddress: string,
