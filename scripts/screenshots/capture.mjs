@@ -1,0 +1,366 @@
+#!/usr/bin/env node
+/**
+ * Takes every screenshot that appears in docs/.
+ *
+ *     npm run screenshots              # rebuild the frontend, then capture
+ *     npm run screenshots -- --no-build
+ *
+ * No backend, no database and no agent are involved. The dashboard's data comes from
+ * Playwright's request interception (see fixtures.mjs) and the built bundle is served by
+ * the small static server next door, so a run is reproducible on any checkout and in CI.
+ *
+ * Three things keep the output stable between runs, which is what stops this from
+ * producing a fresh diff for all fourteen files every time it is invoked:
+ *
+ *   - the clock is frozen to fixtures.FIXED_NOW, so "2 hours ago" stays two hours ago,
+ *   - the timezone is pinned to UTC, so the same run does not render differently on a
+ *     laptop in Berlin and a runner in London,
+ *   - the version in the header is pinned to the root package.json (see PINNED_VERSION),
+ *     which otherwise carries the commit hash and a `-dirty` marker from git.
+ */
+import path from "path";
+import fs from "fs";
+import { execFileSync } from "child_process";
+import { fileURLToPath } from "url";
+import { chromium } from "playwright";
+import { serve } from "./serve.mjs";
+import * as fixtures from "./fixtures.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO = path.resolve(__dirname, "../..");
+
+const SPA_ROOT = path.join(REPO, "server/dist/public");
+const AGENT_ROOT = path.join(REPO, "client/src/web/public");
+const OUT = path.join(REPO, "docs/assets/screenshots");
+
+const SPA_PORT = 4173;
+const AGENT_PORT = 4174;
+
+/**
+ * 1440 wide at 2x. It is the narrowest desktop width that still shows the sidebar
+ * expanded -- below it the Dashboard collapses to the mobile navigation, which is not
+ * what a documentation page is trying to show. The height is only where a page starts;
+ * `fitToContent` below replaces it per shot.
+ */
+const WIDTH = 1440;
+const START_HEIGHT = 900;
+const SCALE = 2;
+
+/** Bounds for the fitted height: enough to look like an application, not a scroll of one. */
+const MIN_HEIGHT = 400;
+const MAX_HEIGHT = 1700;
+
+/** Breathing room below the last card, in place of `main`'s own generous pb-20. */
+const CONTENT_MARGIN = 24;
+
+/**
+ * The agent's pages are a single 400px-wide card centred in the viewport, so they are
+ * captured on a canvas of their own. At dashboard width the card would be a stamp in the
+ * middle of a very large dark rectangle.
+ */
+const AGENT_WIDTH = 640;
+const AGENT_MARGIN = 48;
+
+/**
+ * The version shown in the header. Read from the root package.json -- the single source
+ * of truth semantic-release maintains -- rather than derived from git, because
+ * vite.config.js otherwise appends the commit hash and, on a working tree with any
+ * change in it, `-dirty`. Both would put a value in the documentation that says more
+ * about the machine that ran this than about the release.
+ */
+const PINNED_VERSION = JSON.parse(
+    fs.readFileSync(path.join(REPO, "package.json"), "utf8"),
+).version;
+
+const json = (body) => ({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+});
+
+/**
+ * Answers the dashboard's REST calls from the fixtures.
+ *
+ * Anything not listed gets an empty 200 rather than falling through to the network: an
+ * unmocked endpoint would otherwise hit the static server, come back as index.html, and
+ * fail to parse somewhere deep in a store -- a confusing way to learn that a route is
+ * missing. The warning is the point, and a run that prints one needs a fixture added.
+ */
+async function mockDashboardApi(page) {
+    await page.route("**/api/**", async (route) => {
+        const p = new URL(route.request().url()).pathname;
+
+        const clientJobs = p.match(/^\/api\/v1\/clients\/([^/]+)\/jobs$/);
+        const clientHistory = p.match(/^\/api\/v1\/clients\/([^/]+)\/history$/);
+        const repoStatus = p.match(/^\/api\/v1\/repositories\/([^/]+)\/status$/);
+        const repoSnapshots = p.match(/^\/api\/v1\/repositories\/([^/]+)\/snapshots$/);
+
+        if (p === "/api/auth/config") return route.fulfill(json(fixtures.authConfig));
+        if (p === "/api/v1/me") return route.fulfill(json(fixtures.me));
+        if (p === "/api/v1/clients") return route.fulfill(json(fixtures.clients));
+        if (p === "/api/v1/repositories") return route.fulfill(json(fixtures.repositories));
+        if (p === "/api/v1/jobs") return route.fulfill(json(fixtures.jobsResponse));
+        if (p === "/api/v1/history") return route.fulfill(json(fixtures.historyResponse));
+        if (clientJobs) return route.fulfill(json(fixtures.jobsFor(clientJobs[1])));
+        if (clientHistory) return route.fulfill(json(fixtures.historyFor(clientHistory[1])));
+        if (repoSnapshots) {
+            return route.fulfill(
+                json(fixtures.snapshotsByRepository[repoSnapshots[1]] ?? []),
+            );
+        }
+        if (repoStatus) {
+            return route.fulfill(
+                json(fixtures.repositoryStatus[repoStatus[1]] ?? { status: "unknown" }),
+            );
+        }
+
+        console.warn(`  ! unmocked ${route.request().method()} ${p}`);
+        return route.fulfill(json({}));
+    });
+
+    // The dashboard socket would otherwise fail and retry on a timer, and a reconnect
+    // landing mid-capture repaints the page under the screenshot.
+    await page.routeWebSocket("**/ws/dashboard", () => {});
+}
+
+async function mockAgentApi(page, state) {
+    const answers = fixtures.agent[state];
+    await page.route("**/api/**", async (route) => {
+        const p = new URL(route.request().url()).pathname;
+        if (answers[p]) return route.fulfill(json(answers[p]));
+        console.warn(`  ! unmocked agent ${p}`);
+        return route.fulfill(json({}));
+    });
+}
+
+/**
+ * The SPA decides it is logged in by looking for a non-httpOnly companion cookie the
+ * server sets next to the JWT (SessionCookie.ts / apiFetch.ts). Setting it here is what
+ * lets the capture skip the login round trip entirely -- the flag carries no authority of
+ * its own, and every request it would authorise is answered by the mock above.
+ */
+async function newPage(context, { theme, authenticated }) {
+    const page = await context.newPage();
+    await page.clock.setFixedTime(fixtures.FIXED_NOW);
+    await page.addInitScript(
+        ([theme, authenticated]) => {
+            try {
+                localStorage.setItem("theme", theme);
+            } catch {
+                /* a headless context can refuse storage; the app defaults to dark */
+            }
+            if (authenticated) document.cookie = "pbcm_auth=1; path=/";
+        },
+        [theme, authenticated],
+    );
+    return page;
+}
+
+/**
+ * Waits for the page to stop moving. `networkidle` alone is not enough: the routes are
+ * lazy chunks, so the first paint can be the Suspense fallback with the network already
+ * quiet. Waiting for the fallback to disappear is what actually marks the route as
+ * mounted; the short pause after it settles the library's entry transitions.
+ */
+async function settle(page) {
+    await page.waitForLoadState("networkidle");
+    await page
+        .waitForFunction(() => !document.body.textContent.includes("Loading…"), null, {
+            timeout: 5_000,
+        })
+        .catch(() => {});
+    await page.waitForTimeout(350);
+}
+
+/**
+ * Shrinks the viewport to the height the page actually fills.
+ *
+ * A fixed 900px viewport left the shorter pages -- the client list is four rows -- half
+ * empty, and `fullPage: true` is not the answer either: the sidebar is `h-full` inside a
+ * viewport-height flex row, so a taller-than-viewport capture paints it against blank
+ * space below. Resizing the viewport instead lets the layout lay itself out at the new
+ * height, so the chrome stays full-bleed at any size.
+ *
+ * The measurement deliberately does not use `main.scrollHeight`: `main` is a flex child
+ * that fills the viewport, and a scroll container never reports less than its own client
+ * height -- on a short page it just echoes the height we are trying to replace. The
+ * bottom edge of its last child is the real content end.
+ */
+async function fitToContent(page) {
+    // CONTENT_MARGIN is passed in rather than closed over: the callback is serialised
+    // and run inside the page, where this module's bindings do not exist.
+    const needed = await page.evaluate((margin) => {
+        const main = document.querySelector("main");
+        if (!main) return document.documentElement.scrollHeight;
+
+        const children = [...main.children];
+        if (children.length === 0) return document.documentElement.scrollHeight;
+
+        // getBoundingClientRect is viewport-relative, and `main` scrolls: add back
+        // whatever is scrolled out of sight above.
+        const bottom = Math.max(...children.map((c) => c.getBoundingClientRect().bottom));
+        return bottom + main.scrollTop + margin;
+    }, CONTENT_MARGIN);
+
+    const height = Math.min(Math.max(Math.ceil(needed), MIN_HEIGHT), MAX_HEIGHT);
+    await page.setViewportSize({ width: WIDTH, height });
+    await page.waitForTimeout(250);
+}
+
+/**
+ * The agent counterpart of fitToContent. Its pages have no `main`; they are one
+ * `.container` card centred by the body's flex layout, so the card's own box is the only
+ * thing worth measuring.
+ */
+async function fitToCard(page, margin) {
+    const height = await page.evaluate((margin) => {
+        const card = [...document.querySelectorAll(".container")].find(
+            (c) => c.offsetParent !== null,
+        );
+        if (!card) return document.documentElement.scrollHeight;
+        return Math.ceil(card.getBoundingClientRect().height) + margin * 2;
+    }, margin);
+
+    await page.setViewportSize({ width: AGENT_WIDTH, height });
+    await page.waitForTimeout(250);
+}
+
+async function shoot(page, name) {
+    const file = path.join(OUT, `${name}.png`);
+    await page.screenshot({ path: file, animations: "disabled" });
+    const { width, height } = page.viewportSize();
+    console.log(`  ✓ ${path.relative(REPO, file)}  (${width}x${height})`);
+}
+
+/**
+ * The dashboard pages. Captured in both themes unless `themes` narrows it.
+ *
+ * Only the shots embedded on `docs/index.md` are pairs. That page is the site root, so a
+ * relative path resolves identically for MkDocs and for GitHub, and it can carry a raw
+ * `<picture>` that shows one image per theme in both renderers. Every other page sits a
+ * directory deep on the published site, where raw HTML would break -- those embed a
+ * single dark image, so there is no light variant worth capturing.
+ *
+ * `open` is how a shot reaches a route that cannot be loaded directly. `/client/:id`
+ * resolves its client out of the store, and on a cold load the guard in App.tsx redirects
+ * to the list before the first fetch returns -- so the detail page is reached the way an
+ * operator reaches it, by clicking the row.
+ */
+const DASHBOARD_SHOTS = [
+    // The login screen is one centred card with no `main` around it, so fitToContent has
+    // nothing to measure and it gets a canvas of its own instead.
+    {
+        name: "login",
+        route: "/login",
+        authenticated: false,
+        themes: ["dark"],
+        viewport: { width: 1000, height: 720 },
+    },
+    { name: "clients", route: "/clients" },
+    {
+        name: "client-detail",
+        route: "/clients",
+        open: async (page) => {
+            // Not `exact`: the cell holds the display name and the hostname as
+            // separate spans, and the node that carries the name has padding text of
+            // its own.
+            await page.getByText("PostgreSQL Primary").first().click();
+            await page.waitForURL(/\/client\//);
+        },
+    },
+    { name: "jobs", route: "/jobs" },
+    { name: "repositories", route: "/repositories" },
+    { name: "history", route: "/history" },
+];
+
+/**
+ * The agent's own pages. Single-themed on purpose: client/src/web/public/styles.css
+ * defines one dark palette and no prefers-color-scheme block, so a light capture would be
+ * byte-identical and the docs would carry two copies of the same picture.
+ */
+const AGENT_SHOTS = [
+    { name: "agent-register", route: "/register", state: "unregistered" },
+    { name: "agent-status", route: "/status", state: "registered" },
+];
+
+function buildFrontend() {
+    console.log(`Building frontend at version ${PINNED_VERSION} …`);
+    execFileSync("npm", ["run", "build", "-w", "server/frontend"], {
+        cwd: REPO,
+        stdio: "ignore",
+        env: { ...process.env, VITE_APP_VERSION: PINNED_VERSION },
+    });
+}
+
+async function main() {
+    if (!process.argv.includes("--no-build")) {
+        buildFrontend();
+    }
+
+    if (!fs.existsSync(path.join(SPA_ROOT, "index.html"))) {
+        console.error(
+            `No built frontend at ${path.relative(REPO, SPA_ROOT)}. ` +
+                `Run \`npm run build\` first, or drop --no-build.`,
+        );
+        process.exit(1);
+    }
+
+    fs.mkdirSync(OUT, { recursive: true });
+
+    const spa = await serve({ root: SPA_ROOT, port: SPA_PORT, spaFallback: true });
+    const agent = await serve({ root: AGENT_ROOT, port: AGENT_PORT });
+    const browser = await chromium.launch();
+
+    try {
+        const context = await browser.newContext({
+            viewport: { width: WIDTH, height: START_HEIGHT },
+            deviceScaleFactor: SCALE,
+            locale: "en-US",
+            timezoneId: "UTC",
+            reducedMotion: "reduce",
+        });
+
+        console.log("Dashboard:");
+        for (const shot of DASHBOARD_SHOTS) {
+            for (const theme of shot.themes ?? ["light", "dark"]) {
+                const page = await newPage(context, {
+                    theme,
+                    authenticated: shot.authenticated !== false,
+                });
+                await mockDashboardApi(page);
+                if (shot.viewport) await page.setViewportSize(shot.viewport);
+                await page.goto(`${spa.origin}${shot.route}`);
+                await settle(page);
+                if (shot.open) {
+                    await shot.open(page);
+                    await settle(page);
+                }
+                if (!shot.viewport) await fitToContent(page);
+                await shoot(page, `${shot.name}-${theme}`);
+                await page.close();
+            }
+        }
+
+        console.log("Client agent:");
+        for (const shot of AGENT_SHOTS) {
+            const page = await context.newPage();
+            await page.setViewportSize({ width: AGENT_WIDTH, height: START_HEIGHT });
+            await page.clock.setFixedTime(fixtures.FIXED_NOW);
+            await mockAgentApi(page, shot.state);
+            await page.goto(`${agent.origin}${shot.route}`);
+            await settle(page);
+            await fitToCard(page, AGENT_MARGIN);
+            await shoot(page, shot.name);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+        await spa.close();
+        await agent.close();
+    }
+}
+
+main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

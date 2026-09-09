@@ -139,6 +139,48 @@ PBCM sets up and tears down around the run.
 - **Authentication** — local admin accounts and OIDC single sign-on.
 - **Daily maintenance** — automatic cleanup of old histories and schedule state.
 
+## The dashboard
+
+<figure>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/clients-dark.png">
+    <img src="assets/screenshots/clients-light.png" alt="The client list, showing four managed hosts and their online status">
+  </picture>
+  <figcaption>Every managed host in one list. The dot is a live agent connection rather than a stored field &mdash; the sidebar badge counts the same thing.</figcaption>
+</figure>
+
+<figure>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/client-detail-dark.png">
+    <img src="assets/screenshots/client-detail-light.png" alt="A single client with its backup jobs, snapshots and run history">
+  </picture>
+  <figcaption>One client: the jobs assigned to it, the snapshots it owns on the PBS, and its own run history.</figcaption>
+</figure>
+
+<figure>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/jobs-dark.png">
+    <img src="assets/screenshots/jobs-light.png" alt="Backup jobs across all clients, with the most recent runs below them">
+  </picture>
+  <figcaption>Jobs across every client, with the last runs beneath them &mdash; including one still in flight.</figcaption>
+</figure>
+
+<figure>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/history-dark.png">
+    <img src="assets/screenshots/history-light.png" alt="The global run history">
+  </picture>
+  <figcaption>The global history, collected from every agent &mdash; including runs an agent performed while the server was unreachable.</figcaption>
+</figure>
+
+<figure>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/repositories-dark.png">
+    <img src="assets/screenshots/repositories-light.png" alt="The managed PBS repositories and their reachability">
+  </picture>
+  <figcaption>The managed PBS repositories. PBCM probes them over the HTTPS API; it stores no backup itself.</figcaption>
+</figure>
+
 ## The repository
 
 The diagram above is the deployment view. In the source tree, PBCM is an npm monorepo

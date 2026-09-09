@@ -187,6 +187,14 @@ changed afterwards**.
 Either way the agent writes the `clientId` and `authToken` it was issued into
 `client-config.yaml`, and the client turns online in the dashboard.
 
+![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
+
+*The agent's own registration form on port 3001, used by the inbound path. It stops being served once the agent holds an identity.*
+
+![The agent's status page, showing the configured server, the token and a live connection](assets/screenshots/agent-status.png)
+
+*The same port afterwards. `/status` checks the three things in order and skips the rest after the first failure, so the first red line is the one to fix.*
+
 ## 4. Give it a job
 
 Jobs are defined server-side, in the dashboard, and pushed to the agent over the

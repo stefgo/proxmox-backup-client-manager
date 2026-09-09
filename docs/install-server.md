@@ -85,6 +85,10 @@ docker compose logs -f pbcm-server
 
 Open <http://localhost:3000> and log in with `admin` / `admin`.
 
+![The PBCM sign-in form](assets/screenshots/login-dark.png)
+
+*The sign-in form. A single sign-on button replaces it when OIDC is configured — see [Configuration](setup.md).*
+
 !!! warning "Change the admin password"
 
     The default account is created on first start with a known password and the server

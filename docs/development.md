@@ -75,6 +75,41 @@ The two `plan-*.md` files are excluded from the site via `exclude_docs`. They ar
 documents, one still a draft; they stay readable on GitHub but are not in the published
 navigation or the search index.
 
+### Screenshots
+
+The images in `docs/assets/screenshots/` are generated, not captured by hand:
+
+```bash
+npm run screenshots              # rebuild the frontend, then capture
+npm run screenshots -- --no-build
+npx playwright install chromium  # once, before the first run
+```
+
+No backend, database, PBS or agent is involved. Playwright serves the built bundle from a
+local static server and answers every `/api/**` call from `scripts/screenshots/fixtures.mjs`,
+which is also what lets a client appear **online** — online means a live agent WebSocket,
+so a capture against a real database would document a dead system.
+
+Two consecutive runs produce byte-identical PNGs: the clock is frozen, the timezone is
+pinned to UTC, and the version in the header comes from the root `package.json` instead of
+from `git describe`. Without those three, every run would rewrite all fourteen files.
+
+Nothing type-checks the fixtures — they are serialised straight to JSON — so an API shape
+change has to be followed there by hand. A run that has fallen behind says so: an endpoint
+with no fixture logs `! unmocked GET /api/v1/…`, and **a clean run prints no warnings**.
+`scripts/screenshots/README.md` has the details.
+
+Where a screenshot comes as a light/dark pair, it is embedded as a raw `<picture>` with a
+`prefers-color-scheme` source, so GitHub and the published site each show exactly one
+image. **That only works on `index.md`.** MkDocs rewrites paths in Markdown links but not
+in HTML attributes, and every other page is published a directory deep
+(`install-server/index.html`), so its assets need `../assets/…` while GitHub needs
+`assets/…`. `index.md` is the site root, where the two agree.
+
+Every other page therefore embeds a **single dark image** with ordinary Markdown syntax —
+dark because that is what the application starts in. `capture.mjs` marks those shots
+`themes: ["dark"]` so no unused light variant is produced.
+
 ## Review Before the Commit
 
 There is no test suite, so `npm run typecheck -w server/frontend` and a review of the diff are
