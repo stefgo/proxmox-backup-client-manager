@@ -153,20 +153,6 @@ DHCP without a reservation. Turn it on where the address is fixed and the token 
 otherwise be usable from anywhere: it is the only check that ties an address to *one*
 client rather than to all of them.
 
-> **Upgrade note:** `security.trusted_networks` no longer exists. It used to skip the
-> per-client address check for agents connecting from a listed network, which meant a
-> client whose address had drifted (DHCP, for example) still connected. Such a client is
-> now refused at its next reconnect. Before upgrading, compare each inbound client's last
-> seen address with its allowed one, and either correct it in the client editor or untick
-> the restriction there:
->
-> ```sql
-> SELECT id, hostname, ip_address, inbound_allowed_ip FROM clients
-> WHERE connection_mode = 'inbound' AND ip_address IS NOT NULL;
-> ```
->
-> A leftover `trusted_networks:` key in an existing `config.yaml` is ignored.
-
 ### Client identity
 
 A client is identified by a pair: the `clientId` and the `authToken` in its `config.yaml`.
@@ -203,24 +189,3 @@ An agent that already holds an identity refuses to register again — `409` on t
 path, close code `4003 Already registered` in outbound mode. To re-register a host on
 purpose, remove `clientId` and `authToken` from its `config.yaml` first, and delete the
 client's old row in the UI afterwards. A restarted agent prints a fresh setup PIN.
-
-> **Upgrade note:** agents and server must be updated together. An older agent sends no
-> `clientId` and is refused at `/ws/agent` with close code `4001`.
->
-> **Inbound** clients need nothing beyond the agent update: their existing `clientId` is
-> already the one the server has, so the pair matches on the first attempt.
->
-> **Outbound** clients have to be set up once more. Their agent generated its own id, which
-> was never the id the server stored for them, so the pair can never match. Per client: stop
-> the agent, remove `clientId` and `authToken` from its `config.yaml`, set a new
-> `registrationSecret`, start it again, then delete the old client in the UI and add it again
-> through the wizard. Its `--backup-id` changes in the process — snapshots taken before the
-> upgrade stay under the old id and are not shown under the new client. They were never
-> attributed to it before either, because that mismatch is exactly what this change removes.
->
-> The affected clients are all of them in this list:
->
-> ```sql
-> SELECT id, hostname, outbound_target_address FROM clients
-> WHERE connection_mode = 'outbound';
-> ```

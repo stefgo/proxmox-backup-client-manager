@@ -127,8 +127,8 @@ Migrations run automatically at startup — the server applies its umzug migrati
 
     Server and agent speak one protocol version. An agent older than the server is
     refused at `/ws/agent` with close code `4001`. Plan the agent updates in the same
-    window, and read the upgrade notes in [Configuration](setup.md#client-identity)
-    before jumping across a release that has one.
+    window, and check the [release notes](https://github.com/stefgo/proxmox-backup-client-manager/releases)
+    before jumping across a release.
 
 ### Backing it up
 
