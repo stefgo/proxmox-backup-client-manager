@@ -31,7 +31,9 @@ The full documentation is published at
 **[stefgo.github.io/proxmox-backup-client-manager](https://stefgo.github.io/proxmox-backup-client-manager/)**
 and its sources live in the [`docs/`](./docs) directory:
 
-- [Installation & Setup](docs/install.md) - Detailed guide on how to build and run the project locally.
+- [Installing the Server](docs/install-server.md) - Running the control plane with Docker Compose.
+- [Installing a Client Agent](docs/install-client.md) - Running an agent on a machine you back up.
+- [Configuration](docs/setup.md) - Every `config.yaml` key and environment variable.
 - [API Documentation](docs/api.md) - Full specification of the REST and WebSocket APIs.
 - [Frontend Architecture](docs/frontend.md) - Overview of the React application structure, state management, and design system.
 - [Backend Architecture](docs/backend.md) - Controllers, services, WebSocket protocol, and database schema.
@@ -60,9 +62,11 @@ services:
             - NODE_ENV=production
 ```
 
-1. Copy `server/config.example.yaml` to `server-config.yaml` and configure your settings (like OIDC).
+1. Copy `server/config.example.yaml` to `server-config.yaml` — the file has to exist before the container starts, or Docker creates a directory in its place.
 2. Run `docker compose up -d`
-3. Access the dashboard at `http://localhost:3000` (Default credentials: `admin` / `admin`).
+3. Access the dashboard at `http://localhost:3000` (default credentials: `admin` / `admin` — change the password).
+
+Full walkthrough: [Installing the Server](docs/install-server.md).
 
 ### Client
 
@@ -74,6 +78,9 @@ services:
         container_name: pbcm-client
         # Use pbcm-client:latest for x86_64 or pbcm-client-arm64:latest for ARM64 (e.g. Raspberry Pi)
         image: ghcr.io/stefgo/pbcm-client:latest
+        ports:
+            # The local Web UI, needed once to register the agent
+            - "3001:3001"
         volumes:
             - ./client-config.yaml:/app/client/config.yaml
             - ./client-data:/app/client/data
@@ -84,9 +91,15 @@ services:
             - NODE_ENV=production
 ```
 
-1. Copy `client/config.example.yaml` to `client-config.yaml`.
-2. Provide the Server URL and a newly generated registration token (obtained from the web dashboard).
-3. Run `docker compose up -d`.
+`proxmox-backup-client` is part of the image — the host needs no Proxmox packages.
+
+1. Copy `client/config.example.yaml` to `client-config.yaml`. Leave `clientId` and `authToken` empty; the server issues both.
+2. Run `docker compose up -d`, then read the setup PIN from `docker compose logs pbcm-client`.
+3. Open `http://<this-host>:3001/register` and enter the server URL, a registration token from the dashboard, and the PIN.
+
+Note that a job's source paths are **container** paths: with the mount above, `/etc` is configured as `/mnt/host/etc`.
+
+Full walkthrough, including outbound mode: [Installing a Client Agent](docs/install-client.md).
 
 ## 🔧 Development
 
@@ -115,7 +128,8 @@ Steps 5 and 6 are separate processes. Only the Vite dev server gives you hot mod
 replacement; the backend serves the _built_ frontend from `server/dist/public`, so for
 a production-like check `npm run build` followed by step 5 alone is enough.
 
-See [Installation & Setup](docs/install.md) for the full guide.
+See the [Development Guide](docs/development.md) for the containerised dev environment,
+the release pipeline and how to build the images locally.
 
 ## 🤝 Contributing
 
