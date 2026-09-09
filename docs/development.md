@@ -367,12 +367,15 @@ RUN --mount=type=secret,id=npm_token \
 
 Where the value comes from:
 
-- **CI** – the `NPM_TOKEN` repository secret, a classic PAT with `read:packages`
-  (see `build.yml`). `ci.yml` gets by with the automatic `GITHUB_TOKEN`, which
-  is enough to read a public package.
+- **CI** – the automatic `GITHUB_TOKEN`, in every workflow. The package is public,
+  and reading a public package is all the token needs to do. `build.yml` used to
+  pass a separate `NPM_TOKEN` repository secret here, a classic PAT with
+  `read:packages`; it was the only ingredient of the pipeline with an expiry date,
+  and an expired one would have broken the image builds while `ci.yml` stayed
+  green. The secret still exists as a fallback but nothing reads it.
 - **Local builds** – `NPM_TOKEN` in the environment or in the root `.env`; both
   `compose.yaml` and `compose.dev.yaml` declare the secret as
-  `environment: NPM_TOKEN`.
+  `environment: NPM_TOKEN`. A personal access token with `read:packages` does it.
 
 Without it `npm ci` fails with `401 Unauthorized` on the `@stefgo` scope.
 

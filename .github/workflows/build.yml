@@ -16,6 +16,13 @@ on:
         # covers a tag pushed by hand, and would cover a prerelease (v1.4.0-beta.1)
         # the same way.
         tags: ["v*.*.*"]
+        # A commit that only touches documentation changes nothing inside the
+        # images, so it need not rebuild four of them. Path filters apply to
+        # branch pushes only -- neither workflow_dispatch nor a tag is affected,
+        # so the route a release takes to get here stays untouched.
+        paths-ignore:
+            - "docs/**"
+            - "**.md"
     workflow_dispatch: # Allows manual trigger in the Actions tab, for any branch
 
 # Pushing twice in a row to dev makes the older build pointless. Tag builds are
@@ -128,7 +135,7 @@ jobs:
                       APP_VERSION=${{ needs.prepare.outputs.version }}
                   # Pass GitHub token as secret for npm authentication
                   secrets: |
-                      npm_token=${{ secrets.NPM_TOKEN }}
+                      npm_token=${{ secrets.GITHUB_TOKEN }}
                   # Uses the automatically generated tags from above
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
@@ -186,7 +193,7 @@ jobs:
                   build-args: |
                       APP_VERSION=${{ needs.prepare.outputs.version }}
                   secrets: |
-                      npm_token=${{ secrets.NPM_TOKEN }}
+                      npm_token=${{ secrets.GITHUB_TOKEN }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha,scope=server-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=server-${{ matrix.arch }}

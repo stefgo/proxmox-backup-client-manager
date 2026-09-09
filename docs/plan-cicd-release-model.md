@@ -1,6 +1,6 @@
 # Plan: commit validation, branch roles and an explicit release
 
-**Status:** stages 1 and 2 implemented · **Created:** 2026-09-09 · **Rev. 2**
+**Status:** stages 1–3 implemented · **Created:** 2026-09-09 · **Rev. 3**
 
 > Written in English to match the rest of `docs/`, like the previous plan documents.
 > Excluded from the published site through `exclude_docs: plan-*.md` in `mkdocs.yml`;
@@ -16,7 +16,23 @@
 > - `docs/development.md` carried two further stale statements outside the *Release* section:
 >   `dev` described as the prerelease channel in *Documentation Site*, and a reference to
 >   "the two `plan-*.md` files" (there is one). Both corrected.
-> - Stages 3 (M9–M15) and 4 (M16, M17) remain open.
+>
+> Stage 3 is implemented as well (Rev. 3). Deviations there:
+> - **M13 was justified by something that is no longer true.** It assumed a lockfile
+>   generated on macOS without the Linux optionals. `package-lock.json` (version 3) holds
+>   all 25 rollup platform binaries with correct `os`/`cpu` metadata; simulating the
+>   install proves npm picks the right one by itself:
+>   `npm ci --dry-run --os=linux --cpu=x64` adds `@rollup/rollup-linux-x64-gnu`, and the
+>   `arm64` run adds its counterpart. The workaround was removed outright; no lockfile
+>   change was needed.
+> - **M10 was dropped** by decision of the maintainer. With releases now manual and rare,
+>   a permanent `if: always()` construction in the job graph outweighs saving a few
+>   minutes a year.
+> - M9 is confirmed by the repository's own documentation, which already recorded that
+>   `ci.yml` "gets by with the automatic `GITHUB_TOKEN`, which is enough to read a public
+>   package". The `NPM_TOKEN` secret is kept as a fallback but is no longer read.
+> - `init` is kept: it is the one local branch not merged into `main`.
+> - Stage 4 (M16, M17) remains open.
 
 ## 1. What prompted this
 

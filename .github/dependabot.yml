@@ -1,0 +1,27 @@
+version: 2
+
+# Only the actions. A pinned action does not age loudly -- it keeps working until the
+# runner drops the version, and then a workflow that nobody touched fails. One grouped
+# pull request a month is the cheapest way to notice.
+#
+# npm is deliberately absent. Four workspaces with a React, Fastify and build toolchain
+# produce a stream of version bumps that nobody can assess without a test suite, and this
+# project has none -- the pull requests would be merged unread or ignored, and both are
+# worse than not opening them. Security-relevant npm updates still arrive on their own:
+# Dependabot security updates need no configuration file.
+updates:
+    - package-ecosystem: github-actions
+      directory: "/"
+      schedule:
+          interval: monthly
+      # One pull request for all of them rather than one per action.
+      groups:
+          actions:
+              patterns: ["*"]
+      commit-message:
+          # Conventional Commits are enforced by .githooks/commit-msg, but Dependabot
+          # does not run it -- the prefix has to be configured here. `ci` keeps the
+          # bump out of the release notes, which is where an action update belongs.
+          prefix: "ci"
+      labels:
+          - dependencies
