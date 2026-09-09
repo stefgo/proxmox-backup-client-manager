@@ -11,7 +11,22 @@ import { TunnelController } from "../controllers/TunnelController.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
     // Auth
-    fastify.post("/login", AuthController.login);
+    // The one unauthenticated endpoint that guesses can be aimed at, and the default
+    // admin account exists until somebody changes it. Ten attempts per quarter hour is
+    // far above what a person typing a password needs and far below what guessing needs.
+    fastify.post(
+        "/login",
+        {
+            config: {
+                rateLimit: { max: 10, timeWindow: "15 minutes" },
+            },
+        },
+        AuthController.login,
+    );
+    // Unauthenticated on purpose: it only clears cookies, and a caller without a session
+    // has nothing to lose by it. Requiring a valid JWT would make an expired session
+    // impossible to log out of.
+    fastify.post("/auth/logout", AuthController.logout);
     fastify.get("/auth/config", AuthController.getConfig);
     fastify.get("/auth/login", AuthController.oidcLogin);
     fastify.get("/auth/callback", AuthController.oidcCallback);
@@ -28,6 +43,11 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                         reply.send(err);
                     }
                 });
+
+                // The session's own identity. Behind the JWT hook like everything else
+                // here, so an expired session answers 401 and the UI logs out through
+                // the same path as any other call.
+                protectedRoutes.get("/me", AuthController.me);
 
                 // Users
                 protectedRoutes.get("/users", UserController.list);
@@ -46,7 +66,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     ClientController.reconnect,
                 );
 
-                // SSH reverse tunnel (outbound clients only)
+                // SSH reverse tunnel — optional, and available in both connection modes
                 protectedRoutes.post("/tunnel/test", TunnelController.test);
                 protectedRoutes.post(
                     "/tunnel/keypair",
@@ -60,9 +80,17 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/tunnel",
                     TunnelController.get,
                 );
+                protectedRoutes.post(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.create,
+                );
                 protectedRoutes.put(
                     "/clients/:clientId/tunnel",
                     TunnelController.update,
+                );
+                protectedRoutes.delete(
+                    "/clients/:clientId/tunnel",
+                    TunnelController.remove,
                 );
                 protectedRoutes.post(
                     "/clients/:clientId/tunnel/test",

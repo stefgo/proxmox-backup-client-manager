@@ -1,9 +1,8 @@
 import path from "path";
 import fs from "fs";
-import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import YAML from "yaml";
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, "../../");
@@ -15,7 +14,12 @@ export interface ClientConfig {
     serverUrl?: string;
     websocketURL?: string;
     executable: string;
-    clientId: string;
+    /**
+     * The identity the server issued during registration, together with authToken.
+     * Absent until then: an agent has no id of its own, because the id is also the PBS
+     * `--backup-id` and the server is the side that decides which client that names.
+     */
+    clientId?: string;
     authToken?: string;
     /**
      * One-time secret for outbound mode: the server dials this agent and registers
@@ -33,10 +37,28 @@ export interface ClientConfig {
      * "Zieladresse" on the server side.
      */
     listenPort: number;
+    /**
+     * Networks the server may dial this agent from -- outbound mode only, where the two
+     * endpoints below are reachable for anyone who can route to `listenPort`. Empty means
+     * no restriction, as on the server side.
+     *
+     * Deliberately not applied to the local Web UI on the same port: that is the surface
+     * an operator uses to set the registration secret, and a list holding only the
+     * server's address would shut them out of it.
+     */
+    allowedNetworks?: string[];
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
     queueDelaySeconds?: number;
+    /**
+     * Bytes of stdout and stderr kept per run, each channel counted separately.
+     *
+     * The captured output is held in memory for the whole run, stored as a BLOB and then
+     * synced to the server, so an unbounded one costs three times over. Head and tail are
+     * kept with the middle dropped — see core/CappedLog.ts.
+     */
+    logCapBytes: number;
     retentionTime: number;
     preScript?: string;
     postScript?: string;
@@ -60,13 +82,14 @@ let configDoc: YAML.Document = new YAML.Document({});
 // Default Config
 export const config: ClientConfig = {
     executable: "proxmox-backup-client",
-    clientId: randomUUID(),
     tunnelAcquireJitterSeconds: 30,
     listenPort: parsePort(process.env.PBCM_CLIENT_PORT) ?? 3001,
+    allowedNetworks: [],
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
     queueDelaySeconds: 5,
+    logCapBytes: 256 * 1024,
     retentionTime: 90,
     preScript: undefined,
     postScript: undefined,
@@ -125,18 +148,17 @@ if (fs.existsSync(CONFIG_PATH)) {
     try {
         const fileContent = fs.readFileSync(CONFIG_PATH, "utf-8");
         configDoc = YAML.parseDocument(fileContent);
+        // Stays `any`: this is an operator-edited file whose contents are unknown by
+        // definition, and every field below is read defensively one at a time. A declared
+        // shape here would assert a structure the file is under no obligation to have.
         const loadedConfig = configDoc.toJS() as any;
 
         if (loadedConfig.executable) {
             config.executable = loadedConfig.executable;
         }
 
-        if (loadedConfig.clientId) {
+        if (typeof loadedConfig.clientId === "string") {
             config.clientId = loadedConfig.clientId;
-        } else {
-            // Save generated ID if not present in file
-            config.clientId = config.clientId; // Keep default
-            saveConfig();
         }
 
         if (loadedConfig.authToken) {
@@ -164,12 +186,29 @@ if (fs.existsSync(CONFIG_PATH)) {
             config.queueDelaySeconds = loadedConfig.queueDelaySeconds;
         }
 
+        // Floor rather than trust: a cap below a kilobyte would leave neither head nor
+        // tail worth reading, and CappedLog raises it anyway.
+        if (
+            typeof loadedConfig.logCapBytes === "number" &&
+            loadedConfig.logCapBytes >= 1024
+        ) {
+            config.logCapBytes = loadedConfig.logCapBytes;
+        } else if (loadedConfig.logCapBytes !== undefined) {
+            logger.warn(
+                `Ignoring invalid logCapBytes in config.yaml, using ${config.logCapBytes}`,
+            );
+        }
+
         if (typeof loadedConfig.retentionTime === "number") {
             config.retentionTime = loadedConfig.retentionTime;
         }
 
         if (typeof loadedConfig.registrationSecret === "string") {
             config.registrationSecret = loadedConfig.registrationSecret;
+        }
+
+        if (Array.isArray(loadedConfig.allowedNetworks)) {
+            config.allowedNetworks = loadedConfig.allowedNetworks;
         }
 
         // The environment variable wins: in a container it is set without touching the
@@ -209,11 +248,40 @@ if (fs.existsSync(CONFIG_PATH)) {
 logger.level = config.logLevel;
 
 /**
- * Stores the auth token the server generated during outbound registration.
+ * Stores the identity the server issued during registration. Both halves are written in
+ * one go: every later connection is checked as a pair, so a config holding one without
+ * the other could not connect and would have to be registered again anyway.
  */
-export function persistAuthToken(authToken: string): void {
+export function persistIdentity(clientId: string, authToken: string): void {
+    config.clientId = clientId;
     config.authToken = authToken;
     saveConfig();
+}
+
+/**
+ * True once this agent has been registered. Both values are set together, so either one
+ * answers the question -- checking both keeps a hand-edited config from getting halfway in.
+ *
+ * This is the gate for everything the agent does on its own: an unregistered client has no
+ * identity to run under, so it runs nothing. See core/Lifecycle.ts.
+ */
+export function isRegistered(): boolean {
+    return !!config.clientId && !!config.authToken;
+}
+
+/**
+ * The client's id for the places that cannot proceed without one. Throws instead of
+ * returning undefined: the callers are past the lifecycle gate, so a missing id there is a
+ * bug -- and the one caller that matters builds the PBS `--backup-id`, where carrying on
+ * without a value silently files the snapshot under the machine's hostname.
+ */
+export function requireClientId(): string {
+    if (!config.clientId) {
+        throw new Error(
+            "This client has no identity. It has to be registered before it can run anything.",
+        );
+    }
+    return config.clientId;
 }
 
 /**
@@ -236,5 +304,5 @@ export function deleteRegistrationSecret(): void {
  */
 export function isOutboundMode(): boolean {
     if (config.registrationSecret) return true;
-    return !!config.authToken && !config.serverUrl;
+    return isRegistered() && !config.serverUrl;
 }

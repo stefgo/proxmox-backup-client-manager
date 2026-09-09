@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useClientDetailStore } from "../stores/useClientDetailStore";
 import { HistoryEntry } from "@pbcm/shared";
+import { subscribe } from "../lib/realtimeEvents";
 
 export const useClientSubscription = (
     clientId: string | null,
@@ -18,19 +19,14 @@ export const useClientSubscription = (
     }, [onJobUpdate]);
 
     useEffect(() => {
-        const handleJobUpdate = (e: Event) => {
-            const { clientId: updateClientId, job } = (
-                e as CustomEvent<{ clientId: string; job: HistoryEntry }>
-            ).detail;
-            if (updateClientId === clientId) {
-                updateHistory(job);
-                updateLastHistory(job);
-                onJobUpdateRef.current?.(job);
-            }
-        };
-
-        window.addEventListener("pbcm:job_update", handleJobUpdate);
-        return () =>
-            window.removeEventListener("pbcm:job_update", handleJobUpdate);
+        // No cast: the payload shape comes from the event map, so a mismatch between
+        // what the provider emits and what this reads is a compile error, not a
+        // runtime surprise.
+        return subscribe("jobUpdate", ({ clientId: updateClientId, job }) => {
+            if (updateClientId !== clientId) return;
+            updateHistory(job);
+            updateLastHistory(job);
+            onJobUpdateRef.current?.(job);
+        });
     }, [clientId, updateHistory, updateLastHistory]);
 };

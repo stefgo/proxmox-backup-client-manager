@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
-import { useSearchParams } from 'react-router-dom';
 import { getErrorMessage } from '../utils';
 import { useTheme } from '../features/app/context/ThemeContext';
 import { LoginPage } from '@stefgo/react-ui-components';
 
+/**
+ * The one page that uses plain `fetch` instead of `apiFetch`, and deliberately so:
+ * both endpoints here are unauthenticated, and `apiFetch` turns a 401 into a logout
+ * plus redirect. Routed through it, a wrong password would bounce the user out of the
+ * login form instead of showing "Login failed". See the note in `lib/apiFetch.ts`.
+ */
 export default function Login() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [authType, setAuthType] = useState<'local' | 'oidc' | null>(null);
     const { login } = useAuth();
-    const [searchParams] = useSearchParams();
     const { theme, toggleTheme } = useTheme();
 
-    useEffect(() => {
-        const token = searchParams.get('token');
-        if (token) login(token);
-    }, [searchParams, login]);
+    // The OIDC return used to land here as /login?token=<JWT> and was picked up from the
+    // query string. It now sets the session cookie server-side and redirects to "/", so
+    // there is nothing left to read out of the URL.
 
     useEffect(() => {
         fetch('/api/auth/config')
@@ -33,10 +36,14 @@ export default function Login() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
+                // The response's value is its Set-Cookie header, which is only stored
+                // when the request opts into credentials.
+                credentials: 'same-origin',
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Login failed');
-            login(data.token);
+            // No token to pass on — the server has set the cookies on this response.
+            login();
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {

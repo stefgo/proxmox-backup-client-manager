@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { Archive, Repository as JobRepository } from '@pbcm/shared';
+import { Archive, Repository as JobRepository, ScheduleConfig } from '@pbcm/shared';
 import { FsFile } from '@stefgo/react-ui-components';
 import { ManagedRepository as Repository } from '@pbcm/shared';
 
@@ -36,8 +36,8 @@ export interface JobFormContextType {
     setScheduleEnabled: (val: boolean) => void;
     scheduleInterval: number;
     setScheduleInterval: (val: number) => void;
-    scheduleUnit: string;
-    setScheduleUnit: (val: string) => void;
+    scheduleUnit: ScheduleConfig['unit'];
+    setScheduleUnit: (val: ScheduleConfig['unit']) => void;
     scheduleWeekdays: string[];
     setScheduleWeekdays: (days: string[]) => void;
     scheduleStartDate: string;
@@ -46,6 +46,16 @@ export interface JobFormContextType {
     setScheduleStartTime: (val: string) => void;
 
     saveBackupJob: () => void;
+    /** True while the save request is in flight. */
+    isSaving: boolean;
+    /** Why the last save failed, shown in the editor's footer. */
+    saveError: string | null;
+    /** True while what is on screen is what was last stored. */
+    saved: boolean;
+    /** Whether anything was changed since the form was seeded or last saved. */
+    isDirty: boolean;
+    /** Whether the job is complete enough and changed enough to be worth saving. */
+    canSaveJob: boolean;
 
     // Repos
     repositories: Repository[];
@@ -60,6 +70,13 @@ export interface JobFormContextType {
     encryptionKeyContent: string | null;
     setEncryptionKeyContent: (val: string | null) => void;
     generateKey: () => Promise<boolean>;
+
+    // Tunnel
+    /** Whether this job reaches its repository through the client's SSH reverse tunnel. */
+    tunnelRequired: boolean;
+    setTunnelRequired: (val: boolean) => void;
+    /** Whether the client has SSH credentials at all — without them there is no choice. */
+    tunnelAvailable: boolean;
 }
 
 const JobFormContext = createContext<JobFormContextType | null>(null);

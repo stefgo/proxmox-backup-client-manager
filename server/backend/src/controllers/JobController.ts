@@ -2,18 +2,20 @@ import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
 import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
-import { WebSocketController } from "./WebSocketController.js";
+import { TunnelLease } from "./websocket/TunnelLease.js";
 
 /**
- * Outbound clients reach the PBS only through the SSH reverse tunnel. Their jobs carry
- * this marker so the agent knows it must obtain a lease before running. The loopback port
- * is deliberately NOT part of the job: it is allocated per forward and only known at
- * lease time, so the stored job keeps the real PBS URL.
+ * Whether a tunnel is available to this client's jobs at all.
+ *
+ * Availability is the client's side of it — the stored SSH credentials — and it is
+ * independent of the connection mode: an inbound client that cannot reach the PBS itself
+ * has a tunnel, an outbound client that can does without. Which jobs actually take it is
+ * each job's own `tunnel` setting, stored with the job and pushed to the agent with it.
  */
-function isTunneled(clientId: string): boolean {
-    return ClientRepository.findById(clientId)?.connection_mode === "outbound";
+function tunnelAvailable(clientId: string): boolean {
+    return ClientTunnelRepository.isConfigured(clientId);
 }
 
 export class JobController {
@@ -53,21 +55,26 @@ export class JobController {
                 .send({ error: parsed.error.issues[0].message });
         }
 
+        // Refused here rather than at run time: a job asking for a route the client has
+        // no credentials for would be saved happily and then fail on every execution,
+        // with the cause two screens away from the setting that caused it.
+        if (parsed.data.tunnel?.required && !tunnelAvailable(clientId)) {
+            return reply.code(400).send({
+                error: "This client has no SSH tunnel configured — add one from the client list first.",
+            });
+        }
+
         try {
-            const jobData = {
-                ...parsed.data,
-                tunnel: isTunneled(clientId) ? { required: true } : undefined,
-            };
             const result = await ProxyService.sendRequest(
                 clientId,
                 WS_EVENTS.JOB_SAVE_CONFIG,
-                { requestId: request.id, job: jobData },
+                { requestId: request.id, job: parsed.data },
             );
 
             if (result.success) {
                 // Refresh backend cache since the job was successfully saved on client
                 ProxyService.refreshJobCache(clientId).catch((e) => {
-                    import("../core/logger.js").then((m) =>
+                    import("@pbcm/shared/node").then((m) =>
                         m.logger.error(
                             { err: e, clientId },
                             "Failed to refresh cache after job save",
@@ -98,7 +105,7 @@ export class JobController {
             if (result.success) {
                 // Refresh backend cache
                 ProxyService.refreshJobCache(clientId).catch((e) => {
-                    import("../core/logger.js").then((m) =>
+                    import("@pbcm/shared/node").then((m) =>
                         m.logger.error(
                             { err: e, clientId },
                             "Failed to refresh cache after job delete",
@@ -143,23 +150,38 @@ export class JobController {
             repository: true,
             archives: true,
             encryption: true,
+            tunnel: true,
         }).safeParse(request.body);
         if (!parsed.success) {
             return reply
                 .code(400)
                 .send({ error: parsed.error.issues[0].message });
         }
-        const { snapshot, targetPath, repository, archives, encryption } =
+        const { snapshot, targetPath, repository, archives, encryption, tunnel } =
             parsed.data;
         const runId = randomUUID();
-        const tunneled = isTunneled(clientId);
+        // The route is the operator's choice here, exactly as it is for a backup job — and
+        // for the same reason: a client can reach one PBS directly and another only through
+        // the detour, so "credentials are stored" cannot answer it. It used to: a client
+        // with a tunnel restored through it from every repository, which was a route that
+        // always worked but was not always the right one, and could not be declined.
+        //
+        // The restore form asks the question next to the repository it is asked about, and
+        // the answer travels with this one request. Availability is only checked here, the
+        // same check the job save does.
+        const tunneled = !!tunnel?.required;
+        if (tunneled && !tunnelAvailable(clientId)) {
+            return reply.code(400).send({
+                error: "This client has no SSH tunnel configured — add one from the client list first.",
+            });
+        }
 
         try {
             if (tunneled) {
                 // A restore carries no jobId, so the client cannot reference a stored job
                 // when asking for its tunnel. Pre-authorise the target for this runId —
                 // the client still never names a host itself.
-                const target = WebSocketController.repositoryTarget(
+                const target = TunnelLease.repositoryTarget(
                     repository.baseUrl,
                 );
                 if (!target) {

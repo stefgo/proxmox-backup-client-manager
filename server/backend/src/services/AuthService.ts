@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import * as client from "openid-client";
 import { appConfig, getOidcConfig } from "../config/AppConfig.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { UserRepository } from "../repositories/UserRepository.js";
 
 // State store for PKCE
@@ -19,8 +19,11 @@ export class AuthService {
                 ? "local,oidc"
                 : "local";
             UserRepository.create("admin", hashedPassword, authMethods);
-            logger.info(
-                `Default admin user created (password: admin, allowed: ${authMethods})`,
+            // warn, not info: this is a known-credentials account on a control plane for
+            // backups, and it stays that way until somebody acts on this line.
+            logger.warn(
+                `Default admin user created with the password 'admin' (allowed: ${authMethods}). ` +
+                    "Change it after the first login.",
             );
         }
     }
@@ -133,6 +136,10 @@ export class AuthService {
             throw new Error("OIDC authentication not allowed for this user");
         }
 
-        return user;
+        // `username` is nullable on the row because the column is, but this row was found
+        // *by* that username, so here it cannot be null. Stated in the return value rather
+        // than asserted at the caller: the caller signs it into a JWT and has no way of
+        // knowing that the lookup already guaranteed it.
+        return { ...user, username };
     }
 }

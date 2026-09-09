@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
-import { Button } from '@stefgo/react-ui-components';
+import { Button, cn, FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 
 interface SshHostSetupSnippetProps {
-    token: string | null;
     privateKey: string;
     passphrase?: string;
     sshUser: string;
@@ -80,50 +79,50 @@ export const SshHostSetupSnippet = ({
     };
 
     return (
-        <div className="rounded border border-border dark:border-border-dark">
+        <div className="rounded border border-border">
             <button
                 type="button"
                 onClick={handleToggle}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary dark:text-text-primary-dark"
+                className={cn("w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-text-primary rounded", FOCUS_RING_INSET)}
             >
-                <span className="text-text-muted dark:text-text-muted-dark">
+                <span className="text-text-muted">
                     {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                 </span>
-                Einrichtung auf dem Client-Host (optional)
+                Setup on the client host (optional)
             </button>
 
             {open && (
-                <div className="px-4 pb-4 space-y-3 border-t border-border dark:border-border-dark pt-3">
+                <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
                     {!privateKey && (
-                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                        <p className="text-xs text-text-muted">
                             Generate or paste a key above first.
                         </p>
                     )}
 
                     {busy && (
-                        <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                        <p className="text-xs text-text-muted">
                             Deriving public key …
                         </p>
                     )}
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>
+                        <div className="text-sm text-error break-words">{error}</div>
                     )}
 
                     {publicKey && (
                         <>
-                            <pre className="overflow-x-auto rounded bg-card dark:bg-card-dark p-3 font-mono text-xs text-text-primary dark:text-text-primary-dark">
+                            <pre className="overflow-x-auto rounded bg-card p-3 font-mono text-xs text-text-primary">
                                 {snippet}
                             </pre>
                             <Button
                                 type="button"
                                 variant="secondary"
                                 onClick={handleCopy}
-                                icon={copied ? <Check size={16} /> : <Copy size={16} />}
+                                icon={copied ? Check : Copy}
                             >
                                 {copied ? 'Copied' : 'Copy Snippet'}
                             </Button>
-                            <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                            <p className="text-xs text-text-muted">
                                 <span className="font-mono">sshd_config</span> needs{' '}
                                 <span className="font-mono">AllowTcpForwarding yes</span>, which is the
                                 default. <span className="font-mono">GatewayPorts</span> is not required.

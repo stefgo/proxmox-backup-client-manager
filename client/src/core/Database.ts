@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_rename_history.js";
@@ -23,7 +23,7 @@ const db = new Database(dbPath);
 logger.info(`Database opened: ${dbPath}`);
 
 // Run umzug migrations
-const migrator = new Umzug({
+const migrator = new Umzug<Database.Database>({
     migrations: [
         { name: "00_initial", up: migration00.up, down: migration00.down },
         {
@@ -40,21 +40,21 @@ const migrator = new Umzug({
     context: db,
     storage: {
         async executed({ context }) {
-            (context as any).exec(
+            context.exec(
                 `CREATE TABLE IF NOT EXISTS umzug_migrations (name TEXT PRIMARY KEY)`,
             );
-            return (context as any)
+            return context
                 .prepare("SELECT name FROM umzug_migrations")
                 .all()
                 .map((r: any) => r.name);
         },
         async logMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("INSERT INTO umzug_migrations (name) VALUES (?)")
                 .run(name);
         },
         async unlogMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("DELETE FROM umzug_migrations WHERE name = ?")
                 .run(name);
         },

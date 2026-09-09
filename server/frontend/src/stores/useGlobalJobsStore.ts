@@ -1,20 +1,46 @@
 import { create } from "zustand";
-import { BackupJob, HistoryEntry } from "@pbcm/shared";
+import {
+    BackupJob,
+    GlobalHistoryEntry,
+    GlobalHistoryResponseSchema,
+    HistoryEntry,
+} from "@pbcm/shared";
 import { getErrorMessage } from "../utils";
 import { apiFetch } from "../lib/apiFetch";
+import { useClientStore } from "./useClientStore";
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
 }
 
+/**
+ * lastHistory mixes two shapes: rows fetched from GET /api/v1/history and entries
+ * pushed over the WebSocket, which arrive in the agent's HistoryEntry form. Both
+ * satisfy the list's BaseHistoryItem contract; nothing reads the fields where they
+ * differ (jobId vs jobConfigId).
+ *
+ * The list does read hostname/displayName, though (`showClientName`), and only the
+ * REST rows carry them -- an agent knows neither. updateSession therefore fills them
+ * in from the client store, so a job started here is not labelled "Unknown Client"
+ * until the next refetch.
+ */
+export type SessionHistoryItem =
+    | GlobalHistoryEntry
+    | (HistoryEntry & {
+          clientId: string;
+          hostname: string | null;
+          displayName: string | null;
+      });
+
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
-    lastHistory: HistoryEntry[];
+    lastHistory: SessionHistoryItem[];
     isLoading: boolean;
     error: string | null;
 
     fetchAllJobs: () => Promise<void>;
-    updateSession: (job: HistoryEntry) => void;
+    setClientJobs: (clientId: string, jobs: BackupJob[]) => void;
+    updateSession: (clientId: string, job: HistoryEntry) => void;
     updateJobNextRunAt: (
         clientId: string,
         jobId: string,
@@ -42,8 +68,21 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             const data: { clientId: string; jobs: BackupJob[] }[] =
                 await jobsRes.json();
 
-            const historyData = await historyRes.json();
-            const allHistory = historyData.success ? historyData.data : [];
+            // res.json() is any, so the rows are validated here rather than being
+            // asserted downstream. A shape change is reported once and degrades to
+            // an empty list instead of throwing inside the store.
+            const parsedHistory = GlobalHistoryResponseSchema.safeParse(
+                await historyRes.json(),
+            );
+            if (!parsedHistory.success) {
+                console.error(
+                    "Unexpected /api/v1/history payload:",
+                    parsedHistory.error.issues,
+                );
+            }
+            const allHistory: GlobalHistoryEntry[] = parsedHistory.success
+                ? parsedHistory.data.data
+                : [];
 
             // Flatten the array of { clientId, jobs[] } into GlobalJob[]
             const flattenedJobs: GlobalJob[] = [];
@@ -58,7 +97,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
 
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const initLastHistory = allHistory
-                .filter((j: any) => {
+                .filter((j) => {
                     const timeToCheck = j.endTime
                         ? new Date(j.endTime).getTime()
                         : new Date(j.startTime).getTime();
@@ -76,24 +115,60 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
         }
     },
 
-    updateSession: (job: HistoryEntry) =>
+    /**
+     * Replaces one client's jobs, fed by the server's JOBS_UPDATE broadcast.
+     *
+     * The server caches an agent's jobs only while it is connected, so the list a
+     * dashboard fetched on mount goes stale the moment a client comes online or drops.
+     * Replacing per client rather than refetching everything keeps the other clients'
+     * rows -- including their live nextRunAt -- untouched.
+     */
+    setClientJobs: (clientId, jobs) =>
+        set((state) => ({
+            globalJobs: [
+                ...state.globalJobs.filter((j) => j.clientId !== clientId),
+                ...jobs.map((job) => ({ ...job, clientId })),
+            ],
+        })),
+
+    updateSession: (clientId: string, job: HistoryEntry) =>
         set((state) => {
+            const client = useClientStore
+                .getState()
+                .clients.find((c) => c.id === clientId);
+            const entry: SessionHistoryItem = {
+                ...job,
+                clientId,
+                hostname: client?.hostname ?? null,
+                displayName: client?.displayName ?? null,
+            };
+
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const isWithin24Hours = (j: HistoryEntry) => {
+            const isWithin24Hours = (j: SessionHistoryItem) => {
                 const timeToCheck = j.endTime
                     ? new Date(j.endTime).getTime()
                     : new Date(j.startTime).getTime();
                 return timeToCheck > twentyFourHoursAgo;
             };
 
-            let updatedHistory;
-            const exists = state.lastHistory.find((j) => j.id === job.id);
+            // An existing row may already carry the client columns from the REST
+            // fetch, so the resolved ones only win where they actually resolved --
+            // an unknown client must not blank out a name that was already there.
+            const merge = (j: SessionHistoryItem): SessionHistoryItem => ({
+                ...j,
+                ...entry,
+                hostname: entry.hostname ?? j.hostname,
+                displayName: entry.displayName ?? j.displayName,
+            });
+
+            let updatedHistory: SessionHistoryItem[];
+            const exists = state.lastHistory.some((j) => j.id === job.id);
             if (exists) {
                 updatedHistory = state.lastHistory.map((j) =>
-                    j.id === job.id ? { ...j, ...job } : j,
+                    j.id === job.id ? merge(j) : j,
                 );
             } else {
-                updatedHistory = [job, ...state.lastHistory];
+                updatedHistory = [entry, ...state.lastHistory];
             }
 
             updatedHistory = updatedHistory

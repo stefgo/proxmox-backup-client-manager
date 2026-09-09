@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { JOB_STATUS, CLIENT_STATUS } from "./constants.js";
+import {
+    JOB_STATUS,
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    TUNNEL_STATUS,
+    REPOSITORY_STATUS,
+} from "./constants.js";
 import {
     ClientSchema,
     BackupJobSchema,
@@ -12,6 +18,7 @@ import {
     EncryptionConfigSchema,
     ScheduleConfigSchema,
     TokenSchema,
+    CreateRegistrationTokenSchema,
     SnapshotSchema,
     AuthPayloadSchema,
     RunJobPayloadSchema,
@@ -35,8 +42,10 @@ import {
     HistoryEntrySchema,
     HistoryResponseSchema,
     SyncHistoryPayloadSchema,
+    GlobalHistoryEntrySchema,
+    GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
-    TunnelDescriptorSchema,
+    TunnelModeSchema,
     TunnelConfigSchema,
     RegistrationRequestSchema,
     RegistrationResultSchema,
@@ -44,18 +53,30 @@ import {
     TunnelAcquireResultSchema,
     FingerprintObservedSchema,
     TunnelReleaseSchema,
+    LoginPayloadSchema,
+    CreateUserSchema,
+    UpdateUserSchema,
+    CleanupSettingsSchema,
+    HistoryQuerySchema,
+    PbsSnapshotSchema,
 } from "./schemas.js";
 
-export type ConnectionMode = "inbound" | "outbound";
-export type TunnelStatus = "idle" | "connecting" | "up" | "error";
-
 /**
- * Derived from the constants so the two can never drift apart. Note that the wire
- * schemas keep `status` as a plain string: an agent running an older build must not
- * have its STATUS_UPDATE dropped just because it reports a status we do not know yet.
+ * Every status vocabulary is derived from its constant, so the two can never drift
+ * apart -- the constant is the only place a value is written down, and the Zod enums in
+ * `schemas.js` are built from the same objects.
+ *
+ * Note that the wire schemas keep `status` as a plain string: an agent running an older
+ * build must not have its STATUS_UPDATE dropped just because it reports a status we do
+ * not know yet.
  */
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
+export type ConnectionMode =
+    (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MODE];
+export type TunnelStatus = (typeof TUNNEL_STATUS)[keyof typeof TUNNEL_STATUS];
+export type RepositoryStatus =
+    (typeof REPOSITORY_STATUS)[keyof typeof REPOSITORY_STATUS];
 
 export type RegistrationPayload = z.infer<typeof RegistrationPayloadSchema>;
 export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
@@ -64,7 +85,7 @@ export type Repository = z.infer<typeof RepositorySchema>;
 
 export interface ManagedRepository extends Repository {
     id: string | number;
-    status: "online" | "offline" | "unknown" | "loading";
+    status: RepositoryStatus;
     /** Last fingerprint a client reported for this repository. Informational only. */
     observed?: {
         fingerprint: string;
@@ -75,11 +96,14 @@ export interface ManagedRepository extends Repository {
 }
 
 export type Client = z.infer<typeof ClientSchema> & {
-    /** Runtime tunnel state, present for outbound clients only. Never persisted. */
+    /** Runtime tunnel state, present when SSH credentials are stored. Never persisted. */
     tunnel?: TunnelState;
 };
 
 export type Token = z.infer<typeof TokenSchema>;
+export type CreateRegistrationToken = z.infer<
+    typeof CreateRegistrationTokenSchema
+>;
 
 export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type Archive = z.infer<typeof ArchiveSchema>;
@@ -89,6 +113,15 @@ export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
+
+// REST request bodies
+
+export type LoginPayload = z.infer<typeof LoginPayloadSchema>;
+export type CreateUser = z.infer<typeof CreateUserSchema>;
+export type UpdateUser = z.infer<typeof UpdateUserSchema>;
+export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
+export type HistoryQuery = z.infer<typeof HistoryQuerySchema>;
+export type PbsSnapshot = z.infer<typeof PbsSnapshotSchema>;
 
 // WS Payloads
 
@@ -116,11 +149,13 @@ export type HistoryRequest = z.infer<typeof HistoryRequestSchema>;
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
+export type GlobalHistoryEntry = z.infer<typeof GlobalHistoryEntrySchema>;
+export type GlobalHistoryResponse = z.infer<typeof GlobalHistoryResponseSchema>;
 export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;
 
-export type TunnelDescriptor = z.infer<typeof TunnelDescriptorSchema>;
+export type TunnelMode = z.infer<typeof TunnelModeSchema>;
 export type TunnelConfig = z.infer<typeof TunnelConfigSchema>;
 export type RegistrationRequest = z.infer<typeof RegistrationRequestSchema>;
 export type RegistrationResult = z.infer<typeof RegistrationResultSchema>;

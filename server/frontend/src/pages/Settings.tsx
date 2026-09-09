@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import { RefreshCw, Settings as SettingsIcon, Sliders } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
-import { DataCard } from '@stefgo/react-ui-components';
+import { Card } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
+import { cn } from '@stefgo/react-ui-components';
+import { FOCUS_RING_INSET } from '@stefgo/react-ui-components';
 import { getErrorMessage } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 export default function Settings() {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: '30',
         retention_invalid_tokens_count: '10',
@@ -22,10 +25,10 @@ export default function Settings() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (token) {
+        if (isAuthenticated) {
             fetchSettings();
         }
-    }, [token]);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         if (cleanupResult) {
@@ -63,7 +66,10 @@ export default function Settings() {
                 body: JSON.stringify(settings)
             });
             if (!response.ok) {
-                throw new Error('Failed to save settings');
+                // The endpoint validates the body and names the offending field, so pass
+                // that through instead of a generic sentence — same as useRepositoryStore.
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to save settings');
             }
         } catch (e: unknown) {
             alert(getErrorMessage(e));
@@ -93,42 +99,43 @@ export default function Settings() {
     };
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <RefreshCw className="animate-spin text-primary" size={32} />
-            </div>
-        );
+        return <LoadingIndicator />;
     }
 
-    const tabBaseClass = "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer outline-none border-l-4 border-transparent";
+    // The tab fills the sidebar's width, so the ring is drawn inside it -- an
+    // outward one would be cut off by the panel border next to it.
+    const tabBaseClass = cn(
+        "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition duration-200 cursor-pointer border-l-4 border-transparent",
+        FOCUS_RING_INSET,
+    );
     const tabSelectedClass = "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <DataCard
-                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted dark:text-text-muted-dark" /> System Settings</span>}
-                className="p-0 overflow-visible"
-                noPadding={true}
+            <Card
+                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted" /> System Settings</span>}
+                className="overflow-visible"
+                padding="none"
             >
                 <Tabs className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 bg-app-bg dark:bg-app-bg-dark border-r border-border dark:border-border-dark py-4 flex flex-col gap-1">
+                    <TabList className="w-full md:w-64 bg-app-bg border-r border-border py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Sliders size={18} /> Common
                         </Tab>
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-white dark:bg-card-dark">
+                    <div className="flex-1 flex flex-col bg-card">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
                                 <div className="max-w-3xl space-y-8">
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of invalid client tokens
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
+                                            <p className="text-sm text-text-muted">
                                                 Define how long registration tokens are kept after they become invalid.
                                             </p>
                                         </div>
@@ -155,14 +162,14 @@ export default function Settings() {
                                         </div>
                                     </section>
 
-                                    <hr className="border-border dark:border-border-dark" />
+                                    <hr className="border-border" />
 
                                     <section>
                                         <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
                                                 Retention of global job history
                                             </h3>
-                                            <p className="text-sm text-text-muted dark:text-app-text-footer">
+                                            <p className="text-sm text-text-muted">
                                                 Define how long job execution history records are kept on the server.
                                             </p>
                                         </div>
@@ -191,15 +198,15 @@ export default function Settings() {
                                         </div>
                                     </section>
 
-                                    <hr className="border-border dark:border-border-dark" />
+                                    <hr className="border-border" />
 
                                     {/* One block, below both sections: the endpoint runs
                                         cleanupTokens() and cleanupJobHistory() together,
                                         so there is no such thing as a separate run. */}
-                                    <div className="p-4 bg-app-bg dark:bg-card-dark rounded-xl border border-border dark:border-border-dark flex items-center justify-between gap-4">
+                                    <div className="p-4 bg-app-bg rounded-xl border border-border flex items-center justify-between gap-4">
                                         <div>
-                                            <h4 className="text-sm font-bold text-text-primary dark:text-text-primary-dark">Manual Run</h4>
-                                            <p className="text-xs text-text-muted dark:text-text-muted-dark">Apply both retention rules above right now, using the settings as last saved.</p>
+                                            <h4 className="text-sm font-bold text-text-primary">Manual Run</h4>
+                                            <p className="text-xs text-text-muted">Apply both retention rules above right now, using the settings as last saved.</p>
                                         </div>
                                         <Button
                                             variant="secondary"
@@ -222,16 +229,16 @@ export default function Settings() {
                     </div>
                 </Tabs>
                 {/* Sticky Action Footer */}
-                <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark rounded-b-xl">
+                <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg rounded-b-xl">
                     <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2 rounded bg-primary hover:bg-primary-hover text-white font-bold flex items-center gap-2 shadow-glow-accent"
+                        className="shadow-glow-accent"
                     >
                         {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
                 </div>
-            </DataCard>
+            </Card>
         </div>
     );
 }

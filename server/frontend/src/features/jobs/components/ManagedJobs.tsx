@@ -1,32 +1,33 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { CLIENT_STATUS } from "@pbcm/shared";
+import { ConfirmDialog } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
 import { JobList } from "./JobList";
 import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
-import { ClientJobEditor } from "../../clients/components/ClientJobEditor";
-import { useJobForm } from "../../clients/hooks/useJobForm";
 import { useRepositoryStore } from "../../../stores/useRepositoryStore";
-import { useClientFileSystemStore } from "../../../stores/useClientFileSystemStore";
 import { GlobalJob } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 import { getErrorMessage } from "../../../utils";
 import { apiFetch } from "../../../lib/apiFetch";
 
 export const ManagedJobs = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
+    // The job itself, so the dialog can name it and its client -- one dialog, every row.
+    const [pendingDelete, setPendingDelete] = useState<GlobalJob | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     // Only the action: the repository list itself is read through getState() below,
     // so this view no longer re-renders on every repository status change.
     const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editingJob, setEditingJob] = useState<GlobalJob | null>(null);
-
     useEffect(() => {
-        if (!token) return;
+        if (!isAuthenticated) return;
         fetchAllJobs();
         // Read the two stores through getState() rather than the subscribed values:
         // this only fills them if they are still empty, and depending on their
@@ -35,16 +36,16 @@ export const ManagedJobs = () => {
         if (useRepositoryStore.getState().repositories.length === 0) {
             fetchRepositories();
         }
-    }, [token, fetchAllJobs, fetchClients, fetchRepositories]);
+    }, [isAuthenticated, fetchAllJobs, fetchClients, fetchRepositories]);
 
     useGlobalSubscription();
 
     const handleRefresh = () => {
-        if (token) fetchAllJobs();
+        if (isAuthenticated) fetchAllJobs();
     };
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
-        if (!token) return;
+        if (!isAuthenticated) return;
         try {
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
@@ -58,25 +59,30 @@ export const ManagedJobs = () => {
         }
     };
 
-    const handleDeleteJob = async (clientId: string, jobId: string) => {
-        if (!token) return;
+    const confirmDeleteJob = async () => {
+        if (!isAuthenticated || !pendingDelete) return;
+        setIsDeleting(true);
         try {
             const res = await apiFetch(
-                `/api/v1/clients/${clientId}/jobs/${jobId}`,
+                `/api/v1/clients/${pendingDelete.clientId}/jobs/${pendingDelete.id}`,
                 {
                     method: "DELETE",
                 },
             );
             if (!res.ok) throw new Error("Failed to delete job");
+            setPendingDelete(null);
             handleRefresh();
         } catch (e: unknown) {
+            // The dialog stays open so the retry is one click away.
             alert(getErrorMessage(e));
+        } finally {
+            setIsDeleting(false);
         }
     };
 
     const getClientStatus = (clientId: string) => {
         const client = clients.find((c) => c.id === clientId);
-        return client?.status || "offline";
+        return client?.status || CLIENT_STATUS.OFFLINE;
     };
 
     const getClientName = (clientId: string) => {
@@ -84,37 +90,26 @@ export const ManagedJobs = () => {
         return client?.displayName || client?.hostname || clientId;
     };
 
-    const handleEditJob = (job: GlobalJob) => {
-        setEditingJob(job);
-        // We need to bypass the standard startEditJob of useJobForm because it assumes a fixed clientId.
-        // Or we just re-mount the form when a job is selected.
-        setIsEditing(true);
+    /**
+     * The editor is a page of its own. Under `/jobs` rather than under the client, so the
+     * sidebar keeps marking the list this was opened from -- the client is carried in the
+     * path because the job is saved through its client's endpoint.
+     */
+    const openJobEditor = (job?: GlobalJob) => {
+        navigate(job ? `/jobs/${job.clientId}/${job.id}` : "/jobs/new", {
+            state: { from: "/jobs" },
+        });
     };
 
     if (isLoading && globalJobs.length === 0) {
         return (
-            <div className="p-8 text-center text-gray-500">Loading jobs...</div>
+            <div className="p-8 text-center text-text-muted">Loading jobs...</div>
         );
     }
 
     if (error) {
         return (
-            <div className="p-8 text-center text-red-500">Error: {error}</div>
-        );
-    }
-
-    if (isEditing && editingJob) {
-        // Render a dedicated JobEditor per selected job so the hook gets the right clientId on mount
-        return (
-            <JobsEditorWrapper
-                job={editingJob}
-                onCancel={() => setIsEditing(false)}
-                onSaveSuccess={() => {
-                    setIsEditing(false);
-                    setEditingJob(null);
-                    handleRefresh();
-                }}
-            />
+            <div className="p-8 text-center text-error">Error: {error}</div>
         );
     }
 
@@ -123,9 +118,15 @@ export const ManagedJobs = () => {
             <div>
                 <JobList
                     jobs={globalJobs}
-                    onEditJob={handleEditJob}
+                    onEditJob={openJobEditor}
+                    onCreateJob={() => openJobEditor()}
                     onTriggerJob={handleTriggerJob}
-                    onDeleteJob={handleDeleteJob}
+                    onDeleteJob={(clientId, jobId) => {
+                        const job = globalJobs.find(
+                            (j) => j.clientId === clientId && j.id === jobId,
+                        );
+                        if (job) setPendingDelete(job);
+                    }}
                     getClientStatus={getClientStatus}
                     getClientName={getClientName}
                 />
@@ -139,62 +140,23 @@ export const ManagedJobs = () => {
                     emptyMessage="No data available in the observation period."
                 />
             </div>
+
+            {/*
+              * The request runs through the agent (JOB_DELETE_CONFIG), which drops the
+              * config and its schedule state -- so it needs the client online, and the
+              * dialog says so. Deleted is the configuration, not the backups: the
+              * snapshots in the repository and the history rows both stay.
+              */}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                onClose={() => setPendingDelete(null)}
+                onConfirm={confirmDeleteJob}
+                title={`Delete job "${pendingDelete?.name}"?`}
+                description={`The agent on ${pendingDelete ? getClientName(pendingDelete.clientId) : ""} drops the job and its schedule, so the client has to be online for this. Snapshots already in the repository and the run history stay.`}
+                confirmLabel="Delete job"
+                variant="danger"
+                isConfirming={isDeleting}
+            />
         </div>
-    );
-};
-
-// Wrapper component to isolate the useJobForm hook with the specific clientId
-const JobsEditorWrapper = ({
-    job,
-    onCancel,
-    onSaveSuccess,
-}: {
-    job: GlobalJob;
-    onCancel: () => void;
-    onSaveSuccess: () => void;
-}) => {
-    const { token } = useAuth();
-    const { repositories } = useRepositoryStore();
-    const { fileList, isLoadingFiles, fetchFileList } =
-        useClientFileSystemStore();
-
-    const jobForm = useJobForm({
-        clientId: job.clientId,
-        onSaveSuccess: onSaveSuccess,
-    });
-
-    // Seeds the form from the selected job exactly once. Neither jobForm nor
-    // startEditJob keeps its identity across renders, so there is no honest
-    // dependency array to write here -- the guard does the job instead.
-    const seeded = useRef(false);
-    useEffect(() => {
-        if (seeded.current) return;
-        seeded.current = true;
-        jobForm.startEditJob(job);
-    });
-
-    useEffect(() => {
-        if (token && job.clientId) {
-            fetchFileList(job.clientId, jobForm.fileBrowserPath);
-        }
-    }, [jobForm.fileBrowserPath, token, job.clientId, fetchFileList]);
-
-    const customSetIsCreatingJob = (
-        val: boolean | ((prevState: boolean) => boolean),
-    ) => {
-        const newValue =
-            typeof val === "function" ? val(jobForm.isCreatingJob) : val;
-        jobForm.setIsCreatingJob(newValue);
-        if (!newValue) onCancel();
-    };
-
-    return (
-        <ClientJobEditor
-            {...jobForm}
-            setIsCreatingJob={customSetIsCreatingJob as any}
-            repositories={repositories}
-            fileList={fileList}
-            isLoadingFiles={isLoadingFiles}
-        />
     );
 };

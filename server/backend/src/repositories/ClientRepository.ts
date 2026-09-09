@@ -12,8 +12,8 @@ export interface ClientRow {
     display_name: string | null;
     auth_token: string | null;
     connection_mode: ConnectionMode;
-    /** Inbound clients only: the IP they registered from and are pinned to. */
-    inbound_registered_ip: string | null;
+    /** Inbound clients only: the IP or network their connections must come from. */
+    inbound_allowed_ip: string | null;
     /** Outbound clients only: the address the server dials. */
     outbound_target_address: string | null;
     ip_address: string | null;
@@ -34,18 +34,25 @@ export class ClientRepository {
             | undefined;
     }
 
-    /** Narrower than the other finders: this runs on every agent connect. */
-    static findByToken(
+    /**
+     * Resolves the identity an agent presents when it connects. Both halves have to
+     * match the same row: the id alone is no secret -- it is also the PBS `--backup-id`
+     * and therefore readable from any snapshot name -- and the token alone would let a
+     * client be whoever its token happens to belong to. Narrower than the other
+     * finders, because this runs on every agent connect.
+     */
+    static findByIdAndToken(
+        id: string,
         token: string,
     ):
-        | Pick<ClientRow, "id" | "inbound_registered_ip" | "connection_mode">
+        | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
         | undefined {
         return db
             .prepare(
-                "SELECT id, inbound_registered_ip, connection_mode FROM clients WHERE auth_token = ?",
+                "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE id = ? AND auth_token = ?",
             )
-            .get(token) as
-            | Pick<ClientRow, "id" | "inbound_registered_ip" | "connection_mode">
+            .get(id, token) as
+            | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
             | undefined;
     }
 
@@ -56,22 +63,24 @@ export class ClientRepository {
             .all() as ClientRow[];
     }
 
-    static upsert(
+    /**
+     * Creates an inbound client. A plain INSERT, deliberately: this used to be an
+     * upsert on the id the agent sent, which meant a caller holding a registration
+     * token could name an existing client and have its auth token replaced. Now the
+     * server picks the id, so a collision is a bug and should fail loudly.
+     */
+    static createInbound(
         id: string,
         hostname: string,
         authToken: string,
-        allowedIp: string,
+        allowedIp: string | null,
     ): void {
-        const stmt = db.prepare(`
-            INSERT INTO clients (id, hostname, auth_token, inbound_registered_ip, connection_mode, last_seen)
+        db.prepare(
+            `
+            INSERT INTO clients (id, hostname, auth_token, inbound_allowed_ip, connection_mode, last_seen)
             VALUES (?, ?, ?, ?, 'inbound', datetime('now'))
-            ON CONFLICT(id) DO UPDATE SET
-                hostname = excluded.hostname,
-                auth_token = excluded.auth_token,
-                inbound_registered_ip = excluded.inbound_registered_ip,
-                updated_at = datetime('now')
-        `);
-        stmt.run(id, hostname, authToken, allowedIp);
+        `,
+        ).run(id, hostname, authToken, allowedIp);
     }
 
     /**
@@ -121,6 +130,22 @@ export class ClientRepository {
                 "UPDATE clients SET outbound_target_address = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'outbound'",
             )
             .run(address, id);
+    }
+
+    /**
+     * Changes the address or network an inbound client's connections must come from.
+     * Only meaningful for those -- an outbound client is dialed by the server and is
+     * never checked against one.
+     */
+    static updateInboundAllowedIp(
+        id: string,
+        allowedIp: string | null,
+    ): { changes: number } {
+        return db
+            .prepare(
+                "UPDATE clients SET inbound_allowed_ip = ?, updated_at = datetime('now') WHERE id = ? AND connection_mode = 'inbound'",
+            )
+            .run(allowedIp, id);
     }
 
     static updateAuthSuccess(

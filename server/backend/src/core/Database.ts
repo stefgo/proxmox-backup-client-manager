@@ -7,7 +7,7 @@ import fs from "fs";
 // If run from server dir: data
 // Let's make it robust: relative to this file
 import { fileURLToPath } from "url";
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Umzug } from "umzug";
 import { migration00 } from "./migrations/00_initial.js";
 import { migration01 } from "./migrations/01_history.js";
@@ -15,6 +15,9 @@ import { migration02 } from "./migrations/02_client_version.js";
 import { migration03 } from "./migrations/03_job_history_timestamps.js";
 import { migration04 } from "./migrations/04_connection_mode.js";
 import { migration05 } from "./migrations/05_client_tunnels.js";
+import { migration06 } from "./migrations/06_drop_tunnel_last_error.js";
+import { migration07 } from "./migrations/07_token_registration_defaults.js";
+import { migration08 } from "./migrations/08_rename_inbound_allowed_ip.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -32,7 +35,7 @@ logger.info(`Database opened: ${dbPath}`);
 db.pragma("journal_mode = WAL");
 
 // Run umzug migrations
-const migrator = new Umzug({
+const migrator = new Umzug<Database.Database>({
     migrations: [
         { name: "00_initial", up: migration00.up, down: migration00.down },
         { name: "01_history", up: migration01.up, down: migration01.down },
@@ -56,25 +59,40 @@ const migrator = new Umzug({
             up: migration05.up,
             down: migration05.down,
         },
+        {
+            name: "06_drop_tunnel_last_error",
+            up: migration06.up,
+            down: migration06.down,
+        },
+        {
+            name: "07_token_registration_defaults",
+            up: migration07.up,
+            down: migration07.down,
+        },
+        {
+            name: "08_rename_inbound_allowed_ip",
+            up: migration08.up,
+            down: migration08.down,
+        },
     ],
     context: db,
     storage: {
         async executed({ context }) {
-            (context as any).exec(
+            context.exec(
                 `CREATE TABLE IF NOT EXISTS umzug_migrations (name TEXT PRIMARY KEY)`,
             );
-            return (context as any)
+            return context
                 .prepare("SELECT name FROM umzug_migrations")
                 .all()
                 .map((r: any) => r.name);
         },
         async logMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("INSERT INTO umzug_migrations (name) VALUES (?)")
                 .run(name);
         },
         async unlogMigration({ name, context }) {
-            (context as any)
+            context
                 .prepare("DELETE FROM umzug_migrations WHERE name = ?")
                 .run(name);
         },

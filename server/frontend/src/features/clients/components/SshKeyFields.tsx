@@ -1,12 +1,11 @@
 import { useId, useState } from 'react';
 import { KeyRound, Check } from 'lucide-react';
-import { Button, Input } from '@stefgo/react-ui-components';
+import { Button, Input, RadioGroup, Radio, Textarea } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 
 export type SshKeyMode = 'keep' | 'generate' | 'manual';
 
 interface SshKeyFieldsProps {
-    token: string | null;
     mode: SshKeyMode;
     onModeChange: (mode: SshKeyMode) => void;
     privateKey: string;
@@ -62,36 +61,26 @@ export const SshKeyFields = ({
 
     const options: { value: SshKeyMode; label: string }[] = [
         ...(allowKeep ? [{ value: 'keep' as const, label: 'Keep stored key' }] : []),
-        { value: 'generate', label: 'Generate a key' },
+        { value: 'generate', label: 'Generate a new key' },
         { value: 'manual', label: 'Paste your own key' },
     ];
 
     return (
         <div className="space-y-3">
-            <div className="text-sm font-medium text-text-primary dark:text-text-primary-dark">
-                Key
-            </div>
-
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <RadioGroup
+                label="Key"
+                name={groupName}
+                orientation="horizontal"
+                value={mode}
+                onChange={(next) => { setError(null); onModeChange(next as SshKeyMode); }}
+            >
                 {options.map((o) => (
-                    <label
-                        key={o.value}
-                        className="flex items-center gap-2 text-sm text-text-primary dark:text-text-primary-dark cursor-pointer"
-                    >
-                        <input
-                            type="radio"
-                            name={groupName}
-                            value={o.value}
-                            checked={mode === o.value}
-                            onChange={() => { setError(null); onModeChange(o.value); }}
-                        />
-                        {o.label}
-                    </label>
+                    <Radio key={o.value} value={o.value} label={o.label} />
                 ))}
-            </div>
+            </RadioGroup>
 
             {mode === 'keep' && (
-                <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                <p className="text-xs text-text-muted">
                     The stored key stays unchanged.
                 </p>
             )}
@@ -104,17 +93,17 @@ export const SshKeyFields = ({
                         onClick={handleGenerate}
                         disabled={busy}
                         isLoading={busy}
-                        icon={<KeyRound size={16} />}
+                        icon={KeyRound}
                     >
                         {generated ? 'Regenerate' : 'Generate Key Pair'}
                     </Button>
                     {generated && (
-                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
+                        <div className="flex items-center gap-2 text-sm text-success">
                             <Check size={16} />
                             ed25519 key generated
                         </div>
                     )}
-                    <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                    <p className="text-xs text-text-muted">
                         No passphrase — the server uses the key unattended. It is only stored,
                         never handed back out.
                     </p>
@@ -123,13 +112,15 @@ export const SshKeyFields = ({
 
             {mode === 'manual' && (
                 <div className="space-y-3">
-                    <textarea
+                    <Textarea
+                        label="Private Key"
+                        required
                         value={privateKey}
                         onChange={(e) => onPrivateKeyChange(e.target.value)}
                         rows={5}
                         spellCheck={false}
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                        className="w-full font-mono text-xs p-2 rounded border border-border dark:border-border-dark bg-card dark:bg-card-dark text-text-primary dark:text-text-primary-dark"
+                        classNames={{ textarea: 'font-mono text-xs' }}
                     />
                     <Input
                         label="Passphrase (optional)"
@@ -140,7 +131,7 @@ export const SshKeyFields = ({
                 </div>
             )}
 
-            {error && <div className="text-sm text-red-600 dark:text-red-400 break-words">{error}</div>}
+            {error && <div className="text-sm text-error break-words">{error}</div>}
         </div>
     );
 };

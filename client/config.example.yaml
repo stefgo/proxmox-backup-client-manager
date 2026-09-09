@@ -32,6 +32,22 @@ tunnelAcquireJitterSeconds: 30
 # The environment variable PBCM_CLIENT_PORT overrides this value.
 listenPort: 3001
 
+# Networks the server is allowed to dial this agent from, in CIDR notation.
+# Only relevant for outbound clients: in that mode the agent listens on every
+# interface of the host, and the two endpoints above are open to anyone who can
+# reach listenPort. It matters most for /ws/register, where the caller supplies the
+# auth token the agent then stores permanently.
+# Empty (the default) allows every address, which is how the agent behaved before
+# this setting existed.
+# The address checked is the peer of the TCP connection, so an agent behind a
+# reverse proxy must list the proxy's network, not the server's.
+# The local web UI on the same port is deliberately NOT restricted by this — it is
+# where the registration secret is entered, and locking it down here would shut the
+# operator out of the setup surface.
+# A wrong value can only be corrected on this host: the connection you would fix it
+# over is the one being refused.
+allowedNetworks: []
+
 # Executable name/path for proxmox-backup-client
 executable: "proxmox-backup-client"
 

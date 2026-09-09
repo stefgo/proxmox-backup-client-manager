@@ -1,14 +1,19 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { randomUUID } from "crypto";
-import { WS_EVENTS, BackupJob } from "@pbcm/shared";
-import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import {
-    probeCertificate,
+    WS_EVENTS,
+    CLIENT_STATUS,
+    REPOSITORY_STATUS,
+    BackupJob,
+    RepositorySchema,
+    PbsSnapshotListSchema,
     normalizeFingerprint,
-} from "../services/CertProbe.js";
+} from "@pbcm/shared";
+import { probeCertificate, logger } from "@pbcm/shared/node";
+import { firstIssue } from "../utils/validation.js";
+import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
 import { ProxyService } from "../services/ProxyService.js";
-import { logger } from "../core/logger.js";
 
 /**
  * Decides whether a job's embedded repository copy belongs to the given repository.
@@ -30,7 +35,7 @@ export class RepositoryController {
         return repos.map((repo) => ({
             ...repo,
             baseUrl: repo.base_url,
-            status: "unknown",
+            status: REPOSITORY_STATUS.UNKNOWN,
             observed: FingerprintObservations.get(repo.id),
         }));
     }
@@ -151,7 +156,7 @@ export class RepositoryController {
         }
 
         const skippedOffline = ProxyService.getClientsWithStatus()
-            .filter((c: any) => c.status !== "online")
+            .filter((c: any) => c.status !== CLIENT_STATUS.ONLINE)
             .map((c: any) => ({
                 clientId: c.id,
                 hostname: c.displayName || c.hostname,
@@ -191,23 +196,31 @@ export class RepositoryController {
             const res = await fetch(url, {
                 headers: { Authorization: authHeader },
                 signal: controller.signal,
-            } as any);
+            });
 
             clearTimeout(timeoutId);
 
             if (res.ok) {
-                return { status: "online" };
+                return { status: REPOSITORY_STATUS.ONLINE };
             } else {
-                return { status: "offline" };
+                return { status: REPOSITORY_STATUS.OFFLINE };
             }
         } catch (e) {
-            return { status: "offline" };
+            return { status: REPOSITORY_STATUS.OFFLINE };
         }
     }
 
     static async create(request: FastifyRequest, reply: FastifyReply) {
-        const { baseUrl, datastore, fingerprint, username, tokenname, secret } =
-            request.body as any;
+        // The full shape, not a partial one: RepositoryEditor checks the same four
+        // required fields before it submits and always sends the whole set.
+        const parsed = RepositorySchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { baseUrl, datastore, username, secret } = parsed.data;
+        // `?? null`: both columns are nullable, and better-sqlite3 refuses `undefined`.
+        const fingerprint = parsed.data.fingerprint ?? null;
+        const tokenname = parsed.data.tokenname ?? null;
         const id = randomUUID();
 
         RepositoryConfigRepository.create(
@@ -225,8 +238,14 @@ export class RepositoryController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { repositoryId } = request.params as { repositoryId: string };
-        const { baseUrl, datastore, fingerprint, username, tokenname, secret } =
-            request.body as any;
+        const parsed = RepositorySchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { baseUrl, datastore, username, secret } = parsed.data;
+        // `?? null`: both columns are nullable, and better-sqlite3 refuses `undefined`.
+        const fingerprint = parsed.data.fingerprint ?? null;
+        const tokenname = parsed.data.tokenname ?? null;
 
         const res = RepositoryConfigRepository.update(
             repositoryId,
@@ -275,13 +294,26 @@ export class RepositoryController {
             const res = await fetch(url, {
                 headers: { Authorization: authHeader },
                 signal: controller.signal,
-            } as any);
+            });
 
             clearTimeout(timeoutId);
 
             if (res.ok) {
-                const data = (await res.json()) as any;
-                return data.data.map((s: any) => ({
+                // PBS is an external system, so its answer is checked like any other
+                // input. Until now a response without `data` threw inside the map and
+                // surfaced as "Failed to connect to PBS" -- which was wrong, the
+                // connection had worked.
+                const parsed = PbsSnapshotListSchema.safeParse(
+                    await res.json(),
+                );
+                if (!parsed.success) {
+                    return reply.code(502).send({
+                        error: `Unexpected response from PBS: ${parsed.error.issues[0].message}`,
+                    });
+                }
+                // Spread first, then add the camelCase names: the kebab-case originals
+                // stay on the object, as they always have.
+                return parsed.data.data.map((s) => ({
                     ...s,
                     backupType: s["backup-type"],
                     backupId: s["backup-id"],

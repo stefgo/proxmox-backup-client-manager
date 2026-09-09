@@ -14,7 +14,7 @@ import {
 } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Executor } from "./Executor.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
@@ -142,8 +142,9 @@ export class Handlers {
             } = payload.job;
             const jobId = id || randomUUID();
 
-            // The tunnel marker must survive in the stored config: the executor reads it
-            // from there before a run and refuses to start an outbound job without it.
+            // The route belongs in the stored config: the executor reads it from there
+            // before a run, including a scheduled one the server never sees. It is not a
+            // cached copy of anything — this job's setting lives here and nowhere else.
             const configObj = {
                 archives: archives || [],
                 repository: repository || undefined,

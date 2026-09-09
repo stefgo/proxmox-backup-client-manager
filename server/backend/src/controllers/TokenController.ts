@@ -1,8 +1,13 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
+import {
+    CreateRegistrationTokenSchema,
+    RegistrationPayloadSchema,
+    isIpInCidr,
+} from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-
 import { ProxyService } from "../services/ProxyService.js";
 
 export const TokenController = {
@@ -13,14 +18,25 @@ export const TokenController = {
             createdAt: t.created_at,
             expiresAt: t.expires_at,
             usedAt: t.used_at,
+            displayName: t.display_name ?? undefined,
+            allowedIp: t.allowed_ip ?? undefined,
         }));
     },
 
     create: async (request: FastifyRequest, reply: FastifyReply) => {
+        // The body is optional: a token with neither value behaves exactly as
+        // it did before this endpoint learned about them.
+        const parsed = CreateRegistrationTokenSchema.safeParse(
+            request.body ?? {},
+        );
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+
         const token = crypto.randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        TokenRepository.create(token, expiresAt);
-        return { token, expiresAt };
+        TokenRepository.create(token, expiresAt, parsed.data);
+        return { token, expiresAt, ...parsed.data };
     },
 
     delete: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -30,7 +46,16 @@ export const TokenController = {
     },
 
     register: async (request: FastifyRequest, reply: FastifyReply) => {
-        const { token } = request.body as any;
+        // The one unauthenticated endpoint with a body, so the shape is checked before
+        // anything else happens. Ahead of the token lookup on purpose: a malformed request
+        // should not learn from the status code whether the token it sent exists.
+        const parsed = RegistrationPayloadSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { token } = parsed.data;
+        const hostname = parsed.data.hostname || "unknown";
+
         const tokenRow = TokenRepository.findValidByToken(token);
 
         if (!tokenRow) {
@@ -38,21 +63,52 @@ export const TokenController = {
         }
 
         try {
-            const clientId = (request.body as any).clientId;
-            const hostname = (request.body as any).hostname || "unknown";
+            // A token bound to a network may only be redeemed from inside it.
+            // Checked before anything is written: the agent consumes its
+            // one-time secret on a successful call, so a rejection has to leave
+            // the token unused.
+            if (
+                tokenRow.allowed_ip &&
+                !isIpInCidr(request.ip, tokenRow.allowed_ip)
+            ) {
+                request.log.warn({
+                    msg: "Registration denied: address outside the token's network",
+                    ip: request.ip,
+                    expected: tokenRow.allowed_ip,
+                });
+                return reply.code(403).send({
+                    error: "Registration is not allowed from this address",
+                });
+            }
 
-            if (!clientId)
-                return reply.code(400).send({ error: "Missing clientId" });
-
-            // Generate Auth Token
+            // The server issues the identity, both halves of it. The agent brings
+            // nothing: an id it chose itself could name a client that already exists,
+            // and the insert below would then have to decide whose row that is.
+            const clientId = crypto.randomUUID();
             const authToken = crypto.randomBytes(64).toString("hex");
 
-            // Capture IP (Requires trustProxy: true in Fastify config if behind proxy)
-            const allowedIp = request.ip;
+            // Only the operator's choice is a decision, so only it is stored. The
+            // address the agent happens to dial from used to be kept as a fallback
+            // pin, which bound clients to an address nobody had picked -- a container
+            // on a bridge network then locked itself out the next time its subnet
+            // changed. Without a choice the column stays NULL and the check is off.
+            const allowedIp = tokenRow.allowed_ip ?? null;
 
             TokenRepository.markUsed(token);
 
-            ClientRepository.upsert(clientId, hostname, authToken, allowedIp);
+            ClientRepository.createInbound(
+                clientId,
+                hostname,
+                authToken,
+                allowedIp,
+            );
+
+            if (tokenRow.display_name) {
+                ClientRepository.updateDisplayName(
+                    clientId,
+                    tokenRow.display_name,
+                );
+            }
 
             ProxyService.broadcastClientUpdate();
 

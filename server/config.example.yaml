@@ -20,11 +20,15 @@ jwtSecret:
 jwtExpiresIn: "24h"
 
 # General server settings
+# The values below are the same ones the server falls back to when a key is missing, so
+# this block documents the defaults rather than changing them. A "0" is not "off": zero
+# days puts the cutoff at the current moment, and zero kept entries means nothing is
+# exempt from it -- together they delete everything eligible on the next cleanup run.
 settings:
     # Number of days an invalid token remains in the database before being deleted
-    retention_invalid_tokens_days: "0"
+    retention_invalid_tokens_days: "30"
     # Ensure at least this many invalid tokens are always kept, overriding the days setting if needed
-    retention_invalid_tokens_count: "0"
+    retention_invalid_tokens_count: "10"
     # Number of days job history entries remain in the database before being deleted
     retention_job_history_days: "90"
     # Ensure at least this many job history entries are kept per client
@@ -32,7 +36,18 @@ settings:
 
 # Security network settings
 security:
-    # List of CIDR subnets allowed to connect to the clients API endpoints. If empty, all are allowed.
+    # List of CIDR subnets an agent may open its WebSocket session from (/ws/agent).
+    # If empty, every address is allowed.
+    # This is the perimeter and applies to all agents alike. Which address a single
+    # client is bound to is a property of that client (inbound_allowed_ip, set with
+    # its registration token and editable in the client editor) — an empty list here
+    # means no perimeter was configured, while a client without an allowed address is
+    # refused outright.
     allowed_networks: []
-    # List of CIDR subnets that are trusted and skip token validation for registration.
-    trusted_networks: []
+
+# Not listed here: the "tunnel:" section for the SSH reverse tunnel. The server writes it
+# with its defaults on first start, so a copy of this file does not need it — and it must
+# not carry tunnel.keySecret, which is generated per installation and encrypts the stored
+# SSH keys: sharing that value would share one key across every installation that copied
+# the file.
+# The parameters and what each of them does are documented in docs/tunnel.md.

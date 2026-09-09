@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
-import { usePagination } from '@stefgo/react-ui-components';
-import { DataTableDef } from '@stefgo/react-ui-components';
+import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
+import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
@@ -33,15 +32,6 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         );
     }, [sortedRepositories, searchQuery]);
 
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage
-    } = usePagination(filteredRepositories, 10);
-
     const buildTableDefinitions = (): DataTableDef<Repository>[] => {
         const cols: DataTableDef<Repository>[] = [];
 
@@ -52,15 +42,15 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             tableItemRender: (repo) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
-                            : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                                : 'bg-border dark:bg-border-dark'
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
+                            : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
+                                : 'bg-border'
                             }`} />
-                        <div className={`text-sm text-text-primary dark:text-text-primary-dark ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                             {repo.baseUrl}:{repo.datastore}
                         </div>
                     </div>
-                    <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
                         {repo.id}
                     </div>
                 </>
@@ -68,7 +58,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         cols.push({
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (repo) => (
@@ -77,7 +67,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                         rowId={repo.id as string}
                         menuEntries={[
                             {
-                                label: 'Edit',
+                                label: 'Edit Repository',
                                 icon: Edit,
                                 onClick: () => onEdit(repo),
                                 variant: 'default',
@@ -106,11 +96,11 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === 'online' ? 'bg-green-500 shadow-glow-online'
-                        : repo.status === 'loading' ? 'bg-yellow-500 animate-pulse'
-                            : 'bg-border dark:bg-border-dark'
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
+                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
+                            : 'bg-border'
                         }`} />
-                    <div className={`font-inherit text-text-primary dark:text-text-primary-dark ${repo.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
                 </div>
@@ -150,7 +140,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                         rowId={repo.id as string}
                         menuEntries={[
                             {
-                                label: 'Edit',
+                                label: 'Edit Repository',
                                 icon: Edit,
                                 onClick: () => onEdit(repo),
                                 variant: 'default',
@@ -181,37 +171,30 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
 
     return (
         <DataMultiView
-            title={<><Server size={18} className="text-text-muted dark:text-text-muted-dark" /> Repositories</>}
+            title={<><Server size={18} className="text-text-muted" /> Repositories</>}
             extraActions={
-                <button
-                    onClick={onAdd}
-                    className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                >
-                    <Plus size={12} className="inline mr-1" /> Add Repository
-                </button>
+                <Button size="sm" icon={Plus} onClick={onAdd}>
+                    Add Repository
+                </Button>
             }
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="repositoryViewMode"
+            sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
+            viewMode={{ storageKey: "repositoryViewMode" }}
             data={filteredRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Repositories ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No repositories added."
             rowClassName="align-top"
             onRowClick={onSelect}
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-                // Hand over the full list: the table has to sort before it pages,
-                // otherwise a column sort only reorders the rows already on screen.
-                sliceInternally: true
+                // The view owns the page state and does the slicing; it sorts across
+                // the whole set first, so a column sort is never limited to the rows
+                // that happen to be on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

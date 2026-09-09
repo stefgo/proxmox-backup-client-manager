@@ -12,7 +12,12 @@ interface ClientsState {
     deleteClient: (clientId: string) => Promise<void>;
     updateClient: (
         clientId: string,
-        data: { displayName?: string; outboundTargetAddress?: string },
+        data: {
+            displayName?: string;
+            outboundTargetAddress?: string;
+            /** `null` switches the check off; absent leaves the stored value alone. */
+            inboundAllowedIp?: string | null;
+        },
     ) => Promise<void>;
     setClients: (clients: Client[]) => void;
     setTunnelState: (state: TunnelState) => void;

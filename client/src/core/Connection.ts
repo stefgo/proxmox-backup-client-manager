@@ -21,7 +21,7 @@ import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
 import db from "./Database.js";
 
-import { logger } from "./logger.js";
+import { logger } from "@pbcm/shared/node";
 import { VERSION } from "./Version.js";
 
 /**
@@ -33,6 +33,26 @@ import { VERSION } from "./Version.js";
  * the handlers actually read declared in its schema, or validation would quietly
  * remove it.
  */
+/**
+ * A row of the agent's own `job_history` table, as the delta sync reads it back.
+ *
+ * Written out rather than left as `any[]`: better-sqlite3 hands back `unknown`, and the
+ * ten fields below are renamed one by one into the wire format a few lines down -- a typo
+ * in one of those names would have travelled to the server as `undefined`.
+ */
+interface JobHistoryRow {
+    id: string;
+    job_id: string | null;
+    name: string | null;
+    type: string;
+    status: string;
+    start_time: string | null;
+    end_time: string | null;
+    exit_code: number | null;
+    stdout: string | null;
+    stderr: string | null;
+}
+
 const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.RUN_BACKUP]: RunJobPayloadSchema,
     [WS_EVENTS.RUN_RESTORE]: RestoreSnapshotPayloadSchema,
@@ -45,8 +65,24 @@ const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.HISTORY]: HistoryRequestSchema,
 };
 
+/**
+ * Backoff for reconnect attempts, in milliseconds.
+ *
+ * Deliberately the same ladder as ClientConnector.RECONNECT_DELAYS on the server, which
+ * dials outbound agents: the two directions of the same link should not behave
+ * differently. Before this, the agent retried on a flat 5s forever — with a fleet of
+ * agents and one server restart, all of them hit the door on the same beat.
+ */
+const RECONNECT_DELAYS_MS = [5000, 10000, 30000, 60000];
+
+/** Spread across attempts so a fleet does not stay in lockstep, as TunnelClient does for cron. */
+const RECONNECT_JITTER_MS = 3000;
+
 export class Connection {
     private static wsInstance: WebSocket | null = null;
+    /** One timer for the whole module: two of these would mean two reconnect loops. */
+    private static reconnectTimer: NodeJS.Timeout | null = null;
+    private static reconnectAttempts = 0;
     /** Correlation table for requests this agent sends to the server. */
     private static pending = new Map<
         string,
@@ -97,6 +133,32 @@ export class Connection {
     }
 
     /**
+     * Queues the next connection attempt.
+     *
+     * Every reconnect goes through here, and the single timer is cleared first: the
+     * connect timeout and the close handler could previously both schedule an attempt,
+     * leaving two loops racing each other for the rest of the process's life.
+     */
+    private static scheduleReconnect(): void {
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+
+        const step = Math.min(
+            this.reconnectAttempts,
+            RECONNECT_DELAYS_MS.length - 1,
+        );
+        const delay =
+            RECONNECT_DELAYS_MS[step] +
+            Math.floor(Math.random() * RECONNECT_JITTER_MS);
+        this.reconnectAttempts++;
+
+        logger.warn(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            Connection.connect();
+        }, delay);
+    }
+
+    /**
      * Establishes a WebSocket connection to the central backend server using the
      * configured URL and authentication token. Implements automatic reconnection,
      * handles incoming messages and routes them to the appropriate Handlers.
@@ -104,6 +166,13 @@ export class Connection {
      * @returns A promise resolving to an object indicating connection success or failure.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
+        // A manual connect supersedes a queued one; without this the pending timer would
+        // fire on top of the connection this call is about to establish.
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
         if (this.isConnected()) {
             return Promise.resolve({ connected: true });
         }
@@ -116,11 +185,13 @@ export class Connection {
             });
         }
 
-        if (!config.authToken) {
-            logger.warn("No Token. Please register first. Connection skipped.");
+        if (!config.authToken || !config.clientId) {
+            logger.warn(
+                "No identity. Please register first. Connection skipped.",
+            );
             return Promise.resolve({
                 connected: false,
-                error: "No Token. Register first.",
+                error: "No identity. Register first.",
             });
         }
 
@@ -133,6 +204,7 @@ export class Connection {
         }
 
         const wsUrl = new URL(config.websocketURL);
+        wsUrl.searchParams.set("clientId", config.clientId);
         wsUrl.searchParams.set("token", config.authToken);
 
         logger.info(`Connecting to ${wsUrl.toString()}...`);
@@ -153,7 +225,18 @@ export class Connection {
                 }, 35000); // 30s server interval + 5s buffer
             }
 
+            // Closing the socket is the point: leaving it open meant the caller saw a
+            // failure while the handshake was still running, and a later connect() then
+            // closed it — whose close handler scheduled a *second* reconnect alongside
+            // the attempt already under way. The close here routes the failure through
+            // the single path in onClose below.
             const timeout = setTimeout(() => {
+                logger.warn("Connection attempt timed out after 5s.");
+                try {
+                    ws.close();
+                } catch (_) {
+                    /* already gone */
+                }
                 resolve({
                     connected: false,
                     error: "Connection timeout (5s).",
@@ -174,6 +257,10 @@ export class Connection {
             this.attach(ws, {
                 onAuthSuccess: () => {
                     clearTimeout(timeout);
+                    // Reset on AUTH, not on `open`: a socket that is accepted and then
+                    // dropped before the handshake is not a working connection, and
+                    // counting it as one would restart the ladder at 5s every time.
+                    Connection.reconnectAttempts = 0;
                     resolve({ connected: true });
                 },
                 onHeartbeat: heartbeat,
@@ -184,8 +271,7 @@ export class Connection {
                         connected: false,
                         error: `${reasonStr} (Code: ${code})`,
                     });
-                    logger.warn("Reconnecting in 5s...");
-                    setTimeout(() => Connection.connect(), 5000);
+                    Connection.scheduleReconnect();
                 },
             });
 
@@ -241,36 +327,50 @@ export class Connection {
                         try {
                             const lastSyncTime =
                                 message.payload?.lastSyncTime;
-                            let historyToSync = [];
+                            let historyToSync: JobHistoryRow[] = [];
                             if (lastSyncTime) {
                                 historyToSync = db
                                     .prepare(
                                         "SELECT * FROM job_history WHERE updated_at > ?",
                                     )
-                                    .all(lastSyncTime) as any[];
+                                    .all(lastSyncTime) as JobHistoryRow[];
                             } else {
                                 historyToSync = db
                                     .prepare(
                                         "SELECT * FROM job_history WHERE updated_at IS NOT NULL",
                                     )
-                                    .all() as any[];
+                                    .all() as JobHistoryRow[];
                             }
 
                             if (historyToSync.length > 0) {
-                                const formattedHistory = historyToSync.map(
-                                    (h: any) => ({
-                                        id: h.id,
-                                        jobConfigId: h.job_id,
-                                        name: h.name,
-                                        type: h.type,
-                                        status: h.status,
-                                        startTime: h.start_time,
-                                        endTime: h.end_time,
-                                        exitCode: h.exit_code,
-                                        stdout: h.stdout,
-                                        stderr: h.stderr,
-                                    }),
+                                // A row without a start time cannot be sent: the server
+                                // validates SYNC_HISTORY as a whole, so one such row would
+                                // cost the entire batch rather than just itself. The
+                                // column carries DEFAULT CURRENT_TIMESTAMP, so this is a
+                                // guard against rows written before that, not the norm.
+                                const syncable = historyToSync.filter(
+                                    (h) => h.start_time !== null,
                                 );
+                                const skipped =
+                                    historyToSync.length - syncable.length;
+                                if (skipped > 0) {
+                                    logger.warn(
+                                        `Skipping ${skipped} history record(s) without a start time`,
+                                    );
+                                }
+
+                                const formattedHistory = syncable.map((h) => ({
+                                    id: h.id,
+                                    jobConfigId: h.job_id,
+                                    name: h.name,
+                                    type: h.type,
+                                    status: h.status,
+                                    startTime: h.start_time as string,
+                                    endTime: h.end_time,
+                                    exitCode: h.exit_code,
+                                    stdout: h.stdout,
+                                    stderr: h.stderr,
+                                }));
 
                                 logger.info(
                                     `Syncing ${formattedHistory.length} history records to server...`,

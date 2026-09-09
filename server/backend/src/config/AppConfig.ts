@@ -1,115 +1,54 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import * as client from 'openid-client';
-import YAML from 'yaml';
-import { logger } from '../core/logger.js';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import * as client from "openid-client";
+import YAML from "yaml";
+import { logger } from "@pbcm/shared/node";
+import {
+    AppConfigSchema,
+    TunnelSettingsSchema,
+    type AppConfigParsed,
+} from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 
-import crypto from 'crypto';
+import crypto from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = path.resolve(__dirname, '../../../config.yaml');
+const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
 
-export interface AppConfig {
-    jwtSecret: string;
-    jwtExpiresIn?: string;
-    logLevel?: string;
-    oidc?: {
-        enabled?: boolean;
-        issuer: string;
-        client_id: string;
-        client_secret: string;
-        redirect_uri: string;
-    };
-    settings: {
-        retention_invalid_tokens_days: string;
-        retention_invalid_tokens_count: string;
-        [key: string]: string;
-    };
-    security?: {
-        allowed_networks?: string[];
-        trusted_networks?: string[];
-    };
-    tunnel: TunnelSettings;
-    [key: string]: any;
-}
+/**
+ * The shape of config.yaml, derived from the schema in `shared` rather than declared
+ * twice. The schema is the single definition of what a valid configuration is; this alias
+ * exists so the rest of the backend keeps importing a name instead of a Zod type.
+ *
+ * Note the top level and `settings` stay loose (see AppConfigSchema): unknown keys carry
+ * an operator's own additions, and saveConfig() writes this object back into the file.
+ */
+export type AppConfig = AppConfigParsed;
+export type TunnelSettings = AppConfigParsed["tunnel"];
 
-export interface TunnelSettings {
-    /** Emergency switch. false rejects every lease request — no outbound client can back up. */
-    enabled: boolean;
-    /** Never 0.0.0.0: that would need GatewayPorts on the client host. */
-    remoteBindHost: string;
-    connectTimeoutMs: number;
-    keepaliveIntervalMs: number;
-    /** Grace period before an unused tunnel is torn down. */
-    idleGraceMs: number;
-    /** Hard stop against leases that were never released. */
-    maxLeaseMs: number;
-    /** Includes time spent waiting for a free slot; the client must wait longer than this. */
-    acquireTimeoutMs: number;
-    maxConcurrentTunnels: number;
-    retryDelaysMs: number[];
-    minRequestIntervalMs: number;
-    /** Key for encrypting SSH secrets at rest. Deliberately separate from jwtSecret. */
-    keySecret?: string;
-}
-
-const DEFAULT_TUNNEL: TunnelSettings = {
-    enabled: true,
-    remoteBindHost: '127.0.0.1',
-    connectTimeoutMs: 10000,
-    keepaliveIntervalMs: 15000,
-    idleGraceMs: 60000,
-    maxLeaseMs: 86400000,
-    acquireTimeoutMs: 20000,
-    maxConcurrentTunnels: 20,
-    retryDelaysMs: [2000, 5000, 10000],
-    minRequestIntervalMs: 3000
-};
-
-const DEFAULT_SETTINGS = {
-    retention_invalid_tokens_days: '30',
-    retention_invalid_tokens_count: '10'
-};
+const DEFAULT_TUNNEL: TunnelSettings = TunnelSettingsSchema.parse({});
 
 let configDoc: YAML.Document = new YAML.Document({});
 let config: Partial<AppConfig> = {};
 
+/**
+ * Reads config.yaml as it stands, without filling anything in.
+ *
+ * Merging defaults used to happen here, by hand, per block. That now belongs to
+ * AppConfigSchema — but it cannot run yet: the two secrets below are generated on first
+ * start, and validating before that would reject every fresh installation.
+ */
 function loadConfig() {
     if (fs.existsSync(CONFIG_PATH)) {
         try {
-            const fileContent = fs.readFileSync(CONFIG_PATH, 'utf-8');
+            const fileContent = fs.readFileSync(CONFIG_PATH, "utf-8");
             configDoc = YAML.parseDocument(fileContent);
-            config = configDoc.toJS() as Partial<AppConfig>;
+            config = (configDoc.toJS() ?? {}) as Partial<AppConfig>;
         } catch (e) {
-            logger.error({ err: e }, 'Failed to load config.yaml');
+            logger.error({ err: e }, "Failed to load config.yaml");
         }
     }
-    
-    // Ensure settings object exists
-    if (!config.settings) {
-        config.settings = { ...DEFAULT_SETTINGS };
-    } else {
-        // Merge with defaults for missing keys
-        config.settings = { ...DEFAULT_SETTINGS, ...config.settings };
-    }
-
-    // Ensure security object exists
-    if (!config.security) {
-        config.security = {
-            allowed_networks: [],
-            trusted_networks: []
-        };
-    } else {
-        if (!config.security.allowed_networks) config.security.allowed_networks = [];
-        if (!config.security.trusted_networks) config.security.trusted_networks = [];
-    }
-
-    // Ensure tunnel object exists and is complete
-    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel || {}) } as TunnelSettings;
-
-    // Synchronize document with the potentially merged settings
-    syncDoc();
 }
 
 /**
@@ -122,7 +61,7 @@ function syncDoc() {
     }
 
     const updateRecursive = (path: string[], value: any) => {
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        if (value !== null && typeof value === "object" && !Array.isArray(value)) {
             for (const [key, val] of Object.entries(value)) {
                 updateRecursive([...path, key], val);
             }
@@ -147,38 +86,72 @@ export function saveConfig() {
         const yamlOutput = configDoc.toString();
         fs.writeFileSync(CONFIG_PATH, yamlOutput);    
     } catch (e) {
-        logger.error({ err: e, path: CONFIG_PATH }, 'Failed to save config.yaml');
+        logger.error({ err: e, path: CONFIG_PATH }, "Failed to save config.yaml");
         throw e;
     }
 }
 
 if (!config.jwtSecret) {
-    logger.info('No JWT secret found in config.yaml, generating a new one...');
-    config.jwtSecret = crypto.randomBytes(64).toString('hex');
+    logger.info("No JWT secret found in config.yaml, generating a new one...");
+    config.jwtSecret = crypto.randomBytes(64).toString("hex");
     try {
         saveConfig();
-        logger.info('Generated new JWT secret and saved to config.yaml');
+        logger.info("Generated new JWT secret and saved to config.yaml");
     } catch (e) {
-        logger.error({ err: e }, 'Failed to save generated JWT secret to config.yaml');
+        logger.error({ err: e }, "Failed to save generated JWT secret to config.yaml");
     }
 }
 
 if (!config.tunnel?.keySecret) {
-    logger.info('No tunnel key secret found in config.yaml, generating a new one...');
-    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel || {}) } as TunnelSettings;
-    config.tunnel.keySecret = crypto.randomBytes(32).toString('hex');
+    logger.info("No tunnel key secret found in config.yaml, generating a new one...");
+    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel ?? {}) };
+    config.tunnel.keySecret = crypto.randomBytes(32).toString("hex");
     try {
         saveConfig();
-        logger.info('Generated new tunnel key secret and saved to config.yaml');
+        logger.info("Generated new tunnel key secret and saved to config.yaml");
     } catch (e) {
-        logger.error({ err: e }, 'Failed to save generated tunnel key secret to config.yaml');
+        logger.error({ err: e }, "Failed to save generated tunnel key secret to config.yaml");
     }
 }
 
-export const appConfig = config as AppConfig;
+/**
+ * Checks config.yaml and fills in every default, once, at startup.
+ *
+ * Runs after the two secrets above have been repaired, and before anything reads a value:
+ * a configuration error is a startup failure, not something to discover on the first
+ * tunnel lease three hours in. That is why it exits instead of falling back to defaults —
+ * a server that quietly ran on `maxConcurrentTunnels: 20` because the operator's `"zwanzig"`
+ * was ignored would be worse than one that refuses to start and says so.
+ *
+ * The parsed result is written back through syncDoc(), so the defaults it applied become
+ * visible in the file instead of staying implicit.
+ */
+function validateConfig(): AppConfig {
+    const parsed = AppConfigSchema.safeParse(config);
+
+    if (!parsed.success) {
+        logger.fatal(
+            { path: CONFIG_PATH },
+            `Invalid config.yaml — ${firstIssue(parsed.error)}`,
+        );
+        process.exit(1);
+    }
+
+    config = parsed.data;
+    try {
+        saveConfig();
+    } catch {
+        // Already logged by saveConfig(). A read-only config file is not a reason to
+        // refuse service — the values are valid, they just cannot be written back.
+    }
+    return parsed.data;
+}
+
+export const appConfig: AppConfig = validateConfig();
 
 export function updateConfig(updates: Partial<AppConfig>) {
-    Object.assign(config, updates);
+    Object.assign(appConfig, updates);
+    config = appConfig;
     saveConfig();
 }
 
@@ -192,9 +165,9 @@ export async function initOIDC() {
                 appConfig.oidc.client_id,
                 appConfig.oidc.client_secret
             );
-            logger.info('OIDC Client initialized');
+            logger.info("OIDC Client initialized");
         } catch (e) {
-            logger.error({ err: e }, 'Failed to initialize OIDC client');
+            logger.error({ err: e }, "Failed to initialize OIDC client");
         }
     }
 }

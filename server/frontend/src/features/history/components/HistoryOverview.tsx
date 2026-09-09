@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
 import { apiFetch } from "../../../lib/apiFetch";
+import { LoadingIndicator } from "../../../components/LoadingIndicator";
 
 export const HistoryOverview = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [history, setHistory] = useState<BaseHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchHistory = async () => {
-            if (!token) return;
+            if (!isAuthenticated) return;
             try {
                 const response = await apiFetch("/api/v1/history?limit=1000", {
                     headers: {
@@ -31,20 +32,16 @@ export const HistoryOverview = () => {
         };
 
         fetchHistory();
-    }, [token]);
+    }, [isAuthenticated]);
 
     if (loading) {
-        return (
-            <div className="flex-1 flex justify-center items-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-            </div>
-        );
+        return <LoadingIndicator className="flex-1 h-full" />;
     }
 
     if (error) {
         return (
             <div className="p-6">
-                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-md">
+                <div className="bg-error-bg text-error p-4 rounded-md">
                     {error}
                 </div>
             </div>

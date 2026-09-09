@@ -1,11 +1,11 @@
-import { HistoryEntry } from '@pbcm/shared';
-import { BaseHistoryList } from '../../history/components/BaseHistoryList';
-
-// Extend HistoryEntry to include 'error' which is used in frontend but missing in shared type
-type HistoryItem = HistoryEntry & { error?: string };
+import { BaseHistoryItem, BaseHistoryList } from '../../history/components/BaseHistoryList';
 
 interface ClientHistoryListProps {
-    history: HistoryItem[];
+    // Callers pass two different rows: per-client history from the agent
+    // (HistoryEntry) and global rows from GET /api/v1/history
+    // (GlobalHistoryEntry). BaseHistoryItem is the contract both satisfy and the
+    // only one this component actually needs.
+    history: BaseHistoryItem[];
     type?: 'backup' | 'restore';
     title?: string;
     showClientName?: boolean;

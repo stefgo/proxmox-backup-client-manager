@@ -4,7 +4,14 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.server
-    image: pbcm-server:latest
+      # The root `npm ci` resolves @stefgo/react-ui-components from GitHub
+      # Packages, which refuses anonymous reads. Same secret compose.dev.yaml
+      # and the CI build pass.
+      secrets:
+        - npm_token
+    # Published by build.yml. `docker compose pull` fetches this tag; a local
+    # `docker compose build` overwrites it on this host with a self-built image.
+    image: ghcr.io/stefgo/pbcm-server:latest
     ports:
       - "3000:3000"
     volumes:
@@ -21,7 +28,14 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.client
-    image: pbcm-client:latest
+      # The root `npm ci` resolves @stefgo/react-ui-components from GitHub
+      # Packages, which refuses anonymous reads. Same secret compose.dev.yaml
+      # and the CI build pass.
+      secrets:
+        - npm_token
+    # amd64 and arm64 ship as two image names, not one manifest -- on an ARM
+    # host use ghcr.io/stefgo/pbcm-client-arm64:latest instead.
+    image: ghcr.io/stefgo/pbcm-client:latest
     ports:
       - "3001:3001"
     # Outbound clients: the SSH reverse tunnel terminates in the network namespace of
@@ -41,3 +55,7 @@ services:
 volumes:
   server-data:
   client-data:
+
+secrets:
+  npm_token:
+    environment: NPM_TOKEN

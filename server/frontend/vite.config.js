@@ -2,6 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { execSync } from "child_process";
 import path from "path";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // --- Ignore EPIPE globally (safe for dev) ---
 process.on("uncaughtException", (err) => {
@@ -10,29 +14,48 @@ process.on("uncaughtException", (err) => {
 });
 
 // --- Version helper ---
+// Same precedence as scripts/generate-version.sh, so the version the UI shows
+// and the one an agent reports cannot disagree: build argument, then the
+// version semantic-release maintains in the root package.json, then git.
 const getVersion = () => {
     if (process.env.VITE_APP_VERSION) {
         return process.env.VITE_APP_VERSION;
     }
     try {
-        try {
-            return execSync("git describe --tags --exact-match --dirty", {
-                stdio: "pipe",
-            })
-                .toString()
-                .trim();
-        } catch {
-            const branch = execSync("git rev-parse --abbrev-ref HEAD")
-                .toString()
-                .trim();
-            const hash = execSync("git rev-parse --short HEAD")
-                .toString()
-                .trim();
-            const dirty = execSync("git status --porcelain").toString().trim()
-                ? "-dirty"
-                : "";
-            return `${branch}-${hash}${dirty}`;
+        const rootPackageJson = path.resolve(__dirname, "../../package.json");
+        const { version } = JSON.parse(readFileSync(rootPackageJson, "utf8"));
+        if (version) {
+            try {
+                execSync("git describe --tags --exact-match", { stdio: "pipe" });
+                return version;
+            } catch {
+                const hash = execSync("git rev-parse --short HEAD", {
+                    stdio: "pipe",
+                })
+                    .toString()
+                    .trim();
+                const dirty = execSync("git status --porcelain", {
+                    stdio: "pipe",
+                })
+                    .toString()
+                    .trim()
+                    ? "-dirty"
+                    : "";
+                return `${version}+${hash}${dirty}`;
+            }
         }
+    } catch {
+        // No readable manifest or no git -- fall through to the branch name.
+    }
+    try {
+        const branch = execSync("git rev-parse --abbrev-ref HEAD")
+            .toString()
+            .trim();
+        const hash = execSync("git rev-parse --short HEAD").toString().trim();
+        const dirty = execSync("git status --porcelain").toString().trim()
+            ? "-dirty"
+            : "";
+        return `${branch}-${hash}${dirty}`;
     } catch {
         return "unknown";
     }
@@ -68,9 +91,16 @@ export default defineConfig(() => ({
         },
     },
 
+    // Resolving the component library.
+    //
+    // The default is the installed package: a build on a machine without a
+    // sibling checkout -- CI, a container -- must not depend on one. Working
+    // against the library source is opt-in via VITE_USE_LOCAL_UI=true, and
+    // tsconfig.json's `paths` has to be switched with it, or the compiler and
+    // the bundler would look at two different versions of the same module.
     resolve: {
         alias: {
-            ...(process.env.VITE_USE_LOCAL_UI !== "false"
+            ...(process.env.VITE_USE_LOCAL_UI === "true"
                 ? {
                       "@stefgo/react-ui-components": path.resolve(
                           process.env.VITE_UI_COMPONENTS_PATH ||

@@ -7,15 +7,41 @@ import os from "os";
 import { fileURLToPath } from "url";
 import {
     config,
-    saveConfig,
     setServerUrl,
-    persistAuthToken,
+    persistIdentity,
+    isRegistered,
     deleteRegistrationSecret,
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
+import { startAgentActivity } from "../core/Lifecycle.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
-import { logger } from "../core/logger.js";
-import { WS_EVENTS } from "@pbcm/shared";
+import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
+import { logger } from "@pbcm/shared/node";
+import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
+import { z } from "zod";
+
+/**
+ * What the agent's own setup page posts to `/api/register`.
+ *
+ * Validated for the same reason the server validates its endpoints: this runs on the
+ * backed-up machine and the values decide which server the agent will trust from then on.
+ */
+const WebRegisterSchema = z.object({
+    token: z.string().min(1),
+    url: z.url(),
+    /**
+     * The PIN from this agent's own log. Without it anyone who can route to `listenPort`
+     * could point an unregistered agent at a server of their choosing — see SetupPin.ts
+     * on why this is a shared secret rather than a network list.
+     */
+    pin: z.string().min(1),
+});
+
+/** The identity the server presents on the agent session it opens. */
+type AgentQuery = { token?: string; clientId?: string };
+
+/** The optional server URL the status endpoint may be asked to check instead of the configured one. */
+type StatusQuery = { url?: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +85,7 @@ export async function startWebServer() {
 
     // Redirect / based on auth token status
     fastify.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (config.authToken && config.authToken.trim().length > 0) {
+        if (isRegistered()) {
             return reply.redirect("/status");
         } else {
             return reply.redirect("/register");
@@ -67,6 +93,10 @@ export async function startWebServer() {
     });
 
     const sendFileSafe = async (reply: FastifyReply, file: string) => {
+        // `sendFile` exists on the reply only when @fastify/static registered above, and
+        // that registration is conditional on the public directory being found. The cast
+        // stays deliberately: the runtime check on the line is the whole point, and a
+        // declaration claiming the method is always there would contradict it.
         if (typeof (reply as any).sendFile === "function") {
             return (reply as any).sendFile(file);
         }
@@ -102,7 +132,7 @@ export async function startWebServer() {
     fastify.get(
         "/api/status/server",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const query = request.query as any;
+            const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
 
@@ -132,8 +162,7 @@ export async function startWebServer() {
         "/api/status/auth",
         async (request: FastifyRequest, reply: FastifyReply) => {
             return {
-                hasAuthToken:
-                    !!config.authToken && config.authToken.trim().length > 0,
+                hasAuthToken: isRegistered(),
             };
         },
     );
@@ -164,13 +193,40 @@ export async function startWebServer() {
     fastify.post(
         "/api/register",
         async (request: FastifyRequest, reply: FastifyReply) => {
-            const body = request.body as any;
-            const { token, url } = body;
+            const parsed = WebRegisterSchema.safeParse(request.body);
+            if (!parsed.success) {
+                // The path is prefixed for the same reason the server does it: on its
+                // own, "expected string, received undefined" leaves the caller to guess
+                // which of three fields it meant.
+                const issue = parsed.error.issues[0];
+                const path = issue.path.join(".");
+                return reply.status(400).send({
+                    error: path ? `${path}: ${issue.message}` : issue.message,
+                });
+            }
+            const { token, url, pin } = parsed.data;
 
-            if (!token || !url) {
-                return reply
-                    .status(400)
-                    .send({ error: "Missing token or url." });
+            // Checked before the isRegistered() gate below, so the status code cannot be
+            // used to find out whether this agent already has an identity — the same
+            // reasoning the server applies in TokenController.register, where the schema
+            // check comes before the token lookup.
+            if (!verifySetupPin(pin)) {
+                logger.warn(
+                    { ip: request.ip },
+                    "Registration denied: wrong or missing setup PIN",
+                );
+                return reply.status(403).send({
+                    error: "Wrong setup PIN. It is printed in this agent's log on startup.",
+                });
+            }
+
+            // Same rule the outbound handshake has always had: an agent that already
+            // owns an identity does not get a second one. Registering again would leave
+            // the client's old row on the server behind, jobs and history included.
+            if (isRegistered()) {
+                return reply.status(409).send({
+                    error: "This client is already registered. Remove clientId and authToken from its config.yaml to register it again.",
+                });
             }
 
             logger.info(`Web UI Registration requested with ${url}...`);
@@ -185,7 +241,6 @@ export async function startWebServer() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             token,
-                            clientId: config.clientId,
                             hostname: os.hostname(),
                         }),
                     },
@@ -205,13 +260,17 @@ export async function startWebServer() {
 
                 const data = JSON.parse(response.text);
 
-                if (data.token) {
-                    config.authToken = data.token;
+                if (data.token && data.clientId) {
                     setServerUrl(url);
-                    saveConfig();
+                    persistIdentity(data.clientId, data.token);
+                    // There is an identity now, so the PIN has nothing left to protect.
+                    clearSetupPin();
                     logger.info(
-                        "Web Registration successful! Auth Token received.",
+                        "Web Registration successful! Identity received.",
                     );
+
+                    // The agent has been idling without an identity; now it has one.
+                    await startAgentActivity();
 
                     return {
                         success: true,
@@ -219,7 +278,7 @@ export async function startWebServer() {
                     };
                 } else {
                     return reply.status(500).send({
-                        error: "Registration failed: No token received from server.",
+                        error: "Registration failed: The server did not return a complete identity.",
                     });
                 }
             } catch (e: unknown) {
@@ -233,14 +292,38 @@ export async function startWebServer() {
         },
     );
 
+/**
+ * The two endpoints below are the only way in for the server, and in outbound mode the
+ * agent listens on every interface it has. Without a list this changes nothing -- with
+ * one, the registration handshake in particular stops being reachable from the whole
+ * routable network: it is the caller there who supplies the authToken the agent then
+ * stores, so who may knock at all is worth deciding.
+ *
+ * The reason is logged, never sent: the caller learns that it was refused, not why.
+ *
+ * `req.ip` is the peer address of the socket -- this Fastify runs without `trustProxy`,
+ * so no forwarding header can talk its way past the list. An agent behind a reverse proxy
+ * therefore has to allow the proxy's address, not the server's.
+ */
+const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
+    isIpInNetworks(req.ip, config.allowedNetworks ?? [], true);
+
     // Outbound connection mode: the server dials this agent instead of the other way
     // round. Registration is only possible while a one-time secret is configured and no
     // auth token exists yet.
     fastify.get(
         "/ws/register",
         { websocket: true },
-        (socket: any, _req: FastifyRequest) => {
-            if (config.authToken) {
+        (socket: any, req: FastifyRequest) => {
+            if (!isFromAllowedNetwork(req)) {
+                logger.warn(
+                    { ip: req.ip },
+                    "Registration connection denied: not in allowed networks",
+                );
+                socket.close(4003, "Access denied");
+                return;
+            }
+            if (isRegistered()) {
                 socket.close(4003, "Already registered");
                 return;
             }
@@ -262,7 +345,8 @@ export async function startWebServer() {
                     const message = JSON.parse(data.toString());
                     if (message.type !== WS_EVENTS.REGISTRATION_REQUEST) return;
 
-                    const { secret, authToken } = message.payload || {};
+                    const { secret, authToken, clientId } =
+                        message.payload || {};
                     if (!secret || secret !== config.registrationSecret) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
@@ -276,11 +360,33 @@ export async function startWebServer() {
                         return;
                     }
 
-                    persistAuthToken(authToken);
+                    // Both halves or none: an agent holding a token without the id it
+                    // belongs to could not open a session, and the secret would already
+                    // be spent by then.
+                    if (!authToken || !clientId) {
+                        clearTimeout(timeout);
+                        logger.warn(
+                            "Registration rejected: server sent an incomplete identity",
+                        );
+                        socket.send(
+                            JSON.stringify({
+                                type: WS_EVENTS.REGISTRATION_FAILURE,
+                                payload: { error: "Incomplete identity" },
+                            }),
+                        );
+                        socket.close(4000, "Incomplete identity");
+                        return;
+                    }
+
+                    persistIdentity(clientId, authToken);
                     deleteRegistrationSecret();
                     clearTimeout(timeout);
 
-                    logger.info("Registration successful, authToken stored");
+                    logger.info("Registration successful, identity stored");
+
+                    // Scheduler and cleanup were held back for the unregistered agent.
+                    // The server opens the agent session itself right after this.
+                    void startAgentActivity();
                     socket.send(
                         JSON.stringify({
                             type: WS_EVENTS.REGISTRATION_SUCCESS,
@@ -304,10 +410,31 @@ export async function startWebServer() {
         "/ws/agent",
         { websocket: true },
         (socket: any, req: FastifyRequest) => {
-            const token = (req.query as any)?.token;
+            if (!isFromAllowedNetwork(req)) {
+                logger.warn(
+                    { ip: req.ip },
+                    "Agent connection denied: not in allowed networks",
+                );
+                socket.close(4003, "Access denied");
+                return;
+            }
 
+            const { token, clientId } = (req.query as AgentQuery) ?? {};
+
+            // The id is checked as well as the token: the server has to be dialling the
+            // client it thinks it is, or a target address pointed at the wrong host
+            // would hand that host somebody else's jobs.
             if (!token || !config.authToken || token !== config.authToken) {
                 logger.warn("Inbound agent connection rejected: invalid token");
+                socket.close(4001, "Unauthorized");
+                return;
+            }
+
+            if (!clientId || clientId !== config.clientId) {
+                logger.warn(
+                    { presented: clientId },
+                    "Inbound agent connection rejected: client id mismatch",
+                );
                 socket.close(4001, "Unauthorized");
                 return;
             }

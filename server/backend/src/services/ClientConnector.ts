@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
-import { WS_EVENTS } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { WS_EVENTS, CONNECTION_MODE } from "@pbcm/shared";
+import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
 
@@ -44,6 +44,7 @@ export class ClientConnector {
         onPersist: (authToken: string, version: string | null) => void,
     ): Promise<{ ok: boolean; error?: string }> {
         const registration = await this.performRegistration(
+            id,
             outboundTargetAddress,
             registrationSecret,
         );
@@ -93,6 +94,7 @@ export class ClientConnector {
      * Otherwise the HTTP request that started the handshake would hang forever.
      */
     private static performRegistration(
+        id: string,
         outboundTargetAddress: string,
         registrationSecret: string,
     ): Promise<{ authToken: string | null; error?: string }> {
@@ -140,7 +142,11 @@ export class ClientConnector {
                 ws.send(
                     JSON.stringify({
                         type: WS_EVENTS.REGISTRATION_REQUEST,
-                        payload: { secret: registrationSecret, authToken },
+                        payload: {
+                            secret: registrationSecret,
+                            authToken,
+                            clientId: id,
+                        },
                     }),
                 );
             });
@@ -211,7 +217,9 @@ export class ClientConnector {
         authToken: string,
         onPersist?: (authToken: string, version: string | null) => void,
     ): Promise<boolean> {
-        const wsUrl = `ws://${outboundTargetAddress}/ws/agent?token=${authToken}`;
+        const wsUrl = `ws://${outboundTargetAddress}/ws/agent?clientId=${encodeURIComponent(
+            id,
+        )}&token=${encodeURIComponent(authToken)}`;
         logger.info(
             { clientId: id, url: `ws://${outboundTargetAddress}/ws/agent` },
             "ClientConnector: connecting",
@@ -299,7 +307,7 @@ export class ClientConnector {
         const timer = setTimeout(async () => {
             this.reconnectTimers.delete(clientId);
             const client = ClientRepository.findById(clientId);
-            if (client && client.connection_mode === "outbound") {
+            if (client && client.connection_mode === CONNECTION_MODE.OUTBOUND) {
                 await this.connectClient(client);
             }
         }, delay);
@@ -311,7 +319,8 @@ export class ClientConnector {
     static async reconnectNow(clientId: string): Promise<boolean> {
         this.cancelReconnect(clientId);
         const client = ClientRepository.findById(clientId);
-        if (!client || client.connection_mode !== "outbound") return false;
+        if (!client || client.connection_mode !== CONNECTION_MODE.OUTBOUND)
+            return false;
         return this.connectClient(client);
     }
 

@@ -10,7 +10,6 @@ export interface ClientTunnelRow {
     passphrase: string | null;
     host_key_sha256: string;
     remote_bind_host: string;
-    last_error: string | null;
     last_used_at: string | null;
 }
 
@@ -37,6 +36,26 @@ export class ClientTunnelRepository {
      * Returns the tunnel parameters with private key and passphrase decrypted.
      * Throws if the secrets cannot be decrypted (usually a changed tunnel.keySecret).
      */
+    /**
+     * Whether a tunnel is available to this client's jobs. The one question the rest of
+     * the backend asks — deliberately not `connection_mode`, which only says who dials
+     * the WebSocket. Which jobs actually take it is each job's own setting.
+     */
+    static isConfigured(clientId: string): boolean {
+        return !!db
+            .prepare("SELECT 1 FROM client_tunnels WHERE client_id = ?")
+            .get(clientId);
+    }
+
+    /** Every client that has SSH credentials stored. */
+    static findAllClientIds(): string[] {
+        return (
+            db.prepare("SELECT client_id FROM client_tunnels").all() as {
+                client_id: string;
+            }[]
+        ).map((r) => r.client_id);
+    }
+
     static findCredentials(clientId: string): TunnelCredentials | undefined {
         const row = this.findByClientId(clientId);
         if (!row) return undefined;
@@ -85,7 +104,11 @@ export class ClientTunnelRepository {
         );
     }
 
-    /** Updates the SSH credentials only. Mode, target and port are not editable by design. */
+    /**
+     * Updates the SSH credentials. Tunnel target and bind port stay out of it by design:
+     * the target follows from each job's repository, the port is allocated per forward,
+     * and whether the tunnel is used at all is the job's setting.
+     */
     static update(
         clientId: string,
         data: {
@@ -139,14 +162,8 @@ export class ClientTunnelRepository {
 
     static recordUse(clientId: string): void {
         db.prepare(
-            "UPDATE client_tunnels SET last_used_at = datetime('now'), last_error = NULL WHERE client_id = ?",
+            "UPDATE client_tunnels SET last_used_at = datetime('now') WHERE client_id = ?",
         ).run(clientId);
-    }
-
-    static recordError(clientId: string, error: string): void {
-        db.prepare(
-            "UPDATE client_tunnels SET last_error = ? WHERE client_id = ?",
-        ).run(error.slice(0, 500), clientId);
     }
 
     static delete(clientId: string): { changes: number } {

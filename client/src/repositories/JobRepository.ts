@@ -24,6 +24,9 @@ export class JobRepository {
             ORDER BY j.created_at DESC
         `,
             )
+            // `SELECT j.*` plus two joined columns, and `config` is a JSON blob parsed
+            // below -- so the row shape is wider than any interface here would capture.
+            // The mapping that follows reads each field defensively.
             .all() as any[];
 
         return rawJobs.map((row) => {

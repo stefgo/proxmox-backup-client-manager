@@ -1,43 +1,75 @@
 import { useMemo, useState } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
-import { Client } from '@pbcm/shared';
-import { usePagination } from '@stefgo/react-ui-components';
+import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTableDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
+import { Button } from '@stefgo/react-ui-components';
+import { ConnectionBadge } from './ConnectionBadge';
 
 interface ClientListProps {
     clients: Client[];
     setSelectedClient: (client: Client | null) => void;
     deleteClient: (client: Client) => void;
-    generateToken: () => void;
     editClient: (client: Client) => void;
-    addOutboundClient: () => void;
+    /** Opens the wizard. One entry point — the connection mode is its first step, not a button. */
+    addClient: () => void;
+    /** Opens the tunnel editor — setting one up and changing one are the same surface. */
+    editTunnel: (client: Client) => void;
     reconnectClient: (client: Client) => void;
 }
 
-/** Outbound clients reach the PBS only through the SSH tunnel — worth showing at a glance. */
-const ConnectionBadge = ({ client }: { client: Client }) => {
-    if (client.connectionMode !== 'outbound') return null;
-    const tunnel = (client as any).tunnel;
-    const tone = tunnel?.status === 'error'
-        ? 'text-red-600 dark:text-red-400'
-        : tunnel?.status === 'up'
-            ? 'text-green-600 dark:text-green-500'
-            : 'text-text-muted dark:text-text-muted-dark';
-    return (
-        <span className={`inline-flex items-center gap-1 text-xs ${tone}`} title={tunnel?.lastError || undefined}>
-            <Network size={12} />
-            Tunnel
-            {tunnel?.activeLeases ? ` (${tunnel.activeLeases})` : ''}
-        </span>
-    );
-};
-
-export const ClientList = ({ clients, setSelectedClient, deleteClient, generateToken, editClient, addOutboundClient, reconnectClient }: ClientListProps) => {
+export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, editTunnel, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useState('');
+
+    /**
+     * The row's actions, built once for both views — table and list show the same menu,
+     * and two copies of it drift apart.
+     *
+     * The tunnel entry is offered for every client regardless of connection mode, and only
+     * its label turns on whether credentials are stored: setting one up and changing one
+     * are the same form on the same endpoint, so they are one action and not two. It is
+     * here rather than inside the client editor because it is the client list the operator
+     * is looking at when the question "this host cannot reach the PBS" comes up.
+     */
+    const buildMenuEntries = (client: Client) => [
+        {
+            label: 'Edit Client',
+            icon: Edit,
+            onClick: () => {
+                editClient(client);
+            },
+            variant: 'default' as const,
+        },
+        {
+            label: client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel',
+            icon: Network,
+            onClick: () => {
+                editTunnel(client);
+            },
+            variant: 'default' as const,
+        },
+        ...(client.connectionMode === CONNECTION_MODE.OUTBOUND && client.status !== CLIENT_STATUS.ONLINE
+            ? [{
+                label: 'Connect Now',
+                icon: PlugZap,
+                onClick: () => {
+                    reconnectClient(client);
+                },
+                variant: 'default' as const,
+            }]
+            : []),
+        {
+            label: 'Delete Client',
+            icon: Trash2,
+            onClick: () => {
+                deleteClient(client);
+            },
+            variant: 'danger' as const,
+        },
+    ];
 
     const sortedClients = useMemo(
         () => [...clients].sort((a, b) => (a.displayName || a.hostname).localeCompare(b.displayName || b.hostname)),
@@ -54,15 +86,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         );
     }, [sortedClients, searchQuery]);
 
-    const {
-        currentPage,
-        totalPages,
-        itemsPerPage,
-        totalItems,
-        goToPage,
-        setItemsPerPage
-    } = usePagination(filteredClients, 10);
-
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
 
@@ -73,14 +96,14 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableItemRender: (client) => (
                 <>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border dark:bg-border-dark'}`} />
-                        <div className={`text-sm text-text-primary dark:text-text-primary-dark ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                        <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
-                            {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
+                            {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                         </div>
                         <ConnectionBadge client={client} />
                     </div>
-                    <div className="text-xs font-mono text-text-muted dark:text-text-muted-dark pl-5 truncate opacity-70">
+                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
                         {client.id}
                     </div>
                 </>
@@ -91,7 +114,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
             tableHeader: null,
             tableCellClassName: "align-top text-sm text-text-primary",
             tableItemRender: (client) => (
-                client.status !== 'online' ? (
+                client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
                         Last seen: {formatDate(client.lastSeen)}
                     </div >
@@ -100,42 +123,12 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         });
 
         cols.push({
-            tableHeader: "Action",
+            tableHeader: "Actions",
             tableHeaderClassName: "text-center",
             tableCellClassName: "content-center",
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             )
         });
@@ -150,10 +143,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'online' ? 'bg-green-500 shadow-glow-online animate-pulse-glow' : 'bg-border dark:bg-border-dark'}`} />
-                    <div className={`font-inherit text-text-primary dark:text-text-primary-dark ${client.status === 'online' ? '' : 'opacity-70'} truncate`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                    <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
-                        {client.displayName && <span className="text-xs font-normal text-text-muted dark:text-text-muted-dark ml-2">({client.hostname})</span>}
+                        {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                     </div>
                     <ConnectionBadge client={client} />
                 </div>
@@ -168,7 +161,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         contentFields.push({
             listItemRender: (client) => (
-                <span className="text-sm text-text-primary dark:text-text-primary-dark">
+                <span className="text-sm text-text-primary">
                     {client.version}
                 </span>
             ),
@@ -177,11 +170,11 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
         contentFields.push({
             listItemRender: (client) => (
-                client.status !== 'online' ? (
-                    <span className="text-sm text-text-muted dark:text-text-muted-dark">
+                client.status !== CLIENT_STATUS.ONLINE ? (
+                    <span className="text-sm text-text-muted">
                         {formatDate(client.lastSeen)}
                     </span>
-                ) : <span className="text-green-600 dark:text-green-500 text-sm">Online</span>
+                ) : <span className="text-success text-sm">Online</span>
             ),
             listLabel: 'Status',
         });
@@ -189,37 +182,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
         actionFields.push({
             listItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                    <DataAction
-                        rowId={client.id}
-                        menuEntries={[
-                            {
-                                label: 'Edit Client',
-                                icon: Edit,
-                                onClick: () => {
-                                    editClient(client);
-                                },
-                                variant: 'default',
-                            },
-                            ...(client.connectionMode === 'outbound' && client.status !== 'online'
-                                ? [{
-                                    label: 'Connect Now',
-                                    icon: PlugZap,
-                                    onClick: () => {
-                                        reconnectClient(client);
-                                    },
-                                    variant: 'default' as const,
-                                }]
-                                : []),
-                            {
-                                label: 'Delete Client',
-                                icon: Trash2,
-                                onClick: () => {
-                                    deleteClient(client);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
+                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
                 </div>
             ),
             listLabel: null,
@@ -236,45 +199,30 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, generateT
 
     return (
         <DataMultiView
-            title={<><Monitor size={18} className="text-text-muted dark:text-text-muted-dark" /> Clients</>}
+            title={<><Monitor size={18} className="text-text-muted" /> Clients</>}
             extraActions={
-                <div className="flex gap-2">
-                    <button
-                        onClick={addOutboundClient}
-                        className="px-3 py-1 bg-card dark:bg-card-dark border border-border dark:border-border-dark text-text-primary dark:text-text-primary-dark text-xs rounded hover:bg-hover dark:hover:bg-hover-dark"
-                    >
-                        <Plus size={12} className="inline mr-1" />Outbound-Client
-                    </button>
-                    <button
-                        onClick={generateToken}
-                        className="px-3 py-1 bg-primary text-white text-xs rounded hover:bg-primary-hover"
-                    >
-                        <Plus size={12} className="inline mr-1" />Generate New Token
-                    </button>
-                </div>
+                <Button size="sm" icon={Plus} onClick={addClient}>
+                    Add Client
+                </Button>
             }
-            defaultSort={{ colIndex: 0, direction: 'asc' }}
-            viewModeStorageKey="clientViewMode"
+            sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
+            viewMode={{ storageKey: "clientViewMode" }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
-            onSearchChange={setSearchQuery}
+            search={{ onChange: setSearchQuery }}
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}
             pagination={{
-                currentPage,
-                totalPages,
-                itemsPerPage,
-                totalItems,
-                onPageChange: goToPage,
-                onItemsPerPageChange: setItemsPerPage,
-                // Hand over the full list: the table has to sort before it pages,
-                // otherwise a column sort only reorders the rows already on screen.
-                sliceInternally: true
+                // The view owns the page state and does the slicing; it sorts across
+                // the whole set first, so a column sort is never limited to the rows
+                // that happen to be on screen.
+                defaultValue: { pageSize: 10 },
+                hideOnSinglePage: true,
             }}
         />
     );

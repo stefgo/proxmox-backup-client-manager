@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import db from "../core/Database.js";
 import { config } from "../core/Config.js";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 
 export class Cleanup {
     static initialize() {

@@ -28,18 +28,25 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
     onUnauthorized = handler;
 }
 
-export const TOKEN_STORAGE_KEY = 'token';
+/**
+ * The readable half of the session. Carries no secret — the JWT itself lives in an
+ * httpOnly cookie the browser sends on its own and no script can read. This one only
+ * answers "is someone logged in", so the UI can render without asking the server first.
+ */
+export const SESSION_FLAG_COOKIE = 'pbcm_auth';
 
-function readToken(): string | null {
+export function hasSessionFlag(): boolean {
     try {
-        return localStorage.getItem(TOKEN_STORAGE_KEY);
+        return document.cookie
+            .split(';')
+            .some((c) => c.trim().startsWith(`${SESSION_FLAG_COOKIE}=`));
     } catch {
-        return null;
+        return false;
     }
 }
 
 /**
- * fetch() with the bearer token attached and a single, central reaction to 401.
+ * fetch() with the session attached and a single, central reaction to 401.
  *
  * Only for endpoints behind the JWT. Login and /api/auth/config are unauthenticated
  * and deliberately keep using plain fetch — routing them through here would turn a
@@ -49,13 +56,10 @@ export async function apiFetch(
     input: string,
     init: RequestInit = {},
 ): Promise<Response> {
-    const token = readToken();
-    const headers = new Headers(init.headers);
-    if (token && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
-    const res = await fetch(input, { ...init, headers });
+    // The session is a cookie now, so there is no header to build. `same-origin` rather
+    // than `include`: every endpoint this touches is served from this very origin, and
+    // the narrower value cannot leak the session to a third party by accident.
+    const res = await fetch(input, { ...init, credentials: 'same-origin' });
 
     if (res.status === 401) {
         // Drop the dead token and get the user back to a working state. Throwing

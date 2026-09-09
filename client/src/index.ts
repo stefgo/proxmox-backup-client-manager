@@ -1,39 +1,31 @@
-import { Connection } from "./core/Connection.js";
 import { startWebServer, stopWebServer } from "./web/server.js";
-import { config, isOutboundMode } from "./core/Config.js";
-import { logger } from "./core/logger.js";
-import { Scheduler } from "./features/Scheduler.js";
-import { Executor } from "./features/Executor.js";
-import { Cleanup } from "./features/Cleanup.js";
+import { logger } from "@pbcm/shared/node";
+import { startAgentActivity } from "./core/Lifecycle.js";
 import { initDatabase } from "./core/Database.js";
+import { isRegistered } from "./core/Config.js";
+import { logSetupPin } from "./core/SetupPin.js";
 
 // Initialize Database
 await initDatabase();
 
-// Perform cleanup of stale running jobs on startup
-await Executor.cleanupRunningJobs();
-await Executor.resumeQueuedJobs();
-
-// Start Client Web Server (can be disabled via DISABLE_WEB_UI=true)
+// Start Client Web Server (can be disabled via DISABLE_WEB_UI=true). It runs whether or not
+// the agent is registered — it is the surface an operator registers it through.
 if (process.env.DISABLE_WEB_UI !== "true") {
     startWebServer();
+
+    // The setup PIN guards /api/register and only matters while there is no identity
+    // yet. Printed here rather than inside the web server so it lands after the
+    // "listening on port" line, where an operator is already looking.
+    if (!isRegistered()) {
+        logSetupPin();
+    }
 } else {
     logger.info("Web UI disabled via DISABLE_WEB_UI environment variable.");
 }
 
-// Start Job Scheduler locally (independent of server connection)
-Cleanup.initialize();
-Scheduler.start();
-
-// In outbound mode the server dials us: the agent only hosts /ws/register and /ws/agent
-// and must not try to connect out (it has no server URL to connect to).
-if (isOutboundMode()) {
-    logger.info(
-        "Outbound connection mode: waiting for the server to connect to this agent.",
-    );
-} else {
-    Connection.connect();
-}
+// Scheduler, cleanup and the server connection start only for a registered agent. An
+// unregistered one idles here until a registration lets startAgentActivity through.
+await startAgentActivity();
 
 // Handle graceful shutdown
 const shutdown = async () => {

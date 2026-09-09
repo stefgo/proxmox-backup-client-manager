@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
 
 export const RepositorySchema = z.object({
     /**
@@ -15,23 +16,64 @@ export const RepositorySchema = z.object({
     secret: z.string(),
 });
 
+/**
+ * A single IPv4 address or an IPv4 network in CIDR notation.
+ *
+ * Only v4: the pin is checked with `isIpInCidr` on the server, which works on
+ * 32-bit integers. Accepting a v6 literal here would store a value that check
+ * cannot evaluate.
+ */
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
+
 export const ClientSchema = z.object({
     id: z.uuid(),
     hostname: z.string(),
     displayName: z.string().optional(),
-    status: z.enum(["online", "offline"]),
+    status: z.enum(CLIENT_STATUS),
     lastSeen: z.string(),
     version: z.string().optional(),
-    connectionMode: z.enum(["inbound", "outbound"]).optional(),
+    connectionMode: z.enum(CONNECTION_MODE).optional(),
     outboundTargetAddress: z.string().optional(),
+    /**
+     * Inbound clients only: the address or network their connections must come from.
+     * Editable, because a client that moves is otherwise locked out with no way back --
+     * the agent cannot argue its own case, only the operator can.
+     *
+     * `null` switches the check off, and the three states are distinct on the wire: a
+     * value restricts, `null` disables, and an absent key in a PUT leaves the stored
+     * setting untouched.
+     */
+    inboundAllowedIp: Ipv4OrCidrSchema.nullish(),
+    /**
+     * The address of the last successful agent connect. Nothing decides on it; it is here
+     * so the editor can show what `inboundAllowedIp` is about to be measured against.
+     */
+    ipAddress: z.string().optional(),
+    /**
+     * Whether SSH credentials are stored for this client, so its jobs and restores may
+     * choose the tunnel. Independent of `connectionMode`: the tunnel is a route to the
+     * PBS, the mode is who dials the WebSocket, every combination of the two is valid,
+     * and unlike the mode this one can be set up and removed at any time.
+     */
+    tunnelConfigured: z.boolean().optional(),
 });
 
 /**
- * Marker attached by the server to every job pushed to an outbound client.
- * The client must obtain a tunnel lease before running such a job; the actual
- * loopback port is only known at lease time (see TunnelAcquireResult).
+ * Whether a run reaches its repository through the SSH reverse tunnel.
+ *
+ * A property of the run, chosen per backup job and per restore: one client can back up to
+ * a PBS it reaches directly and to another it only reaches through the tunnel. The client
+ * side of it is just the SSH credentials — stored means available, and a job or restore
+ * that asks for a tunnel the client has none for is rejected when it is saved or started.
+ *
+ * Travelling with the job is what keeps it honest: the agent stores it in the job's
+ * config and there is no second copy anywhere to fall out of step with. A restore has no
+ * stored config, so it carries the answer in the request that triggers it.
+ *
+ * The loopback port is deliberately not part of this: it is allocated per forward and
+ * only known at lease time (see TunnelAcquireResult).
  */
-export const TunnelDescriptorSchema = z.object({
+export const TunnelModeSchema = z.object({
     required: z.boolean(),
 });
 
@@ -80,7 +122,7 @@ export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const RestoreJobSchema = JobSchema.extend({
@@ -89,15 +131,22 @@ export const RestoreJobSchema = JobSchema.extend({
     archives: z.array(z.string()),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
-    tunnel: TunnelDescriptorSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
 });
 
+/**
+ * What an agent sends to `POST /api/v1/register`. It brings no identity of its own:
+ * the server issues both `clientId` and `authToken` and returns them below.
+ */
 export const RegistrationPayloadSchema = z.object({
     token: z.string(),
-    clientId: z.string(),
     hostname: z.string().optional(),
 });
 
+/**
+ * The identity the server issues. The agent stores both values together -- one without
+ * the other is useless, because every later connection is checked as a pair.
+ */
 export const RegistrationResponseSchema = z.object({
     token: z.string(),
     clientId: z.string(),
@@ -108,6 +157,22 @@ export const TokenSchema = z.object({
     createdAt: z.string(),
     expiresAt: z.string(),
     usedAt: z.string().optional(),
+    /** Applied to the client this token registers. */
+    displayName: z.string().optional(),
+    /** Where the token may be redeemed from, and what the client is pinned to afterwards. */
+    allowedIp: z.string().optional(),
+});
+
+/**
+ * The optional body of `POST /api/v1/tokens`.
+ *
+ * Both values are decisions only an operator can make, and the token is the one
+ * moment one is present: the agent registers unattended, so anything it is not
+ * told here has to be corrected by hand afterwards.
+ */
+export const CreateRegistrationTokenSchema = z.object({
+    displayName: z.string().trim().min(1).max(100).optional(),
+    allowedIp: Ipv4OrCidrSchema.optional(),
 });
 
 export const SnapshotSchema = z.object({
@@ -172,11 +237,10 @@ export const RestoreSnapshotPayloadSchema = z.object({
     repository: RepositorySchema,
     archives: z.array(z.string()),
     encryption: EncryptionConfigSchema.optional(),
-    // JobController sends this for tunneled restores and the executor reads it to
-    // decide whether to acquire a lease. It was missing here, which went unnoticed
-    // while nobody validated the payload — parsing would have stripped it and left
-    // every tunneled restore trying to reach the PBS directly.
-    tunnel: TunnelDescriptorSchema.optional(),
+    // Must be declared here even though it is optional: zod strips unknown keys, so a
+    // missing entry would silently leave every tunnelled restore going direct. Absent
+    // means direct, which is also what a client without credentials always gets.
+    tunnel: TunnelModeSchema.optional(),
 });
 
 export const FsListRequestSchema = z.object({
@@ -275,6 +339,35 @@ export const HistoryResponseSchema = z.object({
     history: z.array(HistoryEntrySchema),
 });
 
+/**
+ * Row shape of GET /api/v1/history. Deliberately not a HistoryEntry: the global
+ * endpoint reports the history row's own job_id and LEFT JOINs the clients table
+ * for hostname/displayName, whereas an agent-sourced HistoryEntry carries
+ * jobConfigId and no client columns at all. Nullability follows the job_history
+ * DDL; hostname/displayName are null once a history row outlives its client.
+ */
+export const GlobalHistoryEntrySchema = z.object({
+    id: z.string(),
+    clientId: z.string(),
+    jobId: z.string().nullable(),
+    name: z.string().nullable(),
+    type: z.string(),
+    status: z.string(),
+    startTime: z.string(),
+    endTime: z.string().nullable(),
+    exitCode: z.number().nullable(),
+    stdout: z.string().nullable(),
+    stderr: z.string().nullable(),
+    hostname: z.string().nullable(),
+    displayName: z.string().nullable(),
+});
+
+export const GlobalHistoryResponseSchema = z.object({
+    success: z.boolean(),
+    count: z.number().optional(),
+    data: z.array(GlobalHistoryEntrySchema),
+});
+
 export const SyncHistoryPayloadSchema = z.object({
     history: z.array(HistoryEntrySchema),
 });
@@ -289,6 +382,9 @@ export const JobNextRunUpdatePayloadSchema = z.object({
 export const RegistrationRequestSchema = z.object({
     secret: z.string().min(1),
     authToken: z.string().min(1),
+    /** The identity the server assigned this client -- the outbound counterpart of
+     *  RegistrationResponseSchema. */
+    clientId: z.string().min(1),
 });
 
 export const RegistrationResultSchema = z.object({
@@ -334,3 +430,202 @@ export const FingerprintObservedSchema = z.object({
 export const TunnelReleaseSchema = z.object({
     leaseId: z.string(),
 });
+
+// REST request bodies
+//
+// These describe what the HTTP endpoints accept, and they exist for the same reason the
+// WS payload schemas above do: an unchecked body reaches a repository or the config file
+// unaltered. They stay here rather than in the backend because the frontend builds these
+// same shapes and can derive its types from them.
+
+/** `POST /api/login`. Both empty is a malformed request, not a failed login. */
+export const LoginPayloadSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+});
+
+/**
+ * `POST /api/v1/users`.
+ *
+ * `password` is optional at this level because an OIDC-only user has none; that a *local*
+ * user must have one is a rule the controller enforces, not a property of the shape.
+ */
+export const CreateUserSchema = z.object({
+    username: z.string().trim().min(1).max(100),
+    password: z.string().min(1).optional(),
+    auth_methods: z.string().min(1).optional(),
+});
+
+/** `PUT /api/v1/users/:userId`. Both fields optional: either one alone is a valid edit. */
+export const UpdateUserSchema = z.object({
+    password: z.string().min(1).optional(),
+    auth_methods: z.string().min(1).optional(),
+});
+
+/** A retention value as the settings UI sends it: a count of days or of entries. */
+const RetentionValueSchema = z
+    .string()
+    .regex(/^\d+$/, "Retention values must be whole numbers");
+
+/**
+ * `PUT /api/v1/settings/cleanup`.
+ *
+ * Deliberately loose. `AppConfig.settings` carries an index signature, and the settings
+ * page reads the whole object and sends it back unchanged — so a key an operator added to
+ * `config.yaml` by hand travels through this endpoint on every save. A strict schema would
+ * strip it, and the next save from the UI would silently delete it from the file.
+ *
+ * What is checked is what the UI writes and what has consequences: the retention values
+ * must be numbers, and `security` decides which networks may register a client.
+ */
+export const CleanupSettingsSchema = z.looseObject({
+    retention_invalid_tokens_days: RetentionValueSchema.optional(),
+    retention_invalid_tokens_count: RetentionValueSchema.optional(),
+    retention_job_history_days: RetentionValueSchema.optional(),
+    retention_job_history_count: RetentionValueSchema.optional(),
+    security: z
+        .object({
+            allowed_networks: z.array(z.string()).optional(),
+        })
+        .optional(),
+});
+
+/**
+ * `GET /api/v1/history`.
+ *
+ * Coerced because query strings arrive as text. The bounds are the point: `parseInt` used
+ * to pass `NaN` straight to a SQLite binding, and a negative LIMIT means *no* limit in
+ * SQLite -- so `?limit=-1` returned the entire history table.
+ */
+export const HistoryQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(1000).default(100),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * One snapshot as the Proxmox Backup Server API returns it.
+ *
+ * Separate from `SnapshotSchema` on purpose: PBS speaks kebab-case over the wire and this
+ * application speaks camelCase. Keeping both means the translation in
+ * `RepositoryController.listSnapshots` stays visible instead of hiding inside one schema
+ * that would have to accept either spelling.
+ */
+export const PbsSnapshotSchema = z.looseObject({
+    "backup-type": z.string(),
+    "backup-id": z.string(),
+    "backup-time": z.number(),
+    files: z
+        .array(
+            z.looseObject({
+                filename: z.string(),
+                "crypt-mode": z.string().optional(),
+                size: z.number().optional(),
+            }),
+        )
+        .default([]),
+    size: z.number().optional(),
+    owner: z.string().optional(),
+    comment: z.string().optional(),
+    fingerprint: z.string().optional(),
+});
+
+/** The envelope PBS wraps every list response in. */
+export const PbsSnapshotListSchema = z.object({
+    data: z.array(PbsSnapshotSchema),
+});
+
+// ---------------------------------------------------------------------------
+// Server configuration (config.yaml)
+// ---------------------------------------------------------------------------
+
+/**
+ * The SSH reverse tunnel settings block.
+ *
+ * Every default lives here rather than in a separate constant on the server, so the
+ * fallback and the validity rule for a field cannot drift apart. The bounds are not
+ * decoration: `maxConcurrentTunnels: 0` would refuse every backup, and a
+ * `minRequestIntervalMs` of 0 would remove the rate limit on lease requests entirely.
+ */
+export const TunnelSettingsSchema = z.object({
+    enabled: z.boolean().default(true),
+    /** Never 0.0.0.0: that would need GatewayPorts on the client host. */
+    remoteBindHost: z.string().min(1).default("127.0.0.1"),
+    connectTimeoutMs: z.number().int().positive().default(10000),
+    keepaliveIntervalMs: z.number().int().positive().default(15000),
+    idleGraceMs: z.number().int().nonnegative().default(60000),
+    maxLeaseMs: z.number().int().positive().default(86400000),
+    acquireTimeoutMs: z.number().int().positive().default(20000),
+    maxConcurrentTunnels: z.number().int().min(1).default(20),
+    retryDelaysMs: z.array(z.number().int().nonnegative()).default([2000, 5000, 10000]),
+    minRequestIntervalMs: z.number().int().nonnegative().default(3000),
+    /** Generated on first start when absent, so it is optional here. */
+    keySecret: z.string().min(1).optional(),
+});
+
+/**
+ * The retention block. Loose for the same reason `CleanupSettingsSchema` is: the settings
+ * page reads this object whole and writes it back, so a key an operator added by hand has
+ * to survive the round trip.
+ */
+export const AppSettingsSchema = z.looseObject({
+    retention_invalid_tokens_days: RetentionValueSchema.default("30"),
+    retention_invalid_tokens_count: RetentionValueSchema.default("10"),
+});
+
+export const OidcConfigSchema = z.object({
+    enabled: z.boolean().optional(),
+    issuer: z.url(),
+    client_id: z.string().min(1),
+    client_secret: z.string().min(1),
+    redirect_uri: z.url(),
+});
+
+/**
+ * The whole of `config.yaml`.
+ *
+ * Loose at the top level on purpose. `AppConfig.saveConfig()` writes the parsed object
+ * back into the YAML document, so a strict schema would not merely ignore a key an
+ * operator added by hand — it would delete it from their file on the next save.
+ *
+ * `jwtSecret` is required even though a fresh installation has none: the server generates
+ * one and writes it back *before* this schema is applied, so by the time anything is
+ * validated the value always exists. Requiring it here turns a secret that somehow went
+ * missing into a startup error rather than a server signing tokens with `undefined`.
+ */
+export const AppConfigSchema = z.looseObject({
+    jwtSecret: z.string().min(1),
+    /**
+     * Any span @fastify/jwt accepts. Defaulted rather than optional: without a value the
+     * server signed tokens that never expired, so a leaked one stayed valid forever.
+     */
+    jwtExpiresIn: z.string().min(1).default("12h"),
+    logLevel: z.string().min(1).optional(),
+    oidc: OidcConfigSchema.optional(),
+    settings: AppSettingsSchema.default({
+        retention_invalid_tokens_days: "30",
+        retention_invalid_tokens_count: "10",
+    }),
+    security: z
+        .object({
+            /**
+             * Empty means no restriction — an unset perimeter, not a closed one. Validated
+             * against the same shape a client's own pin uses, so an unusable value is
+             * caught at startup instead of silently rejecting every agent.
+             */
+            allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
+            /**
+             * Whether to send Strict-Transport-Security.
+             *
+             * Off by default, unlike helmet's own setting. A large share of installations
+             * run on plain HTTP inside a home network, and that header tells the browser
+             * to refuse http:// for this host from then on — remembered for months, and
+             * not undone by turning the header off again. Only switch it on behind TLS.
+             */
+            hsts: z.boolean().default(false),
+        })
+        .default({ allowed_networks: [], hsts: false }),
+    tunnel: TunnelSettingsSchema.default(TunnelSettingsSchema.parse({})),
+});
+
+export type AppConfigInput = z.input<typeof AppConfigSchema>;
+export type AppConfigParsed = z.output<typeof AppConfigSchema>;

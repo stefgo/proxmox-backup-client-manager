@@ -1,15 +1,37 @@
-import { useNavigate } from 'react-router-dom';
-import { AlertCircle, FileBox } from 'lucide-react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, Edit, FileBox, MoreVertical } from 'lucide-react';
+import {
+    ManagedRepository as Repository,
+    CLIENT_STATUS,
+    REPOSITORY_STATUS,
+} from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useState, useEffect } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
-import { Card, StatCard } from '@stefgo/react-ui-components';
+import {
+    ActionButton,
+    ActionMenu,
+    Card,
+    StatCard,
+    cn,
+    useActionMenu,
+    FOCUS_RING,
+    FOCUS_RING_NONE,
+} from '@stefgo/react-ui-components';
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
 
+
+/**
+ * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
+ * inside the popover would be clipped by it. Same rule as the client detail page.
+ */
+const MENU_ENTRY = cn(
+    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    FOCUS_RING_NONE,
+);
 
 interface RepositoryOverviewProps {
     repo: Repository;
@@ -18,7 +40,9 @@ interface RepositoryOverviewProps {
 export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const navigate = useNavigate();
-    const { token } = useAuth();
+    const { pathname } = useLocation();
+    const { isAuthenticated } = useAuth();
+    const { menuState, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
     const [activeTab, setActiveTab] = useState<'snapshots' | 'history'>('snapshots');
 
@@ -30,35 +54,37 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     // Fetch Snapshots on mount or repo change
     useEffect(() => {
-        if (repo && token) {
+        if (repo && isAuthenticated) {
             fetchSnapshots(repo);
         }
-    }, [repo, token, fetchSnapshots]);
+    }, [repo, isAuthenticated, fetchSnapshots]);
 
     // Fetch Clients needed for restore if not already loaded
     useEffect(() => {
-        if (clients.length === 0 && token) {
+        if (clients.length === 0 && isAuthenticated) {
             fetchClients();
         }
-    }, [clients.length, token, fetchClients]);
+    }, [clients.length, isAuthenticated, fetchClients]);
 
     const getStatusColor = () => {
-        if (isLoading) return 'bg-yellow-500 animate-pulse shadow-glow-accent';
-        if (repo?.status === 'online') return 'bg-green-500 shadow-glow-online';
-        return 'bg-border dark:bg-border-dark';
+        if (isLoading) return 'bg-warning animate-pulse shadow-glow-accent';
+        if (repo?.status === REPOSITORY_STATUS.ONLINE)
+            return 'bg-success shadow-glow-success';
+        return 'bg-border';
     };
 
     if (!repo) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-red-500 gap-4">
+            <div className="flex flex-col items-center justify-center h-full text-error gap-4">
                 <AlertCircle size={48} />
                 <p>Repository not found</p>
-                <button onClick={() => navigate('/')} className="text-blue-500 hover:underline">Go Back</button>
+                <button onClick={() => navigate('/')} className={cn("text-info hover:underline rounded-sm", FOCUS_RING)}>Go Back</button>
             </div>
         );
     }
 
-    const showDetails = !isLoading && !error && repo.status === 'online';
+    const showDetails =
+        !isLoading && !error && repo.status === REPOSITORY_STATUS.ONLINE;
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -71,10 +97,38 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             <h2 className="text-2xl font-bold">
                                 {repo.baseUrl}:{repo.datastore}
                             </h2>
-                            <div className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
+                            <div className="text-sm font-mono text-text-muted">
                                 {repo.id}
                             </div>
                         </div>
+                    </div>
+                }
+                action={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Repository actions"
+                            onClick={(e) => openMenu(e, String(repo.id))}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === String(repo.id)}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                        >
+                            <button
+                                onClick={() => {
+                                    // `from` is how the editor knows that Cancel returns to
+                                    // this page and not to the repository list.
+                                    navigate(`/repository/${repo.id}/edit`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
+                            >
+                                <Edit size={16} /> Edit Repository
+                            </button>
+                        </ActionMenu>
                     </div>
                 }
             />
@@ -82,14 +136,14 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {/* Without this the snapshot fetch could fail and leave nothing but the
                 header card on screen, with no hint as to why. */}
             {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-md flex items-center gap-3">
+                <div className="bg-error-bg text-error p-4 rounded-md flex items-center gap-3">
                     <AlertCircle size={18} className="shrink-0" />
                     <span>{error}</span>
                 </div>
             )}
 
-            {!isLoading && !error && repo.status !== 'online' && (
-                <div className="bg-app-bg dark:bg-card-dark border border-border dark:border-border-dark text-text-muted dark:text-text-muted-dark p-4 rounded-md flex items-center gap-3">
+            {!isLoading && !error && repo.status !== REPOSITORY_STATUS.ONLINE && (
+                <div className="bg-app-bg border border-border text-text-muted p-4 rounded-md flex items-center gap-3">
                     <AlertCircle size={18} className="shrink-0" />
                     <span>Repository is offline — snapshots cannot be listed.</span>
                 </div>
@@ -99,15 +153,15 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {showDetails && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div className={activeTab === 'snapshots' ? 'ring-2 ring-primary rounded-xl h-full' : 'h-full'}>
-                            <StatCard
-                                label="Snapshots"
-                                value={snapshots.length.toString()}
-                                sub="Available Backups"
-                                icon={<FileBox className="text-text-muted dark:text-text-muted-dark" />}
-                                onClick={() => setActiveTab('snapshots')}
-                            />
-                        </div>
+                        <StatCard
+                            label="Snapshots"
+                            value={snapshots.length.toString()}
+                            sub="Available Backups"
+                            icon={FileBox}
+                            classNames={{ icon: "text-text-muted" }}
+                            selected={activeTab === 'snapshots'}
+                            onClick={() => setActiveTab('snapshots')}
+                        />
                     </div>
 
                     {/* Snapshots List OR Restore View */}
@@ -126,7 +180,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                                 snapshots={snapshots}
                                 showClientColumn={true}
                                 onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
-                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || 'offline'}
+                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
                                 getClientName={(clientId) => {
                                     const client = clients.find(c => c.id === clientId);
                                     return client ? (client.displayName || client.hostname) : null;

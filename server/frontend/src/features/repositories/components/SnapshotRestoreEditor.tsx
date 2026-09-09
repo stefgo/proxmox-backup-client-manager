@@ -3,7 +3,7 @@ import { X, Folder, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { FileBrowser } from '@stefgo/react-ui-components';
+import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { getErrorMessage } from '../../../utils';
@@ -20,7 +20,7 @@ interface SnapshotRestoreEditorProps {
 const EMPTY_CLIENTS: Client[] = [];
 
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     // ClientSelect only opens its list when it is told to. Without this state the
     // "Set Client" button had nothing to call and the preselected client was final.
@@ -28,6 +28,16 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
     const [selectedArchives, setSelectedArchives] = useState<string[]>([]);
+    /**
+     * Whether this restore reaches the repository through the client's SSH tunnel.
+     *
+     * Asked here rather than derived from the client, for the same reason a backup job
+     * asks it: stored credentials say the detour is *possible*, not that this repository
+     * needs it. Defaulted to on, because a client that has a tunnel at all usually has it
+     * for want of a direct route — and a restore that cannot reach the PBS is the more
+     * expensive mistake of the two.
+     */
+    const [useTunnel, setUseTunnel] = useState(true);
 
     const [error, setError] = useState<string | null>(null);
     // A started restore used to leave the form looking untouched, which invites
@@ -36,6 +46,13 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     // Use Global Store for File Browser
     const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
+
+    // The client can still be swapped in the form, so the offer follows the selection and
+    // not the client this editor was opened for.
+    const restoreClient = selectedClient?.id === selectedClientId
+        ? selectedClient
+        : clients.find((c) => c.id === selectedClientId);
+    const tunnelAvailable = !!restoreClient?.tunnelConfigured;
 
     const availableArchives = snapshot.files
         .map(f => f.filename)
@@ -60,6 +77,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             setSelectedTarget('');
             setBrowserPath('/');
+            setUseTunnel(true);
             setIsSelectingClient(false);
             setMessage(null);
             setError(null);
@@ -74,10 +92,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     // Fetch files when path or client changes
     useEffect(() => {
-        if (selectedClientId && token) {
+        if (selectedClientId && isAuthenticated) {
             fetchFileList(selectedClientId, browserPath);
         }
-    }, [selectedClientId, browserPath, token, fetchFileList]);
+    }, [selectedClientId, browserPath, isAuthenticated, fetchFileList]);
 
     const handleRestore = async () => {
         setError(null);
@@ -109,7 +127,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                     snapshot: snapshotId,
                     targetPath: selectedTarget,
                     repository: repo,
-                    archives: sanitizedArchives
+                    archives: sanitizedArchives,
+                    // Only when it is actually on offer: a client without credentials
+                    // would have the request refused for a box it was never shown.
+                    tunnel: tunnelAvailable ? { required: useTunnel } : undefined
                 })
             });
 
@@ -149,24 +170,22 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     };
 
     return (
-        <div className="dark:bg-card-dark rounded-xl border border-border dark:border-border-dark shadow-premium flex flex-col h-full overflow-hidden">
+        <div className=" rounded-xl border border-border shadow-premium flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-border dark:border-border-dark flex justify-between items-center bg-app-bg dark:bg-card-dark">
+            <div className="p-4 border-b border-border flex justify-between items-center bg-app-bg">
                 <div>
-                    <h3 className="font-semibold text-text-primary dark:text-text-primary-dark flex items-center gap-2">
-                        <Folder size={20} className="text-text-muted dark:text-text-muted-dark" /> Restore Snapshot
+                    <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                        <Folder size={20} className="text-text-muted" /> Restore Snapshot
                     </h3>
-                    <div className="text-xs text-text-muted dark:text-text-muted-dark font-mono mt-1">
+                    <div className="text-xs text-text-muted font-mono mt-1">
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
                     </div>
                 </div>
-                <button onClick={onCancel} className="text-text-muted dark:text-text-muted-dark hover:text-text-primary p-1 rounded hover:bg-hover dark:hover:bg-hover-dark transition-colors">
-                    <X size={20} />
-                </button>
+                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             </div>
 
             {message && (
-                <div className="mx-6 mt-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-green-700 dark:text-green-400 text-sm flex items-center gap-2">
+                <div className="mx-6 mt-6 p-3 bg-badge-success-bg border border-success rounded text-success text-sm flex items-center gap-2">
                     <ShieldCheck size={16} className="shrink-0" />
                     {message}
                 </div>
@@ -174,7 +193,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
             {/* Error Message */}
             {error && (
-                <div className="mx-6 mt-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400 text-sm flex items-center gap-2">
+                <div className="mx-6 mt-6 p-3 bg-error-bg border border-error rounded text-error text-sm flex items-center gap-2">
                     <AlertCircle size={16} />
                     {error}
                 </div>
@@ -186,26 +205,28 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
                     {/* Step 1: Archives Selection */}
                     <div>
-                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Select Archives</label>
+                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Select Archives</label>
 
                         {availableArchives.length > 0 ? (
-                            <div className="border border-border dark:border-border-dark rounded overflow-hidden">
+                            <div className="border border-border rounded overflow-hidden">
                                 {availableArchives.map(arch => (
-                                    <label key={arch} className="flex items-center gap-3 p-2 hover:bg-hover dark:hover:bg-hover-dark cursor-pointer border-b last:border-0 border-border dark:border-border-dark">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedArchives.includes(arch)}
-                                            onChange={() => toggleArchive(arch)}
-                                            className="custom-checkbox h-4 w-4 bg-hover dark:bg-card-dark border-border dark:border-border-dark rounded text-primary focus:ring-primary"
-                                        />
-                                        <span className="text-sm font-mono text-text-muted dark:text-text-muted-dark">
-                                            {formatArchiveName(arch)}
-                                        </span>
-                                    </label>
+                                    <Checkbox
+                                        key={arch}
+                                        className="p-2 hover:bg-hover border-b last:border-0 border-border"
+                                        // `flex-1` on the label, so the whole row toggles the box
+                                        // and not just the words. The row used to be one <label>
+                                        // with the padding on it; the label here is a sibling of
+                                        // the box inside a flex row, so it has to be told to take
+                                        // the rest of the width.
+                                        classNames={{ label: 'flex-1 text-sm font-mono text-text-muted' }}
+                                        label={formatArchiveName(arch)}
+                                        checked={selectedArchives.includes(arch)}
+                                        onChange={() => toggleArchive(arch)}
+                                    />
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-3 text-sm text-text-muted dark:text-text-muted-dark bg-app-bg dark:bg-card-dark rounded border border-border dark:border-border-dark flex items-center gap-2">
+                            <div className="p-3 text-sm text-text-muted bg-app-bg rounded border border-border flex items-center gap-2">
                                 <AlertCircle size={16} /> No archives found in this snapshot.
                             </div>
                         )}
@@ -227,12 +248,27 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         />
                     )}
 
+                    {/* Only for a client that has credentials. Hidden rather than disabled:
+                        a client with no tunnel has no choice to make, and an inert switch
+                        would raise a question the operator cannot act on from here. */}
+                    {tunnelAvailable && (
+                        <Checkbox
+                            label="Restore through the SSH reverse tunnel"
+                            checked={useTunnel}
+                            onChange={() => {
+                                setUseTunnel(!useTunnel);
+                                setMessage(null);
+                            }}
+                            classNames={{ label: 'text-sm text-text-muted' }}
+                        />
+                    )}
+
                 </div>
 
                 {/* Step 3: Directory Selection */}
                 {selectedClientId && (
                     <div className="flex flex-col">
-                        <label className="block text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase mb-1">Target Directory <span className="text-red-500">*</span></label>
+                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Target Directory <span className="text-error">*</span></label>
                         <FileBrowser
                             currentPath={browserPath}
                             onNavigate={setBrowserPath}
@@ -249,18 +285,17 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-border dark:border-border-dark flex justify-end gap-3 bg-app-bg dark:bg-card-dark">
-                <button onClick={onCancel} className="px-4 py-2 rounded bg-border dark:bg-card-dark hover:bg-hover dark:hover:bg-hover-dark text-text-primary dark:text-text-primary-dark font-medium transition-colors">
+            <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg">
+                <Button variant="secondary" onClick={onCancel}>
                     Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                     onClick={handleRestore}
                     disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!message}
                     title={message ? 'Change the selection to start another restore' : undefined}
-                    className="px-4 py-2 rounded bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold flex items-center gap-2 transition-all shadow-glow-accent active:scale-[0.98]"
                 >
                     {message ? 'Restore Started' : 'Restore Content'}
-                </button>
+                </Button>
             </div>
         </div>
     );

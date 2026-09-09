@@ -2,18 +2,26 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
+import { ConfirmDialog } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 
 export const UserOverview = () => {
-    const { token } = useAuth();
+    const { isAuthenticated } = useAuth();
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    // The user itself, so the dialog names the account it is about.
+    const [pendingDelete, setPendingDelete] = useState<UserData | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    // Set instead of pendingDelete when the account is the only one left. A separate flag
+    // rather than a mode on the delete dialog: the two say different things, and this one
+    // must not be able to reach the request at all.
+    const [blockedLastUser, setBlockedLastUser] = useState<UserData | null>(null);
 
     useEffect(() => {
         fetchUsers();
-    }, [token]);
+    }, [isAuthenticated]);
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -39,11 +47,28 @@ export const UserOverview = () => {
         setIsDialogOpen(true);
     };
 
-    const handleDeleteUser = async (user: UserData) => {
+    /**
+     * The list already disables the entry for the last user, so this branch is the second
+     * net -- it catches a list that has gone stale, which is exactly when the click gets
+     * through. The server refuses the same case in UserController.delete; asking here
+     * means the operator reads why instead of an error after the fact.
+     */
+    const requestDeleteUser = (user: UserData) => {
+        if (users.length <= 1) {
+            setBlockedLastUser(user);
+            return;
+        }
+        setPendingDelete(user);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!pendingDelete) return;
+        setIsDeleting(true);
         try {
-            const res = await apiFetch(`/api/v1/users/${user.id}`, {
+            const res = await apiFetch(`/api/v1/users/${pendingDelete.id}`, {
                 method: 'DELETE'});
             if (res.ok) {
+                setPendingDelete(null);
                 fetchUsers();
             } else {
                 const data = await res.json();
@@ -52,6 +77,8 @@ export const UserOverview = () => {
         } catch (e) {
             console.error(e);
             alert('Error deleting user');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -82,7 +109,7 @@ export const UserOverview = () => {
                 isLoading={isLoading}
                 onCreateUser={handleCreateUser}
                 onEditUser={handleEditUser}
-                onDeleteUser={handleDeleteUser}
+                onDeleteUser={requestDeleteUser}
             />
 
             <UserDialog
@@ -90,6 +117,30 @@ export const UserOverview = () => {
                 onClose={() => setIsDialogOpen(false)}
                 onSave={handleSaveUser}
                 editingUser={editingUser}
+            />
+
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                onClose={() => setPendingDelete(null)}
+                onConfirm={confirmDeleteUser}
+                title={`Delete user "${pendingDelete?.username}"?`}
+                description="The account loses access to this interface immediately. Nothing else is removed with it -- clients, jobs and history belong to the installation, not to a user."
+                confirmLabel="Delete user"
+                variant="danger"
+                isConfirming={isDeleting}
+            />
+
+            {/*
+              * Nothing is deleted here: both buttons close. The dialog exists to say why
+              * the delete does not happen, in the place where the operator asked for it.
+              */}
+            <ConfirmDialog
+                isOpen={!!blockedLastUser}
+                onClose={() => setBlockedLastUser(null)}
+                onConfirm={() => setBlockedLastUser(null)}
+                title="Cannot delete the last user"
+                description={`"${blockedLastUser?.username}" is the only account left. Deleting it would lock everyone out of this interface, so the server refuses it. Create a second user first.`}
+                confirmLabel="OK"
             />
         </div>
     );

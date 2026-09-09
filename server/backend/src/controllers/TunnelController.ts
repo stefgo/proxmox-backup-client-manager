@@ -2,36 +2,58 @@ import { FastifyReply, FastifyRequest } from "fastify";
 // ssh2 is CommonJS and Node's ESM interop does not expose `utils` as a named export,
 // unlike `Client` — so it has to come off the default export.
 import ssh2 from "ssh2";
+import { z } from "zod";
+import { TunnelConfigSchema } from "@pbcm/shared";
+import { firstIssue } from "../utils/validation.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
+import { ProxyService } from "../services/ProxyService.js";
 
-interface TunnelUpdateBody {
-    sshHost?: string;
-    sshPort?: number;
-    sshUser?: string;
-    privateKey?: string;
-    passphrase?: string | null;
-    hostKeySha256?: string;
-}
+// Request bodies for the tunnel endpoints.
+//
+// Derived from `TunnelConfigSchema` rather than restated, so the field rules -- a port is
+// 1..65535, a host is not the empty string -- are written down once. They live here and
+// not in `@pbcm/shared` because they describe what these HTTP handlers accept; the agent
+// never sees them, and the private key deliberately never leaves the backend.
 
-interface KeyPairBody {
-    comment?: string;
-}
+/** Everything is required: there is no half-configured tunnel worth storing. */
+const TunnelCreateSchema = TunnelConfigSchema;
 
-interface PublicKeyBody {
-    privateKey?: string;
-    passphrase?: string;
-}
+/**
+ * Every field optional -- the repository builds its UPDATE from the keys that are present,
+ * so an absent one means "leave it alone".
+ *
+ * `passphrase` is the exception that has to be spelled out: `null` is a value here, not a
+ * missing field. It is how a key that no longer has a passphrase gets its stored one
+ * cleared, and `.partial()` alone would not allow it through.
+ */
+const TunnelUpdateSchema = TunnelConfigSchema.partial().extend({
+    passphrase: z.string().nullable().optional(),
+});
 
-interface TunnelTestBody {
-    sshHost?: string;
-    sshPort?: number;
-    sshUser?: string;
-    privateKey?: string;
-    passphrase?: string;
-    expectedHostKeySha256?: string;
-}
+/** A test against credentials supplied in the request, before anything is stored. */
+const TunnelTestSchema = TunnelConfigSchema.omit({
+    hostKeySha256: true,
+}).extend({
+    expectedHostKeySha256: z.string().min(1).optional(),
+});
+
+/** The subset a stored-credentials test may override; the key is never overridable. */
+const TunnelTestOverrideSchema = TunnelConfigSchema.pick({
+    sshHost: true,
+    sshPort: true,
+    sshUser: true,
+}).partial();
+
+const KeyPairSchema = z.object({
+    comment: z.string().max(200).optional(),
+});
+
+const PublicKeySchema = z.object({
+    privateKey: z.string().min(1),
+    passphrase: z.string().optional(),
+});
 
 export class TunnelController {
     /** Tunnel configuration without any secret — the key is write-only by design. */
@@ -59,37 +81,116 @@ export class TunnelController {
     }
 
     /**
+     * Attaches a tunnel to an existing client — the only way an inbound client gets one,
+     * since it does not exist as a row until its agent has registered itself.
+     *
+     * Unlike the outbound create flow in `ClientController`, nothing here is atomic with
+     * a registration: the client already exists, so a failed test costs nothing but the
+     * error message. The test still runs first, so a tunnel is never stored in a state
+     * that was never seen to work.
+     */
+    static async create(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+
+        if (!ClientRepository.findById(clientId)) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+        if (ClientTunnelRepository.findByClientId(clientId)) {
+            return reply.code(409).send({
+                error: "This client already has an SSH tunnel — edit it instead",
+            });
+        }
+        const parsed = TunnelCreateSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const body = parsed.data;
+
+        const test = await TunnelService.testConnection({
+            sshHost: body.sshHost,
+            sshPort: body.sshPort,
+            sshUser: body.sshUser,
+            privateKey: body.privateKey,
+            passphrase: body.passphrase,
+            expectedHostKeySha256: body.hostKeySha256,
+        });
+        if (!test.ok) {
+            return reply
+                .code(400)
+                .send({ error: `SSH tunnel test failed: ${test.error}` });
+        }
+
+        ClientTunnelRepository.create(clientId, {
+            sshHost: body.sshHost,
+            sshPort: body.sshPort,
+            sshUser: body.sshUser,
+            privateKey: body.privateKey,
+            passphrase: body.passphrase,
+            hostKeySha256: body.hostKeySha256,
+        });
+
+        // Stored means available, not in use: the jobs that are to take this route have
+        // to ask for it themselves, one by one, in the job editor.
+        ProxyService.broadcastClientUpdate();
+        return { status: "created" };
+    }
+
+    /**
      * Updates the SSH credentials. Neither the connection mode nor the tunnel target nor
      * the bind port are editable: the mode is fixed at creation time, the target follows
-     * from each job's repository and the port is allocated per forward.
+     * from each job's repository and the port is allocated per forward. Whether the
+     * tunnel is used is not here either — that is each job's own setting.
      */
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const body = (request.body ?? {}) as TunnelUpdateBody;
 
-        const client = ClientRepository.findById(clientId);
-        if (!client) {
+        if (!ClientRepository.findById(clientId)) {
             return reply.code(404).send({ error: "Client not found" });
-        }
-        if (client.connection_mode !== "outbound") {
-            return reply.code(400).send({
-                error: "Only outbound clients have an SSH tunnel",
-            });
         }
         if (!ClientTunnelRepository.findByClientId(clientId)) {
             return reply
                 .code(404)
                 .send({ error: "No SSH tunnel is configured for this client" });
         }
+        // Validated before it reaches the repository, which builds its UPDATE from
+        // whatever keys the object carries -- an unchecked body could set columns this
+        // endpoint is not meant to touch.
+        const parsed = TunnelUpdateSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
 
-        const info = ClientTunnelRepository.update(clientId, body);
+        const info = ClientTunnelRepository.update(clientId, parsed.data);
         if (info.changes === 0) {
             return reply.code(400).send({ error: "No changes submitted" });
         }
 
-        // New credentials must not be used by an existing connection.
+        // New credentials must not be used by an existing connection. A run holding a
+        // lease at this moment fails, which is the honest outcome: its remaining bytes
+        // would go through a connection nobody has checked.
         TunnelService.closeClient(clientId);
         return { status: "updated" };
+    }
+
+    /**
+     * Removes the tunnel entirely, credentials included. The client stays. Its jobs keep
+     * their own `tunnel` setting, and any that asks for the route now fails at the lease
+     * — deliberately loud: silently rerouting a backup past a tunnel it was configured
+     * for would send it out over a path the operator never chose.
+     */
+    static async remove(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+
+        const info = ClientTunnelRepository.delete(clientId);
+        if (info.changes === 0) {
+            return reply
+                .code(404)
+                .send({ error: "No SSH tunnel is configured for this client" });
+        }
+
+        TunnelService.closeClient(clientId);
+        ProxyService.broadcastClientUpdate();
+        return { status: "deleted" };
     }
 
     /**
@@ -98,13 +199,11 @@ export class TunnelController {
      * host key fingerprint for the operator to confirm.
      */
     static async test(request: FastifyRequest, reply: FastifyReply) {
-        const body = (request.body ?? {}) as TunnelTestBody;
-
-        if (!body.sshHost || !body.sshUser || !body.privateKey) {
-            return reply.code(400).send({
-                error: "sshHost, sshUser and privateKey are required",
-            });
+        const parsed = TunnelTestSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
+        const body = parsed.data;
 
         const result = await TunnelService.testConnection({
             sshHost: body.sshHost,
@@ -123,8 +222,11 @@ export class TunnelController {
      * moment a private key travels to the browser; it is write-only everywhere else.
      */
     static async generateKeyPair(request: FastifyRequest, reply: FastifyReply) {
-        const body = (request.body ?? {}) as KeyPairBody;
-        const comment = (body.comment || "pbcm-server").trim();
+        const parsed = KeyPairSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const comment = (parsed.data.comment || "pbcm-server").trim();
 
         try {
             const pair = ssh2.utils.generateKeyPairSync("ed25519", { comment });
@@ -147,13 +249,15 @@ export class TunnelController {
      * authorized_keys snippet is available for self-supplied keys too.
      */
     static async derivePublicKey(request: FastifyRequest, reply: FastifyReply) {
-        const body = (request.body ?? {}) as PublicKeyBody;
-
-        if (!body.privateKey) {
-            return reply.code(400).send({ error: "privateKey is required" });
+        const parsedBody = PublicKeySchema.safeParse(request.body ?? {});
+        if (!parsedBody.success) {
+            return reply
+                .code(400)
+                .send({ error: firstIssue(parsedBody.error) });
         }
+        const { privateKey, passphrase } = parsedBody.data;
 
-        const parsed = ssh2.utils.parseKey(body.privateKey, body.passphrase);
+        const parsed = ssh2.utils.parseKey(privateKey, passphrase);
         if (parsed instanceof Error) {
             return reply.code(400).send({
                 error: `Could not read the private key: ${parsed.message}`,
@@ -171,9 +275,20 @@ export class TunnelController {
     /**
      * Same test against the stored credentials, so the private key never has to leave
      * the backend for a routine check from the client editor.
+     *
+     * Host, port and user may be overridden from the request: the editor has to be able
+     * to test what is on screen rather than what is in the database, or a green result
+     * would describe a configuration the operator is about to replace. The key is not
+     * overridable — it stays write-only, and an edited key goes through the parameterised
+     * `test` above instead.
      */
     static async testStored(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
+        const parsed = TunnelTestOverrideSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const body = parsed.data;
         let creds;
 
         try {
@@ -191,11 +306,14 @@ export class TunnelController {
         }
 
         return TunnelService.testConnection({
-            sshHost: creds.sshHost,
-            sshPort: creds.sshPort,
-            sshUser: creds.sshUser,
+            sshHost: body.sshHost?.trim() || creds.sshHost,
+            sshPort: body.sshPort ?? creds.sshPort,
+            sshUser: body.sshUser?.trim() || creds.sshUser,
             privateKey: creds.privateKey,
             passphrase: creds.passphrase,
+            // Always the stored fingerprint: a host presenting a different key must fail
+            // here. `testConnection` still reports the key it saw, which is what lets the
+            // editor offer to re-pin it.
             expectedHostKeySha256: creds.hostKeySha256,
             remoteBindHost: creds.remoteBindHost,
         });

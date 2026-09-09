@@ -6,7 +6,7 @@ import {
 } from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
 import { ScheduleConfig, ScheduleConfigSchema, WS_EVENTS } from "@pbcm/shared";
-import { logger } from "../core/logger.js";
+import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 
 /** Upper bound for the catch-up loop, so a pathological schedule cannot stall the tick. */
