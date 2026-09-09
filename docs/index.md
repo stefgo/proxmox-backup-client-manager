@@ -1,4 +1,4 @@
-# Proxmox Backup Client Manager
+# Proxmox Backup Client Manager (PBCM)
 
 [Proxmox Backup Server](https://www.proxmox.com/en/products/proxmox-backup-server/overview)
 (PBS) stores the backups. On every machine you back up, the `proxmox-backup-client`
@@ -7,7 +7,7 @@ that server. PBS manages the *storage* — it does not manage the machines that 
 into it. For thirty hosts that means thirty crontabs, thirty copies of the repository
 credentials, and no shared answer to "did everything run last night?".
 
-**PBCM fills that gap, and only that gap.** A lightweight Node.js agent runs on each
+**Proxmox Backup Client Manager (PBCM) fills that gap, and only that gap.** A lightweight Node.js agent runs on each
 machine you back up; a central Fastify/React server gives you one dashboard and one
 API for all of them. PBCM stores no backup data and replaces no PBS — it is the
 control plane above your `proxmox-backup-client` instances.

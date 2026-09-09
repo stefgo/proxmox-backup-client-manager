@@ -1,7 +1,7 @@
 # MkDocs Material builds the site that is published to GitHub Pages by
 # .github/workflows/docs.yml. docs/ is the same directory the repository serves
 # on GitHub, so every page has to render on both -- see the note on `toc` below.
-site_name: Proxmox Backup Client Manager
+site_name: Proxmox Backup Client Manager (PBCM)
 site_description: Centralized management for proxmox-backup-client instances
 site_url: https://stefgo.github.io/proxmox-backup-client-manager/
 site_author: stefgo
