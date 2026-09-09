@@ -1,7 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <!-- The glyph of docs/assets/favicon.svg without its orange plate: in the
        header the plate would sit on the same orange and disappear, so the logo
-       is the monitor alone and takes the header's foreground colour. -->
+       is the monitor alone, white, like the icon in the application's own
+       DashboardHeader (App.tsx: text-white on the primary gradient).
+
+       The stroke is the literal white, not `currentColor`: Material embeds the
+       logo with <img src>, and inside an <img> the SVG is a document of its
+       own, so there is no inherited colour for `currentColor` to pick up -- it
+       falls back to the black canvas text colour. -->
   <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
   <line x1="8" y1="21" x2="16" y2="21" />
   <line x1="12" y1="17" x2="12" y2="21" />
