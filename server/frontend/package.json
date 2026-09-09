@@ -13,7 +13,7 @@
     },
     "dependencies": {
         "@pbcm/shared": "*",
-        "@stefgo/react-ui-components": "3.0.0-beta.4",
+        "@stefgo/react-ui-components": "3.0.0",
         "date-fns": "^4.1.0",
         "lucide-react": "^0.562.0",
         "mitt": "^3.0.1",
