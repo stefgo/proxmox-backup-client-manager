@@ -26,11 +26,22 @@ which serves it anonymously.
 | Image | Platforms |
 | :---- | :-------- |
 | `ghcr.io/stefgo/pbcm-server:latest` | `linux/amd64` and `linux/arm64` |
-| `ghcr.io/stefgo/pbcm-server:dev` | rolling build of the `dev` branch — prerelease |
+| `ghcr.io/stefgo/pbcm-server:main` | rolling build of the `main` branch — no release |
+| `ghcr.io/stefgo/pbcm-server:dev` | rolling build of the `dev` branch — in development |
 | `ghcr.io/stefgo/pbcm-server:1.4.0` | a specific release |
 
-`latest` moves only when a stable tag is released. Pin a version tag if you want
-upgrades to be a decision rather than a side effect of `docker compose pull`.
+Three of these move, and the difference matters:
+
+- **`latest`** is the last released version. It moves only when a release is
+  published, which happens deliberately and not on every push. **This is the one
+  to use** unless you have a reason not to.
+- **`main`** is the current state of the main branch: reviewed and released to
+  everyone, but *not* a release. It can be ahead of `latest` and carries no
+  version number or changelog entry. Useful to test a fix before it is released.
+- **`dev`** is the state of development. Expect it to break.
+
+Pin a version tag if you want upgrades to be a decision rather than a side effect
+of `docker compose pull`.
 
 ## 1. Create the configuration file
 

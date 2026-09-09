@@ -11,6 +11,7 @@
     "server/frontend"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "start:server": "npm run start -w server/backend",
     "start:client": "npm run start -w client",
     "dev:server": "npm run dev -w server/backend",
@@ -24,6 +25,7 @@
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
     "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^12.0.1",
@@ -33,14 +35,27 @@
   },
   "release": {
     "branches": [
-      "main",
-      {
-        "name": "dev",
-        "prerelease": "beta"
-      }
+      "main"
     ],
     "plugins": [
-      "@semantic-release/commit-analyzer",
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "breaking": true,
+              "release": "minor"
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "analyzeCommitsCmd": "test \"$FORCE_MAJOR\" = \"true\" && echo major || true",
+          "successCmd": "echo \"tag=v${nextRelease.version}\" >> $GITHUB_OUTPUT"
+        }
+      ],
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
       [

@@ -114,25 +114,49 @@ Environment variables of note:
 ## Versioning and Releases
 
 `semantic-release` owns the version. It runs from
-[`release.yml`](.github/workflows/release.yml) on every push to `main` (stable)
-and `dev` (prerelease on the `beta` channel), derives the next number from the
-commit types since the last tag, writes `CHANGELOG.md` and the root
-`package.json`, and pushes the tag. **Never bump a version or create a `v*` tag
-by hand.**
+[`release.yml`](.github/workflows/release.yml), which is **`workflow_dispatch`
+only and refuses any branch but `main`**: a release is an action, not a side
+effect of pushing. It derives the next number from the commit types since the
+last tag, writes `CHANGELOG.md` and the root `package.json`, and pushes the tag.
+**Never bump a version or create a `v*` tag by hand.**
 
+- The workflow takes two inputs. **`dry_run`** (default on) prints the next
+  version and changes nothing. **`bump`** (`auto` | `major`) is the *only* way a
+  major version is created -- no commit text can produce one. A run that was
+  asked for and produces no release **fails**, rather than going green with no
+  result.
+- **A `BREAKING CHANGE:` footer raises the minor position, not the major one**
+  (`releaseRules` on the commit-analyzer). It still renders as its own
+  `BREAKING CHANGES` section in the changelog.
 - **The commit message is the only input the version comes from**, so it is
-  checked like code: commitlint (`@commitlint/config-conventional`) fails a PR
-  whose commits are not Conventional Commits. A `Fix:` instead of `fix:`
-  produces no release at all and nothing else would go red. `subject-case` is
-  deliberately off -- the subjects are German and capitalise nouns.
+  checked like code -- but by `.githooks/commit-msg`, not by CI. The commitlint
+  step in `ci.yml` is bound to `pull_request` and this repository is maintained
+  without pull requests, so it never fired; ten of ten commits after `v1.4.0`
+  were non-conformant and released nothing. `core.hooksPath` is set by the root
+  `prepare` script. A `Fix:` instead of `fix:` is now rejected locally.
+- **Commit messages are written in English** — subject and body. This is the one
+  place where the repository's German prose does not apply: the messages become
+  `CHANGELOG.md` and the GitHub release notes, which are read by the same
+  audience as `docs/`, and that is English throughout. The existing history is
+  German and not worth rewriting, so it stays mixed; the rule applies going
+  forward.
+- `subject-case` stays off. It forbids `sentence-case`, which is the natural form
+  for an English subject (`fix: Validate the schedule when reading it`). The type
+  is what triggers a release, not the capitalisation behind it.
+- **`feat!: …` does not work** and is rejected by the local `no-breaking-bang`
+  rule: the Angular preset's `headerPattern` contains no `!`, so such a commit is
+  read as typeless and triggers nothing. Use the footer.
 - The **root `package.json` is the single source of truth** for the version.
   The workspace manifests keep their own `1.0.0`; they are private and never
   published, and nothing reads them.
 - The tag is what produces images, so a release and its container images cannot
   drift apart -- but `build.yml`'s `v*.*.*` filter does not see it: a tag pushed
   over `GITHUB_TOKEN` creates no workflow run, so `release.yml` dispatches the
-  build on the tag ref itself. Only a stable tag does; that dispatch is what
-  moves `latest`. Pushing to `dev` publishes a rolling `:dev` image instead.
+  build on the tag ref itself. That dispatch is what moves `latest`.
+- Pushing to `main` or `dev` publishes a rolling `:main` / `:dev` image and
+  nothing else -- no tag, no version, no changelog entry. `:main` is the state
+  released to everyone, `:dev` the one for developers; `sha-<short>` accompanies
+  both as the immutable pointer.
 - Everything that needs the version string derives it in the same order --
   build argument, then root `package.json`, then git. That order lives in
   [`scripts/generate-version.sh`](scripts/generate-version.sh) and, mirrored, in
@@ -202,5 +226,5 @@ render in both**, which constrains two things:
 
 The workflow is deliberately **not** part of `ci.yml`/`release.yml`: that chain is
 the single gate on a release, and a documentation typo must not block one. Only
-`main` publishes — `dev` is the prerelease channel, and a site alternating between
-the stable and the beta state would be worse than one that lags.
+`main` publishes — `dev` is the developer channel, and a site alternating between
+the released and the in-development state would be worse than one that lags.

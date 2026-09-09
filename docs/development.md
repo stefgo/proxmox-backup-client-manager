@@ -68,12 +68,12 @@ and a typo in a documentation page must not be able to block a release. It build
 page missing from the nav into a build failure — the only automated link check this
 repository has.
 
-`dev` does not publish. It is the prerelease channel, and a site flipping between the
-stable and the beta state would be worse than one that lags behind by a release.
+`dev` does not publish. It is the developer channel, and a site flipping between the
+released and the in-development state would be worse than one that lags behind by a release.
 
-The two `plan-*.md` files are excluded from the site via `exclude_docs`. They are working
-documents, one still a draft; they stay readable on GitHub but are not in the published
-navigation or the search index.
+The `plan-*.md` files are excluded from the site via `exclude_docs`. They are working
+documents; they stay readable on GitHub but are not in the published navigation or the
+search index.
 
 ### Screenshots
 
@@ -168,18 +168,92 @@ These files ensure that all TypeScript modules (`shared`, `client`, `server/fron
 - **Server**: Supports both `linux/amd64` and `linux/arm64`. This is enabled because the server relies solely on Node.js.
 - **Client**: Built per architecture from its own Dockerfile (`Dockerfile.client` for `linux/amd64`, `Dockerfile.client.arm64` for `linux/arm64`) and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package.
 
-## Release
+## Commits and Versioning
 
-`semantic-release` owns the version number; nobody tags by hand.
-[`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml) runs on every push to `main`
-and `dev`, gated by the same `ci.yml` checks a pull request gets:
+The commit message is the **only** input the version number comes from, so it is
+checked like code. `commitlint.config.mjs` extends
+`@commitlint/config-conventional` and permits eleven types. Only four of them
+produce a version:
+
+| Type | Effect |
+| :--- | :--- |
+| `feat` | **minor** – 1.4.0 → 1.5.0 |
+| `fix`, `perf`, `revert` | **patch** – 1.4.0 → 1.4.1 |
+| `build`, `chore`, `ci`, `docs`, `refactor`, `style`, `test` | no release |
+
+The seven types in the last row are not second-class -- they are how a change
+that ships nothing to a user is recorded. A documentation commit *should* be a
+`docs:` commit and *should* release nothing.
+
+A scope is optional and free-form (`fix(client): …`); there is no `scope-enum`
+and no plan for one.
+
+**Write commit messages in English**, subject and body. They become `CHANGELOG.md`
+and the GitHub release notes, which are read by the same audience as these pages.
+The existing history is German and not worth rewriting, so it stays mixed; the
+rule applies from here on.
+
+`subject-case` is switched off. It forbids `sentence-case`, the natural form for
+an English subject (`fix: Validate the schedule when reading it`), and it would
+also flag every older German commit. The type is what triggers a release, not the
+capitalisation behind it.
+
+### Breaking changes
+
+A breaking change raises the **minor** position here, not the major one. Write
+it as a footer, separated by a blank line:
 
 ```
-push to main
+feat(client): Konfigurationsformat auf YAML umgestellt
+
+BREAKING CHANGE: config.json wird nicht mehr gelesen; siehe docs/setup.md
+```
+
+The footer still renders as its own `BREAKING CHANGES` section in `CHANGELOG.md`
+and in the release notes -- only the version arithmetic changes. A **major**
+comes from the release workflow alone, see below.
+
+**`feat!: …` does not work and is rejected by commitlint.** semantic-release
+reads commits with the Angular preset, whose `headerPattern` is
+`/^(\w*)(?:\((.*)\))?: (.*)$/` -- it contains no `!`. A commit written that way
+falls through the pattern, is read as *typeless* and triggers nothing at all,
+while commitlint's own parser would happily accept it. The local rule
+`no-breaking-bang` closes that gap and points at the footer instead.
+
+### The hooks
+
+The check runs locally, through `.githooks/commit-msg`. It is not in `ci.yml`
+where one would look first: that step is bound to `pull_request`, and this
+repository is maintained without pull requests -- so it never fired. Between
+`v1.4.0` and the introduction of the hook, ten of ten commits were
+non-conformant and produced no release between them.
+
+`.githooks/` also holds `pre-push`, which allows pushing `main` and `dev` only
+and keeps topic branches local. Both are activated by `core.hooksPath`, which
+the root `prepare` script sets on every `npm install`:
+
+```bash
+git config core.hooksPath .githooks   # runs automatically via `npm install`
+```
+
+Should a single commit need to stay out of the version calculation, the string
+`[skip release]` anywhere in its message removes it from the analysis.
+
+## Release
+
+`semantic-release` owns the version number; nobody tags by hand. A release is an
+**action, not a side effect of pushing**: it is started from
+*Actions ▸ Release ▸ Run workflow*, and only on `main` --
+[`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml)
+aborts on any other branch. It is gated by the same `ci.yml` checks a pull
+request gets.
+
+```
+Actions ▸ Release ▸ Run workflow   (main)
   └─► release.yml → semantic-release
         ├─ commits CHANGELOG.md + package.json   [skip ci]  (no second build)
-        ├─ pushes tag v1.4.0
-        └─ gh workflow run build.yml --ref v1.4.0
+        ├─ pushes tag v1.5.0
+        └─ gh workflow run build.yml --ref v1.5.0
               └─► build.yml → images to GHCR
 ```
 
@@ -188,40 +262,46 @@ detour is not decoration: semantic-release pushes the tag over `GITHUB_TOKEN`,
 and GitHub creates no workflow run for such an event -- `workflow_dispatch` and
 `repository_dispatch` are the only exceptions. Without that step a release ends
 at the tag and never produces an image. The dispatch targets the **tag** ref, so
-`github.ref` inside `build.yml` is `refs/tags/v1.4.0` and its semver and `latest`
+`github.ref` inside `build.yml` is `refs/tags/v1.5.0` and its semver and `latest`
 rules apply; dispatching `main` instead would tag the images `main` again.
 
-- **`main`** produces a stable release: `v1.4.0`, images tagged `1.4.0`, `1.4`
-  and `latest`. Only a stable tag moves `latest`, and it moves on every release
-  -- `release.yml` recognises one by its shape (`v1.4.0`, no hyphen).
-- **`dev`** produces a prerelease on the `beta` channel: `v1.4.0-beta.1`. It is
-  a version number and a GitHub release, not an image: no dispatch fires for it,
-  and `latest` never points at a prerelease. Every push to `dev` publishes a
-  rolling `:dev` image instead, whether or not it releases, which is what makes
-  the current state of development pullable.
-- The version comes solely from the commit types since the last tag: `fix:`
-  bumps the patch, `feat:` the minor, a `!` or a `BREAKING CHANGE:` footer the
-  major. Commits typed `docs:`, `chore:`, `refactor:` or `build:` release
-  nothing.
-- commitlint enforces that in `ci.yml` on every pull request, because a
-  malformed type silently produces no release.
+The workflow takes two inputs:
+
+- **`dry_run`** (default **on**) -- runs `semantic-release --dry-run`: the next
+  version number appears in the log, nothing is written, no tag, no image. Turn
+  it off to release for real. The default is deliberately the harmless one; a
+  mis-click costs a dry run instead of moving `latest` for every self-hoster.
+- **`bump`** (`auto` | `major`) -- `auto` derives the bump from the commit types.
+  `major` forces one. This is the **only** way a major version comes about; no
+  commit text can produce one.
+
+`bump: major` works through a second `analyzeCommits` plugin
+(`@semantic-release/exec`, see `package.json`), because semantic-release reduces
+the results of all such plugins to the *highest* release type. It is independent
+of the commits, so a forced major would also produce `2.0.0` from a state holding
+nothing but `docs:` commits -- which is what the dry run is there to catch.
+
+**A release run that produces nothing fails.** With an automatic trigger "nothing
+to do" is the normal case; for a run someone asked for it is an error, and the
+workflow reports it as one instead of going green with no result.
 
 `package.json` in the repository root carries the released version. The
 workspace manifests are private, never published and keep their own `1.0.0`.
 
 To build an image from any other branch, dispatch the build manually -- it is
-tagged with the branch name and the short SHA, never with `latest`:
+tagged with the branch name and the short SHA, never with `latest`. Slashes
+become hyphens, because a Docker tag cannot contain one:
 
 ```bash
-gh workflow run build.yml --ref feat/my-branch
+gh workflow run build.yml --ref feat/my-branch   # -> :feat-my-branch
 ```
 
 ## Deployment
 
 Images are built and published by GitHub Actions, not from a developer machine.
-[`build.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/build.yml) runs on every push to `dev`, on
-`v*.*.*` tags and on manual dispatch -- which is how a release reaches it, see
-[Release](#release) -- and pushes to GHCR:
+[`build.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/build.yml) runs on every push to `main` and
+`dev`, on `v*.*.*` tags and on manual dispatch -- which is how a release reaches
+it, see [Release](#release) -- and pushes to GHCR:
 
 - `ghcr.io/<owner>/pbcm-server` – a real multi-arch manifest (`linux/amd64`,
   `linux/arm64`), built natively per architecture and merged afterwards
@@ -229,10 +309,20 @@ Images are built and published by GitHub Actions, not from a developer machine.
 - `ghcr.io/<owner>/pbcm-client-arm64` – `linux/arm64`, a separate image name
   rather than a manifest entry
 
-A stable tag publishes `<version>`, `<major>.<minor>` and `latest`; a tag
-dispatched by hand for a prerelease publishes `<version>` only and leaves
-`latest` where it is. A branch push or a manual dispatch on a branch publishes
-`<branch>` and `sha-<short>`, never `latest`.
+Which tag ends up where:
+
+| Trigger | Tags | Moves `latest` |
+| :--- | :--- | :--- |
+| Push to `main` | `main`, `sha-<short>` | no |
+| Push to `dev` | `dev`, `sha-<short>` | no |
+| Release tag `v1.5.0` | `1.5.0`, `1.5`, `latest` | **yes** |
+| Dispatch on a branch | `<branch>`, `sha-<short>` | no |
+
+`:main` and `:dev` are rolling pointers without a version: `:main` is the state
+released to everyone, `:dev` the one for developers. Neither creates a tag or a
+CHANGELOG entry -- that is what the release workflow is for. `sha-<short>`
+accompanies each of them as the immutable counterpart, for pinning a specific
+build. Only a release moves `latest`.
 
 ### Registry cleanup
 
