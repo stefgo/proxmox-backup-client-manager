@@ -87,11 +87,12 @@ PBCM sets up and tears down around the run.
     ---
 
     Docker Compose for the server and for each agent, plus the configuration
-    reference.
+    reference and the tunnel setup for clients with no route to the PBS.
 
     [:octicons-arrow-right-24: Server](install-server.md) ·
     [:octicons-arrow-right-24: Client Agent](install-client.md) ·
-    [:octicons-arrow-right-24: Configuration](setup.md)
+    [:octicons-arrow-right-24: Configuration](setup.md) ·
+    [:octicons-arrow-right-24: SSH Reverse Tunnel](tunnel.md)
 
 -   :material-sitemap: **Understand it**
 

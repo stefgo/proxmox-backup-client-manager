@@ -15,25 +15,39 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 
 ```
 client/src/
-├── core/                   # Base services: SQLite DB, WebSocket Connection, Logger, Config
+├── core/                   # Base services: config, SQLite, WebSocket, process-wide helpers
+│   ├── CappedLog.ts        # Head-and-tail bounded capture of a run's output
 │   ├── Config.ts           # YAML config loader and writer
 │   ├── Connection.ts       # WebSocket client with auto-reconnect
 │   ├── Database.ts         # SQLite initialization and migration runner
-│   ├── Logger.ts           # Pino-based logger
+│   ├── InsecureHttp.ts     # Self-signed-tolerant requests, scoped to server calls
+│   ├── Lifecycle.ts        # The single gate between "running" and "working"
+│   ├── LogStream.ts        # Batched LOG_UPDATE frames (250 ms / 8 KB)
+│   ├── SetupPin.ts         # In-memory PIN guarding local registration
+│   ├── Version.ts          # Agent version, read from dist/VERSION
 │   └── migrations/         # Database schema migrations (Umzug)
 ├── features/               # Business logic
-│   ├── Scheduler.ts        # node-cron based job scheduling
-│   ├── Executor.ts         # proxmox-backup-client CLI wrapper
+│   ├── Cleanup.ts          # Daily DB maintenance
+│   ├── Executor.ts         # Run orchestration and the concurrency queue
 │   ├── Handlers.ts         # WebSocket message routing
-│   └── Cleanup.ts          # Daily DB maintenance
+│   ├── Scheduler.ts        # node-cron based job scheduling
+│   ├── TunnelClient.ts     # Requests a tunnel lease and rewrites PBS_REPOSITORY
+│   └── execution/          # The steps of a single run
+│       ├── CommandBuilder.ts
+│       ├── ProcessRunner.ts
+│       └── RunPreparation.ts
 ├── repositories/           # Data access layer
 │   ├── JobRepository.ts
 │   ├── JobHistoryRepository.ts
 │   └── JobScheduleStateRepository.ts
 ├── web/
-│   └── server.ts           # Local Fastify web server (status & registration)
+│   ├── server.ts           # Local Fastify web server (status & registration)
+│   └── public/             # Status and registration pages
 └── index.ts                # Application entry point
 ```
+
+Logging is not in this tree: `logger` comes from `@pbcm/shared/node`, the same instance the
+server uses, so `LOG_LEVEL` and `LOG_FORMAT` behave identically on both sides.
 
 ## 🏗 Core Components
 
@@ -88,7 +102,7 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 - **Bounded output** (`core/CappedLog.ts`): each channel keeps at most `logCapBytes` (default 256 KB), holding the **head and the tail** with an explicit marker where the middle was dropped. Not a ring buffer: the invocation and the first errors are at the top and the reason a run failed is at the bottom, and a ring buffer keeps only the second half. The cap matters because the captured output is paid for three times — held in memory for the whole run, written to SQLite as a BLOB, and synced to the server from there.
 - **Batched log frames** (`core/LogStream.ts`): `LOG_UPDATE` events are collected and sent every 250 ms or once 8 KB accumulate, rather than one frame per chunk from the pipe. Safe because these frames are display-only; what must not slip is their order against the run's final `STATUS_UPDATE`, so the stream is flushed before that and in the spawn-error path.
 - **History Synchronization**: Upon completion, the job result is stored in the local SQLite database. The client then syncs this history with the central server via `SYNC_HISTORY`.
-- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`core/CertProbe.ts`) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `docs/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
+- **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`probeCertificate` from `@pbcm/shared/node`, called in `features/execution/RunPreparation.ts` — the same function the server uses) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `docs/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
 ### 4. Local Web Server (`src/web/server.ts`)
 
@@ -129,10 +143,8 @@ The client includes a micro-server (Fastify) for local management and initial se
 
 ### 5. Event Handlers (`src/features/Handlers.ts`)
 
-Incoming WebSocket messages from the server (e.g., manual trigger requests from the dashboard) are routed to these handlers.
+Incoming WebSocket messages from the server (e.g., manual trigger requests from the dashboard) are routed to these handlers:
 
-- `RUN_BACKUP` → triggers immediate job execution via `Executor`
-- `RUN_RESTORE` → triggers restore via `Executor`
 - `JOB_LIST_CONFIG` → returns all local job configs
 - `JOB_SAVE_CONFIG` → persists a job config update locally and reschedules
 - `JOB_DELETE_CONFIG` → removes a job and cancels its schedule
@@ -140,6 +152,11 @@ Incoming WebSocket messages from the server (e.g., manual trigger requests from 
 - `FS_LIST` → lists directories/files on the local file system
 - `GET_VERSION` → returns the agent version
 - `HISTORY` → returns local job history
+
+Three message types are dispatched in `core/Connection.ts` rather than here, because they
+do not answer a request: `RUN_BACKUP` and `RUN_RESTORE` go straight to the `Executor`, and
+`TUNNEL_ACQUIRE_RESULT` resolves the lease the `TunnelClient` is waiting on. The validation
+table `INBOUND_SCHEMAS` in that file covers all of them, handled here or not.
 
 ### 6. Cleanup (`src/features/Cleanup.ts`)
 
@@ -158,7 +175,7 @@ Schema migrations are managed via **Umzug** and run automatically on startup.
 
 | Table                  | Contents                                                              |
 | :--------------------- | :-------------------------------------------------------------------- |
-| `jobs`                 | Job configurations synchronized from the server.                     |
+| `job`                  | Job configurations synchronized from the server.                     |
 | `job_history`          | Execution records (status, output, timing) for each backup/restore run. |
 | `job_schedule_state`   | Last and next run timestamps per job for schedule tracking.           |
 
