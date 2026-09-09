@@ -1,3 +1,10 @@
+# [1.4.0-beta.13](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.12...v1.4.0-beta.13) (2026-09-09)
+
+
+### Features
+
+* **frontend:** Sicherheitsabfrage vor dem Löschen von Client, Repository, Job und User ([e9c53c3](https://github.com/stefgo/proxmox-backup-client-manager/commit/e9c53c3266f7567193dd87d5d2ac93a85ff603a2))
+
 # [1.4.0-beta.12](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0-beta.11...v1.4.0-beta.12) (2026-09-08)
 
 
