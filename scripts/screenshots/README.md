@@ -76,12 +76,21 @@ replaced.
 
 ## In the documentation
 
-`docs/index.md` embeds its five shots as a raw `<picture>` with a `prefers-color-scheme`
-source, so GitHub and the published site each show one image of the pair. **Only that page
-may do this.** MkDocs rewrites paths in Markdown links but not in HTML attributes, and
-every other page is published a directory deep (`install-server/index.html`), so its
-assets resolve as `../assets/…` there while GitHub still wants `assets/…`. `index.md` is
-the site root, the one place the two forms agree.
+`docs/index.md` embeds its five shots as a `<figure>` holding two images, whose `src`
+ends in Material's `#only-light` / `#only-dark` markers. Material hides the wrong one
+through `[data-md-color-scheme=slate] img[src$="#only-light"]`, so the pair follows **the
+palette toggle**.
+
+Do not replace this with a `<picture>` and a `prefers-color-scheme` source. That was the
+first attempt and it is subtly wrong: a media query sees only the operating system
+setting, so a reader who switched the site to dark on a light desktop got light
+screenshots on a dark page. GitHub renders both images of a pair instead, which is the
+accepted cost.
+
+Raw HTML is safe **only on that page.** MkDocs rewrites paths in Markdown links but not in
+HTML attributes, and every other page is published a directory deep
+(`install-server/index.html`), so its assets resolve as `../assets/…` there while GitHub
+still wants `assets/…`. `index.md` is the site root, the one place the two forms agree.
 
 Every other page embeds a **single dark image** with ordinary Markdown syntax. Shots used
 only there carry `themes: ["dark"]` in `capture.mjs`, so no unused light variant is

@@ -236,10 +236,10 @@ async function shoot(page, name) {
  * The dashboard pages. Captured in both themes unless `themes` narrows it.
  *
  * Only the shots embedded on `docs/index.md` are pairs. That page is the site root, so a
- * relative path resolves identically for MkDocs and for GitHub, and it can carry a raw
- * `<picture>` that shows one image per theme in both renderers. Every other page sits a
- * directory deep on the published site, where raw HTML would break -- those embed a
- * single dark image, so there is no light variant worth capturing.
+ * relative path resolves identically for MkDocs and for GitHub, and it can carry the raw
+ * HTML that switches the two on Material's `#only-light` / `#only-dark` markers. Every
+ * other page sits a directory deep on the published site, where raw HTML would break --
+ * those embed a single dark image, so there is no light variant worth capturing.
  *
  * `open` is how a shot reaches a route that cannot be loaded directly. `/client/:id`
  * resolves its client out of the store, and on a cold load the guard in App.tsx redirects

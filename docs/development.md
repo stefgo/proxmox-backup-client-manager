@@ -99,12 +99,24 @@ change has to be followed there by hand. A run that has fallen behind says so: a
 with no fixture logs `! unmocked GET /api/v1/…`, and **a clean run prints no warnings**.
 `scripts/screenshots/README.md` has the details.
 
-Where a screenshot comes as a light/dark pair, it is embedded as a raw `<picture>` with a
-`prefers-color-scheme` source, so GitHub and the published site each show exactly one
-image. **That only works on `index.md`.** MkDocs rewrites paths in Markdown links but not
+`index.md` carries the five light/dark pairs. Each is a `<figure>` holding **two images**,
+their `src` ending in Material's `#only-light` and `#only-dark` markers; Material hides
+the wrong one with `[data-md-color-scheme=slate] img[src$="#only-light"]` and its
+counterpart.
+
+That marker is the mechanism that works, and the reason is worth keeping: it switches on
+the `data-md-color-scheme` attribute, which is what **the palette toggle sets**. A
+`<picture>` with a `prefers-color-scheme` source was tried first and is wrong here — a
+media query can only see the *operating system* setting, so a reader who switched the site
+to dark on a light desktop got a dark page with light screenshots.
+
+The cost is that GitHub ignores the fragment and renders both images of a pair stacked, on
+that one page. The published site is the primary artifact, so it wins.
+
+Raw HTML is safe **only on `index.md`**: MkDocs rewrites paths in Markdown links but not
 in HTML attributes, and every other page is published a directory deep
-(`install-server/index.html`), so its assets need `../assets/…` while GitHub needs
-`assets/…`. `index.md` is the site root, where the two agree.
+(`install-server/index.html`), where assets resolve as `../assets/…` while GitHub still
+wants `assets/…`. `index.md` is the site root, the one place the two forms agree.
 
 Every other page therefore embeds a **single dark image** with ordinary Markdown syntax —
 dark because that is what the application starts in. `capture.mjs` marks those shots

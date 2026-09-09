@@ -49,11 +49,11 @@
 /* Captions come in two shapes, because the pages do.
  *
  * index.md is the site root, so a relative path resolves the same for MkDocs
- * and for GitHub: it can use a real <figure>/<figcaption> around a <picture>,
- * which is what lets one image per theme show in both renderers. Any deeper
- * page would have that raw src broken by MkDocs' directory URLs, so those use
- * Markdown images -- and a Markdown caption is a separate italic paragraph
- * after the image's own paragraph, hence the `:has()` sibling rule.
+ * and for GitHub: it can use a real <figure>/<figcaption> around the light/dark
+ * pair, which Material switches on the #only-light / #only-dark markers in the
+ * src. Any deeper page would have that raw src broken by MkDocs' directory
+ * URLs, so those use Markdown images -- and a Markdown caption is a separate
+ * italic paragraph after the image's own paragraph, hence the `:has()` rule.
  */
 .md-typeset figure figcaption,
 .md-typeset p:has(> img[src*="screenshots/"]) + p > em {

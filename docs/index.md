@@ -142,42 +142,32 @@ PBCM sets up and tears down around the run.
 ## The dashboard
 
 <figure>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/clients-dark.png">
-    <img src="assets/screenshots/clients-light.png" alt="The client list, showing four managed hosts and their online status">
-  </picture>
+  <img src="assets/screenshots/clients-light.png#only-light" alt="The client list, showing four managed hosts and their online status">
+  <img src="assets/screenshots/clients-dark.png#only-dark" alt="The client list, showing four managed hosts and their online status">
   <figcaption>Every managed host in one list. The dot is a live agent connection rather than a stored field &mdash; the sidebar badge counts the same thing.</figcaption>
 </figure>
 
 <figure>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/client-detail-dark.png">
-    <img src="assets/screenshots/client-detail-light.png" alt="A single client with its backup jobs, snapshots and run history">
-  </picture>
+  <img src="assets/screenshots/client-detail-light.png#only-light" alt="A single client with its backup jobs, snapshots and run history">
+  <img src="assets/screenshots/client-detail-dark.png#only-dark" alt="A single client with its backup jobs, snapshots and run history">
   <figcaption>One client: the jobs assigned to it, the snapshots it owns on the PBS, and its own run history.</figcaption>
 </figure>
 
 <figure>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/jobs-dark.png">
-    <img src="assets/screenshots/jobs-light.png" alt="Backup jobs across all clients, with the most recent runs below them">
-  </picture>
+  <img src="assets/screenshots/jobs-light.png#only-light" alt="Backup jobs across all clients, with the most recent runs below them">
+  <img src="assets/screenshots/jobs-dark.png#only-dark" alt="Backup jobs across all clients, with the most recent runs below them">
   <figcaption>Jobs across every client, with the last runs beneath them &mdash; including one still in flight.</figcaption>
 </figure>
 
 <figure>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/history-dark.png">
-    <img src="assets/screenshots/history-light.png" alt="The global run history">
-  </picture>
+  <img src="assets/screenshots/history-light.png#only-light" alt="The global run history">
+  <img src="assets/screenshots/history-dark.png#only-dark" alt="The global run history">
   <figcaption>The global history, collected from every agent &mdash; including runs an agent performed while the server was unreachable.</figcaption>
 </figure>
 
 <figure>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/repositories-dark.png">
-    <img src="assets/screenshots/repositories-light.png" alt="The managed PBS repositories and their reachability">
-  </picture>
+  <img src="assets/screenshots/repositories-light.png#only-light" alt="The managed PBS repositories and their reachability">
+  <img src="assets/screenshots/repositories-dark.png#only-dark" alt="The managed PBS repositories and their reachability">
   <figcaption>The managed PBS repositories. PBCM probes them over the HTTPS API; it stores no backup itself.</figcaption>
 </figure>
 
