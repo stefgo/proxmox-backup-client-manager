@@ -171,7 +171,10 @@ Detailed documentation lives in `/docs/`:
 - `client.md` – Agent lifecycle, scheduler, executor
 - `api.md` – Full REST and WebSocket API spec
 - `tunnel.md` – Outbound clients and the SSH reverse tunnel (setup, protocol, test protocol)
-- `install.md` – Prerequisites, Docker Compose, configuration reference
+- `install-server.md` – Server installation, Docker Compose only
+- `install-client.md` – Client agent installation, Docker Compose only
+- `setup.md` – Configuration reference: `config.yaml` (server and client), env vars,
+  address checks, client identity
 - `development.md` – Dev environment, release pipeline, the documentation site itself
 - `index.md` – Landing page of the published site; **not** a copy of the README, and
   the only page that exists solely for the site

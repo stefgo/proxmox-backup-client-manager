@@ -1,8 +1,16 @@
 # Proxmox Backup Client Manager
 
-**PBCM** is a centralized management system for `proxmox-backup-client` instances. A
-lightweight Node.js agent runs on each machine you back up; a central Fastify/React
-server gives you one dashboard and one API for all of them.
+[Proxmox Backup Server](https://www.proxmox.com/en/products/proxmox-backup-server/overview)
+(PBS) stores the backups. On every machine you back up, the `proxmox-backup-client`
+CLI reads the data, deduplicates and encrypts it, and streams it into a datastore on
+that server. PBS manages the *storage* — it does not manage the machines that write
+into it. For thirty hosts that means thirty crontabs, thirty copies of the repository
+credentials, and no shared answer to "did everything run last night?".
+
+**PBCM fills that gap, and only that gap.** A lightweight Node.js agent runs on each
+machine you back up; a central Fastify/React server gives you one dashboard and one
+API for all of them. PBCM stores no backup data and replaces no PBS — it is the
+control plane above your `proxmox-backup-client` instances.
 
 !!! warning "Unofficial project"
 
@@ -10,15 +18,80 @@ server gives you one dashboard and one API for all of them.
     with Proxmox Server Solutions GmbH. "Proxmox" is a registered trademark of
     Proxmox Server Solutions GmbH.
 
+## How PBCM relates to Proxmox Backup Server
+
+Three parties are involved, and only one of them is a Proxmox product:
+
+| | Who provides it | What it holds | Talks to |
+|---|---|---|---|
+| **Proxmox Backup Server** | Proxmox Server Solutions GmbH | The backups themselves — deduplicated, encrypted, kept as snapshots in a datastore | accepts connections from the agents and from the PBCM server |
+| **PBCM server** | this project | Metadata only: the client list, job definitions, run history and repository credentials, in SQLite | the browser, the agents, the PBS API |
+| **PBCM agent** | this project | Its own SQLite copy of the jobs assigned to it — which is what lets it keep working offline | the PBCM server, PBS |
+
+```mermaid
+flowchart TB
+    B["Browser<br/>Dashboard"]
+    S["PBCM Server<br/>Fastify · React SPA · SQLite"]
+    A1["PBCM Agent<br/>wraps proxmox-backup-client"]
+    A2["PBCM Agent<br/>· · ·"]
+    P[("Proxmox Backup Server<br/>Datastore")]
+
+    B -->|"REST /api/v1/* · WS /ws/dashboard"| S
+    A1 <-->|"WS /ws/agent<br/>jobs, live logs, history"| S
+    A2 <--> S
+    S -.->|"HTTPS, metadata only:<br/>datastore status, snapshot list"| P
+    A1 ==>|"backup data"| P
+    A2 ==> P
+
+    linkStyle 4,5 stroke-width:4px
+```
+
+The thick arrows are the point: **backup data never passes through the PBCM server.**
+The agent invokes `proxmox-backup-client` locally and the CLI talks to PBS directly,
+so throughput and storage are between those two alone — adding PBCM to an existing
+setup does not put a new machine in the data path. The PBCM server contacts PBS only
+over its HTTPS API, read-only, to show you datastore status and snapshot lists in the
+dashboard.
+
+One case bends this, but not as far as it looks: if a client has no route to PBS at
+all, the server lends it an [SSH reverse tunnel](tunnel.md). Even then the data does
+not travel *through* the PBCM application — it travels through a port forward that
+PBCM sets up and tears down around the run.
+
+### Further reading on the Proxmox side
+
+- [Proxmox Backup Server — product overview](https://www.proxmox.com/en/products/proxmox-backup-server/overview)
+- [Proxmox Backup Server — administration guide](https://pbs.proxmox.com/docs/)
+- [Backup Client Usage](https://pbs.proxmox.com/docs/backup-client.html) — the CLI the
+  agent wraps, including the `PBS_REPOSITORY` and `PBS_FINGERPRINT` variables PBCM
+  fills in for it
+
+## Life of a backup run
+
+1. You define a job in the dashboard — source paths, schedule, target repository.
+2. The server hands it to the agent over `/ws/agent`, and the agent writes it into its
+   **own** SQLite database.
+3. The agent's cron fires. **The schedule belongs to the agent, not to the server** —
+   a PBCM server that is down, restarting or unreachable stops no backup.
+4. The agent assembles the `proxmox-backup-client` command, verifies the PBS TLS
+   fingerprint (or requests a tunnel lease, if the job asks for one).
+5. The CLI streams the data to PBS while its log lines travel over the WebSocket to
+   every open dashboard, live.
+6. The result goes into the history. If the server was unreachable during the run, the
+   agent syncs it up afterwards.
+
 <div class="grid cards" markdown>
 
 -   :material-rocket-launch: **Install it**
 
     ---
 
-    Prerequisites, Docker Compose, bare-metal setup and the first login.
+    Docker Compose for the server and for each agent, plus the configuration
+    reference.
 
-    [:octicons-arrow-right-24: Installation & Setup](install.md)
+    [:octicons-arrow-right-24: Server](install-server.md) ·
+    [:octicons-arrow-right-24: Client Agent](install-client.md) ·
+    [:octicons-arrow-right-24: Configuration](setup.md)
 
 -   :material-sitemap: **Understand it**
 
@@ -58,22 +131,17 @@ server gives you one dashboard and one API for all of them.
 - **Global history & sync** — execution history from all clients, collected into one view.
 - **Real-time monitoring** — live log streams and status updates over WebSockets.
 - **File browser** — browse a client's remote file system for selective backups and restores.
-- **Secure communication** — agents authenticate with short-lived registration tokens;
-  clients that cannot reach the Proxmox Backup Server themselves go through an
-  [SSH reverse tunnel](tunnel.md).
+- **Secure communication** — agents authenticate with short-lived registration tokens,
+  and every job pins the PBS certificate fingerprint.
+- **Reachability** — clients with no route to the PBS back up through an
+  [SSH reverse tunnel](tunnel.md), opened per run.
 - **Authentication** — local admin accounts and OIDC single sign-on.
 - **Daily maintenance** — automatic cleanup of old histories and schedule state.
 
-## How the pieces fit together
+## The repository
 
-```
-Browser ──REST /api/v1/*──► Backend (Fastify)
-        ──WS /ws/dashboard──►         │
-                                      │
-Agent ────WS /ws/agent────────────────┘
-```
-
-The repository is an npm monorepo with four workspaces:
+The diagram above is the deployment view. In the source tree, PBCM is an npm monorepo
+with four workspaces:
 
 | Workspace | What it is |
 |---|---|
@@ -96,6 +164,8 @@ docker run -d --name pbcm-server -p 3000:3000 \
     ghcr.io/stefgo/pbcm-server:latest
 ```
 
-Then open <http://localhost:3000> and log in with `admin` / `admin`. The full
-Compose files, the client agent and the configuration reference are in
-[Installation & Setup](install.md).
+Then open <http://localhost:3000> and log in with `admin` / `admin`. You will need a
+reachable Proxmox Backup Server and an API token for it before the first job can run.
+The full Compose files are in [Installing the Server](install-server.md) and
+[Installing a Client Agent](install-client.md); every configuration key is in
+[Configuration](setup.md).
