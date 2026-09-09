@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Bestimme den aktuellen Branch-Namen
+current_branch=$(git symbolic-ref --short HEAD)
+
+# Erlaube den Push nur von den beiden Langzeit-Branches.
+# Feature- und Themenbranches bleiben damit weiterhin lokal.
+case "$current_branch" in
+  main|dev)
+    exit 0
+    ;;
+  *)
+    echo "❌ Fehler: Push nur von 'main' oder 'dev' erlaubt (aktueller Branch: '$current_branch')!"
+    exit 1
+    ;;
+esac

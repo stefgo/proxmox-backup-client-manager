@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Prueft die Commit-Meldung gegen commitlint.config.mjs.
+#
+# Dieser Hook ist die *einzige* Stelle, an der die Pruefung tatsaechlich laeuft:
+# Der Schritt in ci.yml haengt an `pull_request`, und dieses Repository wird ohne
+# Pull Requests gepflegt. Zwischen v1.4.0 und dem Einbau dieses Hooks waren 10
+# von 10 Commits nicht konform -- und haben zusammen kein Release erzeugt.
+#
+# Der Commit-Typ ist die einzige Eingabe, aus der semantic-release die naechste
+# Versionsnummer ableitet. Ein Tippfehler darin faellt sonst nirgends auf.
+npx --no -- commitlint --edit "$1"

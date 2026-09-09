@@ -63,12 +63,6 @@ jobs:
                   --to ${{ github.event.pull_request.head.sha }}
                   --verbose
 
-            # package-lock.json is generated on macOS, so npm ci skips the native
-            # rollup binary for linux and the vite build fails. Same workaround as
-            # in docker/Dockerfile.server.
-            - name: Install native rollup binary
-              run: npm install --no-save @rollup/rollup-linux-x64-gnu
-
             # Builds shared first, then every workspace -- this is the typecheck
             # for shared, backend and client, and the vite build for the frontend.
             - name: Build all workspaces

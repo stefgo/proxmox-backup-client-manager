@@ -27,8 +27,10 @@ server image, `docker pull` will not pick for you:
 | x86-64 | `ghcr.io/stefgo/pbcm-client:latest` |
 | ARM64 (Raspberry Pi, Apple Silicon, ARM servers) | `ghcr.io/stefgo/pbcm-client-arm64:latest` |
 
-`uname -m` answers the question: `x86_64` or `aarch64`. Both names also carry `:dev` for
-the prerelease channel and a version tag such as `:1.4.0` to pin a release.
+`uname -m` answers the question: `x86_64` or `aarch64`. Both names also carry `:main`
+(the current state of the main branch, without a release), `:dev` (the state of
+development) and a version tag such as `:1.4.0` to pin a release. `latest` is the last
+released version and the one to use unless you have a reason not to.
 
 ### Where `proxmox-backup-client` comes from
 

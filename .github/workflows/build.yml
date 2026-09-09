@@ -2,17 +2,27 @@ name: Build and Version Client and Server
 
 on:
     push:
-        # dev publishes a rolling :dev image on every push, so the current state
-        # of development is always pullable without waiting for a release.
-        # main is not listed: a release on main arrives here as its tag instead,
-        # so the image is tied to the tag and main is not built twice.
-        branches: ["dev"]
+        # Both long-lived branches publish a rolling image, so the current state
+        # is always pullable without waiting for a release: :main is the state
+        # released to everyone, :dev the one for developers. Neither creates a
+        # version -- that happens only in release.yml, on request.
+        #
+        # The tag name needs no extra rule: type=ref,event=branch below already
+        # yields the branch name, which is exactly `main` and `dev`.
+        branches: ["main", "dev"]
         # A stable tag reaches this workflow only through the workflow_dispatch
         # that release.yml fires -- semantic-release pushes the tag over
         # GITHUB_TOKEN, and such a push creates no workflow run. The filter still
         # covers a tag pushed by hand, and would cover a prerelease (v1.4.0-beta.1)
         # the same way.
         tags: ["v*.*.*"]
+        # A commit that only touches documentation changes nothing inside the
+        # images, so it need not rebuild four of them. Path filters apply to
+        # branch pushes only -- neither workflow_dispatch nor a tag is affected,
+        # so the route a release takes to get here stays untouched.
+        paths-ignore:
+            - "docs/**"
+            - "**.md"
     workflow_dispatch: # Allows manual trigger in the Actions tab, for any branch
 
 # Pushing twice in a row to dev makes the older build pointless. Tag builds are
@@ -45,8 +55,10 @@ jobs:
               id: version
               run: |
                   if [[ $GITHUB_REF == refs/tags/* ]]; then
-                    # Use tag name directly
-                    echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+                    # Tag name without the leading v, so the string baked into the
+                    # image matches the Docker tag (1.5.0), the root package.json
+                    # and a locally built image. The tag itself stays v1.5.0.
+                    echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
                   else
                     # Use branch-sha
                     SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
@@ -123,7 +135,7 @@ jobs:
                       APP_VERSION=${{ needs.prepare.outputs.version }}
                   # Pass GitHub token as secret for npm authentication
                   secrets: |
-                      npm_token=${{ secrets.NPM_TOKEN }}
+                      npm_token=${{ secrets.GITHUB_TOKEN }}
                   # Uses the automatically generated tags from above
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
@@ -181,7 +193,7 @@ jobs:
                   build-args: |
                       APP_VERSION=${{ needs.prepare.outputs.version }}
                   secrets: |
-                      npm_token=${{ secrets.NPM_TOKEN }}
+                      npm_token=${{ secrets.GITHUB_TOKEN }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha,scope=server-${{ matrix.arch }}
                   cache-to: type=gha,mode=max,scope=server-${{ matrix.arch }}
