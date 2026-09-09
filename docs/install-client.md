@@ -27,8 +27,10 @@ server image, `docker pull` will not pick for you:
 | x86-64 | `ghcr.io/stefgo/pbcm-client:latest` |
 | ARM64 (Raspberry Pi, Apple Silicon, ARM servers) | `ghcr.io/stefgo/pbcm-client-arm64:latest` |
 
-`uname -m` answers the question: `x86_64` or `aarch64`. Both names also carry `:dev` for
-the prerelease channel and a version tag such as `:1.4.0` to pin a release.
+`uname -m` answers the question: `x86_64` or `aarch64`. Both names also carry `:main`
+(the current state of the main branch, without a release), `:dev` (the state of
+development) and a version tag such as `:1.4.0` to pin a release. `latest` is the last
+released version and the one to use unless you have a reason not to.
 
 ### Where `proxmox-backup-client` comes from
 
@@ -186,6 +188,14 @@ changed afterwards**.
 
 Either way the agent writes the `clientId` and `authToken` it was issued into
 `client-config.yaml`, and the client turns online in the dashboard.
+
+![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
+
+*The agent's own registration form on port 3001, used by the inbound path. It stops being served once the agent holds an identity.*
+
+![The agent's status page, showing the configured server, the token and a live connection](assets/screenshots/agent-status.png)
+
+*The same port afterwards. `/status` checks the three things in order and skips the rest after the first failure, so the first red line is the one to fix.*
 
 ## 4. Give it a job
 

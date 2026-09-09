@@ -1,7 +1,7 @@
 # MkDocs Material builds the site that is published to GitHub Pages by
 # .github/workflows/docs.yml. docs/ is the same directory the repository serves
 # on GitHub, so every page has to render on both -- see the note on `toc` below.
-site_name: Proxmox Backup Client Manager
+site_name: Proxmox Backup Client Manager (PBCM)
 site_description: Centralized management for proxmox-backup-client instances
 site_url: https://stefgo.github.io/proxmox-backup-client-manager/
 site_author: stefgo
@@ -25,6 +25,12 @@ exclude_docs: |
 theme:
     name: material
     language: en
+    # The application's own favicon (server/frontend/public/favicon.svg), which
+    # is where #e54d0d in stylesheets/extra.css comes from. `logo` drops the
+    # orange plate -- see docs/assets/logo.svg -- because the header is already
+    # that colour.
+    logo: assets/logo.svg
+    favicon: assets/favicon.svg
     icon:
         repo: fontawesome/brands/github
     features:
@@ -46,18 +52,23 @@ theme:
               name: Switch to light mode
         - media: "(prefers-color-scheme: light)"
           scheme: default
-          primary: teal
+          primary: custom
           accent: teal
           toggle:
               icon: material/brightness-7
               name: Switch to dark mode
         - media: "(prefers-color-scheme: dark)"
           scheme: slate
-          primary: teal
+          primary: custom
           accent: teal
           toggle:
               icon: material/brightness-4
               name: Switch to system preference
+
+# `primary: custom` above only switches Material off its own palette; the hex
+# value itself lives in this stylesheet.
+extra_css:
+    - stylesheets/extra.css
 
 markdown_extensions:
     - abbr
@@ -102,12 +113,12 @@ nav:
           - Installing the Server: install-server.md
           - Installing a Client Agent: install-client.md
           - Configuration: setup.md
+          - SSH Reverse Tunnel: tunnel.md
     - Architecture:
           - Backend: backend.md
           - Frontend: frontend.md
           - Client Agent: client.md
     - Reference:
           - REST & WebSocket API: api.md
-          - SSH Reverse Tunnel: tunnel.md
     - Contributing:
           - Development & Deployment: development.md

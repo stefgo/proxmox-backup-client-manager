@@ -1,4 +1,4 @@
-# Proxmox Backup Client Manager
+# Proxmox Backup Client Manager (PBCM)
 
 [Proxmox Backup Server](https://www.proxmox.com/en/products/proxmox-backup-server/overview)
 (PBS) stores the backups. On every machine you back up, the `proxmox-backup-client`
@@ -7,7 +7,7 @@ that server. PBS manages the *storage* — it does not manage the machines that 
 into it. For thirty hosts that means thirty crontabs, thirty copies of the repository
 credentials, and no shared answer to "did everything run last night?".
 
-**PBCM fills that gap, and only that gap.** A lightweight Node.js agent runs on each
+**Proxmox Backup Client Manager (PBCM) fills that gap, and only that gap.** A lightweight Node.js agent runs on each
 machine you back up; a central Fastify/React server gives you one dashboard and one
 API for all of them. PBCM stores no backup data and replaces no PBS — it is the
 control plane above your `proxmox-backup-client` instances.
@@ -87,11 +87,12 @@ PBCM sets up and tears down around the run.
     ---
 
     Docker Compose for the server and for each agent, plus the configuration
-    reference.
+    reference and the tunnel setup for clients with no route to the PBS.
 
     [:octicons-arrow-right-24: Server](install-server.md) ·
     [:octicons-arrow-right-24: Client Agent](install-client.md) ·
-    [:octicons-arrow-right-24: Configuration](setup.md)
+    [:octicons-arrow-right-24: Configuration](setup.md) ·
+    [:octicons-arrow-right-24: SSH Reverse Tunnel](tunnel.md)
 
 -   :material-sitemap: **Understand it**
 
@@ -137,6 +138,38 @@ PBCM sets up and tears down around the run.
   [SSH reverse tunnel](tunnel.md), opened per run.
 - **Authentication** — local admin accounts and OIDC single sign-on.
 - **Daily maintenance** — automatic cleanup of old histories and schedule state.
+
+## The dashboard
+
+<figure>
+  <img src="assets/screenshots/clients-light.png#only-light" alt="The client list, showing four managed hosts and their online status">
+  <img src="assets/screenshots/clients-dark.png#only-dark" alt="The client list, showing four managed hosts and their online status">
+  <figcaption>Every managed host in one list. The dot is a live agent connection rather than a stored field &mdash; the sidebar badge counts the same thing.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/client-detail-light.png#only-light" alt="A single client with its backup jobs, snapshots and run history">
+  <img src="assets/screenshots/client-detail-dark.png#only-dark" alt="A single client with its backup jobs, snapshots and run history">
+  <figcaption>One client: the jobs assigned to it, the snapshots it owns on the PBS, and its own run history.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/jobs-light.png#only-light" alt="Backup jobs across all clients, with the most recent runs below them">
+  <img src="assets/screenshots/jobs-dark.png#only-dark" alt="Backup jobs across all clients, with the most recent runs below them">
+  <figcaption>Jobs across every client, with the last runs beneath them &mdash; including one still in flight.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/history-light.png#only-light" alt="The global run history">
+  <img src="assets/screenshots/history-dark.png#only-dark" alt="The global run history">
+  <figcaption>The global history, collected from every agent &mdash; including runs an agent performed while the server was unreachable.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/screenshots/repositories-light.png#only-light" alt="The managed PBS repositories and their reachability">
+  <img src="assets/screenshots/repositories-dark.png#only-dark" alt="The managed PBS repositories and their reachability">
+  <figcaption>The managed PBS repositories. PBCM probes them over the HTTPS API; it stores no backup itself.</figcaption>
+</figure>
 
 ## The repository
 

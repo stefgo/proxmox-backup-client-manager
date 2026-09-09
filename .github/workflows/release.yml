@@ -3,11 +3,24 @@ name: Release
 # semantic-release derives the next version from the commit types since the last
 # tag, writes CHANGELOG.md and package.json, and pushes the tag. The tag is what
 # build.yml reacts to -- this workflow publishes no image itself.
+#
+# A release is an action, not a side effect of pushing. Pushes to main and dev
+# publish the rolling :main and :dev images (build.yml) and nothing else; the
+# version number is created only from here, only on main, only on request.
 on:
-    push:
-        branches:
-            - main
-            - dev
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Trockenlauf -- zeigt die naechste Version, aendert nichts"
+                type: boolean
+                default: true
+            bump:
+                description: "Versionssprung"
+                type: choice
+                options:
+                    - auto
+                    - major
+                default: auto
 
 # Two runs at once would read the same last tag and compute the same next
 # version. Not cancelling: a release that dies after the tag leaves the tag
@@ -31,6 +44,14 @@ jobs:
             actions: write # dispatches build.yml for the tag just created
 
         steps:
+            # workflow_dispatch offers every branch in the UI. Releases come from
+            # main alone, so enforce it here rather than only documenting it.
+            - name: Nur main darf releasen
+              if: github.ref_name != 'main'
+              run: |
+                  echo "::error::Ein Release ist nur auf 'main' vorgesehen (gewaehlt: '${{ github.ref_name }}')."
+                  exit 1
+
             - name: Checkout repository
               uses: actions/checkout@v5
               with:
@@ -57,21 +78,30 @@ jobs:
 
             # No build step: the checks job already built every workspace, and
             # nothing is published to a package registry from here.
+            #
+            # FORCE_MAJOR is read by the analyzeCommitsCmd of @semantic-release/exec
+            # (see package.json). A BREAKING CHANGE footer alone raises the minor
+            # position; the major is reserved for this switch.
             - name: Release
               id: release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  FORCE_MAJOR: ${{ inputs.bump == 'major' }}
+              run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
+
+            # The tag comes from the successCmd of @semantic-release/exec, i.e. from
+            # semantic-release itself. The previous version compared HEAD before and
+            # after, which only worked while @semantic-release/git was in the plugin
+            # list -- removing that plugin would have silently stopped every image
+            # build. successCmd does not run during a dry run, so the output stays
+            # empty there and nothing is dispatched.
+            - name: Kein Release entstanden
+              if: ${{ !inputs.dry_run && steps.release.outputs.tag == '' }}
               run: |
-                  before=$(git rev-parse HEAD)
-                  npx semantic-release
-                  # @semantic-release/git commits CHANGELOG.md and package.json, so a
-                  # moved HEAD is the signal that a release actually happened -- a
-                  # re-run on the same commit dispatches no second build. The pattern
-                  # without a hyphen lets only stable tags through; the beta tags from
-                  # dev fall out here and build no image, same as before.
-                  if [ "$(git rev-parse HEAD)" != "$before" ]; then
-                      echo "tag=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)" >> "$GITHUB_OUTPUT"
-                  fi
+                  echo "::error::Es wurden keine releasewuerdigen Commits gefunden."
+                  echo "Nur feat:, fix:, perf: und revert: erzeugen eine Version."
+                  echo "Ein angefordertes Release, das nichts produziert, ist ein Fehler -- kein Erfolg."
+                  exit 1
 
             # The tag push above goes out over GITHUB_TOKEN and therefore produces no
             # push event -- build.yml would never see it. workflow_dispatch is the

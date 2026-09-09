@@ -11,8 +11,10 @@ server/backend/src/
 ├── config/        # Environment and app configuration loading
 ├── controllers/   # Route handlers (HTTP incoming requests)
 ├── core/          # Core server instances (Database initialization, migrations)
+├── repositories/  # Data access layer (one module per SQLite table)
 ├── routes/        # Fastify route definitions (Plugin registrations)
 ├── services/      # Business logic and external API integrations
+├── types/         # Fastify type augmentation
 ├── utils/         # Helper functions
 └── index.ts       # Application entry point
 ```
@@ -33,6 +35,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | `UserController.ts`         | User CRUD.                                                                  |
 | `SettingsController.ts`     | Cleanup settings read/write and manual maintenance trigger.                 |
 | `HistoryController.ts`      | Global job history across all clients.                                      |
+| `TunnelController.ts`       | SSH tunnel credentials per client (CRUD), key pair generation, connection tests against form values and against stored credentials. |
 | `WebSocketController.ts`    | Entry point for WebSocket connections (agents and dashboards).               |
 
 ### 2. Services (`src/services/`)
@@ -43,15 +46,31 @@ Services contain the heavy business logic of the application. They are designed 
 - **`AuthService.ts`**: Handles user authentication, OIDC flows, and JWT generation.
 - **`SessionCookie.ts`**: The browser session, as two cookies — `pbcm_session` (the JWT, `HttpOnly`) and `pbcm_auth` (a flag with no secret, readable so the UI knows whether to show the login form). Both are set from one place so the local login and the OIDC return cannot drift apart. `Secure` follows `request.protocol` rather than being hardcoded: set unconditionally it would make a plain-HTTP installation discard the cookie, and the login would look successful while every following request came back `401` — a failure that never shows on localhost, which counts as a secure context.
 - **`SettingsService.ts`**: Manages global application settings and persistence.
-- **`CertProbe.ts`**: Measures the TLS certificate of a PBS instance (`probeCertificate`). The endpoint comes from `parseRepositoryEndpoint` in `shared/`, the single place that maps a repository URL to host and port — an explicit port wins, otherwise the protocol default (443/80) applies and the PBS API port is never assumed. Reports `caValid` — whether the certificate passed regular validation against the real hostname. That flag is what decides whether a measured fingerprint may be adopted automatically: it is evidence from a CA, a source independent of the fingerprint itself. An identical copy exists in the client agent; it is not in `shared/` because `shared` must stay importable from the browser and `node:tls` is not.
 - **`FingerprintObservations.ts`**: In-memory record of fingerprints reported by agents (`FINGERPRINT_OBSERVED`). Deliberately never written into the repository config — a single compromised client must not be able to set the value every other client then trusts.
 - **`CleanupService.ts`**: Periodic tasks to prune old history logs (job history), inactive tokens, or old registration tokens. Supports retention by age and minimum count.
+- **`ClientConnector.ts`**: Dials outbound clients — registration through the agent's `/ws/register`, then a session over `/ws/agent`. Its `RECONNECT_DELAYS` ladder is the same one the agent uses in the other direction, because the two ends of one link should not behave differently.
+- **`TunnelService.ts`**: Establishes and tears down the SSH reverse tunnel on a client's request. See [tunnel.md](tunnel.md).
+- **`SecretCrypto.ts`**: Encrypts the stored SSH private keys at rest (AES-256-GCM). The key is derived via HKDF from `tunnel.keySecret` and deliberately **not** from `jwtSecret` — rotating the secret that signs sessions must not make every stored SSH key unreadable. Configuring a tunnel therefore requires `tunnel.keySecret`; without it the service refuses rather than storing a key in the clear.
+
+**Certificate probing lives in `shared/`, not here.** `probeCertificate` in `shared/src/node/certProbe.ts` measures the TLS certificate of a PBS
+instance. The endpoint comes from `parseRepositoryEndpoint` in `shared/`, the single place
+that maps a repository URL to host and port — an explicit port wins, otherwise the protocol
+default (443/80) applies and the PBS API port is never assumed. It reports `caValid` —
+whether the certificate passed regular validation against the real hostname. That flag is
+what decides whether a measured fingerprint may be adopted automatically: it is evidence
+from a CA, a source independent of the fingerprint itself.
+
+Backend and client agent import the *same* function. `shared` has to stay importable from
+the browser and `node:tls` is not, which is why this cannot sit in the package root — so
+`shared/package.json` carries a second export condition, `@pbcm/shared/node`, for the parts
+only a Node process may load (the certificate probe and the Pino logger). Before that
+subpath existed the file was duplicated on both sides.
 
 ### 3. Routes (`src/routes/`)
 
 Routes are Fastify plugins. They map HTTP verbs (GET, POST, PUT, DELETE) to specific methods in the Controllers and handle generic middleware (e.g., verifying JWT tokens).
 
-All protected routes require a valid JWT. The browser sends it as the `pbcm_session` cookie; the `Authorization: Bearer <token>` header keeps working for scripted clients, and `@fastify/jwt` accepts either. The single public API route outside of auth is `POST /v1/register` (client self-registration).
+All protected routes require a valid JWT. The browser sends it as the `pbcm_session` cookie; the `Authorization: Bearer <token>` header keeps working for scripted clients, and `@fastify/jwt` accepts either. Outside of auth, two routes are public: `POST /v1/register` (client self-registration) and `GET /v1/ping` (health check).
 
 `POST /login` carries a rate limit of ten attempts per fifteen minutes. The limiter is registered with `global: false` on purpose — a blanket limit would also count the agent handshakes and the dashboard's own traffic, where a larger fleet legitimately produces bursts.
 

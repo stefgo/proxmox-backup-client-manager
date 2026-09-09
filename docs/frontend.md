@@ -24,11 +24,17 @@ src/
 │   ├── useUIStore.ts               # UI state (sidebar, modals, filters)
 │   ├── useClientStore.ts           # Client list & connectivity status
 │   ├── useClientDetailStore.ts     # Data unique to a selected client
+│   ├── useClientFileSystemStore.ts # Remote file browsing for a client
 │   ├── useGlobalJobsStore.ts       # Centralized backup job configurations
 │   ├── useRepositoryStore.ts       # PBS repository configurations
 │   └── useRepositorySnapshotStore.ts # PBS snapshot management
-├── hooks/            # Global Custom Hooks
+├── components/       # Cross-feature components (LoadingIndicator)
+├── hooks/            # Global Custom Hooks (WebSocket subscriptions)
+├── lib/              # Non-React modules
+│   ├── apiFetch.ts        # The one entry point for authenticated /api/v1 calls
+│   └── realtimeEvents.ts  # Typed emitter for the high-frequency WS stream
 ├── index.css         # Global CSS layers (glass-card, field-label)
+├── Main.tsx          # Entry point (mounts App)
 └── utils.ts          # General utility functions
 ```
 
@@ -38,22 +44,40 @@ src/
 
 Routing is controlled via `react-router-dom` in `App.tsx`.
 
-| Path                  | Component       | Description                                       |
-| :-------------------- | :-------------- | :------------------------------------------------ |
-| `/login`              | `Login.tsx`     | Authentication page (Local & OIDC).               |
-| `/*`                  | `Dashboard.tsx` | Main application (Protected by `ProtectedRoute`). |
-| `/clients`                    | `ManagedClients`      | Client list.                                    |
-| `/clients/new`                | `AddClientWizard`     | Adds a client, starting with the connection mode. |
-| `/client/:clientId`           | `ClientOverview`      | Detail view of a client.                        |
-| `/client/:clientId/edit`      | `ClientEditor`        | Name and target address of a client.            |
-| `/client/:clientId/tunnel`    | `ClientTunnelEditor`  | Adds, changes or removes the SSH reverse tunnel. |
-| `/repositories`               | `ManagedRepositories` | Repository list.                                |
-| `/repository/:repoId`         | `RepositoryOverview`  | Detail view of a repository.                    |
+`/login` stands alone; everything else lives behind `ProtectedRoute` inside the dashboard
+shell.
+
+| Path                            | Component             | Description                                     |
+| :------------------------------ | :-------------------- | :---------------------------------------------- |
+| `/login`                        | `Login`               | Authentication page (local & OIDC).             |
+| `/` and `/clients`              | `ManagedClients`      | Client list.                                    |
+| `/clients/new`                  | `AddClientWizard`     | Adds a client, starting with the connection mode. |
+| `/client/:clientId`             | `ClientOverview`      | Detail view of a client.                        |
+| `/client/:clientId/edit`        | `ClientEditor`        | Name and target address of a client.            |
+| `/client/:clientId/tunnel`      | `ClientTunnelEditor`  | Adds, changes or removes the SSH reverse tunnel. |
+| `/client/:clientId/jobs/new`    | `ClientJobEditor`     | New job for this client.                        |
+| `/client/:clientId/jobs/:jobId` | `ClientJobEditor`     | Edit a job; closes onto `/client/:clientId`.    |
+| `/jobs`                         | `ManagedJobs`         | Global job list across all clients.             |
+| `/jobs/new`                     | `ClientJobEditor`     | New job, client picked in the form.             |
+| `/jobs/:clientId/:jobId`        | `ClientJobEditor`     | Same editor; closes onto `/jobs`.               |
+| `/repositories`                 | `ManagedRepositories` | Repository list.                                |
+| `/repository/:repoId`           | `RepositoryOverview`  | Detail view of a repository.                    |
+| `/repository/:repoId/edit`      | `RepositoryEditor`    | Repository settings.                            |
+| `/history`                      | `HistoryOverview`     | Global execution history.                       |
+| `/users`                        | `UserOverview`        | User management.                                |
+| `/tokens`                       | `TokenOverview`       | Registration tokens.                            |
+| `/settings`                     | `Settings`            | Cleanup settings and manual maintenance.        |
+| `*`                             | `NotFound`            | —                                               |
+
+The job editor is reached from two places and returns to the one it came from, which is why
+the same component sits behind two route shapes — `EditJobRoute` takes its `fallback` as a
+prop rather than guessing.
 
 Every client form is a route, not a state flag: the URL says what is on screen, a reload
-keeps it there, and the browser's back button works. The three editor routes resolve their
-client from `useClientStore` and redirect to `/clients` when the id is unknown — a stale
-bookmark must not render an editor over `undefined`.
+keeps it there, and the browser's back button works. Every route carrying a `:clientId`
+resolves it through the shared `useRouteClient` helper, which reads `useClientStore` and
+redirects to `/clients` when the id is unknown — a stale bookmark must not render an editor
+over `undefined`.
 
 **Where "back" is** is the caller's business, not the editor's: the surface that opens an
 editor navigates with `{ state: { from: location.pathname } }`, and the editor reads
@@ -61,20 +85,36 @@ editor navigates with `{ state: { from: location.pathname } }`, and the editor r
 to the client list from the list, and to `/client/:clientId` from the detail page, while a
 directly opened URL still closes onto something sensible.
 
-All three routes are listed in the `clients` entry's `path` array in `pages`, so the
-sidebar stays marked while an editor is open.
+A sidebar entry in `pages` takes a `path` **array**, not a single string, and every route
+that belongs to it is listed there — all eight under `clients`, three under `repositories`,
+three under `jobs`. That is what keeps the entry marked while an editor or a detail view is
+open.
 
 ---
 
 ## 🔐 Authentication
 
-Authentication is managed via the `AuthContext` (`src/features/auth/AuthContext.tsx`).
+The session is a cookie the browser manages, and `AuthProvider`
+(`src/features/auth/AuthProvider.tsx`) holds only the answer to "is someone logged in".
 
-- **Token Storage**: The JWT token is stored in `localStorage`.
-- **Provider**: The `AuthProvider` wraps the app and provides `token`, `login(token)`, and `logout()`.
-- **Login Flow**:
-    1. **Local**: POST to `/api/login` -> Token is received -> `login(token)`.
-    2. **OIDC**: Redirect to provider -> Callback with code -> Backend exchanges code for token -> Token is passed to frontend via URL parameter -> `login(token)`.
+- **No token in the app.** The JWT lives in `pbcm_session`, an `HttpOnly` cookie no script
+  can read; the browser attaches it to every request *and* to the dashboard WebSocket
+  handshake on its own. A second cookie, `pbcm_auth`, carries no secret and exists so the
+  UI can render the right route without asking the server first.
+- **Context** (`AuthContext.ts`, JSX-free so Fast Refresh survives): `isAuthenticated`,
+  `username`, `login()`, `logout()`. `login` takes no argument — by the time it is called
+  the server has already set the cookies. `username` comes from `GET /api/v1/me`, because
+  the page can no longer read it out of the JWT.
+- **Local login**: `POST /api/login` with `credentials: 'same-origin'` → server sets both
+  cookies → `login()`. `Login.tsx` is the one page using plain `fetch` rather than
+  `apiFetch`, so a wrong password does not get turned into a logout.
+- **OIDC**: redirect to the provider → `/api/auth/callback` → the server sets the same two
+  cookies and redirects to `/`. The token used to ride back as `/login?token=<JWT>`; a
+  query parameter lands in browser history and server logs, which is the reason it moved
+  into the cookie.
+- **The flag can go stale** — the cookie may outlive an accepted token. It corrects itself
+  on the first call, since `lib/apiFetch.ts` turns any `401` into `logout()` centrally and
+  the router re-renders onto the login form.
 
 ---
 
@@ -85,6 +125,8 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useUIStore`**: Manages global UI state like sidebar visibility, active notifications, and global search/filter parameters.
 - **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status.
 - **`useClientDetailStore`**: Focuses on the currently selected client, managing its local history, job configurations, and activity logs.
+- **`useClientFileSystemStore`**: Browses the selected client's file system, backing the directory picker in the job editor and the restore form. Separate from `useClientDetailStore` because a browse is a transient lookup, not part of what a client *is*.
+- **`useRepositoryStore`**: Holds the configured PBS repositories.
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 - **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
 
@@ -130,16 +172,32 @@ Generic UI components (Buttons, Inputs, Cards, etc.) are primarily sourced from 
 
 ### UI Library Integration
 
-To ensure all Tailwind utility classes used by the external library are included in the build, the `tailwind.config.js` dynamically resolves the library's distribution path:
+The library ships a preset that carries both the design tokens and its own `content` glob.
+Tailwind merges `darkMode` and `safelist` from a preset but **not** `content` — a `content`
+in the project config replaces the preset's entirely, so the library's glob has to be spread
+back in by hand:
 
 ```javascript
-const uiLibDist = path.join(
-    path.dirname(require.resolve("@stefgo/react-ui-components/tailwind-preset")),
-    "dist/**/*.{js,mjs}",
-);
+presets: [preset],
+content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    ...preset.content,
+    ...localUiContent,
+],
 ```
 
-### Data Views (`AbstractDataView` Hierarchy)
+Without `...preset.content`, every class only the library uses — `w-64` for the sidebar, its
+grid and positioning utilities — is missing from the output and the layout collapses.
+
+`localUiContent` is the `VITE_USE_LOCAL_UI` path, which builds against a sibling checkout of
+the library instead of the installed package. It swaps **three** things that have to move
+together: the bundler's module resolution, this content glob, and the **preset** itself. The
+preset was the one that used to stay behind — it carries the theme, so a local build ran new
+components on the published theme, and the mismatch surfaced as a colour that was in neither
+source tree.
+
+### Data Views
 
 Most data-driven lists utilize a common base to provide consistent loading, error, and empty states. We use a **Base Component Pattern** (e.g., `BaseJobList`, `BaseRepositorySnapshotList`) to share logic across different views.
 
@@ -269,7 +327,8 @@ throw away, and a warning the operator has scrolled past protects nothing at tha
 Saving does not leave either editor. The caller passes a client that may be a stale
 snapshot, which is why the live one is read from the store instead.
 
-`StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately, because
+`StatusDot` (`features/clients/components/StatusDot.tsx`) takes a **tone** and a **label**
+separately, because
 the domains name the same state differently — a client is `online`, a tunnel is `up`. The
 component knows four visual tones and no vocabulary; the caller brings its own word, which the
 dot carries in `aria-label`/`title` so no badge beside it has to repeat it. The dots still
@@ -327,7 +386,7 @@ The detail view of a client. It consists of multiple tabs/sections:
 
 1. **Stats**: Tiles for jobs, snapshots, and history (also act as a tab switcher).
 2. **Configured**: List of configured backup jobs (`ClientJobList`) and editor.
-3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`RepositorySnapshotRestore`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
+3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`SnapshotRestoreEditor`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
 4. **History**: Execution logs (`ClientHistoryList`).
 
 ### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
@@ -350,7 +409,7 @@ repository, archives, encryption, tunnel, schedule.
 
 The restore process is complex and distributed across:
 
-1. `useRepositoryStore`: Loads available snapshots from the PBS.
+1. `useRepositorySnapshotStore`: Loads available snapshots from the PBS.
 2. `SnapshotRestoreEditor` (in `features/repositories`):
     - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
     - Target path input on the client.
@@ -385,7 +444,7 @@ All tokens are CSS custom properties defined in the library (`--ruic-*`) and exp
 | Token class              | Usage                                    |
 | :----------------------- | :--------------------------------------- |
 | `bg-app-bg`              | Main page background                     |
-| `bg-card` / `bg-card-dark` | Card and panel surfaces                |
+| `bg-card`                | Card and panel surfaces                  |
 | `bg-card-header`         | Card header background                   |
 | `text-text-primary`      | Primary text color                       |
 | `text-text-muted`        | Secondary / label text                   |
@@ -394,7 +453,10 @@ All tokens are CSS custom properties defined in the library (`--ruic-*`) and exp
 | `text-primary`           | Brand accent color (Proxmox Orange)      |
 | `shadow-premium`         | Elevated card shadow                     |
 
-> **Important**: Always pair `border` with `border-border dark:border-border-dark`. The bare `border` class does not set a color — it defaults to `currentColor`.
+> **Important**: `border-border` sets the colour, `border` only sets the width — a `border`
+> without `border-border` falls back to `currentColor`. There is no `dark:` twin: the
+> library redefines `--ruic-border` inside its `.dark` block, so one class is correct in
+> both themes.
 
 > **Opacity modifiers**: Only `primary` supports `/` opacity modifiers (e.g. `bg-primary/10`). Other tokens use plain CSS variables and cannot be used with `/`.
 
@@ -413,4 +475,8 @@ All forms use the `Input` and `Select` components from the library, which provid
 
 Modal dialogs (UserDialog, TokenModal) and detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
 
-- **Dark Mode**: The `dark` class on `<html>` is toggled by `ThemeContext`. All tokens have `dark:` variants.
+- **Dark Mode**: `ThemeProvider` toggles the `dark` class on `<html>`. There is **no `dark:`
+  variant anywhere in `src/`** — and that is the point: every role is defined once in the
+  preset and redefined per theme in its `.dark` block, so `bg-card` resolves correctly in
+  both. A `dark:` twin in this codebase is a sign that a palette colour was used where a
+  role belongs.

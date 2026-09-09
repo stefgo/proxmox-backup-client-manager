@@ -16,29 +16,19 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 - **Daily Maintenance:** Automated cleanup of old job histories and schedule states to keep the local database lean.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
 
-## 🏗 Architecture
-
-The project is structured as a monorepo containing four main components:
-
-1.  **Server Backend (`server/backend`):** A Fastify API server acting as the control plane. It holds the SQLite database for configurations and job histories.
-2.  **Server Frontend (`server/frontend`):** A modern React SPA (Single Page Application) built with Vite and Tailwind CSS.
-3.  **Client Agent (`client`):** A lightweight Node.js daemon that wraps the `proxmox-backup-client` CLI, listens for commands, executes scheduled jobs, and reports back via WebSockets.
-4.  **Shared Library (`shared`):** Single source of truth for TypeScript types, Zod validation schemas, and constants used by all components.
-
 ## 📚 Documentation
 
 The full documentation is published at
-**[stefgo.github.io/proxmox-backup-client-manager](https://stefgo.github.io/proxmox-backup-client-manager/)**
-and its sources live in the [`docs/`](./docs) directory:
+**[stefgo.github.io/proxmox-backup-client-manager](https://stefgo.github.io/proxmox-backup-client-manager/)**; its sources live in the [`docs/`](./docs) directory:
 
-- [Installing the Server](docs/install-server.md) - Running the control plane with Docker Compose.
-- [Installing a Client Agent](docs/install-client.md) - Running an agent on a machine you back up.
-- [Configuration](docs/setup.md) - Every `config.yaml` key and environment variable.
-- [API Documentation](docs/api.md) - Full specification of the REST and WebSocket APIs.
-- [Frontend Architecture](docs/frontend.md) - Overview of the React application structure, state management, and design system.
-- [Backend Architecture](docs/backend.md) - Controllers, services, WebSocket protocol, and database schema.
-- [Client Agent](docs/client.md) - Agent lifecycle, scheduler, executor, and offline operation.
-- [Development Guide](docs/development.md) - Local development setup and contribution guidelines.
+- [Installing the Server](https://stefgo.github.io/proxmox-backup-client-manager/install-server/) - Running the control plane with Docker Compose.
+- [Installing a Client Agent](https://stefgo.github.io/proxmox-backup-client-manager/install-client/) - Running an agent on a machine you back up.
+- [Configuration](https://stefgo.github.io/proxmox-backup-client-manager/setup/) - Every `config.yaml` key and environment variable.
+- [API Documentation](https://stefgo.github.io/proxmox-backup-client-manager/api/) - Full specification of the REST and WebSocket APIs.
+- [Frontend Architecture](https://stefgo.github.io/proxmox-backup-client-manager/frontend/) - Overview of the React application structure, state management, and design system.
+- [Backend Architecture](https://stefgo.github.io/proxmox-backup-client-manager/backend/) - Controllers, services, WebSocket protocol, and database schema.
+- [Client Agent](https://stefgo.github.io/proxmox-backup-client-manager/client/) - Agent lifecycle, scheduler, executor, and offline operation.
+- [Development Guide](https://stefgo.github.io/proxmox-backup-client-manager/development/) - Local development setup and contribution guidelines.
 
 ## 🐳 Quick Start (Docker Compose)
 
@@ -66,7 +56,7 @@ services:
 2. Run `docker compose up -d`
 3. Access the dashboard at `http://localhost:3000` (default credentials: `admin` / `admin` — change the password).
 
-Full walkthrough: [Installing the Server](docs/install-server.md).
+Full walkthrough: [Installing the Server](https://stefgo.github.io/proxmox-backup-client-manager/install-server/).
 
 ### Client
 
@@ -99,37 +89,7 @@ services:
 
 Note that a job's source paths are **container** paths: with the mount above, `/etc` is configured as `/mnt/host/etc`.
 
-Full walkthrough, including outbound mode: [Installing a Client Agent](docs/install-client.md).
-
-## 🔧 Development
-
-### Prerequisites
-
-- **Node.js v22** — pinned in [`.nvmrc`](.nvmrc) and matching the `node:22` base image used by the Dockerfiles.
-- **npm v11** — Node 22 ships npm 10, which is _not_ enough: the lockfile is written with npm 11, and the two disagree about the optional peers of `@commitlint/read`, so `npm ci` fails under npm 10. The exact version lives in `packageManager` in `package.json`; install it with
-
-    ```bash
-    npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
-    ```
-
-- **A GitHub Packages token** — the UI library `@stefgo/react-ui-components` is published to GitHub Packages, and the root [`.npmrc`](.npmrc) reads the credential from `NPM_TOKEN`. Without it `npm install` fails with `401 Unauthorized` on the `@stefgo` scope. A classic PAT with `read:packages` scope is sufficient.
-
-### Local Setup
-
-1. Clone the repository: `git clone https://github.com/stefgo/proxmox-backup-client-manager`
-2. Export the registry token: `export NPM_TOKEN=ghp_…` — it has to be in the environment; npm expands `${NPM_TOKEN}` from there, not from a `.env` file (that one is for the Compose builds)
-3. Install dependencies: `npm install`
-4. Build the shared library: `npm run build -w shared`
-5. Start the backend: `npm run dev:server` — API and dashboard on `http://localhost:3000`
-6. Start the frontend dev server: `npm run dev:frontend` — hot reload on `http://localhost:5173`, proxying `/api` and `/ws` to the backend
-7. Start a test client: `npm run dev:client`
-
-Steps 5 and 6 are separate processes. Only the Vite dev server gives you hot module
-replacement; the backend serves the _built_ frontend from `server/dist/public`, so for
-a production-like check `npm run build` followed by step 5 alone is enough.
-
-See the [Development Guide](docs/development.md) for the containerised dev environment,
-the release pipeline and how to build the images locally.
+Full walkthrough, including outbound mode: [Installing a Client Agent](https://stefgo.github.io/proxmox-backup-client-manager/install-client/).
 
 ## 🤝 Contributing
 

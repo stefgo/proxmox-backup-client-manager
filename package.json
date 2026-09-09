@@ -1,6 +1,6 @@
 {
   "name": "proxmox-backup-client-manager",
-  "version": "1.4.0-beta.13",
+  "version": "1.4.0",
   "license": "MIT",
   "private": true,
   "packageManager": "npm@11.12.1",
@@ -11,34 +11,51 @@
     "server/frontend"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "start:server": "npm run start -w server/backend",
     "start:client": "npm run start -w client",
     "dev:server": "npm run dev -w server/backend",
     "dev:frontend": "npm run dev -w server/frontend",
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w shared && npm run build -w client -w server/backend -w server/frontend",
-    "clean": "rimraf shared/dist client/dist server/backend/dist server/dist/public"
+    "clean": "rimraf shared/dist client/dist server/backend/dist server/dist/public",
+    "screenshots": "node scripts/screenshots/capture.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
     "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.1",
     "@semantic-release/npm": "^12.0.1",
+    "playwright": "^1.63.0",
     "rimraf": "^6.1.3",
     "semantic-release": "^24.1.3"
   },
   "release": {
     "branches": [
-      "main",
-      {
-        "name": "dev",
-        "prerelease": "beta"
-      }
+      "main"
     ],
     "plugins": [
-      "@semantic-release/commit-analyzer",
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "breaking": true,
+              "release": "minor"
+            }
+          ]
+        }
+      ],
+      [
+        "@semantic-release/exec",
+        {
+          "analyzeCommitsCmd": "test \"$FORCE_MAJOR\" = \"true\" && echo major || true",
+          "successCmd": "echo \"tag=v${nextRelease.version}\" >> $GITHUB_OUTPUT"
+        }
+      ],
       "@semantic-release/release-notes-generator",
       "@semantic-release/changelog",
       [
