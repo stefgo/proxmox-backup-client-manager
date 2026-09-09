@@ -242,7 +242,7 @@ dot's four tones; it appears only once there is a tunnel to report on. Forwards 
 `lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the
 `GET /tunnel` call supplies only the stored configuration. `Test Connection` sends the form's
 values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
-key** block (see `doc/tunnel.md`).
+key** block (see `docs/tunnel.md`).
 
 Leaving the editor refetches the clients: `tunnelConfigured` is what the row's action label
 and its tunnel badge read, and it has just changed.

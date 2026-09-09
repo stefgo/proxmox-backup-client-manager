@@ -387,7 +387,7 @@ Consequences:
   SSH key unreadable. `keySecret` is generated automatically on first start and written into `config.yaml` — the way
   `jwtSecret` is today. Never in cleartext in the DB, never in API responses (a write-only field, displayed only as
   "set / not set").
-- Recommended setup path for the client host (to be documented in `doc/`):
+- Recommended setup path for the client host (to be documented in `docs/`):
   ```
   # ~/.ssh/authorized_keys on the client host
   restrict,port-forwarding,permitlisten="127.0.0.1:*" ssh-ed25519 AAAA... pbcm-server
@@ -444,7 +444,7 @@ Consequences:
 | Backend controllers | `TunnelController.ts` | `WebSocketController.ts`, `ClientController.ts`, `JobController.ts`, `routes/api.ts`, `config/AppConfig.ts`, `index.ts` |
 | Client | – | `web/server.ts`, `core/Connection.ts`, `core/Config.ts`, `features/Executor.ts`, `features/Handlers.ts` |
 | Frontend | `components/ClientTunnelSettings.tsx` | `ClientEditor.tsx`, `ClientList.tsx`, `ManagedClients.tsx`, `useClientStore.ts` |
-| Docs | `doc/tunnel.md` (including the test protocol §8) | `doc/api.md`, `doc/backend.md`, `doc/client.md`, `doc/install.md`, `CLAUDE.md` |
+| Docs | `docs/tunnel.md` (including the test protocol §8) | `docs/api.md`, `docs/backend.md`, `docs/client.md`, `docs/install.md`, `CLAUDE.md` |
 
 ## 6. Order of implementation
 
@@ -473,7 +473,7 @@ There is a sensible commit and review point after phase 2 and after phase 6. The
 `ssh2` + `@types/ssh2` in `server/backend`. No change to `Dockerfile.server` needed (only the "system ssh" fallback
 would add `openssh-client`).
 
-## 8. Manual test protocol (`doc/tunnel.md`)
+## 8. Manual test protocol (`docs/tunnel.md`)
 
 The project has no test framework — this checklist is the only safety net and belongs with the implementation. The
 first four items cover failures that otherwise stay **silent**:
@@ -497,7 +497,7 @@ first four items cover failures that otherwise stay **silent**:
 
 1. **Minimum `proxmox-backup-client` version:** because of the dynamic port, `PBS_REPOSITORY` always has the form
    `user!token@127.0.0.1:<port>:datastore`. The port in the repository spec is taken as given (decided so); the
-   concrete minimum version has to be determined and documented in `doc/install.md`.
+   concrete minimum version has to be determined and documented in `docs/install.md`.
 2. **Fingerprint vs. hostname:** the assumption is that `PBS_FINGERPRINT` replaces the hostname check. Test this
    once by hand against a real PBS — whether the substitution to `127.0.0.1` holds up at all depends on it.
 3. **Outbound clients do not back up without the server** (§2.1): no WS connection means no lease, no lease means no
@@ -523,7 +523,7 @@ first four items cover failures that otherwise stay **silent**:
    turns into a pivot, or a DoS vector against the SSH connections.
 10. **No mode switch = loss of history when converting:** anyone wanting to move an existing inbound client to
     tunnel operation has to delete and re-create it; the `job_history` entries hanging off the client ID are lost in
-    the process. Decided deliberately — make it clear in `doc/` and in the frontend's delete confirmation.
+    the process. Decided deliberately — make it clear in `docs/` and in the frontend's delete confirmation.
 11. **Partially created clients:** the atomic creation (§B3) has two outward effects that a DB transaction does not
     roll back — after `firstConnect` the client has already persisted an `authToken`, and the registration secret is
     consumed there. If the DB write fails afterwards, the operator has to set a new secret on the client host. Word

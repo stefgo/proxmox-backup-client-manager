@@ -139,7 +139,7 @@ by hand.**
   `server/frontend/vite.config.js`. Only the client agent ships a `dist/VERSION`
   file; the backend has none, because nothing reads it.
 
-See `doc/development.md` for the workflow details.
+See `docs/development.md` for the workflow details.
 
 ## Code Style
 
@@ -165,9 +165,39 @@ See `doc/development.md` for the workflow details.
 
 ## Key Docs
 
-Detailed documentation lives in `/doc/`:
+Detailed documentation lives in `/docs/`:
 - `backend.md` – Controllers, services, WebSocket protocol
 - `frontend.md` – Routing, stores, component conventions
 - `client.md` – Agent lifecycle, scheduler, executor
 - `api.md` – Full REST and WebSocket API spec
 - `tunnel.md` – Outbound clients and the SSH reverse tunnel (setup, protocol, test protocol)
+- `install.md` – Prerequisites, Docker Compose, configuration reference
+- `development.md` – Dev environment, release pipeline, the documentation site itself
+- `index.md` – Landing page of the published site; **not** a copy of the README, and
+  the only page that exists solely for the site
+
+`plan-*.md` are working documents (one still a draft). They are excluded from the
+published site via `exclude_docs` in `mkdocs.yml` and stay readable on GitHub only.
+
+### The docs are rendered twice
+
+`docs/` is both the GitHub-browsable directory and the `docs_dir` of
+[`mkdocs.yml`](mkdocs.yml), published to
+<https://stefgo.github.io/proxmox-backup-client-manager/> by
+[`docs.yml`](.github/workflows/docs.yml) on pushes to `main`. **Every page has to
+render in both**, which constrains two things:
+
+- **A link out of `docs/` must be absolute.** `../.github/workflows/release.yml`
+  resolves on GitHub and nowhere else — MkDocs cannot follow a path outside its
+  `docs_dir`, and `--strict` fails the build on it. Use the full
+  `https://github.com/stefgo/…/blob/main/…` URL.
+- **`api.md` has a hand-written TOC with GitHub anchors** — the emoji is dropped and
+  the leading space becomes a dash (`#-authentication`). `mkdocs.yml` sets
+  `pymdownx.slugs.slugify(case=lower)` for exactly that reason. Changing the slugify
+  function silently breaks 53 links; the check is that every `href="#…"` in
+  `site/*/index.html` matches a generated `id`.
+
+The workflow is deliberately **not** part of `ci.yml`/`release.yml`: that chain is
+the single gate on a release, and a documentation typo must not block one. Only
+`main` publishes — `dev` is the prerelease channel, and a site alternating between
+the stable and the beta state would be worse than one that lags.

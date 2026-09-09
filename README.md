@@ -27,14 +27,16 @@ The project is structured as a monorepo containing four main components:
 
 ## 📚 Documentation
 
-Detailed documentation is available in the [`doc/`](./doc) directory:
+The full documentation is published at
+**[stefgo.github.io/proxmox-backup-client-manager](https://stefgo.github.io/proxmox-backup-client-manager/)**
+and its sources live in the [`docs/`](./docs) directory:
 
-- [Installation & Setup](doc/install.md) - Detailed guide on how to build and run the project locally.
-- [API Documentation](doc/api.md) - Full specification of the REST and WebSocket APIs.
-- [Frontend Architecture](doc/frontend.md) - Overview of the React application structure, state management, and design system.
-- [Backend Architecture](doc/backend.md) - Controllers, services, WebSocket protocol, and database schema.
-- [Client Agent](doc/client.md) - Agent lifecycle, scheduler, executor, and offline operation.
-- [Development Guide](doc/development.md) - Local development setup and contribution guidelines.
+- [Installation & Setup](docs/install.md) - Detailed guide on how to build and run the project locally.
+- [API Documentation](docs/api.md) - Full specification of the REST and WebSocket APIs.
+- [Frontend Architecture](docs/frontend.md) - Overview of the React application structure, state management, and design system.
+- [Backend Architecture](docs/backend.md) - Controllers, services, WebSocket protocol, and database schema.
+- [Client Agent](docs/client.md) - Agent lifecycle, scheduler, executor, and offline operation.
+- [Development Guide](docs/development.md) - Local development setup and contribution guidelines.
 
 ## 🐳 Quick Start (Docker Compose)
 
@@ -113,7 +115,7 @@ Steps 5 and 6 are separate processes. Only the Vite dev server gives you hot mod
 replacement; the backend serves the _built_ frontend from `server/dist/public`, so for
 a production-like check `npm run build` followed by step 5 alone is enough.
 
-See [Installation & Setup](doc/install.md) for the full guide.
+See [Installation & Setup](docs/install.md) for the full guide.
 
 ## 🤝 Contributing
 

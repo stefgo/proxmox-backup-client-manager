@@ -50,4 +50,4 @@ security:
 # not carry tunnel.keySecret, which is generated per installation and encrypts the stored
 # SSH keys: sharing that value would share one key across every installation that copied
 # the file.
-# The parameters and what each of them does are documented in doc/tunnel.md.
+# The parameters and what each of them does are documented in docs/tunnel.md.

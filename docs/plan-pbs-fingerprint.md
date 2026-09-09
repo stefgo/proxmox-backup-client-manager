@@ -333,4 +333,4 @@ class of failure structurally impossible.
   `server/frontend/src/features/repositories/components/RepositoryEditor.tsx`,
   `server/frontend/src/features/clients/components/job-editor/JobRepositorySelect.tsx`
 - `client/src/features/Executor.ts`, `client/src/features/TunnelClient.ts`, `client/src/web/server.ts`
-- `doc/api.md` (new endpoints + WS event), `doc/tunnel.md` (§ fingerprint), `doc/backend.md`
+- `docs/api.md` (new endpoints + WS event), `docs/tunnel.md` (§ fingerprint), `docs/backend.md`

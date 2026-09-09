@@ -34,6 +34,47 @@ This starts two services:
 
 The `node_modules` folders are isolated as volumes within the container. This prevents conflicts between the host system (e.g., macOS or Windows) and the container (Linux) regarding platform-specific dependencies.
 
+## Documentation Site
+
+The pages in `docs/` are served twice: GitHub renders them as plain Markdown, and
+[MkDocs Material](https://squidfunk.github.io/mkdocs-material/) publishes them to
+<https://stefgo.github.io/proxmox-backup-client-manager/>. **A page has to work in
+both.** Two things follow from that:
+
+- **Links out of `docs/` have to be absolute.** A relative `../.github/workflows/...`
+  resolves on GitHub and nowhere else. Use the full `https://github.com/...blob/main/...`
+  URL instead.
+- **The hand-written table of contents in `api.md` uses GitHub's anchors** — the emoji is
+  dropped and the leading space becomes a dash, hence `#-authentication`. `mkdocs.yml`
+  configures `pymdownx.slugs.slugify(case=lower)` precisely so that MkDocs produces the
+  same ids. Do not swap the slugify function without checking those 53 links.
+
+To preview locally:
+
+```bash
+python3 -m venv .venv-docs && source .venv-docs/bin/activate
+pip install -r requirements-docs.txt
+mkdocs serve          # http://localhost:8000, live reload
+```
+
+`requirements-docs.txt` pins the version, so the preview and the published site render
+identically.
+
+The publish step is [`docs.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/docs.yml),
+which runs on pushes to `main` that touch `docs/`, `mkdocs.yml` or the workflow itself. It
+is **deliberately separate** from `ci.yml`/`release.yml`: that chain is the release path,
+and a typo in a documentation page must not be able to block a release. It builds with
+`mkdocs build --strict`, which turns a dead internal link, a nav entry without a file, or a
+page missing from the nav into a build failure — the only automated link check this
+repository has.
+
+`dev` does not publish. It is the prerelease channel, and a site flipping between the
+stable and the beta state would be worse than one that lags behind by a release.
+
+The two `plan-*.md` files are excluded from the site via `exclude_docs`. They are working
+documents, one still a draft; they stay readable on GitHub but are not in the published
+navigation or the search index.
+
 ## Review Before the Commit
 
 There is no test suite, so `npm run typecheck -w server/frontend` and a review of the diff are
@@ -83,7 +124,7 @@ These files ensure that all TypeScript modules (`shared`, `client`, `server/fron
 ## Release
 
 `semantic-release` owns the version number; nobody tags by hand.
-[`release.yml`](../.github/workflows/release.yml) runs on every push to `main`
+[`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml) runs on every push to `main`
 and `dev`, gated by the same `ci.yml` checks a pull request gets:
 
 ```
@@ -131,7 +172,7 @@ gh workflow run build.yml --ref feat/my-branch
 ## Deployment
 
 Images are built and published by GitHub Actions, not from a developer machine.
-[`build.yml`](../.github/workflows/build.yml) runs on every push to `dev`, on
+[`build.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/build.yml) runs on every push to `dev`, on
 `v*.*.*` tags and on manual dispatch -- which is how a release reaches it, see
 [Release](#release) -- and pushes to GHCR:
 
@@ -148,7 +189,7 @@ dispatched by hand for a prerelease publishes `<version>` only and leaves
 
 ### Registry cleanup
 
-[`cleanup-packages.yml`](../.github/workflows/cleanup-packages.yml) prunes GHCR
+[`cleanup-packages.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/cleanup-packages.yml) prunes GHCR
 every night. It uses `dataaxiom/ghcr-cleanup-action` rather than the more obvious
 `actions/delete-package-versions`, and the reason is worth keeping: a multi-arch
 build pushes its per-architecture images and its attestations **untagged** --

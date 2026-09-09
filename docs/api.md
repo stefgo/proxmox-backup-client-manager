@@ -555,7 +555,7 @@ Nothing is persisted unless the registration handshake succeeds.
 
 No SSH credentials are accepted here. The connection mode is fixed by this call and cannot be
 changed later; the tunnel is a separate, revisable resource and is attached afterwards via
-`POST /v1/clients/:clientId/tunnel`, in either connection mode. See `doc/tunnel.md`.
+`POST /v1/clients/:clientId/tunnel`, in either connection mode. See `docs/tunnel.md`.
 
 **Example Request:**
 
@@ -1424,7 +1424,7 @@ the AUTH handshake begins.
 
 > For clients with `connectionMode: "outbound"` the direction is reversed: the **server**
 > connects to the agent's own `/ws/register` and `/ws/agent` endpoints (port 3001). The
-> protocol after AUTH is identical. See `doc/tunnel.md`.
+> protocol after AUTH is identical. See `docs/tunnel.md`.
 
 #### Client -> Server Events
 
