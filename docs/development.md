@@ -224,37 +224,56 @@ exempt from the cancellation, exactly as in `build.yml`.
 ```
 verify  ──►  prepare  ──┬──►  build-client   (matrix: amd64 · arm64, native runners)  ──┐
   │                     │                                                               │
-(ci.yml)                └──►  build-server   (matrix, pushed by digest only)            │
-                                    └──►  merge-server   (assembles the manifest)  ──┬──┘
-                                                                                     ▼
-                                                                                  smoke
+(ci.yml)                └──►  build-server   (matrix: amd64 · arm64, native runners)  ──┤
+                                                                                        ▼
+                                            everything above pushes by digest,        smoke
+                                            nothing carries a tag yet                   │
+                                                                                        ▼
+                                                                                     publish
+                                                                          (manifest + every tag)
 ```
 
-- **`verify`** is `ci.yml`, reused rather than restated. Nothing is published
-  before it is green.
-- **`prepare`** is the single source of the version string, consumed by every
-  build job below it. On a tag it strips the leading `v` (`v1.5.0` → `1.5.0`), so
-  the string baked into the image matches the Docker tag, the root `package.json`
-  and a locally built image; otherwise it produces `<branch>-<short sha>`. It also
-  emits `sha_tag`, the one reference that exists on *every* trigger and always
-  means exactly this build — which is why the smoke test pulls by it — and
-  `server_image`, the fully qualified name of the server image. That last one is
-  composed here rather than declared as a workflow-level `env` so that the
-  registry host is written exactly once: an `env` entry cannot reference another
-  entry of the same block, and a job's `env` cannot read the `env` context at
-  all. It can read `needs`, which is the route taken.
+**Nothing is tagged until the smoke test has passed.** That is the shape of this
+workflow: all four build jobs push their layers to GHCR by digest and stop there,
+`smoke` starts those digests, and only `publish` attaches `dev`, `sha-…`, `1.5.0`
+and `latest`. While tagging happened in the build jobs, `latest` moved to an image
+nobody had ever started and the smoke test could only report the fact afterwards.
+
+- **`verify`** is `ci.yml`, reused rather than restated. Nothing is built before
+  it is green.
+- **`prepare`** is the single source of the version string, consumed by every job
+  below it. On a tag it strips the leading `v` (`v1.5.0` → `1.5.0`), so the string
+  baked into the image matches the Docker tag, the root `package.json` and a
+  locally built image; otherwise it produces `<branch>-<short sha>`. It also emits
+  the three fully qualified image names. Those are composed here rather than
+  declared as a workflow-level `env` so that the registry host is written exactly
+  once: an `env` entry cannot reference another entry of the same block, and a
+  job's `env` cannot read the `env` context at all. It can read `needs`, which is
+  the route taken.
 - **`build-client`** builds the two agent images on native runners
   (`ubuntu-latest` and `ubuntu-24.04-arm`), no QEMU, under two separate image
   names. See [Architectures](#architectures-multi-arch) for why they are not one
   manifest.
-- **`build-server`** and **`merge-server`** produce a real multi-arch manifest:
-  each architecture is built natively and pushed **by digest only**
-  (`push-by-digest=true`), the digest travels as a workflow artefact, and
-  `merge-server` assembles the manifest list with `docker buildx imagetools
-  create` — which is where the tags are attached. Nothing is tagged per
-  architecture.
-- **`smoke`** starts the published images and asks them whether they are alive.
-  See [Smoke test](#smoke-test).
+- **`build-server`** builds the same way and is what later becomes a real
+  multi-arch manifest.
+- Both push with `push-by-digest=true`, and both hand their digest on as a
+  workflow artefact — an empty file whose *name* is the digest, because a matrix
+  job cannot set an output of its own.
+- **`smoke`** starts each digest and asks it whether it is alive. See
+  [Smoke test](#smoke-test).
+- **`publish`** assembles the server manifest from both digests and tags all three
+  images with `docker buildx imagetools create`. One `metadata-action` run covers
+  them — the tag rules are identical — and the step splits the result by image
+  name again, matching on the name *plus a colon* so that `pbcm-client` does not
+  also claim every `pbcm-client-arm64` reference.
+
+A build that fails the smoke test leaves its digests in the registry untagged.
+Nothing has to remove them by hand: `delete-untagged` in the nightly
+[Registry cleanup](#registry-cleanup) sweeps them. The flip side is a window —
+between the push and the tag — in which a fresh image is untagged and a cleanup
+running at that moment would treat it as rubbish. The window existed before, since
+the server was always pushed by digest first; the smoke test widens it by a few
+minutes.
 
 Two details in the triggers are easy to misread:
 
@@ -484,23 +503,28 @@ build. Only a release moves `latest`.
 
 ### Smoke test
 
-The last job of `build.yml` starts what was just published and asks it whether it is
-alive: `docker run` on the server image and on the agent image, then `GET /api/health`
-on both until they answer or a minute passes.
+`build.yml` starts what it just built and asks it whether it is alive: `docker run` on
+the server image and on the agent image, then `GET /api/health` on both until they answer
+or a minute passes.
 
 **This is the only place in the pipeline where the images are ever executed.**
 Everything before it proves that the code compiles, not that the result runs -- an image
-whose entrypoint died on the first start used to pass all seven jobs. With no test suite
-in this project, it is the single automated statement that a published artefact works at
-all.
+whose entrypoint died on the first start used to pass every other job. With no test suite
+in this project, it is the single automated statement that an artefact works at all.
+
+**It is a gate, not a report.** The build jobs push by digest and attach no tag; only
+`publish`, which runs after this job, turns a digest into `dev`, `1.5.0` or `latest`. A
+release therefore cannot move `latest` to an image that has never started -- which it
+could while the tags were applied during the build and this job ran last.
 
 It runs on both architectures, because the two agent images are genuinely different
 builds: `amd64` installs `proxmox-backup-client` from the Proxmox repository, `arm64` a
 community `.deb`, and they sit on different Debian generations.
 
-The job pulls by the `sha-<short>` tag rather than by `:dev` or `:latest`. That tag is
-assigned on every trigger and always means exactly the build that produced it, which
-`:dev` stops doing the moment two runs overlap.
+Since there is no tag yet, the images are addressed by digest -- `<image>@sha256:…`, read
+from the artefact each build job left behind. That is more precise than a tag anyway: it
+is exactly the artefact this run produced for this architecture, with nothing left for
+docker to choose.
 
 ### Registry cleanup
 

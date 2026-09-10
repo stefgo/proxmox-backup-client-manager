@@ -65,18 +65,15 @@ jobs:
             # host appears. Job-level `env` cannot reach `env.REGISTRY`, but it
             # can reach `needs`, which is what the server jobs below use.
             server_image: ${{ steps.version.outputs.server_image }}
-            # The image reference the smoke job pulls. docker/metadata-action assigns
-            # this tag through the `type=sha,prefix=sha-` rule on *every* trigger --
-            # branch push, tag and dispatch alike -- so it is the one reference that
-            # always exists and always means exactly this build. `dev` or `latest`
-            # would be ambiguous the moment two runs overlap.
-            sha_tag: ${{ steps.version.outputs.sha_tag }}
+            client_image: ${{ steps.version.outputs.client_image }}
+            client_image_arm64: ${{ steps.version.outputs.client_image_arm64 }}
         steps:
             - name: Determine Version
               id: version
               run: |
                   echo "server_image=$REGISTRY/${{ github.repository_owner }}/pbcm-server" >> $GITHUB_OUTPUT
-                  echo "sha_tag=sha-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
+                  echo "client_image=$REGISTRY/${{ github.repository_owner }}/pbcm-client" >> $GITHUB_OUTPUT
+                  echo "client_image_arm64=$REGISTRY/${{ github.repository_owner }}/pbcm-client-arm64" >> $GITHUB_OUTPUT
                   if [[ $GITHUB_REF == refs/tags/* ]]; then
                     # Tag name without the leading v, so the string baked into the
                     # image matches the Docker tag (1.5.0), the root package.json
@@ -93,6 +90,9 @@ jobs:
 
     # Client images are published as two separate, single-arch image names.
     # Each one builds on a native runner for its architecture - no QEMU.
+    #
+    # Like the server, they are pushed **by digest and without a tag**. Tagging is
+    # the publish job's business, and that one runs after the smoke test.
     build-client:
         needs: prepare
         runs-on: ${{ matrix.runner }}
@@ -105,11 +105,13 @@ jobs:
             matrix:
                 include:
                     - id: client
+                      arch: amd64
                       runner: ubuntu-latest
                       image_name: pbcm-client
                       dockerfile: ./docker/Dockerfile.client
                       platform: linux/amd64
                     - id: client-arm64
+                      arch: arm64
                       runner: ubuntu-24.04-arm
                       image_name: pbcm-client-arm64
                       dockerfile: ./docker/Dockerfile.client.arm64
@@ -129,44 +131,47 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
+            # Tags are applied by the publish job; here we only need the labels.
             - name: Extract Docker metadata
               id: meta
               uses: docker/metadata-action@v6
               with:
                   images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
-                  tags: |
-                      # For a push to dev or a manual dispatch: the branch name
-                      # (dev) plus the SHA
-                      type=ref,event=branch
-                      type=sha,prefix=sha-
 
-                      # For a git tag (v1.0.0): version tags; {{major}}.{{minor}}
-                      # is skipped automatically for a prerelease
-                      type=semver,pattern={{version}}
-                      type=semver,pattern={{major}}.{{minor}}
-                      # Only a stable release moves latest. A prerelease tag
-                      # carries a hyphen (v1.4.0-beta.1) and must not, or a beta
-                      # would land on every host that pulls latest.
-                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
-
-            - name: Build and push Docker image
+            - name: Build and push by digest
+              id: build
               uses: docker/build-push-action@v7
               with:
                   context: .
                   file: ${{ matrix.dockerfile }}
                   platforms: ${{ matrix.platform }}
-                  push: true
                   # Pass the calculated version as a build argument
                   build-args: |
                       APP_VERSION=${{ needs.prepare.outputs.version }}
                   # Pass GitHub token as secret for npm authentication
                   secrets: |
                       npm_token=${{ secrets.GITHUB_TOKEN }}
-                  # Uses the automatically generated tags from above
-                  tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha,scope=${{ matrix.id }}
                   cache-to: type=gha,mode=max,scope=${{ matrix.id }}
+                  outputs: type=image,name=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+
+            # The file name is the digest; the file itself stays empty. It is the
+            # cheapest way to hand a string from a matrix job to a later one --
+            # matrix jobs cannot each set their own output.
+            - name: Export digest
+              run: |
+                  mkdir -p /tmp/digests
+                  digest="${{ steps.build.outputs.digest }}"
+                  touch "/tmp/digests/${digest#sha256:}"
+
+            - name: Upload digest
+              uses: actions/upload-artifact@v6
+              with:
+                  name: digests-client-${{ matrix.arch }}
+                  path: /tmp/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
 
     # The server ships as a real multi-arch manifest. Each architecture is built
     # natively and pushed by digest only; merge-server assembles the manifest.
@@ -242,73 +247,20 @@ jobs:
                   if-no-files-found: error
                   retention-days: 1
 
-    merge-server:
-        # prepare is already implied through build-server; it is named because
-        # this job reads one of its outputs.
-        needs: [prepare, build-server]
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-            packages: write
-
-        env:
-            SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
-
-        steps:
-            - name: Download digests
-              uses: actions/download-artifact@v8
-              with:
-                  path: /tmp/digests
-                  pattern: digests-server-*
-                  merge-multiple: true
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v4
-
-            - name: Log in to the Container registry
-              uses: docker/login-action@v4
-              with:
-                  registry: ${{ env.REGISTRY }}
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Extract Docker metadata
-              id: meta
-              uses: docker/metadata-action@v6
-              with:
-                  images: ${{ env.SERVER_IMAGE }}
-                  tags: |
-                      type=ref,event=branch
-                      type=sha,prefix=sha-
-                      type=semver,pattern={{version}}
-                      type=semver,pattern={{major}}.{{minor}}
-                      # Only a stable release moves latest. A prerelease tag
-                      # carries a hyphen (v1.4.0-beta.1) and must not, or a beta
-                      # would land on every host that pulls latest.
-                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
-
-            - name: Create manifest list and push
-              working-directory: /tmp/digests
-              run: |
-                  docker buildx imagetools create \
-                    $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-                    $(printf '${{ env.SERVER_IMAGE }}@sha256:%s ' *)
-
-            - name: Inspect image
-              run: |
-                  docker buildx imagetools inspect ${{ env.SERVER_IMAGE }}:${{ steps.meta.outputs.version }}
-
-    # Starts what was just published and asks it whether it is alive. This is the only
-    # place in the pipeline where the images are ever executed -- everything before it
-    # proves that the code compiles, not that the result runs. An image whose entrypoint
-    # dies on the first start used to pass all seven jobs.
+    # Starts what was just built and asks it whether it is alive. This is the only place
+    # in the pipeline where the images are ever executed -- everything before it proves
+    # that the code compiles, not that the result runs. An image whose entrypoint dies on
+    # the first start used to pass every other job.
+    #
+    # It is a gate, not a report: nothing is tagged until it has passed, so `latest` can
+    # no longer come to mean an image that never started.
     #
     # Both architectures, because the two client images are genuinely different builds:
     # amd64 installs proxmox-backup-client from the Proxmox repository, arm64 a community
     # .deb, and they sit on different Debian generations.
     smoke:
         name: Smoke test
-        needs: [prepare, merge-server, build-client]
+        needs: [prepare, build-client, build-server]
         runs-on: ${{ matrix.runner }}
         permissions:
             contents: read
@@ -336,19 +288,29 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            # The server image is a manifest list, so docker picks the variant for this
-            # runner's architecture by itself.
-            - name: Start the server image
+            # There is no tag to pull yet, so the images are addressed by digest --
+            # which is more precise anyway: this is exactly the artefact this run
+            # produced for this architecture, with nothing for docker to choose.
+            - name: Download the digests for this architecture
+              uses: actions/download-artifact@v8
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*-${{ matrix.arch }}
+
+            - name: Resolve the digests
               run: |
-                  docker run -d --name pbcm-smoke-server -p 3000:3000 \
-                    ${{ env.SERVER_IMAGE }}:${{ needs.prepare.outputs.sha_tag }}
+                  server=$(basename /tmp/digests/digests-server-${{ matrix.arch }}/*)
+                  client=$(basename /tmp/digests/digests-client-${{ matrix.arch }}/*)
+                  echo "SERVER_REF=$SERVER_IMAGE@sha256:$server" >> $GITHUB_ENV
+                  echo "CLIENT_REF=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.client_image }}@sha256:$client" >> $GITHUB_ENV
+
+            - name: Start the server image
+              run: docker run -d --name pbcm-smoke-server -p 3000:3000 "$SERVER_REF"
 
             # The agent starts unregistered and idles -- exactly the state a fresh
             # installation is in before anyone has pointed it at a server.
             - name: Start the client image
-              run: |
-                  docker run -d --name pbcm-smoke-client -p 3001:3001 \
-                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.client_image }}:${{ needs.prepare.outputs.sha_tag }}
+              run: docker run -d --name pbcm-smoke-client -p 3001:3001 "$CLIENT_REF"
 
             - name: Wait for both to report healthy
               run: |
@@ -384,3 +346,107 @@ jobs:
             - name: Clean up
               if: always()
               run: docker rm -f pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true
+
+    # Nothing above carries a tag: every job so far pushed by digest only. This is
+    # where a build becomes something a user can pull, and it runs **after** the
+    # smoke test. That ordering is the whole point -- while tagging happened here
+    # first, `latest` moved to an image nobody had ever started, and the smoke test
+    # could only report the fact afterwards.
+    #
+    # A build that fails the smoke test leaves its digests in the registry untagged.
+    # Nothing has to clean that up by hand: `delete-untagged` in the nightly Prune
+    # Registry run sweeps them.
+    publish:
+        name: Tag and publish
+        needs: [prepare, build-client, build-server, smoke]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        # From `needs`, not from `env.REGISTRY`: a job's `env` block cannot read the
+        # `env` context at all. prepare composes the names for exactly that reason.
+        env:
+            SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
+            CLIENT_IMAGE: ${{ needs.prepare.outputs.client_image }}
+            CLIENT_IMAGE_ARM64: ${{ needs.prepare.outputs.client_image_arm64 }}
+
+        steps:
+            # No merge-multiple: each artefact keeps its own directory, and the
+            # directory name is what tells a server digest from a client one.
+            - name: Download digests
+              uses: actions/download-artifact@v8
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # One metadata run for all three images -- `images` takes a list, and the
+            # tag rules are identical for every one of them. The result is a flat list
+            # of image:tag references that the step below splits up again by name.
+            - name: Extract Docker metadata
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: |
+                      ${{ env.SERVER_IMAGE }}
+                      ${{ env.CLIENT_IMAGE }}
+                      ${{ env.CLIENT_IMAGE_ARM64 }}
+                  tags: |
+                      # For a push to dev or a manual dispatch: the branch name
+                      # (dev) plus the SHA
+                      type=ref,event=branch
+                      type=sha,prefix=sha-
+
+                      # For a git tag (v1.0.0): version tags; {{major}}.{{minor}}
+                      # is skipped automatically for a prerelease
+                      type=semver,pattern={{version}}
+                      type=semver,pattern={{major}}.{{minor}}
+                      # Only a stable release moves latest. A prerelease tag
+                      # carries a hyphen (v1.4.0-beta.1) and must not, or a beta
+                      # would land on every host that pulls latest.
+                      type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+
+            - name: Apply the tags
+              run: |
+                  # $1 is the image, the rest are its digests: two for the server,
+                  # which becomes a real multi-arch manifest, one for each client.
+                  publish() {
+                      local image=$1 tags refs="" d
+                      shift
+                      # startswith the image *plus a colon*, or pbcm-client would
+                      # also match every pbcm-client-arm64 reference.
+                      tags=$(jq -cr --arg i "$image" \
+                          '.tags | map(select(startswith($i + ":"))) | map("-t " + .) | join(" ")' \
+                          <<< "$DOCKER_METADATA_OUTPUT_JSON")
+                      if [ -z "$tags" ]; then
+                          echo "::error::no tags were computed for $image"
+                          return 1
+                      fi
+                      for d in "$@"; do refs="$refs $image@sha256:$d"; done
+                      echo "$image <- $tags"
+                      # Word splitting is what turns the strings into arguments here.
+                      # shellcheck disable=SC2086
+                      docker buildx imagetools create $tags $refs
+                  }
+
+                  publish "$SERVER_IMAGE"        $(basename -a /tmp/digests/digests-server-*/*)
+                  publish "$CLIENT_IMAGE"        $(basename -a /tmp/digests/digests-client-amd64/*)
+                  publish "$CLIENT_IMAGE_ARM64"  $(basename -a /tmp/digests/digests-client-arm64/*)
+
+            - name: Inspect the published images
+              run: |
+                  for image in "$SERVER_IMAGE" "$CLIENT_IMAGE" "$CLIENT_IMAGE_ARM64"; do
+                      echo "::group::$image"
+                      docker buildx imagetools inspect "$image:${{ steps.meta.outputs.version }}"
+                      echo "::endgroup::"
+                  done
