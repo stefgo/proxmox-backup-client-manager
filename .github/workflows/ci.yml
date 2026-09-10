@@ -1,4 +1,4 @@
-name: CI
+name: Check Code
 
 # Runs on every branch and pull request. build.yml calls this same job via
 # workflow_call, so the release path is gated by exactly these checks -- no
@@ -10,6 +10,17 @@ on:
         branches-ignore: ["main", "dev"]
     pull_request:
     workflow_call:
+
+# Three pushes in a row to a topic branch make the first two runs pointless.
+# github.workflow is the *caller's* name when this workflow is reached through
+# workflow_call, so a build.yml or release.yml run lands in its own group and
+# cannot cancel -- or be cancelled by -- a plain branch run of these checks.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    # Same rule build.yml applies to itself: a tag is never cancelled. Without
+    # that line a second build of the same tag -- a retried release -- would
+    # cancel the checks of the first, which build.yml deliberately lets finish.
+    cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
     verify:
@@ -32,6 +43,27 @@ jobs:
               with:
                   # commitlint needs the commit range of the pull request.
                   fetch-depth: 0
+
+            # cleanup-packages.yml names the images it prunes one by one. The
+            # action can discover them by wildcard, but only with a classic PAT
+            # carrying delete:packages -- a nightly, unattended delete right on
+            # every container of the account, and the one credential in this
+            # pipeline that would expire. The explicit list is the cheaper trade,
+            # and this step is what keeps it from going stale unnoticed: a new
+            # image in build.yml that nobody added to the cleanup would otherwise
+            # simply never be pruned, and nothing would turn red.
+            - name: Cleanup covers every published image
+              run: |
+                  published=$(grep -oE '(image_name|client_image): *pbcm-[a-z0-9-]+|/pbcm-[a-z0-9-]+' \
+                      .github/workflows/build.yml | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
+                  covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
+                      | tr ',' '\n' | tr -d ' ' | grep -E '^pbcm-' | sort -u)
+                  missing=$(comm -23 <(echo "$published") <(echo "$covered"))
+                  if [ -n "$missing" ]; then
+                      echo "::error::Published but not pruned by cleanup-packages.yml: $(echo $missing)"
+                      exit 1
+                  fi
+                  echo "Covered: $(echo $covered)"
 
             - name: Set up Node
               uses: actions/setup-node@v5

@@ -1,0 +1,42 @@
+name: Merge Dependency Updates
+
+# Dependabot's answer to an outdated action is a pull request, and this
+# repository is maintained without pull requests -- the same mismatch that kept
+# the commitlint step in ci.yml from ever firing. The result was measurable: six
+# actions sat up to two major versions behind while a grouped pull request waited
+# every month. An update that is opened and never merged is not a slower update,
+# it is none.
+#
+# So the merge happens here. The gate is the pull request's own ci.yml run, and
+# `--auto` is what waits for it: a red run leaves the pull request open and
+# visible, which is the case that wants a human anyway.
+on:
+    pull_request:
+
+# Per pull request. Dependabot force-pushes its branch when it rebases, and the
+# run for the superseded head has nothing left to say.
+concurrency:
+    group: dependabot-merge-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    merge:
+        # github.actor is the marker; a pull request from anyone else is not
+        # touched, and the job is skipped rather than failed.
+        if: github.actor == 'dependabot[bot]'
+        name: Merge once the checks are green
+        runs-on: ubuntu-latest
+        # Declared on the job, as in every other workflow here.
+        permissions:
+            contents: write # merge the pull request
+            pull-requests: write # ... and put it into auto-merge
+
+        steps:
+            # NOTE: this needs "Allow auto-merge" enabled under
+            # Settings -> General -> Pull Requests. Without it the command below
+            # fails, loudly -- which is the intended failure mode. A fallback to
+            # merging unchecked would be worse than the backlog it replaces.
+            - name: Enable auto-merge
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"

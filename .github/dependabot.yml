@@ -4,6 +4,11 @@ version: 2
 # runner drops the version, and then a workflow that nobody touched fails. One grouped
 # pull request a month is the cheapest way to notice.
 #
+# Noticing was never the problem. This repository is maintained without pull requests,
+# so the monthly one waited, and six actions drifted up to two major versions behind
+# while the configuration looked like it was doing its job. dependabot-auto-merge.yml
+# is the other half: the pull request merges itself once its checks are green.
+#
 # npm is deliberately absent. Four workspaces with a React, Fastify and build toolchain
 # produce a stream of version bumps that nobody can assess without a test suite, and this
 # project has none -- the pull requests would be merged unread or ignored, and both are
@@ -12,6 +17,13 @@ version: 2
 updates:
     - package-ecosystem: github-actions
       directory: "/"
+      # dev, not main. ci.yml runs on the pull request, but an action bump is mostly
+      # about actions ci.yml never touches -- docker/build-push-action, the artifact
+      # pair, metadata-action. The only thing that exercises those is build.yml, and
+      # build.yml runs after a merge, not before one. Landing the bump on dev means it
+      # is the developer image that breaks, and the smoke test there says so; main
+      # stays the state released to everyone until dev is merged into it.
+      target-branch: dev
       schedule:
           interval: monthly
       # One pull request for all of them rather than one per action.

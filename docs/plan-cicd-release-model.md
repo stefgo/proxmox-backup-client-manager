@@ -98,10 +98,10 @@ explicitly.
   local topic branches         dev  ──push──►  :dev image
   feat/… fix/…                 main ──push──►  :main image
   (never pushed)                 │
-                                 └── Actions ▸ Release ▸ Run workflow
+                                 └── Actions ▸ Create Release ▸ Run workflow
                                         └─► tag v1.5.0 ─► :1.5.0, :1.5, :latest
 
-  any branch ── Actions ▸ Build ▸ Run workflow ──► :branch-name, :sha-abc1234
+  any branch ── Actions ▸ Build Images ▸ Run workflow ──► :branch-name, :sha-abc1234
 ```
 
 `dev` keeps its role as the developer channel but loses its version numbers: it produces an

@@ -1,4 +1,4 @@
-name: Release
+name: Create Release
 
 # semantic-release derives the next version from the commit types since the last
 # tag, writes CHANGELOG.md and package.json, and pushes the tag. The tag is what
@@ -11,11 +11,11 @@ on:
     workflow_dispatch:
         inputs:
             dry_run:
-                description: "Trockenlauf -- zeigt die naechste Version, aendert nichts"
+                description: "Dry run -- prints the next version, changes nothing"
                 type: boolean
                 default: true
             bump:
-                description: "Versionssprung"
+                description: "Version bump"
                 type: choice
                 options:
                     - auto
@@ -30,8 +30,33 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # workflow_dispatch offers every branch in the UI. Releases come from main
+    # alone, so enforce it here rather than only documenting it -- and enforce it
+    # in front of the checks, not inside the release job: the condition is known
+    # before anything runs, and failing after a full typecheck-and-lint cycle
+    # spends several minutes to report something that was decided at dispatch.
+    guard:
+        name: Only main may release
+        runs-on: ubuntu-latest
+        permissions: {}
+        steps:
+            - name: Reject any branch but main
+              if: github.ref_name != 'main'
+              run: |
+                  echo "::error::A release is only intended on 'main' (chosen: '${{ github.ref_name }}')."
+                  exit 1
+
     checks:
+        needs: guard
         uses: ./.github/workflows/ci.yml
+        # Stated explicitly, exactly as build.yml states it for the same call.
+        # ci.yml needs packages:read to resolve the @stefgo scope during npm ci;
+        # leaving it implicit means a switch to restrictive default permissions
+        # would break this caller -- the one on the release path -- while the
+        # branch path stayed green.
+        permissions:
+            contents: read
+            packages: read
 
     release:
         needs: checks
@@ -44,14 +69,6 @@ jobs:
             actions: write # dispatches build.yml for the tag just created
 
         steps:
-            # workflow_dispatch offers every branch in the UI. Releases come from
-            # main alone, so enforce it here rather than only documenting it.
-            - name: Nur main darf releasen
-              if: github.ref_name != 'main'
-              run: |
-                  echo "::error::Ein Release ist nur auf 'main' vorgesehen (gewaehlt: '${{ github.ref_name }}')."
-                  exit 1
-
             - name: Checkout repository
               uses: actions/checkout@v5
               with:
@@ -95,12 +112,12 @@ jobs:
             # list -- removing that plugin would have silently stopped every image
             # build. successCmd does not run during a dry run, so the output stays
             # empty there and nothing is dispatched.
-            - name: Kein Release entstanden
+            - name: No release was produced
               if: ${{ !inputs.dry_run && steps.release.outputs.tag == '' }}
               run: |
-                  echo "::error::Es wurden keine releasewuerdigen Commits gefunden."
-                  echo "Nur feat:, fix:, perf: und revert: erzeugen eine Version."
-                  echo "Ein angefordertes Release, das nichts produziert, ist ein Fehler -- kein Erfolg."
+                  echo "::error::No release-worthy commits were found."
+                  echo "Only feat:, fix:, perf: and revert: produce a version."
+                  echo "A release that was asked for and produced nothing is a failure, not a success."
                   exit 1
 
             # The tag push above goes out over GITHUB_TOKEN and therefore produces no
@@ -112,4 +129,38 @@ jobs:
               if: steps.release.outputs.tag != ''
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: gh workflow run build.yml --ref "${{ steps.release.outputs.tag }}"
+                  TAG: ${{ steps.release.outputs.tag }}
+              run: |
+                  gh workflow run build.yml --ref "$TAG"
+
+                  # `gh workflow run` reports nothing about the run it starts, so
+                  # the run has to be found. The dispatch is asynchronous and the
+                  # run does not exist for a second or two.
+                  for _ in $(seq 1 30); do
+                      run_id=$(gh run list --workflow=build.yml --branch "$TAG" \
+                          --event workflow_dispatch --json databaseId \
+                          --jq '[.[].databaseId] | max // empty')
+                      [ -n "$run_id" ] && break
+                      sleep 2
+                  done
+                  if [ -z "$run_id" ]; then
+                      echo "::error::The image build was dispatched but no run appeared for $TAG."
+                      exit 1
+                  fi
+
+                  # Waiting rather than firing and forgetting. Without this the
+                  # release job goes green on a dispatch, and a build that fails
+                  # afterwards leaves a tag, a GitHub release and a changelog
+                  # entry with no images behind them -- the one outcome this
+                  # workflow says everywhere else it does not tolerate.
+                  echo "Watching $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$run_id"
+                  gh run watch "$run_id" --exit-status
+
+            # The tag cannot be taken back from here, so say plainly what exists
+            # and what does not, instead of leaving a red job to be interpreted.
+            - name: Explain a half-finished release
+              if: failure() && steps.release.outputs.tag != ''
+              run: |
+                  echo "::error::${{ steps.release.outputs.tag }} exists as a tag, a GitHub release and a changelog entry, but its images do not."
+                  echo "Fix the cause, then re-run 'Build Images' on the tag: gh workflow run build.yml --ref ${{ steps.release.outputs.tag }}"
+                  echo "No second release is needed -- the version is already created."

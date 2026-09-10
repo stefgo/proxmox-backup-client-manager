@@ -1,4 +1,4 @@
-name: Docs
+name: Publish Docs
 
 # Builds mkdocs.yml and publishes docs/ to GitHub Pages.
 #
@@ -6,11 +6,24 @@ name: Docs
 # path -- ci.yml is called by build.yml via workflow_call so exactly one set of
 # checks gates a release. A Python toolchain has no place in it, and a typo in
 # a documentation page must not be able to block a release.
+#
+# The two jobs answer two different questions and therefore run on different
+# refs. `mkdocs build --strict` is the only link check this repository has, so it
+# runs on **every** branch and pull request that touches a page -- a dead link
+# found after it reached main is a dead link that was already published.
+# Deploying is main's alone: dev is the developer channel, and a site flipping
+# between the released and the in-development state would be worse than one that
+# lags a little.
 on:
-    # main only. dev is the prerelease channel; a site flipping between the
-    # stable and the beta state would be worse than one that lags a little.
+    # The two path lists are duplicated on purpose: GitHub Actions does not
+    # support YAML anchors, so there is no way to name this list once.
     push:
-        branches: ["main"]
+        paths:
+            - "docs/**"
+            - "mkdocs.yml"
+            - "requirements-docs.txt"
+            - ".github/workflows/docs.yml"
+    pull_request:
         paths:
             - "docs/**"
             - "mkdocs.yml"
@@ -18,19 +31,18 @@ on:
             - ".github/workflows/docs.yml"
     workflow_dispatch:
 
-# One deployment at a time. Not cancelling: the last completed build is what
-# stays live, and cutting one short would leave the previous version published
-# with no indication why.
-concurrency:
-    group: pages
-    cancel-in-progress: false
-
 jobs:
     build:
         name: Build site
         runs-on: ubuntu-latest
         permissions:
             contents: read
+
+        # Per ref, and cancelling: a second push to the same branch makes the
+        # first check pointless. The deployment below has its own group.
+        concurrency:
+            group: docs-${{ github.ref }}
+            cancel-in-progress: true
 
         steps:
             - name: Checkout repository
@@ -56,7 +68,11 @@ jobs:
             - name: Build
               run: mkdocs build --strict
 
+            # Only main goes on to be deployed, so only main needs the artefact.
+            # Every other ref stops after the strict build, which is the part that
+            # was worth running.
             - name: Upload artifact
+              if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
               uses: actions/upload-pages-artifact@v3
               with:
                   path: site
@@ -64,7 +80,16 @@ jobs:
     deploy:
         name: Deploy to GitHub Pages
         needs: build
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         runs-on: ubuntu-latest
+
+        # One deployment at a time. Not cancelling: the last completed build is
+        # what stays live, and cutting one short would leave the previous version
+        # published with no indication why.
+        concurrency:
+            group: pages
+            cancel-in-progress: false
+
         permissions:
             pages: write # deploy to the Pages environment ...
             id-token: write # ... which authenticates via OIDC

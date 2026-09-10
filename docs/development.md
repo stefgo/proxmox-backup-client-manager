@@ -60,16 +60,23 @@ mkdocs serve          # http://localhost:8000, live reload
 `requirements-docs.txt` pins the version, so the preview and the published site render
 identically.
 
-The publish step is [`docs.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/docs.yml),
-which runs on pushes to `main` that touch `docs/`, `mkdocs.yml` or the workflow itself. It
-is **deliberately separate** from `ci.yml`/`release.yml`: that chain is the release path,
-and a typo in a documentation page must not be able to block a release. It builds with
-`mkdocs build --strict`, which turns a dead internal link, a nav entry without a file, or a
-page missing from the nav into a build failure — the only automated link check this
-repository has.
+That is enforced by [`docs.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/docs.yml),
+whose two jobs run on different refs because they answer different questions.
 
-`dev` does not publish. It is the developer channel, and a site flipping between the
+**The build runs everywhere** — every branch and every pull request that touches `docs/`,
+`mkdocs.yml`, `requirements-docs.txt` or the workflow itself. `mkdocs build --strict` turns
+a dead internal link, a nav entry without a file or a page missing from the nav into a
+failure, and it is the only automated link check this repository has. Running it on `main`
+alone would mean every dead link is found after it was published, which is late for the one
+check that exists.
+
+**Only `main` deploys.** `dev` is the developer channel, and a site flipping between the
 released and the in-development state would be worse than one that lags behind by a release.
+Every other ref stops after the strict build; it does not even upload the artefact.
+
+The workflow is **deliberately separate** from `ci.yml`/`release.yml`: that chain is the
+release path, and a typo in a documentation page must not be able to block a release. A
+Python toolchain has no business in it either.
 
 The `plan-*.md` files are excluded from the site via `exclude_docs`. They are working
 documents; they stay readable on GitHub but are not in the published navigation or the
@@ -153,6 +160,145 @@ strings, migrating a library version. Those diffs touch many files through one n
 a review of them finds only what that same lens sees. Do not mistake such a pass for a check of
 the files it touched: `ClientEditor` was modified five times after its defects were introduced,
 every time by a sweep of this kind, and none of them was ever going to notice.
+
+## GitHub Actions
+
+Six workflows. The rule that shapes all of them: **a release is an action, not a
+side effect of pushing.** No push ever produces a version number -- that happens
+only in
+[`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml),
+dispatched by hand, on `main`.
+
+The second rule is that there is exactly one set of checks.
+[`ci.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/ci.yml)
+is *called* by `build.yml` and `release.yml` through `workflow_call` rather than
+copied into them, so the gate in front of a release cannot drift away from the one
+a topic branch gets.
+
+| Event | What runs |
+| :--- | :--- |
+| Push to a topic branch | `ci.yml` — typecheck and lint |
+| Pull request | `ci.yml`, plus commitlint over the pull request's commit range |
+| Dependabot pull request | the same, and `dependabot-auto-merge.yml` merges it into `dev` once those checks pass |
+| Push to `dev` | `build.yml` (which calls `ci.yml`): images `:dev` and `:sha-<short>`, smoke test. **No version.** |
+| Push to `main` | the same, tagged `:main`. **No version.** |
+| Push or pull request touching `docs/` | `docs.yml` builds the site with `--strict`; `build.yml` skips it via `paths-ignore` |
+| … when that push is on `main` | `docs.yml` deploys it to GitHub Pages as well |
+| *Actions ▸ Create Release ▸ Run workflow* on `main` | `release.yml`: branch guard → `ci.yml` → semantic-release → tag → dispatches `build.yml` on the tag ref and waits for it |
+| Nightly at 02:00 UTC | `cleanup-packages.yml` prunes GHCR |
+
+Three of the six are described in their own right further down:
+[Release](#release) covers `release.yml`, [Documentation Site](#documentation-site)
+covers `docs.yml`, [Registry cleanup](#registry-cleanup) covers
+`cleanup-packages.yml`. What follows is the other two.
+
+### ci.yml — the check layer
+
+Runs on every branch **except** `main` and `dev`. Those two are covered by
+`build.yml`, which calls this workflow itself; listing them here as well would run
+every check twice for every push. A single job, `verify`:
+
+| Step | Why it is written the way it is |
+| :--- | :--- |
+| Pin npm | Node 22 ships npm 10, the lockfile was written by npm 11. The two do not agree about the optional peers of `@commitlint/read`, so `npm ci` fails under the version that did not write the lockfile. The number is read out of `packageManager` in `package.json` — one source, not a second literal. |
+| commitlint | Bound to `pull_request`, and this repository is maintained without pull requests, so in practice the local hook is what fires — see [The hooks](#the-hooks). |
+| `npm run build` | Builds `shared` first, then every workspace. This *is* the typecheck for `shared`, `server/backend` and `client`, and the Vite build for the frontend. |
+| `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json`, `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
+| `npm run lint -w server/frontend` | ESLint. |
+| Cleanup coverage | Compares the image names in `build.yml` with the list in `cleanup-packages.yml` and fails on a name that is only in the first. See [Registry cleanup](#registry-cleanup) for why that list is written out by hand. |
+
+The job sets `VITE_USE_LOCAL_UI: "false"`, because `vite.config.js` would
+otherwise alias `@stefgo/react-ui-components` to `../../../react-ui-components` —
+a checkout that exists on a developer machine and nowhere else. It is the same
+value the Dockerfile passes to its Vite build.
+
+Concurrency cancels the run still in flight when a topic branch is pushed again —
+the first of three pushes in a row is nobody's answer. The group carries
+`github.workflow`, which is the **caller's** name when these checks are reached
+through `workflow_call`, so a `build.yml` or `release.yml` run lands in its own
+group and cannot cancel a plain branch run, or be cancelled by one. Tags are
+exempt from the cancellation, exactly as in `build.yml`.
+
+### build.yml — the job graph
+
+```
+verify  ──►  prepare  ──┬──►  build-client   (matrix: amd64 · arm64, native runners)  ──┐
+  │                     │                                                               │
+(ci.yml)                └──►  build-server   (matrix, pushed by digest only)            │
+                                    └──►  merge-server   (assembles the manifest)  ──┬──┘
+                                                                                     ▼
+                                                                                  smoke
+```
+
+- **`verify`** is `ci.yml`, reused rather than restated. Nothing is published
+  before it is green.
+- **`prepare`** is the single source of the version string, consumed by every
+  build job below it. On a tag it strips the leading `v` (`v1.5.0` → `1.5.0`), so
+  the string baked into the image matches the Docker tag, the root `package.json`
+  and a locally built image; otherwise it produces `<branch>-<short sha>`. It also
+  emits `sha_tag`, the one reference that exists on *every* trigger and always
+  means exactly this build — which is why the smoke test pulls by it — and
+  `server_image`, the fully qualified name of the server image. That last one is
+  composed here rather than declared as a workflow-level `env` so that the
+  registry host is written exactly once: an `env` entry cannot reference another
+  entry of the same block, and a job's `env` cannot read the `env` context at
+  all. It can read `needs`, which is the route taken.
+- **`build-client`** builds the two agent images on native runners
+  (`ubuntu-latest` and `ubuntu-24.04-arm`), no QEMU, under two separate image
+  names. See [Architectures](#architectures-multi-arch) for why they are not one
+  manifest.
+- **`build-server`** and **`merge-server`** produce a real multi-arch manifest:
+  each architecture is built natively and pushed **by digest only**
+  (`push-by-digest=true`), the digest travels as a workflow artefact, and
+  `merge-server` assembles the manifest list with `docker buildx imagetools
+  create` — which is where the tags are attached. Nothing is tagged per
+  architecture.
+- **`smoke`** starts the published images and asks them whether they are alive.
+  See [Smoke test](#smoke-test).
+
+Two details in the triggers are easy to misread:
+
+- **The `v*.*.*` tag filter almost never fires.** semantic-release pushes the tag
+  over `GITHUB_TOKEN`, and GitHub creates no workflow run for such a push. The
+  filter covers a tag pushed by hand; the route a real release takes is the
+  `workflow_dispatch` that `release.yml` fires on the tag ref, described under
+  [Release](#release).
+- **`paths-ignore` (`docs/**`, `**.md`) applies to branch pushes only.** Neither a
+  tag nor a dispatch is affected by it, so a documentation-only commit skips four
+  image builds without the release path ever being touched.
+
+Concurrency follows the same split: a second push to `dev` cancels the build still
+running, because its image is about to be pointless — but a tag build is never
+cancelled, since its image is the artefact of a release.
+
+### Action updates
+
+`dependabot.yml` watches the actions — and only the actions; the npm side is left
+out on purpose, and the file says why. It opens one grouped pull request a month,
+prefixed `ci:` so the bump releases nothing.
+
+That much was already true while six actions drifted up to two major versions
+behind. Opening the pull request was never the problem: **this repository is
+maintained without pull requests**, so the monthly one waited, exactly as the
+commitlint step in `ci.yml` waited for a pull request that never came. An update
+that is opened and never merged is not a slower update, it is none.
+
+`dependabot-auto-merge.yml` closes that loop. It fires on a pull request whose
+actor is `dependabot[bot]` and puts it into auto-merge, so GitHub merges it as
+soon as the checks are green and leaves it open when they are not.
+
+Two deliberate choices in it:
+
+- **It targets `dev`, not `main`.** `ci.yml` runs on the pull request, but an
+  action bump is mostly about actions `ci.yml` never touches —
+  `docker/build-push-action`, the artifact pair, `metadata-action`. The only thing
+  that exercises those is `build.yml`, and `build.yml` runs *after* a merge, not
+  before one. On `dev` that means a bad bump breaks the developer image and the
+  smoke test says so, which is what the dev channel is for; `main` stays the state
+  released to everyone until `dev` is merged into it.
+- **It needs "Allow auto-merge" enabled** under *Settings ▸ General ▸ Pull
+  Requests*. Without that setting the step fails loudly rather than falling back to
+  merging unchecked — the backlog is the better of those two outcomes.
 
 ## Build Management
 
@@ -243,18 +389,21 @@ Should a single commit need to stay out of the version calculation, the string
 
 `semantic-release` owns the version number; nobody tags by hand. A release is an
 **action, not a side effect of pushing**: it is started from
-*Actions ▸ Release ▸ Run workflow*, and only on `main` --
+*Actions ▸ Create Release ▸ Run workflow*, and only on `main` --
 [`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml)
-aborts on any other branch. It is gated by the same `ci.yml` checks a pull
-request gets.
+rejects every other branch. The rejection is its own `guard` job, ahead of the
+checks: the condition is known the moment the workflow is dispatched, so a
+mis-click costs a second instead of a full typecheck-and-lint cycle. Past the
+guard, a release is gated by exactly the `ci.yml` checks a pull request gets.
 
 ```
-Actions ▸ Release ▸ Run workflow   (main)
+Actions ▸ Create Release ▸ Run workflow   (main)
   └─► release.yml → semantic-release
         ├─ commits CHANGELOG.md + package.json   [skip ci]  (no second build)
         ├─ pushes tag v1.5.0
         └─ gh workflow run build.yml --ref v1.5.0
               └─► build.yml → images to GHCR
+                    └─ gh run watch --exit-status   (the release job waits)
 ```
 
 The last arrow is a `workflow_dispatch`, not the `on: tags` filter, and the
@@ -264,6 +413,15 @@ and GitHub creates no workflow run for such an event -- `workflow_dispatch` and
 at the tag and never produces an image. The dispatch targets the **tag** ref, so
 `github.ref` inside `build.yml` is `refs/tags/v1.5.0` and its semver and `latest`
 rules apply; dispatching `main` instead would tag the images `main` again.
+
+**The release job then waits for that build.** `gh workflow run` reports nothing
+about the run it starts, so the step looks the run up and follows it with
+`gh run watch --exit-status`. Firing and forgetting would let the release go green
+on a dispatch, and a build that fails afterwards would leave a tag, a GitHub
+release and a changelog entry with no images behind them — precisely the outcome
+this workflow refuses everywhere else. If it does fail, a final step says so in
+words: the version exists and cannot be taken back, the fix is to re-run *Build
+Images* on the tag, and a second release is not needed.
 
 The workflow takes two inputs:
 
@@ -362,8 +520,30 @@ pbcm-server:dev  ─┬─► sha256:9c55…  linux/arm64      ┐
 An action that deletes "untagged versions" therefore hollows out the tagged
 images from underneath. That is not hypothetical: it is how `pbcm-server:main`
 came to be a tag whose four children all return 404. The cleanup in use knows
-which children belong to a kept tag, `validate: true` re-checks that after every
-run, and `delete-partial-images` removes the manifests that already lost theirs.
+which children belong to a kept tag, and `delete-partial-images` removes the
+manifests that already lost theirs.
+
+`validate: true` re-checks that after every run — but **only as a warning; the
+action never fails on it**, and a warning in the log of a job that runs at two in
+the morning is not far from no check at all. A step of the workflow's own
+therefore repeats the check and *fails*: it walks the manifest list of each
+protected tag and resolves every child digest individually, because a hollowed-out
+image still lists its platforms in the index and only fetching the child shows
+that they are gone. A failing run on a `schedule` trigger is what GitHub sends a
+notification mail about, which is the whole point of the exercise.
+
+The workflow also carries a `concurrency` group: the action is documented as
+unsafe to run twice against the same package, and a manual run can otherwise meet
+the nightly one.
+
+**The images are listed by name**, and a new one has to be added there by hand —
+which is what the coverage check in `ci.yml` enforces. The action can discover
+them by wildcard (`packages: pbcm-*`, `expand-packages: true`), but only with a
+**classic** PAT carrying `delete:packages`. That is an unattended nightly delete
+right over every container of the account, held in a repository secret, and the
+one credential in the pipeline that would expire — the same trade that was already
+decided against for [`npm_token`](#registry-authentication). Three names in a file
+are the cheaper side of it.
 
 `latest` and `dev` are excluded from every rule, and so is anything shaped like a
 version: a deleted `1.3.2` breaks whoever pinned it, so release images are meant
