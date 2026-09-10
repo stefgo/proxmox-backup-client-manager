@@ -118,6 +118,36 @@ With a repository in place, the server can hand out registration tokens and you 
 
 ## Operating it
 
+### Health
+
+The image carries a `HEALTHCHECK`, so `docker ps` shows a state next to the container
+without you adding anything to the Compose file:
+
+```
+STATUS
+Up 4 minutes (healthy)
+```
+
+It calls `GET /api/health`, which answers `200` when the process serves requests and its
+database is reachable, and `503` when it does not. You can call it yourself — it needs no
+login:
+
+```bash
+curl -fsS http://localhost:3000/api/health
+```
+
+**Docker does not restart an unhealthy container.** Restart policies such as
+`restart: unless-stopped` react to a process *exiting*; a process that is still running
+but no longer answering stays where it is, marked `unhealthy`. What the healthcheck gives
+you is a state your monitoring can read, and something `depends_on: condition:
+service_healthy` can wait for. If you want an unhealthy container restarted, that takes
+an extra watchdog alongside Docker.
+
+To change the timings, or to make the check visible in the file you maintain, declare a
+`healthcheck:` block on the service — it overrides the one from the image. The
+[`compose.yaml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/compose.yaml)
+in the repository does exactly that, and is a working example to copy from.
+
 ### Logs
 
 ```bash

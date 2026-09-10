@@ -50,10 +50,17 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
             version: ${{ steps.version.outputs.version }}
+            # The image reference the smoke job pulls. docker/metadata-action assigns
+            # this tag through the `type=sha,prefix=sha-` rule on *every* trigger --
+            # branch push, tag and dispatch alike -- so it is the one reference that
+            # always exists and always means exactly this build. `dev` or `latest`
+            # would be ambiguous the moment two runs overlap.
+            sha_tag: ${{ steps.version.outputs.sha_tag }}
         steps:
             - name: Determine Version
               id: version
               run: |
+                  echo "sha_tag=sha-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_OUTPUT
                   if [[ $GITHUB_REF == refs/tags/* ]]; then
                     # Tag name without the leading v, so the string baked into the
                     # image matches the Docker tag (1.5.0), the root package.json
@@ -263,3 +270,87 @@ jobs:
             - name: Inspect image
               run: |
                   docker buildx imagetools inspect ${{ env.SERVER_IMAGE }}:${{ steps.meta.outputs.version }}
+
+    # Starts what was just published and asks it whether it is alive. This is the only
+    # place in the pipeline where the images are ever executed -- everything before it
+    # proves that the code compiles, not that the result runs. An image whose entrypoint
+    # dies on the first start used to pass all seven jobs.
+    #
+    # Both architectures, because the two client images are genuinely different builds:
+    # amd64 installs proxmox-backup-client from the Proxmox repository, arm64 a community
+    # .deb, and they sit on different Debian generations.
+    smoke:
+        name: Smoke test
+        needs: [prepare, merge-server, build-client]
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: read
+
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - arch: amd64
+                      runner: ubuntu-latest
+                      client_image: pbcm-client
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+                      client_image: pbcm-client-arm64
+
+        steps:
+            - name: Log in to the Container registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # The server image is a manifest list, so docker picks the variant for this
+            # runner's architecture by itself.
+            - name: Start the server image
+              run: |
+                  docker run -d --name pbcm-smoke-server -p 3000:3000 \
+                    ${{ env.SERVER_IMAGE }}:${{ needs.prepare.outputs.sha_tag }}
+
+            # The agent starts unregistered and idles -- exactly the state a fresh
+            # installation is in before anyone has pointed it at a server.
+            - name: Start the client image
+              run: |
+                  docker run -d --name pbcm-smoke-client -p 3001:3001 \
+                    ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.client_image }}:${{ needs.prepare.outputs.sha_tag }}
+
+            - name: Wait for both to report healthy
+              run: |
+                  probe() {
+                    local name=$1 url=$2
+                    for i in $(seq 1 60); do
+                      if curl -fsS "$url" | grep -q '"status":"ok"'; then
+                        echo "$name answered after ${i}s"
+                        return 0
+                      fi
+                      # A container that already exited will never answer -- say so now
+                      # instead of waiting out the full minute.
+                      if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != "true" ]; then
+                        echo "::error::$name is no longer running"
+                        return 1
+                      fi
+                      sleep 1
+                    done
+                    echo "::error::$name did not become healthy within 60s"
+                    return 1
+                  }
+                  probe pbcm-smoke-server http://127.0.0.1:3000/api/health
+                  probe pbcm-smoke-client http://127.0.0.1:3001/api/health
+
+            # Without this a failure above leaves only "exit 1" in the log, and the
+            # reason is inside the container.
+            - name: Container logs
+              if: failure()
+              run: |
+                  echo "::group::server"; docker logs pbcm-smoke-server 2>&1 | tail -50; echo "::endgroup::"
+                  echo "::group::client"; docker logs pbcm-smoke-client 2>&1 | tail -50; echo "::endgroup::"
+
+            - name: Clean up
+              if: always()
+              run: docker rm -f pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true

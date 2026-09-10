@@ -16,6 +16,7 @@ import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
+import db from "../core/Database.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
 import { z } from "zod";
@@ -174,6 +175,29 @@ export async function startWebServer() {
             return {
                 connected: Connection.isConnected(),
             };
+        },
+    );
+
+    /**
+     * Liveness for the container's HEALTHCHECK and for monitoring.
+     *
+     * It deliberately does **not** consult `Connection.isConnected()`. The agent is
+     * offline-capable by design: it runs its jobs from its own SQLite copy via
+     * node-cron whether or not the server can be reached. Wiring the server
+     * connection in here would translate every network hiccup into "agent broken"
+     * and, under an orchestrator, into a restart that fixes nothing. The connection
+     * has its own endpoint directly above; the two must not be conflated.
+     */
+    fastify.get(
+        "/api/health",
+        async (request: FastifyRequest, reply: FastifyReply) => {
+            try {
+                db.prepare("SELECT 1").get();
+                return { status: "ok" };
+            } catch (err) {
+                logger.error({ err }, "Health check failed: database unreachable");
+                return reply.code(503).send({ status: "error" });
+            }
         },
     );
 

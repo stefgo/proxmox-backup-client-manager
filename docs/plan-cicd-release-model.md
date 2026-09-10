@@ -1,6 +1,6 @@
 # Plan: commit validation, branch roles and an explicit release
 
-**Status:** stages 1–3 implemented · **Created:** 2026-09-09 · **Rev. 3**
+**Status:** stages 1–3 and M16 implemented · **Created:** 2026-09-09 · **Rev. 4**
 
 > Written in English to match the rest of `docs/`, like the previous plan documents.
 > Excluded from the published site through `exclude_docs: plan-*.md` in `mkdocs.yml`;
@@ -32,7 +32,16 @@
 >   `ci.yml` "gets by with the automatic `GITHUB_TOKEN`, which is enough to read a public
 >   package". The `NPM_TOKEN` secret is kept as a fallback but is no longer read.
 > - `init` is kept: it is the one local branch not merged into `main`.
-> - Stage 4 (M16, M17) remains open.
+>
+> M16 is implemented as well (Rev. 4). Notes:
+> - The endpoint sits at `/api/health`, not `/health`. The server answers every path
+>   outside `/api` with the SPA's `index.html` and HTTP 200, so a probe on `/health` would
+>   have reported success even with the route missing. Verified: `/gibtsnicht` returns
+>   `200 text/html`, `/api/gibtsnicht` returns `404` JSON.
+> - The agent got the endpoint too, and the smoke test covers both architectures.
+> - **The claim that a `HEALTHCHECK` makes `restart: unless-stopped` act on a hung process
+>   was wrong** and is corrected at M16 below.
+> - M17 remains open.
 
 ## 1. What prompted this
 
@@ -300,14 +309,20 @@ a flood of pull requests with no test suite to catch regressions.
 
 ### Stage 4 — separate projects
 
-**M16 — Health endpoint, `HEALTHCHECK`, smoke test**
-*Action:* Add a health route to the backend, a `HEALTHCHECK` to the images, and a pipeline step
-that starts the freshly built server image and queries it.
-*Result:* Three things at once. A `GET /health` answers — there is none today. A hung backend
-is marked `unhealthy` by Docker, which is what finally makes `restart: unless-stopped` work for
-self-hosters instead of keeping a dead process alive. And the pipeline **fails the build when
-no answer comes** — the first automated proof that a published image starts at all. With no
-test suite in the project, this is the largest gain in confidence per line invested.
+**M16 — Health endpoint, `HEALTHCHECK`, smoke test** *(implemented, Rev. 4)*
+*Action:* A `GET /api/health` route on the server and on the agent, a `HEALTHCHECK` in all
+three production images, and a smoke job that starts the freshly built images and queries them.
+*Result:* The pipeline **fails the build when no answer comes** — the first automated proof
+that a published image starts at all. With no test suite in the project, this is the largest
+gain in confidence per line invested. `docker ps` additionally shows a health state, which
+monitoring can read and `depends_on: condition: service_healthy` can wait for.
+
+*Correction to Rev. 1:* this measure originally claimed the `HEALTHCHECK` is "what finally
+makes `restart: unless-stopped` work". **That was wrong.** Docker restart policies react to a
+process *exiting*, not to health; neither Docker nor Compose restarts an `unhealthy`
+container. A hung process stays up and marked unhealthy, and acting on that needs an
+orchestrator or a separate watchdog. The measure's value is the smoke test and the
+visibility, not an automatic restart. The installation guides say so explicitly.
 
 **M17 — Consolidate the ARM client**
 *Action:* Build the client per architecture by digest and merge into one manifest, as the

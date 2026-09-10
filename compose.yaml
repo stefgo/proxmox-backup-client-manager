@@ -22,6 +22,20 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+    # The image already carries this HEALTHCHECK, so this block is a repetition on
+    # purpose: it keeps the behaviour visible in the file operators actually read and
+    # edit, and it still applies if someone pins an older tag from before the image
+    # had one. Node is in the image and Node 22 has fetch as a global, so no curl.
+    #
+    # Note that Docker does NOT restart an unhealthy container -- `restart:` above
+    # reacts to the process exiting, not to health. This makes the state readable in
+    # `docker ps` and usable for `depends_on: condition: service_healthy`.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   pbcm-client:
     container_name: pbcm-client
@@ -51,6 +65,19 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+    # See the server above for why this repeats what the image already declares.
+    # Two agent-specific points: the port follows PBCM_CLIENT_PORT, which matters
+    # under `network_mode: host`, and DISABLE_WEB_UI=true exits 0 because then there
+    # is no HTTP server by design.
+    #
+    # It reports on the agent, not on the connection to the server -- an agent that
+    # cannot reach the server still runs its jobs from its own database and is healthy.
+    healthcheck:
+      test: ["CMD", "node", "-e", "if (process.env.DISABLE_WEB_UI === 'true') process.exit(0); const p = process.env.PBCM_CLIENT_PORT || 3001; fetch('http://127.0.0.1:' + p + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
 volumes:
   server-data:

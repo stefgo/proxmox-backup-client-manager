@@ -70,7 +70,7 @@ subpath existed the file was duplicated on both sides.
 
 Routes are Fastify plugins. They map HTTP verbs (GET, POST, PUT, DELETE) to specific methods in the Controllers and handle generic middleware (e.g., verifying JWT tokens).
 
-All protected routes require a valid JWT. The browser sends it as the `pbcm_session` cookie; the `Authorization: Bearer <token>` header keeps working for scripted clients, and `@fastify/jwt` accepts either. Outside of auth, two routes are public: `POST /v1/register` (client self-registration) and `GET /v1/ping` (health check).
+All protected routes require a valid JWT. The browser sends it as the `pbcm_session` cookie; the `Authorization: Bearer <token>` header keeps working for scripted clients, and `@fastify/jwt` accepts either. Outside of auth, three routes are public: `POST /v1/register` (client self-registration), `GET /v1/ping` (reachability — "is there a PBCM server at this URL", asked by an agent before registration) and `GET /health` at `/api/health` (liveness — "can this instance serve requests", which also checks the database, and is what the container's `HEALTHCHECK` calls). The last two look alike and are not: `ping` must stay free of dependency checks, or a server with a broken database would tell an operator that the address is wrong.
 
 `POST /login` carries a rate limit of ten attempts per fifteen minutes. The limiter is registered with `global: false` on purpose — a blanket limit would also count the agent handshakes and the dashboard's own traffic, where a larger fleet legitimately produces bursts.
 

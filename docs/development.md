@@ -324,6 +324,26 @@ CHANGELOG entry -- that is what the release workflow is for. `sha-<short>`
 accompanies each of them as the immutable counterpart, for pinning a specific
 build. Only a release moves `latest`.
 
+### Smoke test
+
+The last job of `build.yml` starts what was just published and asks it whether it is
+alive: `docker run` on the server image and on the agent image, then `GET /api/health`
+on both until they answer or a minute passes.
+
+**This is the only place in the pipeline where the images are ever executed.**
+Everything before it proves that the code compiles, not that the result runs -- an image
+whose entrypoint died on the first start used to pass all seven jobs. With no test suite
+in this project, it is the single automated statement that a published artefact works at
+all.
+
+It runs on both architectures, because the two agent images are genuinely different
+builds: `amd64` installs `proxmox-backup-client` from the Proxmox repository, `arm64` a
+community `.deb`, and they sit on different Debian generations.
+
+The job pulls by the `sha-<short>` tag rather than by `:dev` or `:latest`. That tag is
+assigned on every trigger and always means exactly the build that produced it, which
+`:dev` stops doing the moment two runs overlap.
+
 ### Registry cleanup
 
 [`cleanup-packages.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/cleanup-packages.yml) prunes GHCR

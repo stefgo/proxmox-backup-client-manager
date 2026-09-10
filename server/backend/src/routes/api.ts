@@ -8,8 +8,34 @@ import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { HistoryController } from "../controllers/HistoryController.js";
 import { TunnelController } from "../controllers/TunnelController.js";
+import db from "../core/Database.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
+    /**
+     * Liveness for the container's HEALTHCHECK and for monitoring. Unauthenticated,
+     * because a probe has no session and the answer discloses nothing.
+     *
+     * It lives under /api, not at /health, on purpose: index.ts installs a
+     * setNotFoundHandler that answers every path outside /api with index.html and
+     * **HTTP 200**. A /health route that failed to register would therefore keep
+     * reporting 200 with an HTML body forever, and every probe built on it would be
+     * worthless without anyone noticing. Under /api the same handler returns 404 JSON.
+     *
+     * Deliberately narrow: it answers "can this process serve requests", not "is the
+     * fleet healthy". Agent connections are not consulted -- a single offline agent
+     * must not mark the control plane as broken -- and no version is reported, because
+     * this endpoint needs no session.
+     */
+    fastify.get("/health", async (request, reply) => {
+        try {
+            db.prepare("SELECT 1").get();
+            return { status: "ok" };
+        } catch (err) {
+            request.log.error({ err }, "Health check failed: database unreachable");
+            return reply.code(503).send({ status: "error" });
+        }
+    });
+
     // Auth
     // The one unauthenticated endpoint that guesses can be aimed at, and the default
     // admin account exists until somebody changes it. Ten attempts per quarter hour is
@@ -215,7 +241,15 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             // Register Client (Public but API)
             v1.post("/register", TokenController.register);
 
-            // Health check (Public ping)
+            // "Is there a PBCM server at this URL?" -- the agent calls this against an
+            // address an operator has just typed, before registration
+            // (client/src/web/server.ts, /api/status/server).
+            //
+            // Not the same thing as /api/health, and the two must not be merged. This
+            // one checks nothing on purpose: a server with a broken database is still
+            // *reachable*, and answering "no server here" would send the operator off
+            // to fix the wrong thing. /api/health is the one that reports whether this
+            // instance can actually serve, and it does check the database.
             v1.get("/ping", async (request, reply) => {
                 return { status: "ok" };
             });

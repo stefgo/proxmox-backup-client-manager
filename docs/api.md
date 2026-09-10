@@ -6,6 +6,7 @@
 
 ## 📖 Table of Contents
 
+- [Health](#-health)
 - [Authentication](#-authentication)
     - [Login](#login)
     - [OIDC Configuration](#oidc-configuration)
@@ -49,12 +50,49 @@
     - [Get Cleanup Settings](#get-cleanup-settings)
     - [Update Cleanup Settings](#update-cleanup-settings)
     - [Run Maintenance](#run-maintenance)
-- [Health Check](#-health-check)
+- [Reachability](#-reachability)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
     - [Agent Connection](#agent-connection)
         - [Client -> Server Events](#client---server-events)
         - [Server -> Client Events](#server---client-events)
+
+---
+
+## 🩺 Health
+
+`GET /health` (Note: No `/v1` prefix, maps to `/api/health`)
+
+**Description:** Liveness probe. Unauthenticated — a probe has no session, and the
+answer discloses nothing. This is what the container's `HEALTHCHECK` calls, and what the
+CI smoke test asks after starting a freshly built image.
+
+The agent exposes the same endpoint on its own web UI port (`3001` by default), where it
+serves the same purpose.
+
+#### Response
+
+| Status | Body                  | Meaning                            |
+| :----- | :-------------------- | :--------------------------------- |
+| `200`  | `{"status":"ok"}`     | The process serves requests and its database is reachable |
+| `503`  | `{"status":"error"}`  | The database could not be queried  |
+
+**What it deliberately does not check.** The server does not consult its agent
+connections: a single offline agent must not mark the control plane as broken. The agent
+does not consult its server connection either — it runs its jobs from its own SQLite copy
+whether or not the server can be reached, so a lost connection is not ill health. The
+agent's connection state has its own endpoint on its web UI (`/api/status/connection`).
+
+**Why `/api/health` and not `/health`.** The server answers every path outside `/api`
+with the SPA's `index.html` and **HTTP 200**, so a probe pointed at `/health` would keep
+reporting success even if the route were gone. Under `/api`, an unknown path returns
+`404` as JSON.
+
+**Not to be confused with [`/v1/ping`](#-reachability).** That one answers "is there a
+PBCM server at this URL" for an operator typing an address during registration, and
+touches nothing. This one answers "can this instance serve requests" and checks the
+database. Keeping them apart matters: if `ping` reported the database, a server with a
+broken one would tell the operator that the address is wrong.
 
 ---
 
@@ -1362,13 +1400,24 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
 
 ---
 
-## 🏓 Health Check
+## 🏓 Reachability
 
 ### Ping
 
 `GET /v1/ping`
 
-**Description:** Public health check endpoint. No authentication required.
+**Description:** Answers the question *"is there a PBCM server at this URL?"* — no
+authentication required. The agent calls it against a URL an operator has just typed, to
+tell them before registration whether the address is right (`GET /api/status/server` on
+the agent's web UI).
+
+It deliberately checks **nothing** beyond the process answering. In particular it does
+not touch the database: a server whose database is broken is still *reachable*, and
+reporting "no server at this address" during setup would send the operator looking in the
+wrong place.
+
+For "is this instance able to serve requests", which is what a container healthcheck or a
+monitor wants, use [Health](#-health) instead — that one does check the database.
 
 #### Response
 

@@ -73,4 +73,18 @@ COPY --from=builder /app/client/dist ./client/dist
 # Switch to client directory so paths align with dev environment (config.json resolution)
 WORKDIR /app/client
 
+# Liveness probe. Node is installed here anyway and Node 22 has fetch as a global,
+# so the check needs neither curl nor wget. The port follows the agent's own config
+# (PBCM_CLIENT_PORT, default 3001 -- see client/src/core/Config.ts).
+#
+# DISABLE_WEB_UI=true exits 0 straight away: with the web UI switched off there is no
+# HTTP server by design, and reporting that as unhealthy would be a false alarm.
+#
+# Deliberately unrelated to the server connection. The agent runs its jobs from its own
+# SQLite copy whether or not the server is reachable, so a lost connection is not a
+# reason to call it unhealthy. Note also that Docker does not restart an unhealthy
+# container -- restart policies react to a process exiting, not to health.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e 'if (process.env.DISABLE_WEB_UI === "true") process.exit(0); const p = process.env.PBCM_CLIENT_PORT || 3001; fetch("http://127.0.0.1:" + p + "/api/health").then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'
+
 CMD ["node", "dist/index.js"]

@@ -208,6 +208,29 @@ PBCM server that is down, restarting or unreachable stops no backup.
 
 ## Operating it
 
+### Health
+
+Both agent images carry a `HEALTHCHECK`, so `docker ps` shows `(healthy)` next to the
+container without you adding anything to the Compose file. It calls `GET /api/health` on
+the agent's own web UI port (`3001` by default), which needs no login:
+
+```bash
+curl -fsS http://localhost:3001/api/health
+```
+
+**It reports on the agent, not on the connection to the server.** An agent that cannot
+reach the server is still healthy: it keeps its jobs in its own database and runs them on
+schedule regardless. Whether it is connected is a different question, answered on the
+agent's status page and by `GET /api/status/connection`.
+
+Two consequences worth knowing:
+
+- With `DISABLE_WEB_UI=true` there is no HTTP server at all. The healthcheck knows this
+  and reports healthy rather than raising a false alarm — but it then tells you nothing.
+- **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to
+  a process *exiting*, not to its health. An agent that hangs without exiting stays up and
+  marked `unhealthy`, which your monitoring can see but Docker will not act on.
+
 ### Logs
 
 ```bash

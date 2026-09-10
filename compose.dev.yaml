@@ -42,6 +42,19 @@ services:
       - VITE_USE_LOCAL_UI=true
       - VITE_UI_COMPONENTS_PATH=/app/react-ui-components
 
+    # Unlike the production images, Dockerfile.server.dev declares no HEALTHCHECK --
+    # its CMD is `bash` and the real command comes from `command:` above. So this is
+    # not a repetition here, it is the only health signal the dev container has.
+    #
+    # A longer start_period than in production: this waits for the TypeScript watch
+    # build, not just for migrations.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+
   client-dev:
     build:
       context: .
@@ -89,6 +102,14 @@ services:
     environment:
       - LOG_LEVEL=debug
       - NODE_ENV=development
+
+    # See server-dev: Dockerfile.client.dev declares no HEALTHCHECK either.
+    healthcheck:
+      test: ["CMD", "node", "-e", "if (process.env.DISABLE_WEB_UI === 'true') process.exit(0); const p = process.env.PBCM_CLIENT_PORT || 3001; fetch('http://127.0.0.1:' + p + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
 
 secrets:
   npm_token:
