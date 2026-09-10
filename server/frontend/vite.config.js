@@ -116,12 +116,27 @@ export default defineConfig(() => ({
     build: {
         outDir: "../dist/public",
         emptyOutDir: true,
-        rollupOptions: {
+        // Rolldown, which bundles since Vite 8, takes `manualChunks` only as a function and
+        // fails on the object form. Its replacement matches module paths, so a group lists
+        // what the object form pulled in implicitly: react-router behind react-router-dom,
+        // scheduler behind react-dom.
+        rolldownOptions: {
             output: {
-                manualChunks: {
-                    "vendor-react": ["react", "react-dom", "react-router-dom"],
-                    "vendor-icons": ["lucide-react"],
-                    "vendor-utils": ["date-fns", "zustand"],
+                codeSplitting: {
+                    groups: [
+                        {
+                            name: "vendor-react",
+                            test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,
+                        },
+                        {
+                            name: "vendor-icons",
+                            test: /node_modules[\\/]lucide-react[\\/]/,
+                        },
+                        {
+                            name: "vendor-utils",
+                            test: /node_modules[\\/](date-fns|zustand)[\\/]/,
+                        },
+                    ],
                 },
             },
         },

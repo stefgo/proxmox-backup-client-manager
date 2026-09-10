@@ -11,7 +11,7 @@ COPY server/backend/package.json server/backend/
 COPY server/frontend/package.json server/frontend/
 
 # Install all dependencies (with GitHub Packages auth).
-# package-lock.json carries every platform variant of the optional rollup binary
+# package-lock.json carries every platform variant of the optional rolldown binding
 # with its os/cpu metadata, so npm ci picks the right one by itself -- both here
 # and on arm64. The explicit install this used to carry was a leftover from an
 # older lockfile that had them pruned.

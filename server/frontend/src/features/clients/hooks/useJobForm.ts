@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useClientStore } from '../../../stores/useClientStore';
@@ -224,14 +224,13 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
 
     /**
      * The state the job was last known to be in -- what it was seeded with, and after a
-     * save what was stored. Captured in an effect rather than inside the two seeding
+     * save what was stored. Captured while rendering rather than inside the two seeding
      * functions: those set the fields through a dozen setters, and the snapshot only
-     * exists once React has applied them.
+     * exists once React has applied them. The guard makes it a one-off, which is what
+     * lets it run during render instead of in an effect that would render twice.
      */
     const [baseline, setBaseline] = useState<string | null>(null);
-    useEffect(() => {
-        if (isCreatingJob && baseline === null) setBaseline(snapshot);
-    }, [isCreatingJob, baseline, snapshot]);
+    if (isCreatingJob && baseline === null) setBaseline(snapshot);
 
     const isDirty = baseline !== null && snapshot !== baseline;
     // The note stands only as long as what is on screen is what was stored.

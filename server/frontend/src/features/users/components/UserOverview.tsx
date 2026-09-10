@@ -19,22 +19,30 @@ export const UserOverview = () => {
     // must not be able to reach the request at all.
     const [blockedLastUser, setBlockedLastUser] = useState<UserData | null>(null);
 
-    useEffect(() => {
-        fetchUsers();
-    }, [isAuthenticated]);
+    /** Bumped to load the list again after a change; the effect below is the only loader. */
+    const [reloadCount, setReloadCount] = useState(0);
 
-    const fetchUsers = async () => {
-        setIsLoading(true);
-        try {
-            const res = await apiFetch('/api/v1/users');
-            if (res.ok) {
-                setUsers(await res.json());
+    // The effect only ever lowers isLoading: the first load starts with it set, and a reload
+    // raises it in fetchUsers, outside the effect.
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const res = await apiFetch('/api/v1/users');
+                if (res.ok) {
+                    setUsers(await res.json());
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsLoading(false);
             }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
+        };
+        load();
+    }, [isAuthenticated, reloadCount]);
+
+    const fetchUsers = () => {
+        setIsLoading(true);
+        setReloadCount((n) => n + 1);
     };
 
     const handleCreateUser = () => {

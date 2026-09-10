@@ -84,8 +84,15 @@ const COPY_FEEDBACK_MS = 2000;
 export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, action }: ClientTunnelCardProps) => {
     const { isAuthenticated } = useAuth();
     const [info, setInfo] = useState<TunnelInfo | null>(null);
-    /** Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer. */
-    const [loaded, setLoaded] = useState(false);
+    /**
+     * Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer.
+     * Stored as the request it answers rather than a flag: switching clients makes it false
+     * on that same render, without an effect resetting it, and a response that arrives for
+     * the previous client cannot mark the new one as loaded.
+     */
+    const loadKey = `${clientId}:${isAuthenticated}`;
+    const [loadedKey, setLoadedKey] = useState<string | null>(null);
+    const loaded = loadedKey === loadKey;
     const [loadError, setLoadError] = useState<string | null>(null);
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
@@ -122,12 +129,11 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
             } catch (e) {
                 setLoadError(e instanceof Error ? e.message : String(e));
             } finally {
-                setLoaded(true);
+                setLoadedKey(loadKey);
             }
         };
-        setLoaded(false);
         load();
-    }, [clientId, isAuthenticated]);
+    }, [clientId, isAuthenticated, loadKey]);
 
     /** Loaded, no configuration, nothing broken: the card is a setup form. */
     const isNew = loaded && !info && !loadError;
