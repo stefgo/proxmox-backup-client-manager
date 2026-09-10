@@ -15,7 +15,7 @@
         "@pbcm/shared": "*",
         "@stefgo/react-ui-components": "3.0.1",
         "date-fns": "^4.4.0",
-        "lucide-react": "^0.562.0",
+        "lucide-react": "^1.44.0",
         "mitt": "^3.0.1",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
