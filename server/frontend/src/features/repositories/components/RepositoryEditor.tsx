@@ -19,12 +19,12 @@ interface RepositoryEditorProps {
  * the way out sits a few pixels from the fields it would throw away.
  */
 export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEditorProps) => {
-    const [baseUrl, setBaseUrl] = useState('');
-    const [datastore, setDatastore] = useState('');
-    const [fingerprint, setFingerprint] = useState('');
-    const [username, setUsername] = useState('');
-    const [tokenName, setTokenName] = useState('');
-    const [secret, setSecret] = useState('');
+    const [baseUrl, setBaseUrl] = useState(repository?.baseUrl || '');
+    const [datastore, setDatastore] = useState(repository?.datastore || '');
+    const [fingerprint, setFingerprint] = useState(repository?.fingerprint || '');
+    const [username, setUsername] = useState(repository?.username || '');
+    const [tokenName, setTokenName] = useState(repository?.tokenname || '');
+    const [secret, setSecret] = useState(repository?.secret || '');
 
     const { isAuthenticated } = useAuth();
     const probeCertificate = useRepositoryStore((s) => s.probeCertificate);
@@ -74,31 +74,25 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         }
     };
 
-    useEffect(() => {
-        if (repository) {
-            setBaseUrl(repository.baseUrl);
-            setDatastore(repository.datastore);
-            setFingerprint(repository.fingerprint || '');
-            setUsername(repository.username);
-            setTokenName(repository.tokenname || '');
-            setSecret(repository.secret);
-        } else {
-            setBaseUrl('');
-            setDatastore('');
-            setFingerprint('');
-            setUsername('');
-            setTokenName('');
-            setSecret('');
-        }
+    // Reseeded while rendering when another repository is opened, rather than in an effect:
+    // the fields never paint a frame with the previous repository's values.
+    // Keyed on the id, not the object: the store hands out a fresh object after every
+    // save, and reseeding on that would wipe the "saved" note it just produced.
+    const [seededId, setSeededId] = useState(repository?.id);
+    if (repository?.id !== seededId) {
+        setSeededId(repository?.id);
+        setBaseUrl(repository?.baseUrl || '');
+        setDatastore(repository?.datastore || '');
+        setFingerprint(repository?.fingerprint || '');
+        setUsername(repository?.username || '');
+        setTokenName(repository?.tokenname || '');
+        setSecret(repository?.secret || '');
         setCheck(null);
         setCheckError(null);
         setDistribution(null);
         setError(null);
         setSaved(false);
-        // Keyed on the id, not the object: the store hands out a fresh object after every
-        // save, and re-running this on that would wipe the "saved" note it just produced.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [repository?.id]);
+    }
 
     // Compared against the stored repository, or against empty fields while creating one --
     // in both cases the question is the same: is there anything here worth keeping?

@@ -19,15 +19,32 @@ interface SnapshotRestoreEditorProps {
 
 const EMPTY_CLIENTS: Client[] = [];
 
+/** Archives a restore can take from; all of them are preselected. */
+const restorableArchives = (snapshot: Snapshot) =>
+    snapshot.files
+        .map(f => f.filename)
+        .filter(f => f && (f.endsWith('pxar.didx')));
+
+/**
+ * The client a restore of this snapshot starts out with: the one the editor was opened
+ * for, else the client the snapshot was taken from, else the first one. `fallback` when
+ * there is nothing to choose from.
+ */
+const initialClientId = (snapshot: Snapshot, selectedClient: Client | undefined, clients: Client[], fallback: string) => {
+    if (selectedClient) return selectedClient.id;
+    if (clients.length === 0) return fallback;
+    return (clients.find(c => c.id === snapshot.backupId) ?? clients[0]).id;
+};
+
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
     const { isAuthenticated } = useAuth();
-    const [selectedClientId, setSelectedClientId] = useState<string>('');
+    const [selectedClientId, setSelectedClientId] = useState<string>(() => initialClientId(snapshot, selectedClient, clients, ''));
     // ClientSelect only opens its list when it is told to. Without this state the
     // "Set Client" button had nothing to call and the preselected client was final.
     const [isSelectingClient, setIsSelectingClient] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
-    const [selectedArchives, setSelectedArchives] = useState<string[]>([]);
+    const [selectedArchives, setSelectedArchives] = useState<string[]>(() => restorableArchives(snapshot));
     /**
      * Whether this restore reaches the repository through the client's SSH tunnel.
      *
@@ -54,41 +71,23 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
         : clients.find((c) => c.id === selectedClientId);
     const tunnelAvailable = !!restoreClient?.tunnelConfigured;
 
-    const availableArchives = snapshot.files
-        .map(f => f.filename)
-        .filter(f => f && (f.endsWith('pxar.didx')))
-        .sort();
+    const availableArchives = restorableArchives(snapshot).sort();
 
-    // Initialize View State
-    useEffect(() => {
-        if (snapshot) {
-            // If selectedClient is passed, use it directly
-            if (selectedClient) {
-                setSelectedClientId(selectedClient.id);
-            } else if (clients.length > 0) {
-                // Try to match client by backup_id
-                const match = clients.find(c => c.id === snapshot.backupId);
-                if (match) {
-                    setSelectedClientId(match.id);
-                } else {
-                    setSelectedClientId(clients[0].id);
-                }
-            }
-
-            setSelectedTarget('');
-            setBrowserPath('/');
-            setUseTunnel(true);
-            setIsSelectingClient(false);
-            setMessage(null);
-            setError(null);
-            // Pre-select all archives by default
-            const initialArchives = snapshot.files
-                .map(f => f.filename)
-                .filter(f => f && (f.endsWith('pxar.didx')));
-            setSelectedArchives(initialArchives);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [snapshot]);
+    // Another snapshot starts the form over. Done while rendering rather than in an effect,
+    // so no frame shows the previous snapshot's choices. Keyed on the snapshot alone: a
+    // client list that refreshes must not undo a client picked by hand.
+    const [seededSnapshot, setSeededSnapshot] = useState(snapshot);
+    if (snapshot !== seededSnapshot) {
+        setSeededSnapshot(snapshot);
+        setSelectedClientId(initialClientId(snapshot, selectedClient, clients, selectedClientId));
+        setSelectedTarget('');
+        setBrowserPath('/');
+        setUseTunnel(true);
+        setIsSelectingClient(false);
+        setMessage(null);
+        setError(null);
+        setSelectedArchives(restorableArchives(snapshot));
+    }
 
     // Fetch files when path or client changes
     useEffect(() => {

@@ -24,7 +24,24 @@ export default function Settings() {
     const [cleanupResult, setCleanupResult] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // isLoading starts out true, so the load only ever has to lower it.
     useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await apiFetch('/api/v1/settings/cleanup', {
+                    headers: {
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setSettings(data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch settings:', e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
         if (isAuthenticated) {
             fetchSettings();
         }
@@ -36,24 +53,6 @@ export default function Settings() {
             return () => clearTimeout(timer);
         }
     }, [cleanupResult]);
-
-    const fetchSettings = async () => {
-        setIsLoading(true);
-        try {
-            const response = await apiFetch('/api/v1/settings/cleanup', {
-                headers: {
-                }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setSettings(data);
-            }
-        } catch (e) {
-            console.error('Failed to fetch settings:', e);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleSave = async () => {
         setIsSaving(true);

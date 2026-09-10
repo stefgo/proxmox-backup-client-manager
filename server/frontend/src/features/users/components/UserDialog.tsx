@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { getErrorMessage } from '../../../utils';
 import { Card, Input, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
@@ -17,7 +17,15 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
+    // Opening the dialog, or pointing it at another user, starts the form over. Compared
+    // against the previous props while rendering rather than in an effect, so the dialog
+    // never shows a frame with the last user's name in it.
+    const [seededFor, setSeededFor] = useState<{ isOpen: boolean; editingUser: UserDialogProps['editingUser'] }>({
+        isOpen: false,
+        editingUser: null,
+    });
+    if (isOpen !== seededFor.isOpen || editingUser !== seededFor.editingUser) {
+        setSeededFor({ isOpen, editingUser });
         if (isOpen) {
             if (editingUser) {
                 setUsername(editingUser.username);
@@ -30,7 +38,7 @@ export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogP
             }
             setError(null);
         }
-    }, [isOpen, editingUser]);
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
