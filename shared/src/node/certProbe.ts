@@ -66,12 +66,12 @@ function handshake(
 /**
  * Measures the TLS certificate of a PBS instance.
  *
- * `rejectUnauthorized` is passed explicitly on both attempts and must stay that way. The
- * agent's `client/src/web/server.ts` sets NODE_TLS_REJECT_UNAUTHORIZED=0 on some paths,
- * which changes the process-wide default — without the explicit flag the validating
- * attempt would silently succeed against anything, and `caValid` would become a lie.
- * The server has no such path today, but this function runs in both processes and the
- * weaker of the two environments is the one it has to survive.
+ * `rejectUnauthorized` is passed explicitly on both attempts and must stay that way. Neither
+ * process sets NODE_TLS_REJECT_UNAUTHORIZED any more -- the agent used to, and every
+ * request to the PBCM server now decides per call (client/src/core/ServerHttp.ts) -- but
+ * an inherited default is exactly what would make the validating attempt silently succeed
+ * against anything and `caValid` a lie. The explicit flag keeps that true regardless of
+ * the environment the process is started in.
  *
  * Two attempts by design: the first one validates, and its success is what makes an
  * automatic adoption of the fingerprint permissible at all. Only if it fails do we

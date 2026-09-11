@@ -32,6 +32,14 @@ tunnelAcquireJitterSeconds: 30
 # The environment variable PBCM_CLIENT_PORT overrides this value.
 listenPort: 3001
 
+# Accept a PBCM server certificate that does not validate (e.g. self-signed), for
+# registration and for the WebSocket connection alike. Leave false when the server has a
+# certificate from a trusted CA: the connection carries this agent's auth token, and an
+# unchecked certificate is one anybody in between can present. The reachability check on
+# the web UI tolerates it anyway. The PBS certificate is not affected -- that one is pinned
+# by its fingerprint.
+allowSelfSignedCertificates: false
+
 # Networks the server is allowed to dial this agent from, in CIDR notation.
 # Only relevant for outbound clients: in that mode the agent listens on every
 # interface of the host, and the two endpoints above are open to anyone who can

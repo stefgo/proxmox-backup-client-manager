@@ -14,7 +14,7 @@ import {
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
-import { requestAllowSelfSigned } from "../core/InsecureHttp.js";
+import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
 import db from "../core/Database.js";
 import { logger } from "@pbcm/shared/node";
@@ -139,10 +139,12 @@ export async function startWebServer() {
 
             if (checkUrl) {
                 try {
-                    const checkRes = await requestAllowSelfSigned(
-                        `${checkUrl}/api/v1/ping`,
-                        { timeoutMs: 2000 },
-                    );
+                    // Always tolerant: the answer is only "is there a PBCM server at this
+                    // URL", nothing is sent and nothing is trusted from the reply.
+                    const checkRes = await serverRequest(`${checkUrl}/api/v1/ping`, {
+                        timeoutMs: 2000,
+                        allowSelfSigned: true,
+                    });
                     if (checkRes.ok) {
                         serverReachable = true;
                     }
@@ -256,19 +258,17 @@ export async function startWebServer() {
             logger.info(`Web UI Registration requested with ${url}...`);
 
             try {
-                // Self-signed certificates are tolerated for this one call only —
-                // see requestAllowSelfSigned on why this is no longer process-wide.
-                const response = await requestAllowSelfSigned(
-                    `${url}/api/v1/register`,
-                    {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            token,
-                            hostname: os.hostname(),
-                        }),
-                    },
-                );
+                // The registration token goes out and the auth token comes back, so the
+                // certificate is checked unless the operator decided otherwise.
+                const response = await serverRequest(`${url}/api/v1/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        token,
+                        hostname: os.hostname(),
+                    }),
+                    allowSelfSigned: config.allowSelfSignedCertificates,
+                });
 
                 if (!response.ok) {
                     const errorText = response.text;
@@ -307,6 +307,13 @@ export async function startWebServer() {
                 }
             } catch (e: unknown) {
                 logger.error({ err: e }, "Web registration error:");
+                if (isCertificateError(e)) {
+                    return reply.status(502).send({
+                        error:
+                            `The server's certificate could not be verified (${(e as Error).message}). ` +
+                            "If it is self-signed on purpose, set allowSelfSignedCertificates: true in this agent's config.yaml and restart it.",
+                    });
+                }
                 return reply.status(500).send({
                     error:
                         (e instanceof Error ? e.message : String(e)) ||

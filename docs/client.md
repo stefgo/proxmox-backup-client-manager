@@ -20,7 +20,7 @@ client/src/
 │   ├── Config.ts           # YAML config loader and writer
 │   ├── Connection.ts       # WebSocket client with auto-reconnect
 │   ├── Database.ts         # SQLite initialization and migration runner
-│   ├── InsecureHttp.ts     # Self-signed-tolerant requests, scoped to server calls
+│   ├── ServerHttp.ts       # Requests to the PBCM server, certificate check decided per call
 │   ├── Lifecycle.ts        # The single gate between "running" and "working"
 │   ├── LogStream.ts        # Batched LOG_UPDATE frames (250 ms / 8 KB)
 │   ├── SetupPin.ts         # In-memory PIN guarding local registration
@@ -109,7 +109,7 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 The client includes a micro-server (Fastify) for local management and initial setup.
 
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
-- **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. Requests to the PBCM server tolerate a self-signed certificate via `core/InsecureHttp.ts`, scoped to those calls — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above.
+- **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. The PBCM server's certificate is verified for the registration request and for the WebSocket connection; for a server with a self-signed certificate set `allowSelfSignedCertificates: true`, which then applies to both. Only the reachability check tolerates any certificate, since it sends nothing and trusts nothing it receives. The decision is made per request (`core/ServerHttp.ts`, the WebSocket options) — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above, and later a tolerant registration followed by a strict WebSocket, so a self-signed server registered but never connected.
 - **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` requires a PIN that the agent
   prints to its log on startup while it has no identity (`docker logs`,
   `journalctl -u pbcm-client`). Without it, anyone who can route to `listenPort` could

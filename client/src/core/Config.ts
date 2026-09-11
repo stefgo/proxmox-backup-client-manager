@@ -47,6 +47,13 @@ export interface ClientConfig {
      * server's address would shut them out of it.
      */
     allowedNetworks?: string[];
+    /**
+     * Accept a PBCM server certificate that does not validate, for registration and for the
+     * WebSocket alike. Off by default: that WebSocket carries the auth token, and a
+     * certificate nobody checks is one anybody in between can present. The PBS certificate
+     * is a different matter and handled by the fingerprint, not by this.
+     */
+    allowSelfSignedCertificates: boolean;
     logLevel: string;
     backupParams?: string[];
     restoreParams?: string[];
@@ -85,6 +92,7 @@ export const config: ClientConfig = {
     tunnelAcquireJitterSeconds: 30,
     listenPort: parsePort(process.env.PBCM_CLIENT_PORT) ?? 3001,
     allowedNetworks: [],
+    allowSelfSignedCertificates: false,
     logLevel: process.env.LOG_LEVEL || "info",
     backupParams: [],
     restoreParams: [],
@@ -209,6 +217,17 @@ if (fs.existsSync(CONFIG_PATH)) {
 
         if (Array.isArray(loadedConfig.allowedNetworks)) {
             config.allowedNetworks = loadedConfig.allowedNetworks;
+        }
+
+        if (typeof loadedConfig.allowSelfSignedCertificates === "boolean") {
+            config.allowSelfSignedCertificates = loadedConfig.allowSelfSignedCertificates;
+        } else if (
+            loadedConfig.allowSelfSignedCertificates !== undefined &&
+            loadedConfig.allowSelfSignedCertificates !== null
+        ) {
+            logger.warn(
+                "Ignoring allowSelfSignedCertificates in config.yaml: expected true or false",
+            );
         }
 
         // The environment variable wins: in a container it is set without touching the
