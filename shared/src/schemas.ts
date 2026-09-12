@@ -45,8 +45,11 @@ export const ClientSchema = z.object({
      */
     inboundAllowedIp: Ipv4OrCidrSchema.nullish(),
     /**
-     * The address of the last successful agent connect. Nothing decides on it; it is here
-     * so the editor can show what `inboundAllowedIp` is about to be measured against.
+     * The address of the last successful agent connect -- successful, because it is written
+     * only once the check against `inboundAllowedIp` has passed. A rejected connect leaves it
+     * alone, so an agent that has moved still shows its old address here. Nothing decides on
+     * it; it is here so the editor can show what `inboundAllowedIp` is about to be measured
+     * against. DIM calls the same thing `inboundLastIp`.
      */
     ipAddress: z.string().optional(),
     /**

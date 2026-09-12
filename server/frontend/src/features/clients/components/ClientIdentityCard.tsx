@@ -232,7 +232,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                                     restrictIp
                                         ? "The agent is rejected when it connects from anywhere else."
                                         : `Any address may connect with this client's token.${
-                                              client.ipAddress ? ` It last connected from ${client.ipAddress}.` : ''
+                                              client.ipAddress ? ` Its last successful connection came from ${client.ipAddress}.` : ''
                                           }`
                                 }
                             />
@@ -247,7 +247,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                                     error={allowedIpInvalid ? 'Enter an IPv4 address or a network in CIDR notation.' : undefined}
                                     hint={
                                         client.ipAddress
-                                            ? `Its last connection came from ${client.ipAddress}.`
+                                            ? `Its last successful connection came from ${client.ipAddress}.`
                                             : undefined
                                     }
                                 />
