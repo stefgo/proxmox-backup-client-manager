@@ -363,7 +363,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                 return;
             }
 
-            logger.info("Inbound registration connection received from server");
+            logger.info("Registration connection received from the server (outbound mode)");
 
             const timeout = setTimeout(() => {
                 if (socket.readyState === socket.OPEN) {
@@ -456,7 +456,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             // client it thinks it is, or a target address pointed at the wrong host
             // would hand that host somebody else's jobs.
             if (!token || !config.authToken || token !== config.authToken) {
-                logger.warn("Inbound agent connection rejected: invalid token");
+                logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
             }
@@ -464,13 +464,13 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             if (!clientId || clientId !== config.clientId) {
                 logger.warn(
                     { presented: clientId },
-                    "Inbound agent connection rejected: client id mismatch",
+                    "Agent connection from the server rejected: client id mismatch",
                 );
                 socket.close(4001, "Unauthorized");
                 return;
             }
 
-            logger.info("Inbound agent connection accepted");
+            logger.info("Agent connection from the server accepted");
             Connection.handleIncoming(socket);
         },
     );

@@ -293,8 +293,9 @@ export class Connection {
     }
 
     /**
-     * Installs the message routing on a socket. Used by both directions: the outbound
-     * connection this agent dials itself, and an inbound session the server opened to us.
+     * Installs the message routing on a socket. Used by both connection modes: the
+     * `inbound` one this agent dials itself, and an `outbound` session the server opened
+     * to us. The mode names are the server's, so from here they read back to front.
      */
     private static attach(
         ws: WebSocket,
@@ -453,12 +454,12 @@ export class Connection {
         }
         this.wsInstance = ws;
 
-        logger.info("Inbound server connection received, sending AUTH...");
+        logger.info("Server opened a connection to this agent (outbound mode), sending AUTH...");
 
         this.attach(ws, {
             onClose: () => {
                 // No reconnect here: the server dials us and handles retries itself.
-                logger.warn("Inbound server connection closed.");
+                logger.warn("The connection the server opened to this agent closed.");
             },
         });
 
