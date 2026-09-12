@@ -6,13 +6,14 @@ import {
     KeyRound,
     Plus,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 
 /**
  * The structural contract this list needs -- deliberately closed. An index
@@ -45,6 +46,12 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
     viewModeStorageKey?: string;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 export const BaseJobList = <T extends BaseJobItem>({
@@ -59,8 +66,9 @@ export const BaseJobList = <T extends BaseJobItem>({
     getClientStatus,
     getClientName,
     viewModeStorageKey = 'jobViewMode',
+    searchParamKey = 'search',
 }: BaseJobListProps<T>) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     const sortedJobs = useMemo(
         () => [...jobs].sort((a, b) => {
@@ -433,7 +441,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             }
             searchable
             searchPlaceholder="Search Jobs ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No jobs configured."
             rowClassName={(job) =>
                 getStatus(job) === CLIENT_STATUS.ONLINE

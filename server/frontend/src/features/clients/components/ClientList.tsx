@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
@@ -8,6 +8,7 @@ import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 
 interface ClientListProps {
     clients: Client[];
@@ -22,7 +23,7 @@ interface ClientListProps {
 }
 
 export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, editTunnel, reconnectClient }: ClientListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     /**
      * The row's actions, built once for both views — table and list show the same menu,
@@ -213,7 +214,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}

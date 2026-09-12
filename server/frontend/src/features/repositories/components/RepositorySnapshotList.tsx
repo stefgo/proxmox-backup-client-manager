@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
@@ -10,6 +11,12 @@ interface RepositorySnapshotListProps<T extends Snapshot> {
     showClientColumn?: boolean;
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string | null;
+    /**
+     * The query parameter this list's search is kept in. The caller namespaces it where
+     * several lists share a route, so each tab remembers its own search instead of
+     * inheriting the one next door.
+     */
+    searchParamKey?: string;
 }
 
 // Generic over the snapshot type so callers that carry extra fields (the client
@@ -19,9 +26,10 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     onRestore,
     showClientColumn = false,
     getClientStatus,
-    getClientName
+    getClientName,
+    searchParamKey = 'search',
 }: RepositorySnapshotListProps<T>) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
     /**
      * backupTime alone is not unique: it has second resolution, and the repository-wide
@@ -213,7 +221,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             viewMode={{ storageKey: "snapshotListViewMode" }}
             searchable
             searchPlaceholder="Search Snapshots ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No snapshots found in this repository."
             pagination={{
                 // The view owns the page state and does the slicing; it sorts across

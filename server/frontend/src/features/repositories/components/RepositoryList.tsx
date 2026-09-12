@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
 import { DataTableDef, Button } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 
 interface RepositoryListProps {
     repositories: Repository[];
@@ -15,7 +16,7 @@ interface RepositoryListProps {
 }
 
 export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd }: RepositoryListProps) => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
     const sortedRepositories = useMemo(
         () => [...repositories].sort((a, b) => `${a.baseUrl}:${a.datastore}`.localeCompare(`${b.baseUrl}:${b.datastore}`)),
@@ -185,7 +186,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             keyField="id"
             searchable
             searchPlaceholder="Search Repositories ..."
-            search={{ onChange: setSearchQuery }}
+            search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No repositories added."
             rowClassName="align-top"
             onRowClick={onSelect}

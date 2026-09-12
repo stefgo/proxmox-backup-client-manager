@@ -7,9 +7,11 @@ interface ClientJobListProps {
     onTriggerJob: (jobId: string) => void;
     onDeleteJob: (jobId: string) => void;
     onCreateJob: () => void;
+    /** Forwarded to the list underneath -- see BaseJobListProps. */
+    searchParamKey?: string;
 }
 
-export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCreateJob }: ClientJobListProps) => {
+export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCreateJob, searchParamKey }: ClientJobListProps) => {
     return (
         <BaseJobList
             jobs={jobs}
@@ -21,6 +23,7 @@ export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCr
             onDeleteJob={(job) => { if (job.id) onDeleteJob(job.id); }}
             onCreateJob={onCreateJob}
             viewModeStorageKey="jobViewMode"
+            searchParamKey={searchParamKey}
         />
     );
 };

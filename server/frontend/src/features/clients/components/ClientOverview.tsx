@@ -1,6 +1,6 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
@@ -14,6 +14,7 @@ import { RepositorySnapshotList } from '../../repositories/components/Repository
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { ActionMenu, Card, ConfirmDialog, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 
 
@@ -38,12 +39,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // The list is the only surface that opens this page today, and the honest fallback for a
     // directly opened URL -- the same `from` convention the editors reached from here use.
     const back = (state as { from?: string } | null)?.from ?? '/clients';
-    const [searchParams, setSearchParams] = useSearchParams();
-    const tab = searchParams.get('tab');
+    // Through the merging hook, so switching tabs keeps each tab's own search parameter
+    // instead of wiping it -- `setSearchParams({ tab })` used to drop everything else.
+    const [tab, setTab] = useSearchQueryParam('tab');
     const activeTab = (tab === 'history' || tab === 'snapshots') ? tab : 'jobs';
 
     const setActiveTab = (tab: 'jobs' | 'history' | 'snapshots') => {
-        setSearchParams({ tab });
+        setTab(tab);
     };
 
     // Global Store Data
@@ -289,6 +291,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         {activeTab === 'jobs' && (
                             <>
                                 <ClientJobList
+                                    searchParamKey="search.jobs"
                                     jobs={configuredJobs}
                                     onEditJob={(job) => openJobEditor(job.id ?? undefined)}
                                     onTriggerJob={handleTriggerJob}
@@ -319,6 +322,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 />
                             ) : (
                                 <RepositorySnapshotList
+                                    searchParamKey="search.snapshots"
                                     snapshots={clientSnapshots}
                                     showClientColumn={false}
                                     onRestore={setRestoreSnapshot}
