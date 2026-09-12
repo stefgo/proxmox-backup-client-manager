@@ -120,6 +120,7 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
     const modeStep: WizardStep = {
         id: 'mode',
         label: 'Connection',
+        description: 'Which side dials',
         canContinue: !!mode,
         content: <StepConnectionMode mode={mode} onModeChange={setMode} />,
     };
@@ -127,7 +128,8 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
     const inboundSteps: WizardStep[] = [
         {
             id: 'inbound-details',
-            label: 'Client',
+            label: 'Agent',
+            description: 'Get client token',
             canContinue: isAllowedIpValid(inbound.allowedIp),
             content: <StepInboundDetails form={inbound} onPatch={patchInbound} error={error} />,
         },
@@ -136,7 +138,8 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
     const outboundSteps: WizardStep[] = [
         {
             id: 'outbound-details',
-            label: 'Client',
+            label: 'Agent',
+            description: 'Where to dial',
             canContinue: !!outbound.targetAddress.trim() && !!outbound.registrationSecret.trim(),
             content: (
                 <StepOutboundDetails form={outbound} onPatch={patchOutbound} error={error} />
