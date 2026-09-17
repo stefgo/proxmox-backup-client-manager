@@ -2,7 +2,7 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucid
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard, ActionButton, cn } from '@stefgo/react-ui-components';
+import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
@@ -27,6 +27,9 @@ const MENU_ENTRY = cn(
     FOCUS_RING_NONE,
 );
 
+/** The tabs, in the order the arrow keys walk them. */
+const TABS = ['jobs', 'snapshots', 'history'] as const;
+
 interface ClientOverviewProps {
     client: Client;
 }
@@ -42,11 +45,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // Through the merging hook, so switching tabs keeps each tab's own search parameter
     // instead of wiping it -- `setSearchParams({ tab })` used to drop everything else.
     const [tab, setTab] = useSearchQueryParam('tab');
-    const activeTab = (tab === 'history' || tab === 'snapshots') ? tab : 'jobs';
-
-    const setActiveTab = (tab: 'jobs' | 'history' | 'snapshots') => {
-        setTab(tab);
-    };
+    const tabs = useTabs({
+        tabs: TABS,
+        value: (TABS as readonly string[]).includes(tab) ? tab : 'jobs',
+        onChange: setTab,
+    });
 
     // Global Store Data
     const {
@@ -255,40 +258,38 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
             {client.status === CLIENT_STATUS.ONLINE && (
                 <>
-                    {/* Client Stats Row */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* The stat cards are the tab list: `tabProps` is what makes them announce
+                        themselves as tabs and puts the arrow keys on the row. */}
+                    <TabList tabs={tabs} aria-label="Client views" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         <StatCard
+                            {...tabs.tabProps('jobs')}
                             label="Backup Jobs"
                             value={configuredJobs.length.toString()}
                             sub="Configurations"
                             icon={HardDrive}
                             classNames={{ icon: "text-text-muted" }}
-                            selected={activeTab === 'jobs'}
-                            onClick={() => setActiveTab('jobs')}
                         />
                         <StatCard
+                            {...tabs.tabProps('snapshots')}
                             label="Snapshots"
                             value={clientSnapshots.length.toString()}
                             sub="Available Backups"
                             icon={FileBox}
                             classNames={{ icon: "text-text-muted" }}
-                            selected={activeTab === 'snapshots'}
-                            onClick={() => setActiveTab('snapshots')}
                         />
                         <StatCard
+                            {...tabs.tabProps('history')}
                             label="Job History"
                             value={backupJobs.length.toString()}
                             sub="Recorded Runs"
                             icon={Activity}
                             classNames={{ icon: "text-text-muted" }}
-                            selected={activeTab === 'history'}
-                            onClick={() => setActiveTab('history')}
                         />
-                    </div>
+                    </TabList>
 
                     <div className="space-y-6">
                         {/* Configured Backup Jobs */}
-                        {activeTab === 'jobs' && (
+                        <TabPanel tabs={tabs} value="jobs">
                             <>
                                 <ClientJobList
                                     searchParamKey="search.jobs"
@@ -309,11 +310,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     />
                                 </div>
                             </>
-                        )}
+                        </TabPanel>
 
                         {/* Snapshots */}
-                        {activeTab === 'snapshots' && (
-                            restoreSnapshot ? (
+                        <TabPanel tabs={tabs} value="snapshots">
+                            {restoreSnapshot ? (
                                 <SnapshotRestoreEditor
                                     snapshot={restoreSnapshot}
                                     repo={restoreSnapshot.repository}
@@ -327,16 +328,16 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     showClientColumn={false}
                                     onRestore={setRestoreSnapshot}
                                 />
-                            )
-                        )}
+                            )}
+                        </TabPanel>
 
                         {/* Job History */}
-                        {activeTab === 'history' && (
+                        <TabPanel tabs={tabs} value="history">
                             <ClientHistoryList
                                 history={backupJobs}
                                 type="backup"
                             />
-                        )}
+                        </TabPanel>
                     </div>
                 </>
             )

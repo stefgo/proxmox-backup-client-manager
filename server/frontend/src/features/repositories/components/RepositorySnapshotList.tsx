@@ -218,7 +218,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             listColumns={listColumns}
             keyField={snapshotKey}
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
-            viewMode={{ storageKey: "snapshotListViewMode" }}
+            viewMode={{ persist: { key: "snapshotListViewMode", scope: 'local' } }}
             searchable
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}

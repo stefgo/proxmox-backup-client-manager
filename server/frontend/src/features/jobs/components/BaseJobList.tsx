@@ -45,7 +45,8 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     onCreateJob?: () => void;
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
-    viewModeStorageKey?: string;
+    /** Storage key for the remembered view toggle; the scope is always the browser. */
+    viewModePersistKey?: string;
     /**
      * The query parameter this list's search is kept in. The caller namespaces it where
      * several lists share a route, so each tab remembers its own search instead of
@@ -65,7 +66,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     onCreateJob,
     getClientStatus,
     getClientName,
-    viewModeStorageKey = 'jobViewMode',
+    viewModePersistKey = 'jobViewMode',
     searchParamKey = 'search',
 }: BaseJobListProps<T>) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
@@ -432,7 +433,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             title={<><HardDrive size={18} className="text-text-muted" />{title}</>}
             extraActions={newJobButton || undefined}
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ storageKey: viewModeStorageKey }}
+            viewMode={{ persist: { key: viewModePersistKey, scope: 'local' } }}
             data={filteredJobs}
             tableDef={tableItems}
             listColumns={listItems}

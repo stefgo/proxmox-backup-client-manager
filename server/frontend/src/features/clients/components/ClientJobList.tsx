@@ -22,7 +22,7 @@ export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCr
             onTriggerJob={(job) => { if (job.id) onTriggerJob(job.id); }}
             onDeleteJob={(job) => { if (job.id) onDeleteJob(job.id); }}
             onCreateJob={onCreateJob}
-            viewModeStorageKey="jobViewMode"
+            viewModePersistKey="jobViewMode"
             searchParamKey={searchParamKey}
         />
     );

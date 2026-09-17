@@ -37,7 +37,7 @@ export const JobList = ({
             }}
             getClientStatus={getClientStatus}
             getClientName={getClientName}
-            viewModeStorageKey="globalJobViewMode"
+            viewModePersistKey="globalJobViewMode"
         />
     );
 };
