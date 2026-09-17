@@ -207,7 +207,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ storageKey: "clientViewMode" }}
+            viewMode={{ persist: { key: "clientViewMode", scope: 'local' } }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}

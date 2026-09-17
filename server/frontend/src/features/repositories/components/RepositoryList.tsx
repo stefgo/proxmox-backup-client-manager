@@ -179,7 +179,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ storageKey: "repositoryViewMode" }}
+            viewMode={{ persist: { key: "repositoryViewMode", scope: 'local' } }}
             data={filteredRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}

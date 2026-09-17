@@ -44,7 +44,6 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const { isAuthenticated } = useAuth();
     const { menuState, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
-    const [activeTab, setActiveTab] = useState<'snapshots' | 'history'>('snapshots');
 
     // Global Store Data
     const { snapshots, isLoading, error, fetchSnapshots } = useRepositorySnapshotStore();
@@ -153,40 +152,38 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             {showDetails && (
                 <>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* A count, not a tab: this page shows one list, and a card that
+                            switches to the view it is already on only looks like a control. */}
                         <StatCard
                             label="Snapshots"
                             value={snapshots.length.toString()}
                             sub="Available Backups"
                             icon={FileBox}
                             classNames={{ icon: "text-text-muted" }}
-                            selected={activeTab === 'snapshots'}
-                            onClick={() => setActiveTab('snapshots')}
                         />
                     </div>
 
                     {/* Snapshots List OR Restore View */}
-                    {activeTab === 'snapshots' && (
-                        restoreSnapshot ? (
-                            <div className="flex-1 overflow-hidden">
-                                <SnapshotRestoreEditor
-                                    snapshot={restoreSnapshot}
-                                    repo={repo}
-                                    clients={clients}
-                                    onCancel={() => setRestoreSnapshot(null)}
-                                />
-                            </div>
-                        ) : (
-                            <RepositorySnapshotList
-                                snapshots={snapshots}
-                                showClientColumn={true}
-                                onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
-                                getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
-                                getClientName={(clientId) => {
-                                    const client = clients.find(c => c.id === clientId);
-                                    return client ? (client.displayName || client.hostname) : null;
-                                }}
+                    {restoreSnapshot ? (
+                        <div className="flex-1 overflow-hidden">
+                            <SnapshotRestoreEditor
+                                snapshot={restoreSnapshot}
+                                repo={repo}
+                                clients={clients}
+                                onCancel={() => setRestoreSnapshot(null)}
                             />
-                        )
+                        </div>
+                    ) : (
+                        <RepositorySnapshotList
+                            snapshots={snapshots}
+                            showClientColumn={true}
+                            onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
+                            getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
+                            getClientName={(clientId) => {
+                                const client = clients.find(c => c.id === clientId);
+                                return client ? (client.displayName || client.hostname) : null;
+                            }}
+                        />
                     )}
                 </>
             )}
