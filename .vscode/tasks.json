@@ -28,6 +28,13 @@
                     "endsPattern": "^.*Local:.*http://localhost:5173/.*$"
                 }
             }
+        },
+        {
+            "type": "npm",
+            "script": "dev:server",
+            "problemMatcher": [],
+            "label": "npm: dev:server",
+            "detail": "npm run dev -w server/backend"
         }
     ]
 }
