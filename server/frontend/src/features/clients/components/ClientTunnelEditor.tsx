@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
 import { X } from 'lucide-react';
-import { ActionButton, ConfirmDialog } from '@stefgo/react-ui-components';
+import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
+import { describeDiscardChanges } from '../../../components/confirmations';
 import { useClientStore } from '../../../stores/useClientStore';
 import { ClientTunnelCard } from './ClientTunnelCard';
 
@@ -45,7 +46,7 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
     // list's action label reads it — so leaving refetches.
     const fetchClients = useClientStore((s) => s.fetchClients);
     const [dirty, setDirty] = useState(false);
-    const [confirmDiscard, setConfirmDiscard] = useState(false);
+    const { confirm } = useConfirm();
 
     const leave = useCallback(() => {
         fetchClients();
@@ -57,20 +58,17 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
      * private key is the kind of thing that is not retyped from memory, and the exit sits
      * in the header, far from the field it would throw away.
      */
-    const requestClose = useCallback(() => {
-        if (dirty) {
-            setConfirmDiscard(true);
-            return;
-        }
+    const requestClose = useCallback(async () => {
+        if (dirty && !(await confirm(describeDiscardChanges('tunnel')))) return;
         leave();
-    }, [dirty, leave]);
+    }, [dirty, confirm, leave]);
 
     // Escape does exactly what the header's button does — including asking first.
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
             // Not while a select, a dialog or an autocomplete is using Escape for itself —
-            // this includes the discard dialog below, which closes on its own Escape.
+            // this includes the discard confirmation, which closes on its own Escape.
             if (e.defaultPrevented) return;
             requestClose();
         };
@@ -86,17 +84,6 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
                 state={live.tunnel}
                 onDirtyChange={setDirty}
                 action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
-            />
-
-            <ConfirmDialog
-                isOpen={confirmDiscard}
-                onClose={() => setConfirmDiscard(false)}
-                onConfirm={leave}
-                title="Discard your changes?"
-                description="The tunnel credentials have not been saved. Leaving now keeps the stored ones — or none, if there were none."
-                confirmLabel="Discard"
-                cancelLabel="Keep editing"
-                variant="danger"
             />
         </div>
     );

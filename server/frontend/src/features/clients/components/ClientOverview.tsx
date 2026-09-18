@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
-import { formatDate, getErrorMessage } from '../../../utils';
+import { describeFailure, formatDate } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { ClientHistoryList } from './ClientHistoryList';
@@ -15,7 +15,8 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { ActionMenu, Card, ConfirmDialog, useActionMenu, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Card, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { describeDeleteJob } from '../../jobs/confirmations';
 
 
 /**
@@ -121,34 +122,25 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { menuState, openMenu, closeMenu } = useActionMenu<string>();
 
+    const { confirm, alert } = useConfirm();
+
     const handleTriggerJob = async (jobId: string) => {
         try {
             await triggerJob(client.id, jobId);
             // Optional: toast or feedback
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure('Could not start the job', e));
         }
     };
 
-    /**
-     * The job itself, not just its id: the dialog names it, and one dialog serves the
-     * whole list. Same wording as the global job list -- it is the same operation.
-     */
-    const [pendingDeleteJob, setPendingDeleteJob] = useState<BackupJob | null>(null);
-    const [isDeletingJob, setIsDeletingJob] = useState(false);
-
-    const confirmDeleteJob = async () => {
-        if (!pendingDeleteJob?.id) return;
-        setIsDeletingJob(true);
-        try {
-            await deleteJob(client.id, pendingDeleteJob.id);
-            setPendingDeleteJob(null);
-        } catch (e: unknown) {
-            // Left open: the message and the button that retries belong together.
-            alert(getErrorMessage(e));
-        } finally {
-            setIsDeletingJob(false);
-        }
+    // Left open on failure: the message and the button that retries belong together.
+    const requestDeleteJob = (job: BackupJob) => {
+        if (!job.id) return;
+        const jobId = job.id;
+        confirm({
+            ...describeDeleteJob(job.name, client.displayName || client.hostname),
+            onConfirm: () => deleteJob(client.id, jobId),
+        });
     };
 
     /**
@@ -298,7 +290,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     onTriggerJob={handleTriggerJob}
                                     onDeleteJob={(jobId) => {
                                         const job = configuredJobs.find((j) => j.id === jobId);
-                                        if (job) setPendingDeleteJob(job);
+                                        if (job) requestDeleteJob(job);
                                     }}
                                     onCreateJob={() => openJobEditor()}
                                 />
@@ -343,20 +335,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             )
             }
 
-            {/*
-              * Runs through the agent (JOB_DELETE_CONFIG), so it needs the client online.
-              * The configuration goes, the backups do not.
-              */}
-            <ConfirmDialog
-                isOpen={!!pendingDeleteJob}
-                onClose={() => setPendingDeleteJob(null)}
-                onConfirm={confirmDeleteJob}
-                title={`Delete job "${pendingDeleteJob?.name}"?`}
-                description="The agent drops the job and its schedule, so this client has to be online for it. Snapshots already in the repository and the run history stay."
-                confirmLabel="Delete job"
-                variant="danger"
-                isConfirming={isDeletingJob}
-            />
         </div >
     );
 };

@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useConfirm } from '@stefgo/react-ui-components';
 import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useClientStore } from '../../../stores/useClientStore';
-import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
+import { describeFailure, toLocalDateInput, toLocalTimeInput } from '../../../utils';
 
 interface UseJobFormProps {
     clientId: string | null;
@@ -11,6 +12,7 @@ interface UseJobFormProps {
 }
 
 export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
+    const { alert } = useConfirm();
 
     // Editor State
     const [isCreatingJob, setIsCreatingJob] = useState(false);
@@ -327,7 +329,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
                 return true;
             } else {
                 const err = await res.json().catch(() => ({}));
-                alert('Failed to generate key: ' + (err.error || res.statusText));
+                alert(describeFailure('Could not generate the key', err.error || res.statusText));
                 return false;
             }
         } catch (e) {

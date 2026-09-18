@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { TunnelState, TunnelStatus, TUNNEL_STATUS } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, Input } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, Input, useConfirm } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { StatusDot } from './StatusDot';
 import { STATUS_TONE, type StatusTone } from './statusTone';
@@ -10,6 +10,7 @@ import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { apiFetch } from '../../../lib/apiFetch';
 import { formatDate } from '../../../utils';
+import { describeRemoveTunnel } from '../confirmations';
 
 interface ClientTunnelCardProps {
     clientId: string;
@@ -106,7 +107,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
     const [copied, setCopied] = useState(false);
     /** A fingerprint the host actually presented that differs from the stored one. */
     const [unknownHostKey, setUnknownHostKey] = useState<string | null>(null);
-    const [confirmDelete, setConfirmDelete] = useState(false);
+    const { confirm } = useConfirm();
 
     useEffect(() => {
         const load = async () => {
@@ -291,7 +292,8 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
     };
 
     /** Removes the tunnel with its credentials. The client and its history stay. */
-    const handleDelete = async () => {
+    // Runs inside the confirmation, which shows a refusal next to the button that retries.
+    const removeTunnel = async () => {
         setBusy(true);
         resetFeedback();
         try {
@@ -307,14 +309,13 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
             setKeyMode('generate');
             setPrivateKey('');
             setPassphrase('');
-            setConfirmDelete(false);
             setMessage('Tunnel removed. Jobs still configured for it will now fail.');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
         } finally {
             setBusy(false);
         }
     };
+
+    const handleDelete = () => confirm({ ...describeRemoveTunnel(), onConfirm: removeTunnel });
 
     const handleSave = async () => {
         setBusy(true);
@@ -576,7 +577,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                             <Button
                                 type="button"
                                 variant="ghost"
-                                onClick={() => setConfirmDelete(true)}
+                                onClick={handleDelete}
                                 disabled={busy}
                                 icon={Trash2}
                             >
@@ -599,17 +600,6 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                         )}
                     </div>
                 </form>
-
-                <ConfirmDialog
-                    isOpen={confirmDelete}
-                    onClose={() => setConfirmDelete(false)}
-                    onConfirm={handleDelete}
-                    title="Remove the SSH tunnel?"
-                    description="The stored key is deleted with it. Runs go directly to the PBS from then on — which fails for a host that has no route there. The client and its history stay."
-                    confirmLabel="Remove tunnel"
-                    variant="danger"
-                    isConfirming={busy}
-                />
             </div>
         </Card>
     );

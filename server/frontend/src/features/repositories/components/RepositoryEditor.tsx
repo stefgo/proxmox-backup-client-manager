@@ -1,7 +1,9 @@
 import { useCallback, useState, useEffect } from 'react';
 import { X, Save, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
 import { ManagedRepository as Repository, normalizeFingerprint } from '@pbcm/shared';
-import { Card, Button, ConfirmDialog, Input, ActionButton } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton, useConfirm } from '@stefgo/react-ui-components';
+import { describeDiscardChanges } from '../../../components/confirmations';
+import { describeDistributeFingerprint } from '../confirmations';
 import { useAuth } from '../../auth/AuthContext';
 import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
 
@@ -33,7 +35,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
-    const [confirmDiscard, setConfirmDiscard] = useState(false);
+    const { confirm } = useConfirm();
 
     const [check, setCheck] = useState<CertificateCheck | null>(null);
     const [isChecking, setIsChecking] = useState(false);
@@ -63,7 +65,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
 
     const handleDistribute = async () => {
         if (!repository || !isAuthenticated) return;
-        if (!confirm('Push the saved fingerprint to all connected clients?')) return;
+        if (!(await confirm(describeDistributeFingerprint()))) return;
         setIsDistributing(true);
         try {
             setDistribution(await distributeFingerprint(repository.id));
@@ -118,20 +120,17 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
      * sits here and not in the callers so both surfaces that open this form -- the list
      * and the detail page -- behave the same.
      */
-    const requestClose = useCallback(() => {
-        if (isDirty) {
-            setConfirmDiscard(true);
-            return;
-        }
+    const requestClose = useCallback(async () => {
+        if (isDirty && !(await confirm(describeDiscardChanges('repository')))) return;
         onCancel();
-    }, [isDirty, onCancel]);
+    }, [isDirty, confirm, onCancel]);
 
     // Escape does exactly what the header's button does -- including asking first.
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
             // Not while a select, a dialog or an autocomplete is using Escape for itself --
-            // this includes the discard dialog below, which closes on its own Escape.
+            // this includes the discard confirmation, which closes on its own Escape.
             if (e.defaultPrevented) return;
             requestClose();
         };
@@ -351,16 +350,6 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                 </div>
             </form>
 
-            <ConfirmDialog
-                isOpen={confirmDiscard}
-                onClose={() => setConfirmDiscard(false)}
-                onConfirm={onCancel}
-                title="Discard your changes?"
-                description="The repository has not been saved. Leaving now keeps it as it was."
-                confirmLabel="Discard"
-                cancelLabel="Keep editing"
-                variant="danger"
-            />
         </Card>
     );
 };

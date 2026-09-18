@@ -28,7 +28,7 @@ src/
 │   ├── useGlobalJobsStore.ts       # Centralized backup job configurations
 │   ├── useRepositoryStore.ts       # PBS repository configurations
 │   └── useRepositorySnapshotStore.ts # PBS snapshot management
-├── components/       # Cross-feature components (LoadingIndicator)
+├── components/       # Cross-feature components (LoadingIndicator), the discard question
 ├── hooks/            # Global Custom Hooks (WebSocket subscriptions)
 ├── lib/              # Non-React modules
 │   ├── apiFetch.ts        # The one entry point for authenticated /api/v1 calls
@@ -212,6 +212,27 @@ Most data-driven lists utilize a common base to provide consistent loading, erro
 - **`ActionMenu`**: "Kebab" menu (Three dots) for context-sensitive actions.
 - **`DataAction`**: Wrapper to group multiple actions for a specific data item.
 
+### Confirmations
+
+Every question before an action, and every notice after a failed one, goes through
+`useConfirm()` from the library. `ConfirmProvider` wraps the routes in `App.tsx` and renders
+the one dialog that answers; no component keeps a pending request, a busy flag or a
+`ConfirmDialog` of its own, and nothing calls `window.alert` or `window.confirm`.
+
+- `confirm(options)` resolves `true` or `false`. An action that is quick to hand off —
+  leaving an editor, distributing a fingerprint — runs after the `await`.
+- An action whose outcome is worth waiting for — deleting a client, a job, a repository, a
+  user, removing the tunnel — goes in `onConfirm`. The dialog stays open and busy until it
+  settles; a rejection keeps it open with the error inside it, next to the button that retries.
+- `alert(describeFailure(title, error))` from `utils.ts` reports a failure of an action that
+  was not asked about first, such as running a job or the cleanups in Settings.
+
+**The texts live in a `confirmations.ts` per feature** (`clients`, `jobs`, `repositories`,
+`users`), one `describeX(...)` per action, returning the complete options including `variant`.
+The discard question every editor asks is the one cross-feature entry, in
+`components/confirmations.ts`, with each editor's own consequence. A component decides *that*
+it asks, never *what* the question says or whether it is `danger`.
+
 ### Forms and Save Actions
 
 **One screen, one save, one resource.** A screen that writes to a second API resource has
@@ -292,7 +313,7 @@ credentials and nothing else — stored means *available*, and which runs take t
 per job in `JobTunnelSettings` and per restore in `SnapshotRestoreEditor`. Two states in one
 card, keyed on what `GET /tunnel` answers: a `404` is not an error but "no credentials yet",
 and the card becomes a setup form whose **Test & Set Up** does test and `POST` in one action.
-**Remove** deletes them behind a `ConfirmDialog`.
+**Remove** deletes them after a confirmation.
 
 A `StatusDot` beside the title, exactly as in `ClientIdentityCard` — whether a connection is up
 is answered in one idiom on every client surface, and the tunnel's four states map onto the
@@ -316,11 +337,11 @@ action in *all* of its states, the load error and the loading placeholder includ
 exit that disappears when a request hangs is an exit that is missing when it is needed.
 
 <kbd>Esc</kbd> does exactly what the button does, guarded by `e.defaultPrevented` so a
-select, an autocomplete or the dialog below keeps Escape for itself.
+select, an autocomplete or an open confirmation keeps Escape for itself.
 
 Each card reports its dirty state upwards through `onDirtyChange`. Clean, the click
-navigates straight away; dirty, a `ConfirmDialog` asks first — the same component the
-tunnel's **Remove** uses. It replaced a passive warning line, which stopped being enough
+navigates straight away; dirty, `describeDiscardChanges` asks first through `useConfirm()` —
+the same way the tunnel's **Remove** asks. It replaced a passive warning line, which stopped being enough
 once the exit moved into the header: it now sits a few pixels from the fields it would
 throw away, and a warning the operator has scrolled past protects nothing at that distance.
 

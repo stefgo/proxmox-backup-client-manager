@@ -6,12 +6,13 @@ import { Card } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING_INSET } from '@stefgo/react-ui-components';
-import { getErrorMessage } from '../utils';
+import { FOCUS_RING_INSET, useConfirm } from '@stefgo/react-ui-components';
+import { describeFailure } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
 import { LoadingIndicator } from '../components/LoadingIndicator';
 
 export default function Settings() {
+    const { alert } = useConfirm();
     const { isAuthenticated } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({
         retention_invalid_tokens_days: '30',
@@ -71,7 +72,7 @@ export default function Settings() {
                 throw new Error(err.error || 'Failed to save settings');
             }
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure('Could not save the settings', e));
         } finally {
             setIsSaving(false);
         }
@@ -91,7 +92,7 @@ export default function Settings() {
             const { tokens = 0, history = 0 } = await response.json();
             setCleanupResult(`${tokens + history} removed`);
         } catch (e: unknown) {
-            alert(getErrorMessage(e));
+            alert(describeFailure('Could not run the cleanup', e));
         } finally {
             setIsCleaning(false);
         }

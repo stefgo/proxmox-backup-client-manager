@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BackupJob } from '@pbcm/shared';
-import { ConfirmDialog } from '@stefgo/react-ui-components';
+import { useConfirm } from '@stefgo/react-ui-components';
+import { describeDiscardChanges } from '../../../components/confirmations';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
 import { ClientSelect } from '../../clients/components/ClientSelect';
@@ -51,7 +52,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
 
     const [selectedClientId, setSelectedClientId] = useState(lockedClientId ?? '');
     const [isSelectingClient, setIsSelectingClient] = useState(false);
-    const [confirmDiscard, setConfirmDiscard] = useState(false);
+    const { confirm } = useConfirm();
 
     /**
      * Both lists this page returns to are fed from stores, and neither is mounted while
@@ -103,13 +104,10 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
      * editors use is what stands between the two.
      */
     const { isDirty } = jobForm;
-    const leave = useCallback(() => {
-        if (isDirty) {
-            setConfirmDiscard(true);
-            return;
-        }
+    const leave = useCallback(async () => {
+        if (isDirty && !(await confirm(describeDiscardChanges('job')))) return;
         navigate(back);
-    }, [isDirty, navigate, back]);
+    }, [isDirty, confirm, navigate, back]);
 
     /**
      * Escape steps out one level at a time: an open client or repository list closes back
@@ -160,32 +158,19 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     );
 
     return (
-        <>
-            <ClientJobEditor
-                {...jobForm}
-                clientField={clientField}
-                isSelectingClient={isSelectingClient}
-                hasClient={!!selectedClientId}
-                // The header's X leaves the editor outright -- that is what it says it
-                // does, asking only about unsaved work. Only Escape steps out of an open
-                // sub-list first, because a key pressed to close a list must not throw
-                // the form away with it.
-                onClose={leave}
-                repositories={repositories}
-                fileList={fileList}
-                isLoadingFiles={isLoadingFiles}
-            />
-
-            <ConfirmDialog
-                isOpen={confirmDiscard}
-                onClose={() => setConfirmDiscard(false)}
-                onConfirm={() => navigate(back)}
-                title="Discard your changes?"
-                description="The job has not been saved. Leaving now keeps it as it was."
-                confirmLabel="Discard"
-                cancelLabel="Keep editing"
-                variant="danger"
-            />
-        </>
+        <ClientJobEditor
+            {...jobForm}
+            clientField={clientField}
+            isSelectingClient={isSelectingClient}
+            hasClient={!!selectedClientId}
+            // The header's X leaves the editor outright -- that is what it says it
+            // does, asking only about unsaved work. Only Escape steps out of an open
+            // sub-list first, because a key pressed to close a list must not throw
+            // the form away with it.
+            onClose={leave}
+            repositories={repositories}
+            fileList={fileList}
+            isLoadingFiles={isLoadingFiles}
+        />
     );
 };
