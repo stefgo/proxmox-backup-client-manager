@@ -1532,7 +1532,12 @@ able to set what every other client then trusts.
 ```
 
 **`SYNC_HISTORY`**
-**Description:** Delta-load of job history from agent to server.
+**Description:** History rows the agent has not had acknowledged yet — what it collected
+while offline, and every change since. Each entry carries the agent's `revision` of the
+row; the server stores it only if it is not older than the one it holds, and answers with
+`HISTORY_ACK`. Entries are validated one by one: a malformed entry is logged and, since it
+can never be stored, acknowledged anyway. Agents of an older build send no `revision` and
+receive no ack.
 **Payload:**
 
 ```json
@@ -1548,7 +1553,8 @@ able to set what every other client then trusts.
             "endTime": "ISO-TIMESTAMP",
             "exitCode": 0,
             "stdout": "...",
-            "stderr": "..."
+            "stderr": "...",
+            "revision": 3
         }
     ]
 }
@@ -1592,7 +1598,24 @@ able to set what every other client then trusts.
 
 ```json
 {
-    "lastSyncTime": "ISO-TIMESTAMP"
+    "lastSyncTime": "ISO-TIMESTAMP",
+    "historyAck": true
+}
+```
+
+`historyAck` tells the agent that `SYNC_HISTORY` is acknowledged with `HISTORY_ACK`; the
+agent then sends every row not yet acknowledged. `lastSyncTime` is kept for agents of an
+older build, which send what changed after it instead.
+
+**`HISTORY_ACK`**
+**Description:** The `SYNC_HISTORY` entries the server stored, each at the revision it
+received. The agent marks a row synced only up to that revision, so a row that changed
+meanwhile is sent again. Not sent when storing failed — the agent retries after a minute.
+**Payload:**
+
+```json
+{
+    "entries": [{ "id": "run-uuid", "revision": 3 }]
 }
 ```
 

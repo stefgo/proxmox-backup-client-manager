@@ -16,9 +16,11 @@ import {
     JobDeleteRequestSchema,
     GenerateKeyRequestSchema,
     HistoryRequestSchema,
+    HistoryAckSchema,
 } from "@pbcm/shared";
 import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
+import { HistorySync } from "../features/HistorySync.js";
 import db from "./Database.js";
 
 import { logger } from "@pbcm/shared/node";
@@ -35,7 +37,9 @@ import { isCertificateError } from "./ServerHttp.js";
  * remove it.
  */
 /**
- * A row of the agent's own `job_history` table, as the delta sync reads it back.
+ * A row of the agent's own `job_history` table, as the watermark sync for servers of an
+ * older build reads it back (see AUTH_SUCCESS below; current servers go through
+ * HistorySync).
  *
  * Written out rather than left as `any[]`: better-sqlite3 hands back `unknown`, and the
  * ten fields below are renamed one by one into the wire format a few lines down -- a typo
@@ -64,6 +68,7 @@ const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.JOB_DELETE_CONFIG]: JobDeleteRequestSchema,
     [WS_EVENTS.GENERATE_KEY_CONFIG]: GenerateKeyRequestSchema,
     [WS_EVENTS.HISTORY]: HistoryRequestSchema,
+    [WS_EVENTS.HISTORY_ACK]: HistoryAckSchema,
 };
 
 /**
@@ -216,6 +221,8 @@ export class Connection {
             rejectUnauthorized: !config.allowSelfSignedCertificates,
         });
         this.wsInstance = ws;
+        // Nothing goes out before this socket has authenticated; AUTH_SUCCESS restarts it.
+        HistorySync.stop();
 
         return new Promise((resolve) => {
             let pingTimeout: NodeJS.Timeout;
@@ -334,7 +341,16 @@ export class Connection {
                     case WS_EVENTS.AUTH_SUCCESS:
                         logger.info("Authenticated successfully");
 
-                        // Delta Sync History
+                        // A server that acknowledges what it stored gets the history
+                        // through HistorySync. The watermark below is kept for servers
+                        // of an older build, which never send HISTORY_ACK.
+                        if (message.payload?.historyAck === true) {
+                            HistorySync.start();
+                            opts.onAuthSuccess?.();
+                            break;
+                        }
+
+                        // Delta Sync History (older servers)
                         try {
                             const lastSyncTime =
                                 message.payload?.lastSyncTime;
@@ -426,6 +442,9 @@ export class Connection {
                     case WS_EVENTS.TUNNEL_ACQUIRE_RESULT:
                         Connection.resolvePending(message.payload);
                         break;
+                    case WS_EVENTS.HISTORY_ACK:
+                        HistorySync.acknowledge(message.payload.entries);
+                        break;
                 }
             } catch (err) {
                 logger.error({ err: err }, "Failed to parse message");
@@ -433,7 +452,12 @@ export class Connection {
         });
 
         ws.on("close", (code: number, reason: Buffer) => {
-            this.wsInstance = null;
+            // A socket that has already been replaced must not clear its successor, nor
+            // stop the history sync that is now running over it.
+            if (this.wsInstance === ws) {
+                this.wsInstance = null;
+                HistorySync.stop();
+            }
             this.rejectPending("Lost connection to the server");
             const reasonStr = reason.toString() || "No reason provided";
             logger.warn(`Disconnected (Code: ${code}, Reason: ${reasonStr}).`);
@@ -453,6 +477,8 @@ export class Connection {
             } catch (_) {}
         }
         this.wsInstance = ws;
+        // Nothing goes out before this socket has authenticated; AUTH_SUCCESS restarts it.
+        HistorySync.stop();
 
         logger.info("Server opened a connection to this agent (outbound mode), sending AUTH...");
 

@@ -49,16 +49,23 @@ export class JobHistoryRepository {
         clientId: string,
         historyEntries: HistoryEntry[],
     ): void {
+        // A retried batch can arrive after a newer one; the WHERE keeps it from putting the
+        // older state back. Without a revision on either side -- an agent of an older
+        // build -- the row is overwritten as it always was.
         const insertStmt = db.prepare(`
-            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr, revision)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET 
                 status=excluded.status, 
                 end_time=excluded.end_time, 
                 exit_code=excluded.exit_code, 
                 stdout=excluded.stdout, 
                 stderr=excluded.stderr,
+                revision=excluded.revision,
                 updated_at=CURRENT_TIMESTAMP
+            WHERE excluded.revision IS NULL
+                OR job_history.revision IS NULL
+                OR excluded.revision >= job_history.revision
         `);
 
         const transaction = db.transaction((entries: HistoryEntry[]) => {
@@ -75,6 +82,7 @@ export class JobHistoryRepository {
                     entry.exitCode,
                     entry.stdout || null,
                     entry.stderr || null,
+                    entry.revision ?? null,
                 );
             }
         });

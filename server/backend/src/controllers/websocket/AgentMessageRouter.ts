@@ -4,7 +4,9 @@ import {
     WsMessage,
     StatusUpdatePayloadSchema,
     LogUpdatePayloadSchema,
-    SyncHistoryPayloadSchema,
+    HistoryEntrySchema,
+    HistoryAckEntrySchema,
+    HistoryEntry,
     JobNextRunUpdatePayloadSchema,
     TunnelReleaseSchema,
     FingerprintObservedSchema,
@@ -95,29 +97,63 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
         });
     },
 
-    /** Delta history the agent collected while it was offline. */
-    [WS_EVENTS.SYNC_HISTORY]: ({ clientId, data, log }) => {
-        const parsed = SyncHistoryPayloadSchema.safeParse(data.payload);
-        if (!parsed.success) {
-            log.warn({
-                msg: "Invalid SYNC_HISTORY payload",
-                errors: parsed.error,
-            });
+    /**
+     * History rows the agent has not had acknowledged: what it collected while offline,
+     * and every change since. Answered with HISTORY_ACK for agents that send a revision.
+     *
+     * Entries are validated one by one. The whole payload used to be parsed at once, so a
+     * single malformed row cost the entire batch -- and with acknowledgements it would cost
+     * it on every retry. A row that can never be stored is acknowledged anyway, so the agent
+     * stops offering it; one the server merely failed to write is not, and comes back.
+     */
+    [WS_EVENTS.SYNC_HISTORY]: ({ clientId, socket, data, log }) => {
+        const raw = (data.payload as { history?: unknown } | null)?.history;
+        if (!Array.isArray(raw)) {
+            log.warn({ msg: "Invalid SYNC_HISTORY payload: no history array" });
             return;
         }
-        const { history } = parsed.data;
-        if (!history || !Array.isArray(history)) return;
 
-        try {
-            JobHistoryRepository.upsertHistoryBatch(clientId, history);
-            log.info({
-                msg: "Processed history sync from client",
-                clientId,
-                count: history.length,
+        const valid: HistoryEntry[] = [];
+        const unstorable: { id: string; revision: number }[] = [];
+        for (const item of raw) {
+            const parsed = HistoryEntrySchema.safeParse(item);
+            if (parsed.success) {
+                valid.push(parsed.data);
+                continue;
+            }
+            const ref = HistoryAckEntrySchema.safeParse(item);
+            log.warn({
+                msg: "Discarding invalid SYNC_HISTORY entry",
+                id: ref.success ? ref.data.id : undefined,
+                errors: parsed.error,
             });
-        } catch (err) {
-            log.error({ msg: "Failed to process history sync", err });
+            if (ref.success) unstorable.push(ref.data);
         }
+
+        let stored: { id: string; revision: number }[] = [];
+        if (valid.length > 0) {
+            try {
+                JobHistoryRepository.upsertHistoryBatch(clientId, valid);
+                stored = valid.flatMap((entry) =>
+                    entry.revision === undefined
+                        ? []
+                        : [{ id: entry.id, revision: entry.revision }],
+                );
+                log.info({
+                    msg: "Processed history sync from client",
+                    clientId,
+                    count: valid.length,
+                });
+            } catch (err) {
+                log.error({ msg: "Failed to process history sync", err });
+            }
+        }
+
+        const entries = [...stored, ...unstorable];
+        if (entries.length === 0) return;
+        socket.send(
+            JSON.stringify({ type: WS_EVENTS.HISTORY_ACK, payload: { entries } }),
+        );
     },
 
     /** The agent recalculated when a scheduled job runs next. */

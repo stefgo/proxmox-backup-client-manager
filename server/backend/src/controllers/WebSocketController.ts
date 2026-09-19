@@ -206,7 +206,7 @@ export class WebSocketController {
                         socket.send(
                             JSON.stringify({
                                 type: WS_EVENTS.AUTH_SUCCESS,
-                                payload: { lastSyncTime },
+                                payload: { lastSyncTime, historyAck: true },
                             }),
                         );
                         ProxyService.broadcastClientUpdate();
@@ -331,7 +331,7 @@ export class WebSocketController {
                     socket.send(
                         JSON.stringify({
                             type: WS_EVENTS.AUTH_SUCCESS,
-                            payload: { lastSyncTime },
+                            payload: { lastSyncTime, historyAck: true },
                         }),
                     );
                     ProxyService.broadcastClientUpdate();

@@ -335,6 +335,12 @@ export const HistoryEntrySchema = z.object({
     exitCode: z.number().nullable(),
     stdout: z.string().nullable(),
     stderr: z.string().nullable(),
+    /**
+     * The agent's revision of this row, raised on every change to it. Echoed back in
+     * HISTORY_ACK, so the agent can tell which version the server stored. Optional: an
+     * agent of an older build sends none and is synced the old way.
+     */
+    revision: z.number().int().optional(),
 });
 
 export const HistoryResponseSchema = z.object({
@@ -373,6 +379,19 @@ export const GlobalHistoryResponseSchema = z.object({
 
 export const SyncHistoryPayloadSchema = z.object({
     history: z.array(HistoryEntrySchema),
+});
+
+/**
+ * The server's answer to SYNC_HISTORY: the rows it stored, each at the revision it
+ * stored. The agent keeps offering a row until it has an ack for its current revision.
+ */
+export const HistoryAckEntrySchema = z.object({
+    id: z.string(),
+    revision: z.number().int(),
+});
+
+export const HistoryAckSchema = z.object({
+    entries: z.array(HistoryAckEntrySchema),
 });
 
 export const JobNextRunUpdatePayloadSchema = z.object({

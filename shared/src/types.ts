@@ -42,6 +42,7 @@ import {
     HistoryEntrySchema,
     HistoryResponseSchema,
     SyncHistoryPayloadSchema,
+    HistoryAckSchema,
     GlobalHistoryEntrySchema,
     GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
@@ -149,6 +150,7 @@ export type HistoryRequest = z.infer<typeof HistoryRequestSchema>;
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
+export type HistoryAck = z.infer<typeof HistoryAckSchema>;
 export type GlobalHistoryEntry = z.infer<typeof GlobalHistoryEntrySchema>;
 export type GlobalHistoryResponse = z.infer<typeof GlobalHistoryResponseSchema>;
 export type JobNextRunUpdatePayload = z.infer<
@@ -186,7 +188,12 @@ export interface ProtocolMap {
     };
     AUTH_SUCCESS: {
         req: void;
-        res: { lastSyncTime?: string | null };
+        res: {
+            /** For agents of an older build, which sync everything changed after it. */
+            lastSyncTime?: string | null;
+            /** The server acknowledges SYNC_HISTORY with HISTORY_ACK. */
+            historyAck?: boolean;
+        };
     };
     AUTH_FAILURE: {
         req: { error?: string };
@@ -238,6 +245,10 @@ export interface ProtocolMap {
     };
     SYNC_HISTORY: {
         req: SyncHistoryPayload;
+        res: void;
+    };
+    HISTORY_ACK: {
+        req: HistoryAck;
         res: void;
     };
     JOB_NEXT_RUN_UPDATE: {

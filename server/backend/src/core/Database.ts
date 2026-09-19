@@ -18,6 +18,7 @@ import { migration05 } from "./migrations/05_client_tunnels.js";
 import { migration06 } from "./migrations/06_drop_tunnel_last_error.js";
 import { migration07 } from "./migrations/07_token_registration_defaults.js";
 import { migration08 } from "./migrations/08_rename_inbound_allowed_ip.js";
+import { migration09 } from "./migrations/09_job_history_revision.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -73,6 +74,11 @@ const migrator = new Umzug<Database.Database>({
             name: "08_rename_inbound_allowed_ip",
             up: migration08.up,
             down: migration08.down,
+        },
+        {
+            name: "09_job_history_revision",
+            up: migration09.up,
+            down: migration09.down,
         },
     ],
     context: db,
