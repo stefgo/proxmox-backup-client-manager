@@ -77,6 +77,13 @@ export const TUNNEL_STATUS = {
 } as const;
 
 /**
+ * The port an agent's local web server listens on unless its config.yaml names another.
+ * The server appends it when an outbound target address is given without one, and the
+ * agent falls back to it -- one number for both sides of the same default.
+ */
+export const DEFAULT_AGENT_PORT = 3001;
+
+/**
  * Whether the server currently holds a WebSocket to the agent. Deliberately binary:
  * ProxyService derives it from `connectedClients` on every dashboard broadcast, and
  * there is no third state for it to report.

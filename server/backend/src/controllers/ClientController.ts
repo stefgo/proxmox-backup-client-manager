@@ -5,18 +5,13 @@ import {
     WS_EVENTS,
     CONNECTION_MODE,
     ClientSchema,
+    CreateOutboundClientSchema,
     normaliseTargetAddress,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { logger } from "@pbcm/shared/node";
-
-interface OutboundBody {
-    hostname?: string;
-    outboundTargetAddress?: string;
-    registrationSecret?: string;
-}
 
 export class ClientController {
     /**
@@ -30,14 +25,17 @@ export class ClientController {
      * through `/clients/:id/tunnel`, which tests and pins in the same action.
      */
     static async createOutbound(request: FastifyRequest, reply: FastifyReply) {
-        const body = (request.body ?? {}) as OutboundBody;
-        const { hostname, outboundTargetAddress, registrationSecret } = body;
-
-        if (!outboundTargetAddress || !registrationSecret) {
-            return reply.code(400).send({
-                error: "outboundTargetAddress and registrationSecret are required",
-            });
+        // The address is normalised by the schema, so what reaches the handshake and the
+        // database below is the canonical form -- the same one the client editor produces
+        // and the reconnect logic compares against.
+        const parsed = CreateOutboundClientSchema.safeParse(request.body ?? {});
+        if (!parsed.success) {
+            return reply
+                .code(400)
+                .send({ error: parsed.error.issues[0].message });
         }
+        const { hostname, outboundTargetAddress, registrationSecret } =
+            parsed.data;
 
         // Registration and AUTH. Nothing is written before this succeeds.
         const id = randomUUID();
@@ -157,10 +155,10 @@ export class ClientController {
                     error: "Only outbound clients have a target address",
                 });
             }
-            address = normaliseTargetAddress(body.outboundTargetAddress);
+            address = normaliseTargetAddress(body.outboundTargetAddress) ?? undefined;
             if (!address) {
                 return reply.code(400).send({
-                    error: "Target address must have the form host:port",
+                    error: "Must be a host or host:port, without scheme, path or credentials",
                 });
             }
         }

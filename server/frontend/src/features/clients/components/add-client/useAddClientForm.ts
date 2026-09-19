@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Ipv4OrCidrSchema, ConnectionMode } from '@pbcm/shared';
+import { Ipv4OrCidrSchema, ConnectionMode, normaliseTargetAddress } from '@pbcm/shared';
 
 export interface InboundForm {
     displayName: string;
@@ -32,6 +32,14 @@ const EMPTY_OUTBOUND: OutboundForm = {
 /** Empty is valid: without a value the client is not checked against an address at all. */
 export const isAllowedIpValid = (value: string): boolean =>
     value.trim() === '' || Ipv4OrCidrSchema.safeParse(value.trim()).success;
+
+/**
+ * Whether what has been typed so far is a usable target address. Empty counts as not yet
+ * invalid -- an untouched field must not show an error -- and the same function the
+ * endpoint applies decides it, so the wizard cannot accept what the server would refuse.
+ */
+export const isTargetAddressInvalid = (value: string): boolean =>
+    value.trim() !== '' && normaliseTargetAddress(value) === null;
 
 /**
  * The whole state of the add-client wizard, held above the steps.
