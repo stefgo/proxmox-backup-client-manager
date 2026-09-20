@@ -17,6 +17,7 @@ import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
+import { secretEquals } from "../core/secrets.js";
 import db from "../core/Database.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
@@ -386,7 +387,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
                     const { secret, authToken, clientId } =
                         message.payload || {};
-                    if (!secret || secret !== config.registrationSecret) {
+                    if (!secretEquals(secret, config.registrationSecret)) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
                         socket.send(
@@ -463,7 +464,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             // The id is checked as well as the token: the server has to be dialling the
             // client it thinks it is, or a target address pointed at the wrong host
             // would hand that host somebody else's jobs.
-            if (!token || !config.authToken || token !== config.authToken) {
+            if (!secretEquals(token, config.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
