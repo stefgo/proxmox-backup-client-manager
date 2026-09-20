@@ -1,9 +1,18 @@
 import WebSocket from "ws";
 import { randomUUID } from "crypto";
-import { WS_EVENTS, CONNECTION_MODE } from "@pbcm/shared";
+import {
+    WS_EVENTS,
+    CONNECTION_MODE,
+    agentBaseUrl,
+    isTlsTarget,
+} from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import {
+    ClientRepository,
+    type ClientRow,
+} from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
+import { appConfig } from "../config/AppConfig.js";
 
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 const HANDSHAKE_TIMEOUT_MS = 10000;
@@ -18,12 +27,41 @@ export class ClientConnector {
     private static reconnectAttempts = new Map<string, number>();
 
     /**
+     * One of the agent's WebSocket routes, and the options the socket is opened with.
+     *
+     * The scheme is not decided here: it comes out of the stored address, so a client the
+     * operator wrote as `wss://…` is dialled over TLS and every address stored before TLS
+     * existed keeps meaning exactly what it did. The certificate is checked unless the
+     * operator switched that off for the whole installation -- an agent on a home network
+     * usually carries a self-signed one, which is a decision about the installation rather
+     * than about this connection.
+     *
+     * The returned `url` carries no query. Callers that need one append it themselves and
+     * keep logging this one: the auth token goes in that query, and a log line travels
+     * further than this process.
+     */
+    private static agentSocket(
+        address: string,
+        path: string,
+    ): { url: string; options: WebSocket.ClientOptions } {
+        return {
+            url: `${agentBaseUrl(address)}${path}`,
+            options: isTlsTarget(address)
+                ? {
+                      rejectUnauthorized:
+                          !appConfig.security.allow_self_signed_agent_certificates,
+                  }
+                : {},
+        };
+    }
+
+    /**
      * Connects to every stored outbound client on startup. Registration cannot be retried
      * here — it needs the one-time secret that is only available in the create dialog.
      */
     static async connectAll(): Promise<void> {
         const clients = ClientRepository.findOutboundClients();
-        const ready = clients.filter((c: any) => c.auth_token);
+        const ready = clients.filter((c) => c.auth_token);
         logger.info(
             `ClientConnector: connecting to ${ready.length} outbound client(s) on startup`,
         );
@@ -98,7 +136,10 @@ export class ClientConnector {
         outboundTargetAddress: string,
         registrationSecret: string,
     ): Promise<{ authToken: string | null; error?: string }> {
-        const wsUrl = `ws://${outboundTargetAddress}/ws/register`;
+        const { url: wsUrl, options } = this.agentSocket(
+            outboundTargetAddress,
+            "/ws/register",
+        );
         logger.info({ url: wsUrl }, "ClientConnector: starting registration");
 
         return new Promise((resolve) => {
@@ -113,7 +154,7 @@ export class ClientConnector {
 
             let ws: WebSocket;
             try {
-                ws = new WebSocket(wsUrl);
+                ws = new WebSocket(wsUrl, options);
             } catch (err) {
                 logger.error(
                     { err },
@@ -217,18 +258,16 @@ export class ClientConnector {
         authToken: string,
         onPersist?: (authToken: string, version: string | null) => void,
     ): Promise<boolean> {
-        const wsUrl = `ws://${outboundTargetAddress}/ws/agent?clientId=${encodeURIComponent(
+        const { url, options } = this.agentSocket(outboundTargetAddress, "/ws/agent");
+        const wsUrl = `${url}?clientId=${encodeURIComponent(
             id,
         )}&token=${encodeURIComponent(authToken)}`;
-        logger.info(
-            { clientId: id, url: `ws://${outboundTargetAddress}/ws/agent` },
-            "ClientConnector: connecting",
-        );
+        logger.info({ clientId: id, url }, "ClientConnector: connecting");
 
         return new Promise((resolve) => {
             let ws: WebSocket;
             try {
-                ws = new WebSocket(wsUrl);
+                ws = new WebSocket(wsUrl, options);
             } catch (err) {
                 logger.error(
                     { err, clientId: id },
@@ -275,7 +314,7 @@ export class ClientConnector {
     }
 
     /** Reconnects a client that already exists in the database. */
-    static async connectClient(client: any): Promise<boolean> {
+    static async connectClient(client: ClientRow): Promise<boolean> {
         if (!client?.outbound_target_address || !client?.auth_token) {
             logger.warn(
                 { clientId: client?.id },

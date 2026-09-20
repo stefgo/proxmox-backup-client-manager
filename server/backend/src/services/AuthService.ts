@@ -2,7 +2,10 @@ import bcrypt from "bcryptjs";
 import * as client from "openid-client";
 import { appConfig, getOidcConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
-import { UserRepository } from "../repositories/UserRepository.js";
+import {
+    UserRepository,
+    type UserRow,
+} from "../repositories/UserRepository.js";
 
 // State store for PKCE
 const authStates = new Map<string, { code_verifier: string }>();
@@ -31,7 +34,7 @@ export class AuthService {
     static checkLocalAuth(
         username: string,
         password: string,
-    ): { user: any; error?: string } {
+    ): { user: UserRow | null; error?: string } {
         const user = UserRepository.findByUsername(username);
 
         // password_hash is nullable: an OIDC-only account has none. Handing null to
@@ -127,7 +130,7 @@ export class AuthService {
             claims.sub) as string;
 
         // Find user
-        let user = UserRepository.findByUsername(username);
+        const user = UserRepository.findByUsername(username);
         if (!user) {
             throw new Error("User not found");
         }

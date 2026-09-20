@@ -176,6 +176,11 @@ export interface TunnelState {
     lastError?: string | null;
 }
 
+// The `any` default is read by every dispatch site that switches on `type` and then
+// reaches into `payload`; with `unknown` each of those needs a cast, which is the same
+// claim spelled sixteen times. Tightening this means a discriminated union over
+// WS_EVENTS, not a different default.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface WsMessage<T = any> {
     type: string;
     payload: T;

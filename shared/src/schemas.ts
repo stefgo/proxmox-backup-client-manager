@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
+import { normaliseTargetAddress } from "./targetAddress.js";
 
 export const RepositorySchema = z.object({
     /**
@@ -59,6 +60,26 @@ export const ClientSchema = z.object({
      * and unlike the mode this one can be set up and removed at any time.
      */
     tunnelConfigured: z.boolean().optional(),
+});
+
+/**
+ * Where the server dials an outbound agent, as `host:port`. Transformed rather than only
+ * checked, so what reaches the database is the normalised form: the value is interpolated
+ * into a `ws://` URL, and a scheme, path or credentials in it would quietly send the agent
+ * connection elsewhere.
+ */
+export const TargetAddressSchema = z
+    .string()
+    .transform((value) => normaliseTargetAddress(value))
+    .refine((address): address is string => address !== null, {
+        error: "Must be a host or host:port, without scheme, path or credentials",
+    });
+
+/** `POST /api/v1/clients/outbound`. */
+export const CreateOutboundClientSchema = z.object({
+    outboundTargetAddress: TargetAddressSchema,
+    registrationSecret: z.string().min(1),
+    hostname: z.string().optional(),
 });
 
 /**
@@ -622,6 +643,11 @@ export const AppConfigSchema = z.looseObject({
      */
     jwtExpiresIn: z.string().min(1).default("12h"),
     logLevel: z.string().min(1).optional(),
+    /**
+     * Optional like `logLevel`, and for the same reason: left out it stays DEFAULT_SERVER_PORT,
+     * and nothing writes the number into a file the operator never put it in.
+     */
+    port: z.number().int().min(1).max(65535).optional(),
     oidc: OidcConfigSchema.optional(),
     settings: AppSettingsSchema.default({
         retention_invalid_tokens_days: "30",
@@ -644,8 +670,25 @@ export const AppConfigSchema = z.looseObject({
              * not undone by turning the header off again. Only switch it on behind TLS.
              */
             hsts: z.boolean().default(false),
+            /**
+             * Whether an outbound agent dialled over `wss://` may present a certificate
+             * this server cannot verify. Off by default, so a wrong or expired certificate
+             * is a failed connection rather than a silent one.
+             *
+             * It exists because an agent on a home network usually carries a self-signed
+             * certificate, and the alternative -- running a CA for a handful of hosts --
+             * is more than that situation warrants. Mirrors `allowSelfSignedCertificates`
+             * on the agent, the same decision for the other direction of the same link.
+             */
+            allow_self_signed_agent_certificates: z.boolean().default(false),
         })
-        .default({ allowed_networks: [], hsts: false }),
+        // Spelled out rather than left to the field defaults: `.default()` hands this
+        // object back as it stands, so a key missing here is missing at runtime.
+        .default({
+            allowed_networks: [],
+            hsts: false,
+            allow_self_signed_agent_certificates: false,
+        }),
     tunnel: TunnelSettingsSchema.default(TunnelSettingsSchema.parse({})),
 });
 

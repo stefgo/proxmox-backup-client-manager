@@ -52,7 +52,7 @@ const migrator = new Umzug<Database.Database>({
             return context
                 .prepare("SELECT name FROM umzug_migrations")
                 .all()
-                .map((r: any) => r.name);
+                .map((r) => (r as { name: string }).name);
         },
         async logMigration({ name, context }) {
             context

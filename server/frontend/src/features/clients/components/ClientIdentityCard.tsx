@@ -3,6 +3,7 @@ import {
     Client,
     CLIENT_STATUS,
     CONNECTION_MODE,
+    DEFAULT_AGENT_PORT,
     Ipv4OrCidrSchema,
     isIpAllowed,
     normaliseTargetAddress,
@@ -270,10 +271,10 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                             label="Target Address"
                             value={targetAddress}
                             onChange={(e) => { setTargetAddress(e.target.value); setSaved(false); }}
-                            placeholder="192.168.1.50:3001"
+                            placeholder={`192.168.1.50:${DEFAULT_AGENT_PORT}`}
                             disabled={isSaving}
-                            error={addressInvalid ? 'Must have the form host:port — no scheme, path or credentials.' : undefined}
-                            hint="Host and port the agent is reachable on. Saving reconnects the agent."
+                            error={addressInvalid ? 'Enter a host or host:port, without scheme, path or credentials.' : undefined}
+                            hint={`Host and port the agent is reachable on. Without a port, :${DEFAULT_AGENT_PORT} is used. Saving reconnects the agent.`}
                         />
                     )}
 

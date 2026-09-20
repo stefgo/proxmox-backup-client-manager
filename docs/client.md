@@ -108,6 +108,20 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 
 The client includes a micro-server (Fastify) for local management and initial setup.
 
+Plain HTTP unless `config.yaml` carries a `tls` block:
+
+```yaml
+tls:
+    cert: /etc/pbcm/agent.crt
+    key: /etc/pbcm/agent.key
+```
+
+Relative paths resolve against the agent's directory. Both files are read and checked at startup, and **a `tls` block that cannot be read ends the start** rather than falling back to HTTP — an agent configured for TLS that quietly served plaintext would hand its auth token out on `/ws/register` while looking perfectly healthy. The log line after `listen()` names the scheme actually in use, as does the setup PIN block.
+
+This matters in outbound mode, where the server dials `/ws/agent` with the auth token in the query string. With TLS on, the client's target address on the server has to say so: `wss://host:port`. The two are set separately and have to agree. A reverse proxy terminating TLS in front of the agent works just as well — leave `tls` unset and point the proxy at the plain port. What the agent stores is the path you wrote, so saving its configuration does not rewrite a relative path into an absolute one.
+
+It is unrelated to the SSH reverse tunnel, which carries backup traffic to the PBS rather than the agent session — see [Outbound mode and the tunnel](#outbound-mode-and-the-tunnel).
+
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. The PBCM server's certificate is verified for the registration request and for the WebSocket connection; for a server with a self-signed certificate set `allowSelfSignedCertificates: true`, which then applies to both. Only the reachability check tolerates any certificate, since it sends nothing and trusts nothing it receives. The decision is made per request (`core/ServerHttp.ts`, the WebSocket options) — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above, and later a tolerant registration followed by a strict WebSocket, so a self-signed server registered but never connected.
 - **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` requires a PIN that the agent
@@ -198,3 +212,7 @@ A **restore** carries the same `tunnel.required`, but in the `RUN_RESTORE` paylo
 in a stored config: it is triggered from the dashboard, is never scheduled, and the operator
 answers the question in the restore form. Absent means a direct connection.
 Details: [tunnel.md](tunnel.md).
+
+Neither of the two protects the agent session itself. The tunnel is asked for per run and
+released afterwards; the WebSocket the server dials stands beside it and is plaintext unless
+the agent serves TLS. That is what the `tls` block above is for.

@@ -3,7 +3,7 @@ import { KeyRound, X } from 'lucide-react';
 import { ActionButton, Card, Wizard, WizardStep } from '@stefgo/react-ui-components';
 import { CONNECTION_MODE } from '@pbcm/shared';
 import { apiFetch } from '../../../../lib/apiFetch';
-import { useAddClientForm, isAllowedIpValid } from './useAddClientForm';
+import { useAddClientForm, isAllowedIpValid, isTargetAddressInvalid } from './useAddClientForm';
 import { StepConnectionMode } from './steps/StepConnectionMode';
 import { StepInboundDetails } from './steps/StepInboundDetails';
 import { InboundTokenDialog } from './InboundTokenDialog';
@@ -140,7 +140,10 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
             id: 'outbound-details',
             label: 'Agent',
             description: 'Where to dial',
-            canContinue: !!outbound.targetAddress.trim() && !!outbound.registrationSecret.trim(),
+            canContinue:
+                !!outbound.targetAddress.trim() &&
+                !isTargetAddressInvalid(outbound.targetAddress) &&
+                !!outbound.registrationSecret.trim(),
             content: (
                 <StepOutboundDetails form={outbound} onPatch={patchOutbound} error={error} />
             ),

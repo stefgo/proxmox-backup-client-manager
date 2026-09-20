@@ -333,7 +333,7 @@ export const historyResponse = {
 export const historyFor = (clientId) =>
     historyRows
         .filter((r) => r.clientId === clientId)
-        .map(({ jobId, hostname, displayName, clientId: _c, ...rest }) => ({
+        .map(({ jobId, hostname: _h, displayName: _d, clientId: _c, ...rest }) => ({
             ...rest,
             jobConfigId: jobId,
         }));

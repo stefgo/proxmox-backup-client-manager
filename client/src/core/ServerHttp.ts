@@ -49,7 +49,7 @@ export function serverRequest(
         let target: URL;
         try {
             target = new URL(url);
-        } catch (e) {
+        } catch {
             reject(new Error(`Invalid server address: ${url}`));
             return;
         }

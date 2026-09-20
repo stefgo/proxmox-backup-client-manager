@@ -1,14 +1,14 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { WS_EVENTS, normalizeFingerprint } from "@pbcm/shared";
+import { Repository, WS_EVENTS, normalizeFingerprint } from "@pbcm/shared";
 import { logger, probeCertificate } from "@pbcm/shared/node";
 import { JobRepository } from "../../repositories/JobRepository.js";
 import { Connection } from "../../core/Connection.js";
 import { TunnelClient } from "../TunnelClient.js";
 
 /** Re-exported under its own name so callers here do not reach into TunnelClient. */
-const buildRepositoryValue = (repo: any) =>
+const buildRepositoryValue = (repo: Repository) =>
     TunnelClient.buildRepositoryValue(repo);
 
 /**
@@ -49,7 +49,7 @@ export function writeTempKeyfile(
  */
 export async function applyRepositoryEnv(
     env: NodeJS.ProcessEnv,
-    repo: any,
+    repo: Repository,
     opts: { tunnelRequired: boolean; jobId?: string },
 ): Promise<string | undefined> {
     env.PBS_REPOSITORY = buildRepositoryValue(repo);
@@ -94,7 +94,7 @@ export function removeTempKeyfile(keyfilePath: string | undefined): void {
  * genuine mismatch is left to fail the run, which is exactly what pinning is for.
  */
 export async function resolveFingerprint(
-    repo: any,
+    repo: Repository,
     jobId?: string,
 ): Promise<string | undefined> {
     if (!repo?.baseUrl) return repo?.fingerprint;

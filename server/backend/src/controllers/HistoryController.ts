@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { HistoryQuerySchema } from "@pbcm/shared";
 import { firstIssue } from "../utils/validation.js";
-import db from "../core/Database.js";
+import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 
 export class HistoryController {
     /**
@@ -24,21 +24,7 @@ export class HistoryController {
             }
             const { limit, offset } = parsed.data;
 
-            const records = db
-                .prepare(
-                    `
-                SELECT 
-                    h.id, h.client_id as clientId, h.job_id as jobId, h.name, 
-                    h.type, h.status, h.start_time as startTime, h.end_time as endTime, 
-                    h.exit_code as exitCode, h.stdout, h.stderr,
-                    c.hostname, c.display_name as displayName
-                FROM job_history h
-                LEFT JOIN clients c ON h.client_id = c.id
-                ORDER BY h.start_time DESC
-                LIMIT ? OFFSET ?
-            `,
-                )
-                .all(limit, offset);
+            const records = JobHistoryRepository.findGlobal(limit, offset);
 
             return reply.send({
                 success: true,

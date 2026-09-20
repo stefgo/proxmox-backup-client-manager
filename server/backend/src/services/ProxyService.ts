@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import crypto, { randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
     CLIENT_STATUS,
@@ -20,7 +20,7 @@ import { TunnelService } from "./TunnelService.js";
 interface PendingRequest {
     clientId: string;
     type: string;
-    resolve: (payload: any) => void;
+    resolve: (payload: unknown) => void;
     reject: (err: Error) => void;
     timer: NodeJS.Timeout;
 }
@@ -335,7 +335,7 @@ export class ProxyService {
         }
     }
 
-    static broadcastToDashboard(message: any) {
+    static broadcastToDashboard(message: unknown) {
         const msgStr =
             typeof message === "string" ? message : JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
@@ -390,7 +390,11 @@ export class ProxyService {
             this.pending.set(requestId, {
                 clientId,
                 type: type as string,
-                resolve,
+                // The map holds every kind of pending request at once, so what comes back
+                // is `unknown` until the correlation id has picked this entry -- which is
+                // exactly what the cast rests on.
+                resolve: (payload: unknown) =>
+                    resolve(payload as ProtocolMap[K]["res"]),
                 reject,
                 timer,
             });
@@ -412,7 +416,7 @@ export class ProxyService {
      * Called from WebSocketController for every message an authenticated agent sends;
      * anything without a matching requestId is not a response and is ignored here.
      */
-    static resolvePending(clientId: string, data: WsMessage<any>): void {
+    static resolvePending(clientId: string, data: WsMessage): void {
         const requestId = data?.payload?.requestId;
         if (typeof requestId !== "string") return;
 
@@ -451,7 +455,7 @@ export class ProxyService {
      * Sends a one-way message to a client agent without waiting for a response.
      * Primarily used for 'fire-and-forget' manual triggers (e.g. starting a backup).
      */
-    static sendFireAndForget(clientId: string, type: string, payload: any) {
+    static sendFireAndForget(clientId: string, type: string, payload: unknown) {
         const socket = this.connectedClients.get(clientId);
         if (!socket) throw new Error("Client not connected");
         socket.send(JSON.stringify({ type, payload }));

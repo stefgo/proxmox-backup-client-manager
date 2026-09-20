@@ -237,7 +237,7 @@ export class JobController {
      * @param request - Fastify request
      * @param reply - Fastify reply
      */
-    static async listAll(request: FastifyRequest, reply: FastifyReply) {
+    static async listAll(_request: FastifyRequest, _reply: FastifyReply) {
         return ProxyService.getAllCachedJobs();
     }
 }

@@ -1,10 +1,67 @@
 import db from "../core/Database.js";
-import { StatusUpdatePayload, HistoryEntry } from "@pbcm/shared";
+import {
+    StatusUpdatePayload,
+    HistoryEntry,
+    GlobalHistoryEntry,
+} from "@pbcm/shared";
 
 // The two writers below take payloads the WebSocketController has already run through
 // their Zod schemas, so they can be typed instead of taking `any`.
 
 export class JobHistoryRepository {
+    /**
+     * History across all clients, newest first. The join fills in the client's names,
+     * which the job rows themselves do not carry -- hence GlobalHistoryEntry rather
+     * than HistoryEntry. The caller bounds limit and offset.
+     */
+    static findGlobal(limit: number, offset: number): GlobalHistoryEntry[] {
+        return db
+            .prepare(
+                `
+            SELECT
+                h.id, h.client_id as clientId, h.job_id as jobId, h.name,
+                h.type, h.status, h.start_time as startTime, h.end_time as endTime,
+                h.exit_code as exitCode, h.stdout, h.stderr,
+                c.hostname, c.display_name as displayName
+            FROM job_history h
+            LEFT JOIN clients c ON h.client_id = c.id
+            ORDER BY h.start_time DESC
+            LIMIT ? OFFSET ?
+        `,
+            )
+            .all(limit, offset) as GlobalHistoryEntry[];
+    }
+
+    /**
+     * Drops history older than `cutoff`, but always keeps the `minCount` newest rows
+     * **per client**, so a rarely running client does not lose its last job. With
+     * `enforceCutoff` false the age is ignored and only the per-client count applies.
+     * Returns how many rows went.
+     */
+    static deleteOld(
+        minCount: number,
+        cutoff: string,
+        enforceCutoff: boolean,
+    ): number {
+        const result = db
+            .prepare(
+                `
+            DELETE FROM job_history
+            WHERE id IN (
+                SELECT id FROM (
+                    SELECT id,
+                           ROW_NUMBER() OVER (PARTITION BY client_id ORDER BY start_time DESC) as rn,
+                           start_time
+                    FROM job_history
+                )
+                WHERE rn > ? AND (start_time < ? OR ? = 0)
+            )
+        `,
+            )
+            .run(minCount, cutoff, enforceCutoff ? 1 : 0);
+        return result.changes;
+    }
+
     static findLatestSyncTime(clientId: string): string | null {
         const lastSyncRecord = db
             .prepare(

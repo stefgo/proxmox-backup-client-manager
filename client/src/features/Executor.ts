@@ -6,6 +6,7 @@ import {
     ProtocolMap,
     JOB_STATUS,
     RestoreSnapshotPayload,
+    BackupJob,
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
@@ -139,10 +140,12 @@ export class Executor {
         let jobName: string | undefined;
         let pbsPassword: string | undefined;
         let tempKeyfilePath: string | undefined;
-        let command = config.executable || "proxmox-backup-client";
-        let args: string[] = [];
-        let env: NodeJS.ProcessEnv = { ...process.env };
-        let jobConfigData: any = {};
+        const command = config.executable || "proxmox-backup-client";
+        let args: string[];
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        // The job's stored config column, parsed. Partial because a row may hold no
+        // config at all, and nothing here validates what JSON.parse returns.
+        let jobConfigData: Partial<BackupJob>;
 
         try {
             const jobConfig = JobRepository.findById(jobId);
@@ -253,6 +256,7 @@ export class Executor {
                     throw new Error(
                         "Failed to write encryption key file: " +
                             (e instanceof Error ? e.message : String(e)),
+                        { cause: e },
                     );
                 }
             }
@@ -354,13 +358,12 @@ export class Executor {
         runId: string,
         payload: RestoreSnapshotPayload,
     ) {
-        const { snapshot, targetPath, repository, archives, encryption } =
-            payload;
+        const { snapshot, repository, encryption } = payload;
         let pbsPassword: string | undefined;
         let tempKeyfilePath: string | undefined;
-        let command = config.executable || "proxmox-backup-client";
-        let args: string[] = [];
-        let env: NodeJS.ProcessEnv = { ...process.env };
+        const command = config.executable || "proxmox-backup-client";
+        let args: string[];
+        const env: NodeJS.ProcessEnv = { ...process.env };
         const jobType = "restore";
         const jobName = `Restore: ${snapshot}`;
 
@@ -401,6 +404,7 @@ export class Executor {
                     throw new Error(
                         "Failed to write restore encryption key file: " +
                             (e instanceof Error ? e.message : String(e)),
+                        { cause: e },
                     );
                 }
             }
@@ -415,7 +419,9 @@ export class Executor {
                         { err: e },
                         `Error parsing PBS config for restore`,
                     );
-                    throw new Error("Invalid repository configuration");
+                    throw new Error("Invalid repository configuration", {
+                        cause: e,
+                    });
                 }
             }
 

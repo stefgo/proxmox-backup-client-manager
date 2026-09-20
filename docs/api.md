@@ -595,6 +595,12 @@ No SSH credentials are accepted here. The connection mode is fixed by this call 
 changed later; the tunnel is a separate, revisable resource and is attached afterwards via
 `POST /v1/clients/:clientId/tunnel`, in either connection mode. See `docs/tunnel.md`.
 
+`outboundTargetAddress` is `host`, `host:port` or `wss://host:port`. Without a port, `:3001`
+is appended. `wss://` dials the agent over TLS, which requires the agent to serve it (see
+[client.md](client.md)); a bare address, or one written `ws://`, is dialled as plaintext. Any
+other scheme, and a path, query or credentials, are refused — the value is interpolated into a
+WebSocket URL. What is stored is the normalised form.
+
 **Example Request:**
 
 ```json
@@ -1318,6 +1324,8 @@ unattended, so anything not set here has to be corrected by hand afterwards.
 }
 ```
 
+A token that does not exist answers `404` with `{ "error": "Token not found" }`.
+
 ### Register Client (Public)
 
 `POST /v1/register`
@@ -1473,7 +1481,29 @@ the AUTH handshake begins.
 
 > For clients with `connectionMode: "outbound"` the direction is reversed: the **server**
 > connects to the agent's own `/ws/register` and `/ws/agent` endpoints (port 3001). The
-> protocol after AUTH is identical. See `docs/tunnel.md`.
+> protocol after AUTH is identical, stage 5 below included — only the `AUTH_FAILURE` is
+> left out there, because the side that dialled reads the auth result rather than the
+> message. See `docs/tunnel.md`.
+
+#### Authentication Stages
+
+1. `clientId` and `token` are looked up as a pair — both have to name the same row
+   (`4003 Invalid credentials` otherwise).
+2. The client's address is checked against `security.allowed_networks`
+   (`4003 Access denied`).
+3. A token that belongs to an **outbound** client is refused (`4003 Access denied`): those
+   are dialled by the server and never connect here. Their token carries no allowed
+   address, and a missing one means the check is switched off, so it would otherwise be
+   valid from anywhere.
+4. The client's address is checked against the client's own allowed address or network; a
+   client whose check is switched off skips this step (`4003 IP address mismatch`).
+5. A 5-second window is given for the client to send an `AUTH` handshake message
+   (`4001 Authentication timed out` otherwise). An `AUTH` whose payload does not parse is
+   closed with `4000 Invalid payload`; any other first message is answered with
+   `AUTH_FAILURE` and closed with `4003 Forbidden`.
+
+A second connection under the same client id replaces the first, which is closed with
+`4000 Replaced by new connection`.
 
 #### Client -> Server Events
 

@@ -2,12 +2,10 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { spawn } from "child_process";
-import db from "../core/Database.js";
 import { randomUUID } from "crypto";
 import {
     WS_EVENTS,
     BackupJob,
-    ScheduleConfig,
     RunJobPayload,
     ProtocolMap,
     RestoreSnapshotPayload,
@@ -87,7 +85,7 @@ export class Handlers {
                         requestId,
                         version: String(version),
                     });
-                } catch (e) {
+                } catch {
                     Connection.respond(WS_EVENTS.GET_VERSION, {
                         requestId,
                         version: "",

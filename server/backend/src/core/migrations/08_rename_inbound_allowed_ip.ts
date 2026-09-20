@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration08 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // Migration 04 named the column after where the value came from: back then it was
         // always the address the agent had registered from. Since migration 07 the
         // registration token carries an `allowed_ip` and that one wins -- the value is a
@@ -10,7 +12,7 @@ export const migration08 = {
             `ALTER TABLE clients RENAME COLUMN inbound_registered_ip TO inbound_allowed_ip;`,
         );
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(
             `ALTER TABLE clients RENAME COLUMN inbound_allowed_ip TO inbound_registered_ip;`,
         );

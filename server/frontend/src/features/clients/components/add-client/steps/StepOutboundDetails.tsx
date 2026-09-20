@@ -1,5 +1,6 @@
+import { DEFAULT_AGENT_PORT } from '@pbcm/shared';
 import { Input } from '@stefgo/react-ui-components';
-import { OutboundForm } from '../useAddClientForm';
+import { OutboundForm, isTargetAddressInvalid } from '../useAddClientForm';
 
 interface StepOutboundDetailsProps {
     form: OutboundForm;
@@ -24,11 +25,17 @@ export const StepOutboundDetails = ({ form, onPatch, error }: StepOutboundDetail
             placeholder="Derived from the target address if left empty"
         />
         <Input
-            label="Target Address (host:port of the agent)"
+            label="Target Address"
             required
             value={form.targetAddress}
             onChange={(e) => onPatch({ targetAddress: e.target.value })}
-            placeholder="192.168.1.50:3001"
+            placeholder={`192.168.1.50:${DEFAULT_AGENT_PORT}`}
+            error={
+                isTargetAddressInvalid(form.targetAddress)
+                    ? 'Enter a host or host:port, without scheme, path or credentials.'
+                    : undefined
+            }
+            hint={`Host and port of the agent's web server. Without a port, :${DEFAULT_AGENT_PORT} is used.`}
         />
         <Input
             label="Registration Secret"

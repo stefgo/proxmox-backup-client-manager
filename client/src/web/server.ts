@@ -1,6 +1,6 @@
-import Fastify, { FastifyRequest, FastifyReply } from "fastify";
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import fastifyStatic from "@fastify/static";
-import fastifyWebSocket from "@fastify/websocket";
+import fastifyWebSocket, { type WebSocket } from "@fastify/websocket";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -11,11 +11,13 @@ import {
     persistIdentity,
     isRegistered,
     deleteRegistrationSecret,
+    readTlsMaterial,
 } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
+import { secretEquals } from "../core/secrets.js";
 import db from "../core/Database.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
@@ -47,10 +49,17 @@ type StatusQuery = { url?: string };
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let fastifyInstance: any = null;
+let fastifyInstance: FastifyInstance | null = null;
 
 export async function startWebServer() {
-    fastifyInstance = Fastify({ logger: false });
+    // Two calls rather than one conditional options object: `https` is what picks Fastify's
+    // server type, so a ternary inside the argument leaves it with no overload to match.
+    // The certificate and key were validated in Config.ts, so material that is present
+    // here is material that works.
+    const tls = readTlsMaterial();
+    fastifyInstance = tls
+        ? Fastify({ logger: false, https: { cert: tls.cert, key: tls.key } })
+        : Fastify({ logger: false });
     const fastify = fastifyInstance;
 
     await fastify.register(fastifyWebSocket);
@@ -98,8 +107,9 @@ export async function startWebServer() {
         // that registration is conditional on the public directory being found. The cast
         // stays deliberately: the runtime check on the line is the whole point, and a
         // declaration claiming the method is always there would contradict it.
-        if (typeof (reply as any).sendFile === "function") {
-            return (reply as any).sendFile(file);
+        const maybeStatic = reply as { sendFile?: (file: string) => unknown };
+        if (typeof maybeStatic.sendFile === "function") {
+            return maybeStatic.sendFile(file);
         }
 
         logger.error(
@@ -132,7 +142,7 @@ export async function startWebServer() {
     // Check server reachability
     fastify.get(
         "/api/status/server",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
@@ -148,7 +158,7 @@ export async function startWebServer() {
                     if (checkRes.ok) {
                         serverReachable = true;
                     }
-                } catch (e) {
+                } catch {
                     // Server not reachable
                 }
             }
@@ -163,7 +173,7 @@ export async function startWebServer() {
     // Check auth token existence
     fastify.get(
         "/api/status/auth",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 hasAuthToken: isRegistered(),
             };
@@ -173,7 +183,7 @@ export async function startWebServer() {
     // Check current connection status
     fastify.get(
         "/api/status/connection",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 connected: Connection.isConnected(),
             };
@@ -206,7 +216,7 @@ export async function startWebServer() {
     // Attempt to establish connection
     fastify.post(
         "/api/connect",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             const result = await Connection.connect();
             return {
                 connected: result.connected,
@@ -345,7 +355,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
     fastify.get(
         "/ws/register",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },
@@ -378,7 +388,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
                     const { secret, authToken, clientId } =
                         message.payload || {};
-                    if (!secret || secret !== config.registrationSecret) {
+                    if (!secretEquals(secret, config.registrationSecret)) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
                         socket.send(
@@ -440,7 +450,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
     fastify.get(
         "/ws/agent",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },
@@ -455,7 +465,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             // The id is checked as well as the token: the server has to be dialling the
             // client it thinks it is, or a target address pointed at the wrong host
             // would hand that host somebody else's jobs.
-            if (!token || !config.authToken || token !== config.authToken) {
+            if (!secretEquals(token, config.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
@@ -478,7 +488,9 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
     try {
         const port = config.listenPort;
         await fastify.listen({ port, host: "0.0.0.0" });
-        logger.info(`Client Web UI listening on port ${port}`);
+        logger.info(
+            `Client Web UI listening on port ${port} (${config.tls ? "https" : "http"})`,
+        );
     } catch (err) {
         logger.error({ err: err }, "Failed to start Client Web UI server");
     }

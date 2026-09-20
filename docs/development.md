@@ -204,7 +204,8 @@ every check twice for every push. A single job, `verify`:
 | commitlint | Bound to `pull_request`, and this repository is maintained without pull requests, so in practice the local hook is what fires — see [The hooks](#the-hooks). |
 | `npm run build` | Builds `shared` first, then every workspace. This *is* the typecheck for `shared`, `server/backend` and `client`, and the Vite build for the frontend. |
 | `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json`, `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
-| `npm run lint -w server/frontend` | ESLint. |
+| `npm run lint -w server/frontend` | ESLint for the frontend, with the React plugins. |
+| `npm run lint` | The root ESLint config: `shared`, `client` and `server/backend` as Node TypeScript. Two configs rather than one, because a file matched by both would have two truths about it; the root one ignores `server/frontend`. |
 | Cleanup coverage | Compares the image names in `build.yml` with the list in `cleanup-packages.yml` and fails on a name that is only in the first. See [Registry cleanup](#registry-cleanup) for why that list is written out by hand. |
 
 The job sets `VITE_USE_LOCAL_UI: "false"`, because `vite.config.js` would
