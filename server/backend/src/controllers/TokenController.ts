@@ -10,8 +10,8 @@ import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
 
-export const TokenController = {
-    list: async (_request: FastifyRequest, _reply: FastifyReply) => {
+export class TokenController {
+    static async list(_request: FastifyRequest, _reply: FastifyReply) {
         const tokens = TokenRepository.findAll();
         return tokens.map((t) => ({
             ...t,
@@ -21,9 +21,9 @@ export const TokenController = {
             displayName: t.display_name ?? undefined,
             allowedIp: t.allowed_ip ?? undefined,
         }));
-    },
+    }
 
-    create: async (request: FastifyRequest, reply: FastifyReply) => {
+    static async create(request: FastifyRequest, reply: FastifyReply) {
         // The body is optional: a token with neither value behaves exactly as
         // it did before this endpoint learned about them.
         const parsed = CreateRegistrationTokenSchema.safeParse(
@@ -37,9 +37,9 @@ export const TokenController = {
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
         TokenRepository.create(token, expiresAt, parsed.data);
         return { token, expiresAt, ...parsed.data };
-    },
+    }
 
-    delete: async (request: FastifyRequest, reply: FastifyReply) => {
+    static async delete(request: FastifyRequest, reply: FastifyReply) {
         const { token } = request.params as { token: string };
         // A token that was not there is a 404, like every other delete: reporting "deleted"
         // for a token nobody holds hides a typo in the path as a success.
@@ -48,9 +48,9 @@ export const TokenController = {
             return reply.code(404).send({ error: "Token not found" });
         }
         return { status: "deleted" };
-    },
+    }
 
-    register: async (request: FastifyRequest, reply: FastifyReply) => {
+    static async register(request: FastifyRequest, reply: FastifyReply) {
         // The one unauthenticated endpoint with a body, so the shape is checked before
         // anything else happens. Ahead of the token lookup on purpose: a malformed request
         // should not learn from the status code whether the token it sent exists.
@@ -122,5 +122,5 @@ export const TokenController = {
             request.log.error({ err: e }, "Registration failed");
             return reply.code(500).send({ error: "Registration failed" });
         }
-    },
-};
+    }
+}
