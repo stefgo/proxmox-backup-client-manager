@@ -2,8 +2,6 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import {
     WS_EVENTS,
     CONNECTION_MODE,
-    WsMessage,
-    AuthPayloadSchema,
     isIpAllowed,
     isIpInNetworks,
 } from "@pbcm/shared";
@@ -11,13 +9,9 @@ import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
-import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { SESSION_COOKIE } from "../services/SessionCookie.js";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
-import {
-    routeAgentMessage,
-    type AgentLogger,
-} from "./websocket/AgentMessageRouter.js";
+import { attachAgentSession } from "./websocket/AgentSession.js";
 
 /** What an agent presents when it dials in: the identity the server issued it. */
 export type AgentQuery = { token?: string; clientId?: string };
@@ -82,6 +76,9 @@ export class WebSocketController {
         const clientIp = req.ip;
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
+        // Read by the timeout log below, which fires long after this line: null while the
+        // peer is still anonymous, the resolved id once the credentials below named a row.
+        let clientId: string | null = null;
         attachHeartbeat(socket, () =>
             fastify.log.warn({
                 msg: "Agent client connection timed out (no pong). Terminating.",
@@ -89,8 +86,6 @@ export class WebSocketController {
                 clientId,
             }),
         );
-        let isAuthenticated = false;
-        let clientId: string | null = null;
 
         // AUTHENTICATION LOGIC (Identity + IP)
         // 1. Extract the identity: query params first, then Authorization header.
@@ -165,111 +160,32 @@ export class WebSocketController {
             return;
         }
 
-        // Wait for explicit AUTH handshake from Agent (Protocol compatibility)
-        // The agent must send { type: 'AUTH' } as its first message to confirm readiness.
-        // We enforce a 5-second timeout to prevent zombie connections.
+        clientId = client.id;
 
-        const authTimeout = setTimeout(() => {
-            if (!isAuthenticated && socket.readyState === socket.OPEN) {
-                fastify.log.warn({
-                    msg: "Client authentication timed out",
-                    ip: clientIp,
-                });
-                socket.close(4001, "Authentication timed out");
-            }
-        }, 5000);
-
-        socket.on("message", (message: Buffer) => {
-            try {
-                const data = JSON.parse(message.toString()) as WsMessage;
-
-                if (!isAuthenticated) {
-                    if (data.type === WS_EVENTS.AUTH) {
-                        const parsed = AuthPayloadSchema.safeParse(
-                            data.payload,
-                        );
-                        if (!parsed.success) {
-                            socket.close(4000, "Invalid payload");
-                            return;
-                        }
-
-                        isAuthenticated = true;
-                        clientId = client.id;
-                        clearTimeout(authTimeout);
-
-                        const authPayload = parsed.data;
-                        ClientRepository.updateAuthSuccess(
-                            clientId!,
-                            clientIp,
-                            authPayload.version || null,
-                        );
-
-                        fastify.log.info({
-                            msg: "Client authenticated",
-                            clientId,
-                        });
-                        ProxyService.registerClient(clientId!, socket);
-
-                        const lastSyncTime =
-                            JobHistoryRepository.findLatestSyncTime(clientId!);
-
-                        socket.send(
-                            JSON.stringify({
-                                type: WS_EVENTS.AUTH_SUCCESS,
-                                payload: { lastSyncTime, historyAck: true },
-                            }),
-                        );
-                        ProxyService.broadcastClientUpdate();
-
-                        socket.on("close", () => {
-                            if (clientId) {
-                                ClientRepository.updateLastSeen(clientId);
-                                ProxyService.unregisterClient(clientId, socket);
-                                fastify.log.info({
-                                    msg: "Client disconnected",
-                                    clientId,
-                                });
-                                ProxyService.broadcastClientUpdate();
-                            }
-                        });
-                    } else {
-                        socket.send(
-                            JSON.stringify({
-                                type: WS_EVENTS.AUTH_FAILURE,
-                                payload: {},
-                            }),
-                        );
-                        socket.close(4003, "Forbidden");
-                    }
-                    return;
+        // From here the connection is an ordinary agent session: the agent sends
+        // { type: 'AUTH' } as its first message, and everything after that is the same
+        // in both directions.
+        attachAgentSession({
+            clientId,
+            socket,
+            connectionMode: CONNECTION_MODE.INBOUND,
+            ip: clientIp,
+            log: fastify.log,
+            // The agent is told it was turned away only when it sent something other than
+            // AUTH: a malformed AUTH payload gets the close code alone, which is what
+            // names the problem. An unexpected first message is the case where the peer
+            // may simply be out of step with the handshake.
+            onAuthFailed: (reason) => {
+                if (reason === "unexpected-message") {
+                    socket.send(
+                        JSON.stringify({
+                            type: WS_EVENTS.AUTH_FAILURE,
+                            payload: {},
+                        }),
+                    );
                 }
-
-                void this.handleAgentMessage(clientId!, socket, data, fastify.log);
-            } catch (err) {
-                fastify.log.error({
-                    msg: "Error processing WebSocket message",
-                    err,
-                });
-            }
+            },
         });
-
-    }
-
-    /**
-     * Handles every post-authentication message from an agent. Shared by both connection
-     * modes: inbound clients dial in, outbound clients are dialed by the server, but the
-     * protocol from here on is identical.
-     *
-     * The routing itself lives in websocket/AgentMessageRouter.ts; this stays as the name
-     * both handshakes call.
-     */
-    static async handleAgentMessage(
-        clientId: string,
-        socket: HeartbeatSocket,
-        data: WsMessage,
-        log: AgentLogger,
-    ) {
-        await routeAgentMessage(clientId, socket, data, log);
     }
 
     /**
@@ -291,7 +207,7 @@ export class WebSocketController {
 
         attachHeartbeat(socket);
 
-        let isAuthenticated = false;
+        // Ensures onAuthResult is called exactly once regardless of failure mode.
         let authResultSent = false;
         const notifyAuthResult = (success: boolean) => {
             if (!authResultSent) {
@@ -300,84 +216,32 @@ export class WebSocketController {
             }
         };
 
-        const authTimeout = setTimeout(() => {
-            if (!isAuthenticated) {
-                logger.warn({ clientId }, "Outbound agent authentication timed out");
-                notifyAuthResult(false);
-                socket.close(4001, "Authentication timed out");
-            }
-        }, 5000);
-
-        socket.on("message", (message: Buffer) => {
-            try {
-                const data = JSON.parse(message.toString()) as WsMessage;
-
-                if (!isAuthenticated) {
-                    // Turned away rather than ignored. Dropping the message left the
-                    // connection standing until the timeout closed it, and the peer was
-                    // never told why nothing happened -- the inbound path has always
-                    // refused the same case outright.
-                    if (data.type !== WS_EVENTS.AUTH) {
-                        notifyAuthResult(false);
-                        socket.close(4003, "Forbidden");
-                        return;
-                    }
-
-                    const parsed = AuthPayloadSchema.safeParse(data.payload);
-                    if (!parsed.success) {
-                        notifyAuthResult(false);
-                        socket.close(4000, "Invalid payload");
-                        return;
-                    }
-
-                    isAuthenticated = true;
-                    clearTimeout(authTimeout);
-
-                    const version = parsed.data.version || null;
-
-                    // For a brand new client this creates the DB rows; for reconnects the
-                    // rows already exist and only the metadata is refreshed.
-                    onPersist?.(version);
-                    ClientRepository.updateOutboundAuthSuccess(clientId, version);
-
-                    logger.info({ clientId }, "Outbound agent authenticated");
-                    ProxyService.registerClient(clientId, socket);
-                    notifyAuthResult(true);
-
-                    const lastSyncTime =
-                        JobHistoryRepository.findLatestSyncTime(clientId);
-                    socket.send(
-                        JSON.stringify({
-                            type: WS_EVENTS.AUTH_SUCCESS,
-                            payload: { lastSyncTime, historyAck: true },
-                        }),
-                    );
-                    ProxyService.broadcastClientUpdate();
-                    return;
-                }
-
-                void this.handleAgentMessage(clientId, socket, data, {
-                    info: (o) => logger.info(o),
-                    warn: (o) => logger.warn(o),
-                    error: (o) => logger.error(o),
-                });
-            } catch (err) {
-                logger.error({ err, clientId }, "Error processing outbound agent message");
-            }
+        attachAgentSession({
+            clientId,
+            socket,
+            connectionMode: CONNECTION_MODE.OUTBOUND,
+            // No address to record: the server dialed this agent, so the only address
+            // involved is the one it was dialed at, already stored as
+            // outbound_target_address.
+            ip: null,
+            log: logger,
+            onAuthenticated: (version) => {
+                // For a brand new client this creates the DB rows; for reconnects the
+                // rows already exist and the session's own update refreshes them.
+                onPersist?.(version);
+                notifyAuthResult(true);
+            },
+            onAuthFailed: () => notifyAuthResult(false),
+            onClose,
         });
 
+        // Covers all remaining failure paths: socket closed before AUTH completed, or
+        // after an error -- notifyAuthResult is a no-op if already called. onClose now
+        // runs only once a session was established: a close before that leaves no client
+        // row behind in the registration path, and connectClient schedules its own
+        // reconnect when the handshake fails.
         socket.on("close", () => {
-            // The heartbeat clears itself — attachHeartbeat registers its own close
-            // handler for exactly that.
-            clearTimeout(authTimeout);
             notifyAuthResult(false);
-            if (isAuthenticated) {
-                ClientRepository.updateLastSeen(clientId);
-                ProxyService.unregisterClient(clientId, socket);
-                logger.info({ clientId }, "Outbound agent disconnected");
-                ProxyService.broadcastClientUpdate();
-            }
-            onClose();
         });
 
         socket.on("error", (err: Error) => {
