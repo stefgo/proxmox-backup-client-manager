@@ -84,6 +84,13 @@ export const TUNNEL_STATUS = {
 export const DEFAULT_AGENT_PORT = 3001;
 
 /**
+ * The port the server listens on unless config.yaml or the PBCM_SERVER_PORT environment variable
+ * names another. It is the published one: the container exposes it and the compose files
+ * map it, so an operator who moves the server has to move those with it.
+ */
+export const DEFAULT_SERVER_PORT = 3000;
+
+/**
  * Whether the server currently holds a WebSocket to the agent. Deliberately binary:
  * ProxyService derives it from `connectedClients` on every dashboard broadcast, and
  * there is no third state for it to report.

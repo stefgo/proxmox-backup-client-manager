@@ -37,11 +37,24 @@ environment:
 | `SERVER_URL`        | Overrides `serverUrl` from `config.yaml`. |
 | `PBCM_CLIENT_PORT`  | Overrides `listenPort` from `config.yaml`. Needed with `network_mode: host` when 3001 is taken — the same port must then appear in the client's target address on the server. |
 
+### Server-only overrides
+
+| Variable            | Description |
+| :------------------ | :---------- |
+| `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check reads it too, so the probe follows a moved port; a port set only in `config.yaml` needs this variable as well or the probe keeps asking 3000. |
+
 ## Server
 
 `server/config.yaml` — in the container at `/app/server/config.yaml`, bind-mounted from
 `server-config.yaml` on the host. A copy to start from is
 [`server/config.example.yaml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/server/config.example.yaml).
+
+### Listening
+
+| Key | Description |
+| :-- | :---------- |
+| `port` | Port the server listens on (default: `3000`), overridden by `PBCM_SERVER_PORT`. The published port: `EXPOSE`, the compose port mapping and every agent's `serverUrl` have to follow it. |
+| `logLevel` | pino log level, overridden by `LOG_LEVEL`. |
 
 ### Authentication
 

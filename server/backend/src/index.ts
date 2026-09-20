@@ -11,7 +11,7 @@ import jwt from "@fastify/jwt";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { initOIDC, appConfig } from "./config/AppConfig.js";
+import { initOIDC, appConfig, serverPort } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
@@ -173,7 +173,7 @@ server.setNotFoundHandler(async (request, reply) => {
 // Start
 try {
     await server.listen({
-        port: 3000,
+        port: serverPort,
         host: "0.0.0.0",
     });
 } catch (err) {

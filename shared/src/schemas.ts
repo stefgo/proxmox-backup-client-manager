@@ -643,6 +643,11 @@ export const AppConfigSchema = z.looseObject({
      */
     jwtExpiresIn: z.string().min(1).default("12h"),
     logLevel: z.string().min(1).optional(),
+    /**
+     * Optional like `logLevel`, and for the same reason: left out it stays DEFAULT_SERVER_PORT,
+     * and nothing writes the number into a file the operator never put it in.
+     */
+    port: z.number().int().min(1).max(65535).optional(),
     oidc: OidcConfigSchema.optional(),
     settings: AppSettingsSchema.default({
         retention_invalid_tokens_days: "30",

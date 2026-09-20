@@ -31,7 +31,7 @@ services:
     # reacts to the process exiting, not to health. This makes the state readable in
     # `docker ps` and usable for `depends_on: condition: service_healthy`.
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PBCM_SERVER_PORT || 3000) + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 20s
