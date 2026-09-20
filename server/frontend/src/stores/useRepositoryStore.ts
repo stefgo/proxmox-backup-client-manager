@@ -180,7 +180,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
                 throw new Error(err.error || "Failed to delete repository");
             }
 
-            // Optimistic update
+            // Removed once the server confirmed it, not before: nothing to roll back.
             set((state) => ({
                 repositories: state.repositories.filter((r) => r.id !== id),
             }));
