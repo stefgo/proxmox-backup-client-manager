@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 import { initOIDC, appConfig } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
-import { WebSocketController } from "./controllers/WebSocketController.js";
+import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
 import { CleanupService } from "./services/CleanupService.js";
 import { ClientConnector } from "./services/ClientConnector.js";
 import { TunnelService } from "./services/TunnelService.js";
@@ -149,11 +149,16 @@ server.register(apiRoutes, { prefix: "/api" });
 
 // WebSocket Routes
 server.register(async function (fastify) {
-    fastify.get("/ws/dashboard", { websocket: true }, (con, req) =>
-        WebSocketController.handleDashboardConnection(con, req, fastify),
+    fastify.get("/ws/dashboard", { websocket: true }, (socket, req) =>
+        WebSocketController.handleDashboardConnection(socket, req, fastify),
     );
-    fastify.get("/ws/agent", { websocket: true }, (con, req) =>
-        WebSocketController.handleAgentConnection(con, req, fastify),
+    // The query string is named on the route, so the controller reads token and clientId
+    // off a typed request instead of digging them out of `any`.
+    fastify.get<{ Querystring: AgentQuery }>(
+        "/ws/agent",
+        { websocket: true },
+        (socket, req) =>
+            WebSocketController.handleAgentConnection(socket, req, fastify),
     );
 });
 

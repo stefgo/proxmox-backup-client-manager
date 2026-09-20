@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import {
     WS_EVENTS,
     CONNECTION_MODE,
@@ -20,7 +20,10 @@ import {
 } from "./websocket/AgentMessageRouter.js";
 
 /** What an agent presents when it dials in: the identity the server issued it. */
-type AgentQuery = { token?: string; clientId?: string };
+export type AgentQuery = { token?: string; clientId?: string };
+
+/** The agent route's request, with its query string named rather than read out of `any`. */
+type AgentRequest = FastifyRequest<{ Querystring: AgentQuery }>;
 
 /**
  * The WebSocket entry points, and nothing else.
@@ -32,11 +35,10 @@ type AgentQuery = { token?: string; clientId?: string };
  */
 export class WebSocketController {
     static async handleDashboardConnection(
-        connection: any,
-        req: any,
+        socket: HeartbeatSocket,
+        req: FastifyRequest,
         fastify: FastifyInstance,
     ) {
-        const socket: HeartbeatSocket = connection.socket || connection;
         // Attached before the auth checks below: those close the socket and return early,
         // and attachHeartbeat registers the close handler that clears the interval.
         attachHeartbeat(socket);
@@ -72,15 +74,14 @@ export class WebSocketController {
     }
 
     static async handleAgentConnection(
-        connection: any,
-        req: any,
+        socket: HeartbeatSocket,
+        req: AgentRequest,
         fastify: FastifyInstance,
     ) {
         // Correctly handle IP address with trustProxy (configured in Fastify)
         const clientIp = req.ip;
         fastify.log.info({ msg: "Client connected", ip: clientIp });
 
-        const socket: HeartbeatSocket = connection.socket || connection;
         attachHeartbeat(socket, () =>
             fastify.log.warn({
                 msg: "Agent client connection timed out (no pong). Terminating.",
@@ -90,12 +91,11 @@ export class WebSocketController {
         );
         let isAuthenticated = false;
         let clientId: string | null = null;
-        let authTimeout: NodeJS.Timeout;
 
         // AUTHENTICATION LOGIC (Identity + IP)
         // 1. Extract the identity: query params first, then Authorization header.
         // WebSocket connections from browser usually use query params?token=..., agents might use Headers.
-        const query = req.query as AgentQuery;
+        const query = req.query;
         let token = query.token;
         if (!token && req.headers["authorization"]) {
             const parts = req.headers["authorization"].split(" ");
@@ -159,7 +159,7 @@ export class WebSocketController {
         // The agent must send { type: 'AUTH' } as its first message to confirm readiness.
         // We enforce a 5-second timeout to prevent zombie connections.
 
-        authTimeout = setTimeout(() => {
+        const authTimeout = setTimeout(() => {
             if (!isAuthenticated && socket.readyState === socket.OPEN) {
                 fastify.log.warn({
                     msg: "Client authentication timed out",
