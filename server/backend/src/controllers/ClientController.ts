@@ -94,7 +94,7 @@ export class ClientController {
      * @param request - Fastify request
      * @param reply - Fastify reply
      */
-    static async list(request: FastifyRequest, reply: FastifyReply) {
+    static async list(_request: FastifyRequest, _reply: FastifyReply) {
         return ProxyService.getClientsWithStatus();
     }
 

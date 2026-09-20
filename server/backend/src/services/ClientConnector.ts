@@ -7,7 +7,10 @@ import {
     isTlsTarget,
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
-import { ClientRepository } from "../repositories/ClientRepository.js";
+import {
+    ClientRepository,
+    type ClientRow,
+} from "../repositories/ClientRepository.js";
 import { WebSocketController } from "../controllers/WebSocketController.js";
 import { appConfig } from "../config/AppConfig.js";
 
@@ -58,7 +61,7 @@ export class ClientConnector {
      */
     static async connectAll(): Promise<void> {
         const clients = ClientRepository.findOutboundClients();
-        const ready = clients.filter((c: any) => c.auth_token);
+        const ready = clients.filter((c) => c.auth_token);
         logger.info(
             `ClientConnector: connecting to ${ready.length} outbound client(s) on startup`,
         );
@@ -311,7 +314,7 @@ export class ClientConnector {
     }
 
     /** Reconnects a client that already exists in the database. */
-    static async connectClient(client: any): Promise<boolean> {
+    static async connectClient(client: ClientRow): Promise<boolean> {
         if (!client?.outbound_target_address || !client?.auth_token) {
             logger.warn(
                 { clientId: client?.id },

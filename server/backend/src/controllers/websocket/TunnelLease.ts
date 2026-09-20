@@ -13,6 +13,7 @@ import { ClientTunnelRepository } from "../../repositories/ClientTunnelRepositor
 import { RepositoryConfigRepository } from "../../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../../services/FingerprintObservations.js";
 import type { AgentLogger } from "./AgentMessageRouter.js";
+import type { HeartbeatSocket } from "./Heartbeat.js";
 
 /**
  * Everything an agent's tunnel request touches, in one module.
@@ -31,7 +32,7 @@ export class TunnelLease {
      */
     static async handleAcquire(
         clientId: string,
-        socket: any,
+        socket: HeartbeatSocket,
         data: WsMessage,
         log: AgentLogger,
     ): Promise<void> {
@@ -155,7 +156,7 @@ export class TunnelLease {
         const repo = payload.repositoryId
             ? RepositoryConfigRepository.findById(payload.repositoryId)
             : RepositoryConfigRepository.findAll().find(
-                  (r: any) => r.base_url === payload.baseUrl,
+                  (r) => r.base_url === payload.baseUrl,
               );
 
         if (!repo) {
@@ -184,8 +185,9 @@ export class TunnelLease {
         target: { host: string; port: number },
         log: AgentLogger,
     ): Promise<string | undefined> {
-        const repo = RepositoryConfigRepository.findAll().find((r: any) => {
-            const t = this.repositoryTarget(r.base_url);
+        const repo = RepositoryConfigRepository.findAll().find((r) => {
+            // base_url is nullable on the row; a repository without one matches nothing.
+            const t = r.base_url ? this.repositoryTarget(r.base_url) : undefined;
             return t?.host === target.host && t?.port === target.port;
         });
 

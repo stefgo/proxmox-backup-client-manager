@@ -92,7 +92,7 @@ export class Connection {
     /** Correlation table for requests this agent sends to the server. */
     private static pending = new Map<
         string,
-        { resolve: (value: any) => void; reject: (err: Error) => void }
+        { resolve: (value: unknown) => void; reject: (err: Error) => void }
     >();
 
     /**
@@ -205,7 +205,7 @@ export class Connection {
         if (this.wsInstance) {
             try {
                 this.wsInstance.close();
-            } catch (_) {}
+            } catch { /* already closing */ }
             this.wsInstance = null;
         }
 
@@ -246,7 +246,7 @@ export class Connection {
                 logger.warn("Connection attempt timed out after 5s.");
                 try {
                     ws.close();
-                } catch (_) {
+                } catch {
                     /* already gone */
                 }
                 resolve({
@@ -474,7 +474,7 @@ export class Connection {
         if (this.wsInstance) {
             try {
                 this.wsInstance.close(4000, "Replaced by new connection");
-            } catch (_) {}
+            } catch { /* already closing */ }
         }
         this.wsInstance = ws;
         // Nothing goes out before this socket has authenticated; AUTH_SUCCESS restarts it.
@@ -519,9 +519,12 @@ export class Connection {
             }, timeoutMs);
 
             this.pending.set(requestId, {
-                resolve: (value: any) => {
+                // The map holds every kind of pending request at once, so what comes
+                // back is `unknown` until the correlation id has picked this entry --
+                // which is exactly what the cast rests on.
+                resolve: (value: unknown) => {
                     clearTimeout(timer);
-                    resolve(value);
+                    resolve(value as ProtocolMap[T]["res"]);
                 },
                 reject: (err: Error) => {
                     clearTimeout(timer);
@@ -536,12 +539,15 @@ export class Connection {
     }
 
     /** Resolves a pending request by its correlation id. */
-    static resolvePending(payload: any): void {
-        const entry = payload?.requestId
-            ? this.pending.get(payload.requestId)
-            : undefined;
+    static resolvePending(payload: unknown): void {
+        const requestId =
+            payload && typeof payload === "object"
+                ? (payload as { requestId?: string }).requestId
+                : undefined;
+        if (!requestId) return;
+        const entry = this.pending.get(requestId);
         if (!entry) return;
-        this.pending.delete(payload.requestId);
+        this.pending.delete(requestId);
         entry.resolve(payload);
     }
 

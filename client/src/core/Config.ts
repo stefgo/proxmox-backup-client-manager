@@ -163,6 +163,32 @@ export function readTlsMaterial(): { cert: Buffer; key: Buffer } | undefined {
     };
 }
 
+/**
+ * config.yaml as it comes off the parser: everything optional, because the file is written
+ * by hand. The fields a resolver or a typeof check validates below stay `unknown` -- naming
+ * a type for them here would claim a check that happens further down.
+ */
+type LoadedConfig = {
+    executable?: string;
+    clientId?: unknown;
+    authToken?: string;
+    serverUrl?: string;
+    logLevel?: string;
+    backupParams?: unknown;
+    restoreParams?: unknown;
+    queueDelaySeconds?: unknown;
+    logCapBytes?: unknown;
+    retentionTime?: unknown;
+    registrationSecret?: unknown;
+    allowedNetworks?: unknown;
+    allowSelfSignedCertificates?: unknown;
+    listenPort?: unknown;
+    tls?: unknown;
+    tunnelAcquireJitterSeconds?: unknown;
+    preScript?: unknown;
+    postScript?: unknown;
+};
+
 // Global Document state to preserve comments
 let configDoc: YAML.Document = new YAML.Document({});
 
@@ -226,7 +252,7 @@ export function setServerUrl(url: string) {
             urlObj.pathname = path.join(urlObj.pathname, "ws/agent");
         }
         config.websocketURL = urlObj.toString();
-    } catch (e) {
+    } catch {
         logger.error("Failed to parse server URL for websocket: " + url);
     }
 }
@@ -239,7 +265,7 @@ if (fs.existsSync(CONFIG_PATH)) {
         // Stays `any`: this is an operator-edited file whose contents are unknown by
         // definition, and every field below is read defensively one at a time. A declared
         // shape here would assert a structure the file is under no obligation to have.
-        const loadedConfig = configDoc.toJS() as any;
+        const loadedConfig = (configDoc.toJS() ?? {}) as LoadedConfig;
 
         if (loadedConfig.executable) {
             config.executable = loadedConfig.executable;

@@ -11,7 +11,10 @@ import {
 } from "@pbcm/shared";
 import { probeCertificate, logger } from "@pbcm/shared/node";
 import { firstIssue } from "../utils/validation.js";
-import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
+import {
+    RepositoryConfigRepository,
+    type RepositoryRow,
+} from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
 import { ProxyService } from "../services/ProxyService.js";
 
@@ -20,7 +23,7 @@ import { ProxyService } from "../services/ProxyService.js";
  * Preferred path is the id; base URL plus datastore is the fallback for jobs stored
  * before the id existed and not yet reached by the backfill.
  */
-function jobUsesRepository(job: BackupJob, repo: any): boolean {
+function jobUsesRepository(job: BackupJob, repo: RepositoryRow): boolean {
     const jobRepo = job.repository;
     if (!jobRepo) return false;
     if (jobRepo.repositoryId) return jobRepo.repositoryId === repo.id;
@@ -30,7 +33,7 @@ function jobUsesRepository(job: BackupJob, repo: any): boolean {
 }
 
 export class RepositoryController {
-    static async list(request: FastifyRequest, reply: FastifyReply) {
+    static async list(_request: FastifyRequest, _reply: FastifyReply) {
         const repos = RepositoryConfigRepository.findAll();
         return repos.map((repo) => ({
             ...repo,
@@ -156,8 +159,8 @@ export class RepositoryController {
         }
 
         const skippedOffline = ProxyService.getClientsWithStatus()
-            .filter((c: any) => c.status !== CLIENT_STATUS.ONLINE)
-            .map((c: any) => ({
+            .filter((c) => c.status !== CLIENT_STATUS.ONLINE)
+            .map((c) => ({
                 clientId: c.id,
                 hostname: c.displayName || c.hostname,
             }));
@@ -205,7 +208,7 @@ export class RepositoryController {
             } else {
                 return { status: REPOSITORY_STATUS.OFFLINE };
             }
-        } catch (e) {
+        } catch {
             return { status: REPOSITORY_STATUS.OFFLINE };
         }
     }
@@ -262,7 +265,7 @@ export class RepositoryController {
         return { status: "updated" };
     }
 
-    static async delete(request: FastifyRequest, reply: FastifyReply) {
+    static async delete(request: FastifyRequest, _reply: FastifyReply) {
         const { repositoryId } = request.params as { repositoryId: string };
         RepositoryConfigRepository.delete(repositoryId);
         return { status: "deleted" };
@@ -324,7 +327,7 @@ export class RepositoryController {
                     .code(502)
                     .send({ error: "Failed to fetch from PBS" });
             }
-        } catch (e) {
+        } catch {
             return reply.code(502).send({ error: "Failed to connect to PBS" });
         }
     }

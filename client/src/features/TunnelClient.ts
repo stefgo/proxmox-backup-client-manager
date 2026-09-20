@@ -1,5 +1,5 @@
 import net from "net";
-import { WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
+import { Repository, WS_EVENTS, parseRepositoryEndpoint } from "@pbcm/shared";
 import { config } from "../core/Config.js";
 import { Connection } from "../core/Connection.js";
 import { logger } from "@pbcm/shared/node";
@@ -98,8 +98,8 @@ export class TunnelClient {
      * very same URL to the protocol default, so the two would silently disagree about
      * which endpoint the run is talking to.
      */
-    static buildRepositoryValue(repo: any, lease?: TunnelLease): string {
-        let hostStr = "";
+    static buildRepositoryValue(repo: Repository, lease?: TunnelLease): string {
+        let hostStr: string;
         if (lease) {
             hostStr = `${lease.bindHost}:${lease.bindPort}`;
         } else {
@@ -127,7 +127,8 @@ export class TunnelClient {
             const done = (err?: Error) => {
                 socket.removeAllListeners();
                 socket.destroy();
-                err ? reject(err) : resolve();
+                if (err) reject(err);
+                else resolve();
             };
 
             socket.setTimeout(PREFLIGHT_TIMEOUT_MS);

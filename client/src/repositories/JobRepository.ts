@@ -1,5 +1,10 @@
 import db from "../core/Database.js";
-import { BackupJob, ScheduleConfig, ScheduleConfigSchema } from "@pbcm/shared";
+import {
+    BackupJob,
+    Repository,
+    ScheduleConfig,
+    ScheduleConfigSchema,
+} from "@pbcm/shared";
 
 export interface JobRow {
     id: string;
@@ -7,6 +12,16 @@ export interface JobRow {
     config: string;
     schedule_enabled: number;
     schedule: string | null;
+}
+
+/**
+ * A `job` row plus the two columns joined in from `job_schedule_state`. The `config`
+ * column is a JSON blob, parsed and read defensively below.
+ */
+interface JoinedJobRow extends JobRow {
+    created_at: string | null;
+    last_run: string | null;
+    next_run: string | null;
 }
 
 export class JobRepository {
@@ -27,14 +42,14 @@ export class JobRepository {
             // `SELECT j.*` plus two joined columns, and `config` is a JSON blob parsed
             // below -- so the row shape is wider than any interface here would capture.
             // The mapping that follows reads each field defensively.
-            .all() as any[];
+            .all() as JoinedJobRow[];
 
         return rawJobs.map((row) => {
-            let config: any = {};
+            let config: Partial<BackupJob> = {};
             try {
                 config = row.config ? JSON.parse(row.config) : {};
-            } catch (e) {}
-            const archives: any[] = config.archives || [];
+            } catch { /* a corrupt config column leaves the defaults below */ }
+            const archives = config.archives ?? [];
 
             // Validated rather than cast: a legacy or corrupt row should surface as
             // "no schedule" instead of a half-built object that the UI then renders
@@ -46,7 +61,7 @@ export class JobRepository {
                         JSON.parse(row.schedule),
                     );
                     if (parsed.success) schedule = parsed.data;
-                } catch (e) {}
+                } catch { /* an unparsable column means "no schedule" */ }
             }
 
             return {
@@ -55,10 +70,16 @@ export class JobRepository {
                 archives,
                 schedule,
                 scheduleEnabled: Boolean(row.schedule_enabled),
-                createdAt: row.created_at,
-                nextRunAt: row.next_run,
-                lastRunAt: row.last_run,
-                repository: config.repository,
+                // `?? undefined` rather than the raw column: the LEFT JOIN yields null
+                // for a job that has never run, and these three are optional strings on
+                // BackupJob -- a null would fail JobSchema.
+                createdAt: row.created_at ?? undefined,
+                nextRunAt: row.next_run ?? undefined,
+                lastRunAt: row.last_run ?? undefined,
+                // Required on BackupJob, but only present on a row whose config column
+                // parsed. A row without one is corrupt and reaches callers as undefined,
+                // which is what they have always been handed here.
+                repository: config.repository as Repository,
                 encryption: config.encryption,
                 tunnel: config.tunnel,
             };

@@ -1,9 +1,6 @@
 import { randomUUID } from "crypto";
-import { JobRepository, JobRow } from "../repositories/JobRepository.js";
-import {
-    JobScheduleStateRepository,
-    StateRow,
-} from "../repositories/JobScheduleStateRepository.js";
+import { JobRepository } from "../repositories/JobRepository.js";
+import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
 import { Executor } from "./Executor.js";
 import { ScheduleConfig, ScheduleConfigSchema, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
@@ -156,7 +153,7 @@ export class Scheduler {
                 );
                 if (!schedule) return;
 
-                let state = JobScheduleStateRepository.findById(job.id);
+                const state = JobScheduleStateRepository.findById(job.id);
 
                 if (!state || !state.next_run) {
                     const initNext = new Date();

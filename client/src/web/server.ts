@@ -1,6 +1,6 @@
-import Fastify, { FastifyRequest, FastifyReply } from "fastify";
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import fastifyStatic from "@fastify/static";
-import fastifyWebSocket from "@fastify/websocket";
+import fastifyWebSocket, { type WebSocket } from "@fastify/websocket";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -49,7 +49,7 @@ type StatusQuery = { url?: string };
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let fastifyInstance: any = null;
+let fastifyInstance: FastifyInstance | null = null;
 
 export async function startWebServer() {
     // Two calls rather than one conditional options object: `https` is what picks Fastify's
@@ -107,8 +107,9 @@ export async function startWebServer() {
         // that registration is conditional on the public directory being found. The cast
         // stays deliberately: the runtime check on the line is the whole point, and a
         // declaration claiming the method is always there would contradict it.
-        if (typeof (reply as any).sendFile === "function") {
-            return (reply as any).sendFile(file);
+        const maybeStatic = reply as { sendFile?: (file: string) => unknown };
+        if (typeof maybeStatic.sendFile === "function") {
+            return maybeStatic.sendFile(file);
         }
 
         logger.error(
@@ -141,7 +142,7 @@ export async function startWebServer() {
     // Check server reachability
     fastify.get(
         "/api/status/server",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
             const checkUrl = query.url || config.serverUrl;
             let serverReachable = false;
@@ -157,7 +158,7 @@ export async function startWebServer() {
                     if (checkRes.ok) {
                         serverReachable = true;
                     }
-                } catch (e) {
+                } catch {
                     // Server not reachable
                 }
             }
@@ -172,7 +173,7 @@ export async function startWebServer() {
     // Check auth token existence
     fastify.get(
         "/api/status/auth",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 hasAuthToken: isRegistered(),
             };
@@ -182,7 +183,7 @@ export async function startWebServer() {
     // Check current connection status
     fastify.get(
         "/api/status/connection",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 connected: Connection.isConnected(),
             };
@@ -215,7 +216,7 @@ export async function startWebServer() {
     // Attempt to establish connection
     fastify.post(
         "/api/connect",
-        async (request: FastifyRequest, reply: FastifyReply) => {
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
             const result = await Connection.connect();
             return {
                 connected: result.connected,
@@ -354,7 +355,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
     fastify.get(
         "/ws/register",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },
@@ -449,7 +450,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
     fastify.get(
         "/ws/agent",
         { websocket: true },
-        (socket: any, req: FastifyRequest) => {
+        (socket: WebSocket, req: FastifyRequest) => {
             if (!isFromAllowedNetwork(req)) {
                 logger.warn(
                     { ip: req.ip },

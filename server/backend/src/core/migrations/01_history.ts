@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration01 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         db.exec(`
           CREATE TABLE IF NOT EXISTS job_history (
             id TEXT PRIMARY KEY,
@@ -20,7 +22,7 @@ export const migration01 = {
           CREATE INDEX IF NOT EXISTS idx_history_start_time ON job_history(start_time);
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
           DROP INDEX IF EXISTS idx_history_start_time;
           DROP INDEX IF EXISTS idx_history_client_id;

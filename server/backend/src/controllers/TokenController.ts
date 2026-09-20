@@ -11,7 +11,7 @@ import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
 
 export const TokenController = {
-    list: async (request: FastifyRequest, reply: FastifyReply) => {
+    list: async (_request: FastifyRequest, _reply: FastifyReply) => {
         const tokens = TokenRepository.findAll();
         return tokens.map((t) => ({
             ...t,
@@ -39,7 +39,7 @@ export const TokenController = {
         return { token, expiresAt, ...parsed.data };
     },
 
-    delete: async (request: FastifyRequest, reply: FastifyReply) => {
+    delete: async (request: FastifyRequest, _reply: FastifyReply) => {
         const { token } = request.params as { token: string };
         TokenRepository.delete(token);
         return { status: "deleted" };

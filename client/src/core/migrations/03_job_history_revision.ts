@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration03 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // `revision` counts the changes to a row, `synced_revision` is the one the server
         // acknowledged. A row is due for sync while the two differ -- a counter rather than
         // updated_at, because a timestamp compared across two clocks at one-second
@@ -31,7 +33,7 @@ export const migration03 = {
             END;
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
             DROP TRIGGER IF EXISTS job_history_revision;
             ALTER TABLE job_history DROP COLUMN synced_revision;

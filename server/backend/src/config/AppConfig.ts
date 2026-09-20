@@ -60,7 +60,7 @@ function syncDoc() {
         configDoc.contents = configDoc.createNode({});
     }
 
-    const updateRecursive = (path: string[], value: any) => {
+    const updateRecursive = (path: string[], value: unknown) => {
         if (value !== null && typeof value === "object" && !Array.isArray(value)) {
             for (const [key, val] of Object.entries(value)) {
                 updateRecursive([...path, key], val);

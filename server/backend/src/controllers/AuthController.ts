@@ -23,6 +23,12 @@ export class AuthController {
             return reply.code(401).send({ error: result.error });
         }
 
+        // checkLocalAuth returns a user whenever it reports no error; said here because
+        // the two halves of its result are not tied together in the type.
+        if (!result.user) {
+            return reply.code(401).send({ error: "Invalid credentials" });
+        }
+
         const token = request.server.jwt.sign({ username, id: result.user.id });
         setSessionCookies(request, reply, token);
         // The token is deliberately not in the body any more: handing it to the page
@@ -40,7 +46,7 @@ export class AuthController {
         return { success: true };
     }
 
-    static async getConfig(request: FastifyRequest, reply: FastifyReply) {
+    static async getConfig(_request: FastifyRequest, _reply: FastifyReply) {
         return AuthService.getAuthConfig();
     }
 
@@ -52,7 +58,7 @@ export class AuthController {
      * point of the cookie, and a good reason for the name to come from the server that
      * issued it rather than from a payload the page picks apart itself.
      */
-    static async me(request: FastifyRequest, reply: FastifyReply) {
+    static async me(request: FastifyRequest, _reply: FastifyReply) {
         const user = request.user as { username?: string; id?: number };
         return { username: user?.username ?? null, id: user?.id ?? null };
     }

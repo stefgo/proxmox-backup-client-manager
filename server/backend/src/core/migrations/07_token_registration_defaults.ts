@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration07 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // What a registration token carries the client cannot supply itself. The
         // display name used to be set by hand after the fact, and the IP pin was
         // whatever address the agent happened to register from -- neither was a
@@ -11,7 +13,7 @@ export const migration07 = {
         db.exec(`ALTER TABLE registration_tokens ADD COLUMN display_name TEXT;`);
         db.exec(`ALTER TABLE registration_tokens ADD COLUMN allowed_ip TEXT;`);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`ALTER TABLE registration_tokens DROP COLUMN display_name;`);
         db.exec(`ALTER TABLE registration_tokens DROP COLUMN allowed_ip;`);
     },

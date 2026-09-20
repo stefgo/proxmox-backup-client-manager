@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration04 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // All clients that exist before this migration were inbound-only: they dial the
         // server themselves and are pinned to the IP they registered from (allowed_ip).
         // Outbound clients are dialed BY the server and therefore have no registered IP.
@@ -29,7 +31,7 @@ export const migration04 = {
             ALTER TABLE clients_new RENAME TO clients;
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
             CREATE TABLE clients_old (
                 id TEXT PRIMARY KEY,

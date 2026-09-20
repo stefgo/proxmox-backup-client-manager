@@ -21,6 +21,8 @@ npm run dev:server   # Backend in watch mode
 npm run dev:frontend # Frontend Vite dev server (localhost:5173)
 npm run dev:client   # Client agent in watch mode
 npm run clean        # Remove all build artifacts
+npm run lint         # ESLint over shared, client and server/backend
+npm run lint:frontend # ESLint over server/frontend (its own config)
 ```
 
 `build` names its workspaces one by one instead of using `--workspaces`, because
@@ -169,7 +171,13 @@ See `docs/development.md` for the workflow details.
 
 - **Indentation**: 4 spaces in all workspaces, no tabs. No formatter is configured — match the surrounding file.
 - **TypeScript**: strict mode everywhere
-- **Frontend linting**: ESLint with `react-hooks` and `react-refresh` plugins
+- **Linting**: two configs, one per kind of code, because a file must not be
+  matched by both. `eslint.config.mjs` at the root covers `shared`, `client` and
+  `server/backend` as Node TypeScript (typescript-eslint recommended, no type
+  information) and ignores `server/frontend`; the frontend's own config adds the
+  `react-hooks` and `react-refresh` plugins. A new Node workspace is covered by the
+  root config without another file. `prefer-const` runs with `ignoreReadBeforeAssign`,
+  for the `let` a closure reads before anything assigns it.
 - **UI components**: `@stefgo/react-ui-components` (3.x) – custom external library,
   published to GitHub Packages; `npm install` needs `NPM_TOKEN` in the environment.
 - **Colours**: pick the *role*, never the palette — `bg-success`, `text-error`,

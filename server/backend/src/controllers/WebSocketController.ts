@@ -55,7 +55,7 @@ export class WebSocketController {
 
         try {
             fastify.jwt.verify(token);
-        } catch (e) {
+        } catch {
             socket.close(4001, "Invalid Token");
             return;
         }
@@ -255,7 +255,7 @@ export class WebSocketController {
      */
     static async handleAgentMessage(
         clientId: string,
-        socket: any,
+        socket: HeartbeatSocket,
         data: WsMessage,
         log: AgentLogger,
     ) {

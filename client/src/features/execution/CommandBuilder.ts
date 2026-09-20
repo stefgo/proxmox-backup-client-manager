@@ -1,4 +1,4 @@
-import { RestoreSnapshotPayload } from "@pbcm/shared";
+import { BackupJob, RestoreSnapshotPayload } from "@pbcm/shared";
 import { config, requireClientId } from "../../core/Config.js";
 
 /**
@@ -26,7 +26,7 @@ export interface KeyfileArgs {
  * has to be the side that holds the identity.
  */
 export function buildBackupArgs(
-    jobConfigData: any,
+    jobConfigData: Partial<BackupJob>,
     { keyfilePath }: KeyfileArgs = {},
 ): string[] {
     const args: string[] = [];

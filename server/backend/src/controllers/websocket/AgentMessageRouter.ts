@@ -15,6 +15,7 @@ import { ProxyService } from "../../services/ProxyService.js";
 import { TunnelService } from "../../services/TunnelService.js";
 import { JobHistoryRepository } from "../../repositories/JobHistoryRepository.js";
 import { TunnelLease } from "./TunnelLease.js";
+import type { HeartbeatSocket } from "./Heartbeat.js";
 
 /**
  * The subset of a Fastify logger this module needs. Both connection kinds hand one in:
@@ -22,9 +23,9 @@ import { TunnelLease } from "./TunnelLease.js";
  * logger, so their messages stay attributable to the right connection.
  */
 export type AgentLogger = {
-    info: (o: any) => void;
-    warn: (o: any) => void;
-    error: (o: any) => void;
+    info: (o: object) => void;
+    warn: (o: object) => void;
+    error: (o: object) => void;
 };
 
 /**
@@ -41,7 +42,7 @@ const TERMINAL_JOB_STATUSES: string[] = [
 /** Everything a handler is given. Grouped so the table's signature stays one line. */
 interface AgentMessageContext {
     clientId: string;
-    socket: any;
+    socket: HeartbeatSocket;
     data: WsMessage;
     log: AgentLogger;
 }
@@ -198,11 +199,11 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
  */
 export async function routeAgentMessage(
     clientId: string,
-    socket: any,
+    socket: HeartbeatSocket,
     data: WsMessage,
     log: AgentLogger,
 ): Promise<void> {
-    ProxyService.resolvePending(clientId, data as WsMessage<any>);
+    ProxyService.resolvePending(clientId, data);
 
     const handler = HANDLERS[data.type];
     if (!handler) return;

@@ -121,7 +121,7 @@ export class ClientTunnelRepository {
         },
     ): { changes: number } {
         const sets: string[] = [];
-        const values: any[] = [];
+        const values: (string | number | null)[] = [];
 
         if (data.sshHost !== undefined) {
             sets.push("ssh_host = ?");

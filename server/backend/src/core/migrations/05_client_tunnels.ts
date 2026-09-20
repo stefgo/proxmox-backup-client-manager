@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration05 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // The SSH credential set of one client. A stored row means the tunnel is
         // available to that client's jobs; whether a run takes it is decided per job
         // (BackupJobSchema.tunnel). Independent of clients.connection_mode: the mode
@@ -27,7 +29,7 @@ export const migration05 = {
             );
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`DROP TABLE IF EXISTS client_tunnels;`);
     },
 };

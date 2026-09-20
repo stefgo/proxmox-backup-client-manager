@@ -1,5 +1,7 @@
+import type { MigrationContext } from "./context.js";
+
 export const migration02 = {
-    up: async ({ context: db }: { context: any }) => {
+    up: async ({ context: db }: MigrationContext) => {
         // SQLite does not support adding columns with non-constant defaults via ALTER TABLE.
         // We recreate the table to support DEFAULT CURRENT_TIMESTAMP.
         db.exec(`
@@ -36,7 +38,7 @@ export const migration02 = {
             PRAGMA foreign_keys = ON;
         `);
     },
-    down: async ({ context: db }: { context: any }) => {
+    down: async ({ context: db }: MigrationContext) => {
         db.exec(`
             PRAGMA foreign_keys = OFF;
 

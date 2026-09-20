@@ -250,7 +250,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             // *reachable*, and answering "no server here" would send the operator off
             // to fix the wrong thing. /api/health is the one that reports whether this
             // instance can actually serve, and it does check the database.
-            v1.get("/ping", async (request, reply) => {
+            v1.get("/ping", async () => {
                 return { status: "ok" };
             });
         },

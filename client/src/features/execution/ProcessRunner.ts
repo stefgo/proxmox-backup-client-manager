@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import type { Writable } from "stream";
 import {
+    Repository,
     WS_EVENTS,
     ProtocolMap,
     JOB_STATUS,
@@ -184,7 +185,7 @@ export class ProcessRunner {
         env: NodeJS.ProcessEnv;
         password?: string;
         keyfilePath?: string;
-        repository?: any;
+        repository?: Repository;
         tunnelRequired: boolean;
         /**
          * Backup only: hands the run's concurrency slot back and starts whatever queued
