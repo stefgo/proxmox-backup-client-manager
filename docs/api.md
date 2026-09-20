@@ -1324,6 +1324,8 @@ unattended, so anything not set here has to be corrected by hand afterwards.
 }
 ```
 
+A token that does not exist answers `404` with `{ "error": "Token not found" }`.
+
 ### Register Client (Public)
 
 `POST /v1/register`

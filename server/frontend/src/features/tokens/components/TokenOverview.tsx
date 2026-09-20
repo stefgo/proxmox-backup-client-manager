@@ -3,9 +3,11 @@ import { Token } from '@pbcm/shared';
 import { TokenList } from './TokenList';
 import { useAuth } from '../../auth/AuthContext';
 import { apiFetch } from '../../../lib/apiFetch';
+import { useConfirm } from '@stefgo/react-ui-components';
 
 export const TokenOverview = () => {
     const { isAuthenticated } = useAuth();
+    const { alert } = useConfirm();
     const [tokens, setTokens] = useState<Token[]>([]);
 
     // Declared before the effect that uses it: the other way round the effect read
@@ -36,11 +38,20 @@ export const TokenOverview = () => {
         if (list) setTokens(list);
     };
 
+    // A refused delete says so: a token the server no longer knows answers 404, and the row
+    // used to stay where it was without a word.
     const deleteToken = async (tokenStr: string) => {
         try {
             const res = await apiFetch(`/api/v1/tokens/${tokenStr}`, {
                 method: 'DELETE'});
-            if (res.ok) refreshTokens();
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                alert({
+                    title: 'Could not delete the token',
+                    description: data.error || 'The server refused the request.',
+                });
+            }
+            refreshTokens();
         } catch (e) { console.error(e); }
     };
 
