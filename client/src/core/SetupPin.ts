@@ -70,7 +70,12 @@ export function logSetupPin(): void {
     const rule = "─".repeat(46);
     logger.info(rule);
     logger.info(`  Setup PIN:  ${pin}`);
-    logger.info(`  Web UI:     http://<this-host>:${config.listenPort}/register`);
+    // The scheme follows what the web server was actually started with; an operator sent to
+    // http:// on a TLS agent would get a connection reset and no idea why.
+    const scheme = config.tls ? "https" : "http";
+    logger.info(
+        `  Web UI:     ${scheme}://<this-host>:${config.listenPort}/register`,
+    );
     logger.info("  The PIN is required to register this agent.");
     logger.info(rule);
 }

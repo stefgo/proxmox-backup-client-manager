@@ -665,8 +665,25 @@ export const AppConfigSchema = z.looseObject({
              * not undone by turning the header off again. Only switch it on behind TLS.
              */
             hsts: z.boolean().default(false),
+            /**
+             * Whether an outbound agent dialled over `wss://` may present a certificate
+             * this server cannot verify. Off by default, so a wrong or expired certificate
+             * is a failed connection rather than a silent one.
+             *
+             * It exists because an agent on a home network usually carries a self-signed
+             * certificate, and the alternative -- running a CA for a handful of hosts --
+             * is more than that situation warrants. Mirrors `allowSelfSignedCertificates`
+             * on the agent, the same decision for the other direction of the same link.
+             */
+            allow_self_signed_agent_certificates: z.boolean().default(false),
         })
-        .default({ allowed_networks: [], hsts: false }),
+        // Spelled out rather than left to the field defaults: `.default()` hands this
+        // object back as it stands, so a key missing here is missing at runtime.
+        .default({
+            allowed_networks: [],
+            hsts: false,
+            allow_self_signed_agent_certificates: false,
+        }),
     tunnel: TunnelSettingsSchema.default(TunnelSettingsSchema.parse({})),
 });
 

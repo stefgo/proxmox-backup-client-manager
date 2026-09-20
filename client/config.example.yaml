@@ -42,6 +42,20 @@ listenPort: 3001
 # by its fingerprint.
 allowSelfSignedCertificates: false
 
+# Serve this agent's web server over TLS instead of plain HTTP (default: off).
+# Only then can the server dial it as wss://host:port, which is what keeps the auth token in
+# the /ws/agent query string off the wire in the clear. Without this block nothing changes.
+# Both files must be readable at startup; if either is not, the agent stops and says which.
+# It does not fall back to HTTP -- an agent that was configured for TLS and quietly served
+# plaintext would hand out its auth token on /ws/register while looking perfectly healthy.
+# Relative paths are resolved against the agent's directory.
+# A reverse proxy terminating TLS in front of the agent works too; leave this unset then and
+# point the proxy at the plain port. This is unrelated to the SSH reverse tunnel, which
+# carries backup traffic to the PBS rather than the agent session.
+# tls:
+#     cert: /etc/pbcm/agent.crt
+#     key: /etc/pbcm/agent.key
+
 # Networks the server is allowed to dial this agent from, in CIDR notation.
 # Only relevant for outbound clients: in that mode the agent listens on every
 # interface of the host, and the two endpoints above are open to anyone who can
