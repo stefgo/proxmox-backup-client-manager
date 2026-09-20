@@ -595,6 +595,12 @@ No SSH credentials are accepted here. The connection mode is fixed by this call 
 changed later; the tunnel is a separate, revisable resource and is attached afterwards via
 `POST /v1/clients/:clientId/tunnel`, in either connection mode. See `docs/tunnel.md`.
 
+`outboundTargetAddress` is `host`, `host:port` or `wss://host:port`. Without a port, `:3001`
+is appended. `wss://` dials the agent over TLS, which requires the agent to serve it (see
+[client.md](client.md)); a bare address, or one written `ws://`, is dialled as plaintext. Any
+other scheme, and a path, query or credentials, are refused — the value is interpolated into a
+WebSocket URL. What is stored is the normalised form.
+
 **Example Request:**
 
 ```json

@@ -205,6 +205,35 @@ Once TLS is in front of it you can switch on `security.hsts` in the config.
     months, and turning the header off again does not undo it. On an installation that
     is still on plain HTTP it locks your users out. Only switch it on behind TLS.
 
+### TLS to an outbound agent
+
+An outbound agent is dialled by the server, and the agent's auth token travels in the
+`/ws/agent` query string. Over plain `ws://` that token is readable by anything on the path.
+The SSH reverse tunnel does not cover this — it carries backup traffic to the PBS, is asked
+for per run and released afterwards, while the agent session stands beside it.
+
+Two settings, one on each side:
+
+1. The agent serves TLS — a `tls` block naming a certificate and key in its `config.yaml`
+   (see [client.md](client.md)), or a reverse proxy terminating TLS in front of it.
+2. The client's **target address** says so: `wss://host:port` instead of `host:port`, set in
+   the client editor or when the client is added.
+
+They have to agree. An address written `wss://` against an agent serving plain HTTP fails to
+connect, and so does a bare address against an agent serving TLS. Addresses stored before
+this existed keep working unchanged — a bare `host:port` still means `ws://`.
+
+By default the server verifies the agent's certificate. An agent on a home network usually
+carries a self-signed one, and running a CA for a handful of hosts is more than that warrants:
+
+```yaml
+security:
+    allow_self_signed_agent_certificates: true
+```
+
+It applies to every outbound agent alike and only where the address is `wss://`. The PBS
+certificate is a different matter and stays pinned by its fingerprint.
+
 ### Restricting where agents may connect from
 
 `security.allowed_networks` limits `/ws/agent` to a set of CIDR networks. It is empty by
