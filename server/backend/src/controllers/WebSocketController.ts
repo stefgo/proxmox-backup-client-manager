@@ -140,11 +140,21 @@ export class WebSocketController {
             return;
         }
 
-        // Outbound clients are dialed BY the server and have no allowed address to check.
-        const isInbound =
-            client.connection_mode !== CONNECTION_MODE.OUTBOUND;
+        // An outbound client is dialed by the server and never connects here. Refused
+        // explicitly: its auth token has no allowed address, and with null meaning "check
+        // switched off" that token would otherwise be accepted from anywhere. Skipping
+        // the check for it, as this used to, left exactly that hole open.
+        if (client.connection_mode === CONNECTION_MODE.OUTBOUND) {
+            fastify.log.warn({
+                msg: "Outbound client tried to connect inbound",
+                ip: clientIp,
+                clientId: client.id,
+            });
+            socket.close(4003, "Access denied");
+            return;
+        }
 
-        if (isInbound && !isIpAllowed(clientIp, client.inbound_allowed_ip)) {
+        if (!isIpAllowed(clientIp, client.inbound_allowed_ip)) {
             fastify.log.warn({
                 msg: "IP mismatch for client",
                 expected: client.inbound_allowed_ip,
@@ -303,7 +313,15 @@ export class WebSocketController {
                 const data = JSON.parse(message.toString()) as WsMessage;
 
                 if (!isAuthenticated) {
-                    if (data.type !== WS_EVENTS.AUTH) return;
+                    // Turned away rather than ignored. Dropping the message left the
+                    // connection standing until the timeout closed it, and the peer was
+                    // never told why nothing happened -- the inbound path has always
+                    // refused the same case outright.
+                    if (data.type !== WS_EVENTS.AUTH) {
+                        notifyAuthResult(false);
+                        socket.close(4003, "Forbidden");
+                        return;
+                    }
 
                     const parsed = AuthPayloadSchema.safeParse(data.payload);
                     if (!parsed.success) {
