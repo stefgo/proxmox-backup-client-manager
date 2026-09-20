@@ -65,4 +65,30 @@ export class TokenRepository {
             .prepare("DELETE FROM registration_tokens WHERE token = ?")
             .run(token);
     }
+
+    /**
+     * Drops used and expired tokens older than `cutoff`, but always keeps the
+     * `minCount` newest of them, so a freshly cleaned table still shows recent
+     * history. Returns how many rows went.
+     */
+    static deleteExpired(minCount: number, cutoff: string): number {
+        const result = db
+            .prepare(
+                `
+            DELETE FROM registration_tokens
+            WHERE token IN (
+                SELECT token FROM (
+                    SELECT token,
+                           ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn,
+                           COALESCE(used_at, expires_at, created_at) as compare_date
+                    FROM registration_tokens
+                    WHERE used_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at < datetime('now'))
+                )
+                WHERE rn > ? AND compare_date < ?
+            )
+        `,
+            )
+            .run(minCount, cutoff);
+        return result.changes;
+    }
 }
