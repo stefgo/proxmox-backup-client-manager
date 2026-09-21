@@ -241,7 +241,8 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     /**
      * What the save button asks before enabling itself. The backend rejects a job without
      * a repository with a bare 400, and a schedule without a start has no first run -- so
-     * both are decided here instead of in a dialog after the click.
+     * both are decided here instead of in a dialog after the click. Encryption without a
+     * key is refused by the agent at run time, so it is not saved either.
      */
     const canSaveJob =
         isDirty &&
@@ -249,7 +250,8 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         !!newJobName.trim() &&
         jobArchives.length > 0 &&
         !!jobRepository &&
-        !(scheduleEnabled && (!scheduleStartDate || !scheduleStartTime));
+        !(scheduleEnabled && (!scheduleStartDate || !scheduleStartTime)) &&
+        !(encryptionEnabled && !encryptionKeyContent);
 
     const saveBackupJob = async () => {
         // `canSaveJob` already covers this, but saveBackupJob is exported through

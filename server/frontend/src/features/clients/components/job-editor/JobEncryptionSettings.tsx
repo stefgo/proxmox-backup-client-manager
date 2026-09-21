@@ -31,19 +31,22 @@ export const JobEncryptionSettings: React.FC = () => {
         setEncryptionEnabled(false);
     };
 
+    // Encryption is switched on only once there is a key. Enabling it first let a save
+    // during generation store `enabled` without a key, which ran as a plain-text backup.
     const handleToggle = async () => {
         if (isGenerating) return;
-        const nextState = !encryptionEnabled;
-        setEncryptionEnabled(nextState);
+        if (encryptionEnabled) {
+            setEncryptionEnabled(false);
+            return;
+        }
 
-        if (nextState && !encryptionKeyContent) {
+        if (!encryptionKeyContent) {
             setIsGenerating(true);
             const success = await generateKey();
             setIsGenerating(false);
-            if (!success) {
-                setEncryptionEnabled(false);
-            }
+            if (!success) return;
         }
+        setEncryptionEnabled(true);
     };
 
     return (
@@ -55,7 +58,7 @@ export const JobEncryptionSettings: React.FC = () => {
                     value={encryptionEnabled || isGenerating}
                     onChange={handleToggle}
                     disabled={isGenerating}
-                    label={encryptionEnabled ? (isGenerating ? 'Generating Key...' : 'Enabled') : 'Disabled'}
+                    label={isGenerating ? 'Generating Key...' : (encryptionEnabled ? 'Enabled' : 'Disabled')}
                     classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
                 />
 

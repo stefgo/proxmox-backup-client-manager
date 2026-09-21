@@ -242,6 +242,17 @@ export class Executor {
         const startTime = new Date().toISOString();
 
         try {
+            // A job that asks for encryption and has no key must not quietly fall back
+            // to a plain-text backup; failing the run is what tells the operator.
+            if (
+                jobConfigData.encryption?.enabled &&
+                !jobConfigData.encryption.keyContent
+            ) {
+                throw new Error(
+                    "Encryption is enabled for this job but no key is stored — refusing to run an unencrypted backup.",
+                );
+            }
+
             // Encryption: write keyContent to a temp file and configure --keyfile
             if (jobConfigData.encryption?.keyContent) {
                 try {
