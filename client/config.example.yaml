@@ -31,6 +31,14 @@ registrationSecret:
 # Only relevant for outbound clients. Set to 0 to disable the delay.
 tunnelAcquireJitterSeconds: 30
 
+# Show the status page at /status (default: true).
+enableStatusPage: true
+
+# Show the register page at /register (default: true).
+# Registering through it requires the setup PIN printed to the agent's log on startup.
+# Disable once the client is registered and no re-registration is expected.
+enableRegisterPage: true
+
 # TCP port for the local web UI and, in outbound mode, for the /ws/register and
 # /ws/agent endpoints the server dials. Change this if 3001 is already taken on the
 # host — the port must then also appear in the client's target address on the server

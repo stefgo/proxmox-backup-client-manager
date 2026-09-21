@@ -1,7 +1,7 @@
 import { logger } from "@pbcm/shared/node";
 import { config } from "./Config.js";
 import { getIdentity, isRegistered } from "./Identity.js";
-import { getAgentMode } from "./RegistrationState.js";
+import { getAgentMode, getRegistrationSecret, getServerUrl } from "./RegistrationState.js";
 import { Connection } from "./Connection.js";
 import { Executor } from "../features/Executor.js";
 import { Scheduler } from "../features/Scheduler.js";
@@ -24,9 +24,20 @@ let activityStarted = false;
 
 export async function startAgentActivity(): Promise<boolean> {
     if (!isRegistered()) {
+        // Only the ways that are actually open: an operator told to use a page that is
+        // switched off would go looking for a fault that is not there.
+        const ways: string[] = [];
+        if (config.enableRegisterPage) {
+            ways.push(`via the register page (port ${config.listenPort})`);
+        }
+        if (!getServerUrl() && getRegistrationSecret()) {
+            ways.push("from the server (outbound mode)");
+        }
         logger.warn(
-            "Client is not registered — no jobs will run. Register it via the Web UI " +
-                `(port ${config.listenPort}) or, in outbound mode, from the server.`,
+            ways.length > 0
+                ? `Client is not registered — no jobs will run. Register it ${ways.join(" or ")}.`
+                : "Client is not registered — no jobs will run, and there is no way to register it: " +
+                      "enable the register page, or set a registrationSecret without a serverUrl for outbound mode.",
         );
         return false;
     }

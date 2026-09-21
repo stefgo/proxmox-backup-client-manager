@@ -506,7 +506,9 @@ build. Only a release moves `latest`.
 
 `build.yml` starts what it just built and asks it whether it is alive: `docker run` on
 the server image and on the agent image, then `GET /api/health` on both until they answer
-or a minute passes.
+or a minute passes. The agent's route answers loopback only, so it is asked through
+`docker exec`; a second step checks that the same request from the runner does **not**
+answer.
 
 **This is the only place in the pipeline where the images are ever executed.**
 Everything before it proves that the code compiles, not that the result runs -- an image

@@ -110,6 +110,28 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 
 The client includes a micro-server (Fastify) for local management and initial setup.
 
+Which routes it serves is settled at startup from `config.yaml` (`getWebRoutes()`):
+
+| Routes | Served when |
+| :----- | :---------- |
+| `/status`, `/api/status/connection`, `POST /api/connect` | `enableStatusPage` (default `true`) |
+| `/register`, `POST /api/register` | `enableRegisterPage` (default `true`) |
+| `/`, `/api/status/server`, `/api/status/auth`, the static files | either page is enabled |
+| `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl`, and a `registrationSecret` **or** an identity |
+| `/api/health` | the agent runs in its container image (`PBCM_CONTAINER=true`); answers loopback only |
+
+A `serverUrl` means inbound mode, which needs no route here — the agent dials the server.
+The identity counts for outbound because registering consumes the secret: a registered
+outbound agent has only its identity left and still needs `/ws/agent`. Since the routes are
+fixed at startup while the mode is not, `/ws/agent` also refuses a connection once the agent
+has been registered inbound through its register page.
+
+The static handler leaves out the HTML file of a disabled page, so `/status.html` is not a
+way around `enableStatusPage: false`. With neither page nor outbound mode the server binds
+`127.0.0.1` for the health route alone; outside the container it then does not start at
+all, and says so in the log. This replaces `DISABLE_WEB_UI`, which switched off the
+outbound routes and the health route along with the pages.
+
 Plain HTTP unless `config.yaml` carries a `tls` block:
 
 ```yaml
@@ -127,7 +149,7 @@ It is unrelated to the SSH reverse tunnel, which carries backup traffic to the P
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. The PBCM server's certificate is verified for the registration request and for the WebSocket connection; for a server with a self-signed certificate set `allowSelfSignedCertificates: true`, which then applies to both. Only the reachability check tolerates any certificate, since it sends nothing and trusts nothing it receives. The decision is made per request (`core/ServerHttp.ts`, the WebSocket options) — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above, and later a tolerant registration followed by a strict WebSocket, so a self-signed server registered but never connected.
 - **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` requires a PIN that the agent
-  prints to its log on startup while it has no identity (`docker logs`,
+  prints to its log on startup while it has no identity and the register page is enabled (`docker logs`,
   `journalctl -u pbcm-client`). Without it, anyone who can route to `listenPort` could
   point an unregistered agent at a server of their choosing — the caller supplies both the
   server URL and the token. `allowedNetworks` cannot serve as that check (see below), so

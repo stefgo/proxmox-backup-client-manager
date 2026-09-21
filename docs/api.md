@@ -69,8 +69,10 @@
 answer discloses nothing. This is what the container's `HEALTHCHECK` calls, and what the
 CI smoke test asks after starting a freshly built image.
 
-The agent exposes the same endpoint on its own web UI port (`3001` by default), where it
-serves the same purpose.
+The agent exposes the same endpoint on its own web UI port (`3001` by default), for its
+container's `HEALTHCHECK` only: it is served only in the container image and answers only
+requests from loopback. Everyone else gets `404`. Instead of the database it checks that its
+data directory is writable.
 
 #### Response
 

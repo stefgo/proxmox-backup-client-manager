@@ -116,6 +116,8 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
+| `enableStatusPage` | Serve the status page at `/status` (default: `true`). |
+| `enableRegisterPage` | Serve the register page at `/register` and `POST /api/register` behind it (default: `true`). Worth switching off once the agent is registered. Without it, no setup PIN is printed. |
 
 ### Job execution
 

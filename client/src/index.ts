@@ -5,25 +5,23 @@ import { importLegacyDatabase } from "./core/LegacyImport.js";
 import { isRegistered } from "./core/Identity.js";
 import { logSetupPin } from "./core/SetupPin.js";
 import { ensureDataDir } from "./core/DataStore.js";
+import { config } from "./core/Config.js";
 
 ensureDataDir();
 
 // An agent that still has its SQLite database moves its jobs into the data files first.
 await importLegacyDatabase();
 
-// Start Client Web Server (can be disabled via DISABLE_WEB_UI=true). It runs whether or not
-// the agent is registered — it is the surface an operator registers it through.
-if (process.env.DISABLE_WEB_UI !== "true") {
-    startWebServer();
+// Start Client Web Server. Which routes it serves -- and whether it starts at all -- follows
+// from config.yaml; see getWebRoutes(). It runs whether or not the agent is registered: the
+// register page and /ws/register are the surfaces it is registered through.
+await startWebServer();
 
-    // The setup PIN guards /api/register and only matters while there is no identity
-    // yet. Printed here rather than inside the web server so it lands after the
-    // "listening on port" line, where an operator is already looking.
-    if (!isRegistered()) {
-        logSetupPin();
-    }
-} else {
-    logger.info("Web UI disabled via DISABLE_WEB_UI environment variable.");
+// The setup PIN guards /api/register and only matters while there is no identity yet and
+// the register page is served. Printed here rather than inside the web server so it lands
+// after the "listening on" line, where an operator is already looking.
+if (config.enableRegisterPage && !isRegistered()) {
+    logSetupPin();
 }
 
 // Scheduler and the server connection start only for a registered agent. An

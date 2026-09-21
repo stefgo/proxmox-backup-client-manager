@@ -133,6 +133,17 @@ export const AgentConfigSchema = z.looseObject({
      * dials it.
      */
     tls: blockOrMissing(AgentTlsConfigSchema.optional()),
+    /**
+     * Serve the status page at `/status`, with the endpoints only it calls. On by default,
+     * which is how the agent behaved before the setting existed.
+     */
+    enableStatusPage: blockOrMissing(z.boolean().default(true)),
+    /**
+     * Serve the register page at `/register` and the `/api/register` endpoint behind it.
+     * Worth switching off once the agent is registered: that endpoint decides which server
+     * the agent obeys, and the setup PIN is the only thing guarding it.
+     */
+    enableRegisterPage: blockOrMissing(z.boolean().default(true)),
 });
 
 export type AgentConfigParsed = z.output<typeof AgentConfigSchema>;
