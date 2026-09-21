@@ -1,6 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { LoginPayloadSchema } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
+import { LoginPayloadSchema, firstIssue } from "@pbcm/shared";
 import { AuthService } from "../services/AuthService.js";
 import { appConfig } from "../config/AppConfig.js";
 import {

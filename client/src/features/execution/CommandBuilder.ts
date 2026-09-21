@@ -1,5 +1,6 @@
 import { BackupJob, RestoreSnapshotPayload } from "@pbcm/shared";
-import { config, requireClientId } from "../../core/Config.js";
+import { config } from "../../core/Config.js";
+import { requireClientId } from "../../core/Identity.js";
 
 /**
  * Turns a stored job configuration into the argument list for `proxmox-backup-client`.

@@ -83,7 +83,7 @@ services:
 
 `proxmox-backup-client` is part of the image — the host needs no Proxmox packages.
 
-1. Copy `client/config.example.yaml` to `client-config.yaml`. Leave `clientId` and `authToken` empty; the server issues both.
+1. Copy `client/config.example.yaml` to `client-config.yaml`. The agent's identity is issued by the server at registration and kept in its data volume, not in this file.
 2. Run `docker compose up -d`, then read the setup PIN from `docker compose logs pbcm-client`.
 3. Open `http://<this-host>:3001/register` and enter the server URL, a registration token from the dashboard, and the PIN.
 

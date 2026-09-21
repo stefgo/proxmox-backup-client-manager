@@ -3,8 +3,7 @@ import { FastifyReply, FastifyRequest } from "fastify";
 // unlike `Client` — so it has to come off the default export.
 import ssh2 from "ssh2";
 import { z } from "zod";
-import { TunnelConfigSchema } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
+import { TunnelConfigSchema, firstIssue } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";

@@ -2,7 +2,7 @@ import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "@pbcm/shared/node";
 import { startAgentActivity } from "./core/Lifecycle.js";
 import { importLegacyDatabase } from "./core/LegacyImport.js";
-import { isRegistered } from "./core/Config.js";
+import { isRegistered } from "./core/Identity.js";
 import { logSetupPin } from "./core/SetupPin.js";
 
 // An agent that still has its SQLite database moves its jobs into the data files first.

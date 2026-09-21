@@ -1,6 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { CleanupSettingsSchema } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
+import { CleanupSettingsSchema, firstIssue } from "@pbcm/shared";
 import { SettingsService } from "../services/SettingsService.js";
 
 export class SettingsController {

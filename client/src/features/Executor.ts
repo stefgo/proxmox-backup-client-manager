@@ -1,6 +1,7 @@
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { JobRepository } from "../repositories/JobRepository.js";
-import { config, isRegistered } from "../core/Config.js";
+import { config } from "../core/Config.js";
+import { isRegistered } from "../core/Identity.js";
 import {
     WS_EVENTS,
     ProtocolMap,

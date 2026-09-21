@@ -1,5 +1,7 @@
 import { logger } from "@pbcm/shared/node";
-import { config, isOutboundMode, isRegistered } from "./Config.js";
+import { config } from "./Config.js";
+import { getIdentity, isRegistered } from "./Identity.js";
+import { getAgentMode } from "./RegistrationState.js";
 import { Connection } from "./Connection.js";
 import { Executor } from "../features/Executor.js";
 import { Scheduler } from "../features/Scheduler.js";
@@ -34,7 +36,7 @@ export async function startAgentActivity(): Promise<boolean> {
     if (activityStarted) return true;
     activityStarted = true;
 
-    logger.info({ clientId: config.clientId }, "Starting agent activity");
+    logger.info({ clientId: getIdentity()?.clientId }, "Starting agent activity");
 
     // Tidy up what a previous process left behind before anything new is started, so a run
     // cut short by a restart does not stay 'running' forever.
@@ -45,7 +47,7 @@ export async function startAgentActivity(): Promise<boolean> {
 
     // In outbound mode the server dials us: the agent only hosts /ws/register and /ws/agent
     // and must not try to connect out (it has no server URL to connect to).
-    if (isOutboundMode()) {
+    if (getAgentMode() === "outbound") {
         logger.info(
             "Outbound connection mode: waiting for the server to connect to this agent.",
         );

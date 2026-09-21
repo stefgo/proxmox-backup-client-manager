@@ -1,7 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import bcrypt from "bcryptjs";
-import { CreateUserSchema, UpdateUserSchema } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
+import { CreateUserSchema, UpdateUserSchema, firstIssue } from "@pbcm/shared";
 import { UserRepository } from "../repositories/UserRepository.js";
 
 export class UserController {

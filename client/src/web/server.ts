@@ -5,14 +5,14 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
+import { config, readTlsMaterial } from "../core/Config.js";
+import { getIdentity, isRegistered, setIdentity } from "../core/Identity.js";
 import {
-    config,
+    consumeRegistrationSecret,
+    getRegistrationSecret,
+    getServerUrl,
     setServerUrl,
-    persistIdentity,
-    isRegistered,
-    deleteRegistrationSecret,
-    readTlsMaterial,
-} from "../core/Config.js";
+} from "../core/RegistrationState.js";
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
@@ -144,7 +144,7 @@ export async function startWebServer() {
         "/api/status/server",
         async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
-            const checkUrl = query.url || config.serverUrl;
+            const checkUrl = query.url || getServerUrl();
             let serverReachable = false;
 
             if (checkUrl) {
@@ -263,7 +263,7 @@ export async function startWebServer() {
             // the client's old row on the server behind, jobs and history included.
             if (isRegistered()) {
                 return reply.status(409).send({
-                    error: "This client is already registered. Remove clientId and authToken from its config.yaml to register it again.",
+                    error: "This client is already registered. Delete identity.json from its data directory to register it again.",
                 });
             }
 
@@ -297,8 +297,8 @@ export async function startWebServer() {
                 const data = JSON.parse(response.text);
 
                 if (data.token && data.clientId) {
+                    setIdentity(data.clientId, data.token);
                     setServerUrl(url);
-                    persistIdentity(data.clientId, data.token);
                     // There is an identity now, so the PIN has nothing left to protect.
                     clearSetupPin();
                     logger.info(
@@ -349,7 +349,7 @@ export async function startWebServer() {
  * therefore has to allow the proxy's address, not the server's.
  */
 const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
-    isIpInNetworks(req.ip, config.allowedNetworks ?? [], true);
+    isIpInNetworks(req.ip, config.allowedNetworks, true);
 
     // Outbound connection mode: the server dials this agent instead of the other way
     // round. Registration is only possible while a one-time secret is configured and no
@@ -370,7 +370,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                 socket.close(4003, "Already registered");
                 return;
             }
-            if (!config.registrationSecret) {
+            if (!getRegistrationSecret()) {
                 socket.close(4003, "No registration secret configured");
                 return;
             }
@@ -390,7 +390,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
                     const { secret, authToken, clientId } =
                         message.payload || {};
-                    if (!secretEquals(secret, config.registrationSecret)) {
+                    if (!secretEquals(secret, getRegistrationSecret())) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
                         socket.send(
@@ -421,8 +421,8 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                         return;
                     }
 
-                    persistIdentity(clientId, authToken);
-                    deleteRegistrationSecret();
+                    setIdentity(clientId, authToken);
+                    consumeRegistrationSecret();
                     clearTimeout(timeout);
 
                     logger.info("Registration successful, identity stored");
@@ -467,13 +467,14 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             // The id is checked as well as the token: the server has to be dialling the
             // client it thinks it is, or a target address pointed at the wrong host
             // would hand that host somebody else's jobs.
-            if (!secretEquals(token, config.authToken)) {
+            const identity = getIdentity();
+            if (!secretEquals(token, identity?.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
             }
 
-            if (!clientId || clientId !== config.clientId) {
+            if (!clientId || clientId !== identity?.clientId) {
                 logger.warn(
                     { presented: clientId },
                     "Agent connection from the server rejected: client id mismatch",

@@ -73,9 +73,9 @@ curl -fsSLo client-config.yaml \
     https://raw.githubusercontent.com/stefgo/proxmox-backup-client-manager/main/client/config.example.yaml
 ```
 
-Leave `clientId` and `authToken` empty. **Both are issued by the server during
-registration** and written into this file for you; setting them by hand is how a host ends
-up with an identity the server does not know. Every key is documented in
+The file holds only what you set. The agent's identity -- its `clientId` and `authToken`,
+**both issued by the server during registration** -- is not written into it but into
+`identity.json` in the agent's data volume. Every key is documented in
 [Configuration](setup.md#client).
 
 ## 2. Write the Compose file
@@ -89,10 +89,12 @@ services:
         ports:
             - "3001:3001"
         volumes:
-            # Configuration, created in step 1 — the agent writes its identity back here
+            # Configuration, created in step 1. The agent writes back to it only the
+            # serverUrl of a web UI registration and the used registrationSecret.
             - ./client-config.yaml:/app/client/config.yaml
-            # Data directory: the agent's jobs, their schedule state and its run history.
-            # The jobs exist nowhere else -- back this volume up with the host.
+            # Data directory: the identity issued at registration, the agent's jobs, their
+            # schedule state and its run history. The jobs exist nowhere else, and without
+            # the identity the agent has to be registered again -- back this volume up.
             - client-data:/app/client/data
             # The data to back up. Read-only is enough for backups; see the note below.
             - /:/mnt/host:ro
@@ -187,8 +189,8 @@ changed afterwards**.
         is taken on the host, set a free one via `PBCM_CLIENT_PORT` and enter that same
         port in the client's target address on the server.
 
-Either way the agent writes the `clientId` and `authToken` it was issued into
-`client-config.yaml`, and the client turns online in the dashboard.
+Either way the agent stores the `clientId` and `authToken` it was issued in
+`identity.json` in its data volume, and the client turns online in the dashboard.
 
 ![The agent's registration form, asking for server URL, registration token and setup PIN](assets/screenshots/agent-register.png)
 
@@ -251,6 +253,11 @@ docker compose up -d
 
 In the same window as the server update.
 
+An agent that still has its `clientId` and `authToken` in `client-config.yaml` moves them
+into `identity.json` in its data volume on the first start, and removes the two keys and
+their comments from the file only once the new one is written. If the data volume is not
+writable, the identity stays where it is and the log says so.
+
 An agent that still keeps its jobs in the SQLite database of an older version (`client.db`
 in the data volume) imports them into the data files on its first start and renames the
 database to `client.db.migrated`. Only the jobs and their schedule state are taken over,
@@ -266,8 +273,10 @@ path, close code `4003 Already registered` in outbound mode. That guard is delib
 move a host on purpose:
 
 1. Stop the container.
-2. Remove `clientId` and `authToken` from `client-config.yaml` (and set a fresh
-   `registrationSecret` for outbound mode).
+2. Delete `identity.json` from the data volume, e.g.
+   `docker run --rm -v pbcm-client_client-data:/data alpine rm /data/identity.json`
+   (the volume name depends on your Compose project), and set a fresh
+   `registrationSecret` in `client-config.yaml` for outbound mode.
 3. Start it again — a new setup PIN is printed — and register as in step 3.
 4. Delete the old client row in the dashboard.
 

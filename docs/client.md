@@ -17,13 +17,16 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 client/src/
 ├── core/                   # Base services: config, data files, WebSocket, process-wide helpers
 │   ├── CappedLog.ts        # Head-and-tail bounded capture of a run's output
-│   ├── Config.ts           # YAML config loader and writer
+│   ├── Config.ts           # config.yaml, validated once and frozen
+│   ├── ConfigFile.ts       # The YAML document itself, edited with the operator's comments kept
 │   ├── Connection.ts       # WebSocket client with auto-reconnect
 │   ├── DataStore.ts        # Data directory, atomic JSON writes, setting damaged files aside
+│   ├── Identity.ts         # clientId + authToken in identity.json, and their move out of config.yaml
 │   ├── ServerHttp.ts       # Requests to the PBCM server, certificate check decided per call
 │   ├── LegacyImport.ts     # One-time import of jobs from an older client.db
 │   ├── Lifecycle.ts        # The single gate between "running" and "working"
 │   ├── LogStream.ts        # Batched LOG_UPDATE frames (250 ms / 8 KB)
+│   ├── RegistrationState.ts # serverUrl and registrationSecret as a registration changes them; agent mode
 │   ├── SetupPin.ts         # In-memory PIN guarding local registration
 │   └── Version.ts          # Agent version, read from dist/VERSION
 ├── features/               # Business logic
@@ -72,8 +75,8 @@ The `Connection` class manages the persistent WebSocket connection to the centra
 
 - **Features**: Automatic reconnection, ping/pong health checks, and secure transmission of all payload data.
 - **Reconnect**: The delay steps through `5s → 10s → 30s → 60s` and then stays there, with up to 3s of jitter added each time. The same ladder as `ClientConnector.RECONNECT_DELAYS` on the server, which dials outbound agents — the two directions of one link should not behave differently. Before this it was a flat 5s with no jitter, so a fleet of agents and one server restart meant all of them knocking on the same beat. The counter resets on `AUTH_SUCCESS`, not when the socket opens: a connection that dies before the handshake is not a working one. All reconnects go through a single timer, and a connect that times out closes its socket — leaving it open used to let a later `connect()` close it, whose close handler then scheduled a second reconnect alongside the attempt already running.
-- **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `config.yaml`. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
-- **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, remove `clientId` and `authToken` from its `config.yaml` first.
+- **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `identity.json` in its data directory. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
+- **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, delete `identity.json` from its data directory first.
 
 ### 2. Job Scheduler (`src/features/Scheduler.ts`)
 
@@ -179,6 +182,7 @@ the agent run its scheduled backups with no server in reach.
 
 | File                  | Contents                                                              |
 | :-------------------- | :-------------------------------------------------------------------- |
+| `identity.json`       | `clientId` and `authToken`, issued by the server at registration. Without it the agent is unregistered. An older agent's pair is moved here out of `config.yaml` on the first start. |
 | `jobs.json`           | The job configurations. The **only copy** there is: the server lists, saves and deletes jobs through the agent and keeps none of them. |
 | `schedule.json`       | Last and next run time per job. Written on every scheduled run, so it is kept apart from `jobs.json`. |
 | `history/<run>.json`  | One file per run: status, timing, exit code, output, and the sync revisions. |
@@ -202,7 +206,7 @@ the agent run its scheduled backups with no server in reach.
 
 Two separate things, and the agent treats them as such.
 
-With a `registrationSecret` set (or an `authToken` without a `serverUrl`), the agent runs in
+With a `registrationSecret` set (or an identity without a `serverUrl`), the agent runs in
 **outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
 instead. That is the whole of it — it says nothing about how the PBS is reached.
 

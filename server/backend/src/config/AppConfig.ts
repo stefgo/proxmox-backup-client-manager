@@ -9,8 +9,8 @@ import {
     DEFAULT_SERVER_PORT,
     TunnelSettingsSchema,
     type AppConfigParsed,
+    firstIssue,
 } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
 
 import crypto from "crypto";
 
