@@ -34,7 +34,6 @@ environment:
 
 | Variable            | Description |
 | :------------------ | :---------- |
-| `SERVER_URL`        | Overrides `serverUrl` from `config.yaml`. |
 | `PBCM_CLIENT_PORT`  | Overrides `listenPort` from `config.yaml`. Needed with `network_mode: host` when 3001 is taken — the same port must then appear in the client's target address on the server. |
 | `PBCM_CLIENT_CONFIG` | Path of the agent's `config.yaml` (default: `client/config.yaml`). |
 | `PBCM_CLIENT_DATA_DIR` | Where the agent keeps its jobs, schedule state and run history (default: `client/data`, the `client-data` volume in the image), and its `identity.json`. For an agent that runs outside the container. |
