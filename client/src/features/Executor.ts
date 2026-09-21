@@ -13,6 +13,7 @@ import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 import { ProcessRunner } from "./execution/ProcessRunner.js";
 import {
+    KEYFILE_PREFIX,
     writeTempKeyfile,
     removeTempKeyfile,
     applyRepositoryEnv,
@@ -406,7 +407,7 @@ export class Executor {
                     tempKeyfilePath = writeTempKeyfile(
                         runId,
                         encryption.keyContent,
-                        "pbcm_restore_key",
+                        KEYFILE_PREFIX.restore,
                     );
                 } catch (e: unknown) {
                     logger.error(

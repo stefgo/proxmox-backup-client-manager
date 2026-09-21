@@ -93,7 +93,7 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
 
 | Module               | Responsibility                                                                    |
 | :------------------- | :-------------------------------------------------------------------------------- |
-| `RunPreparation.ts`  | Everything both kinds of run need before the spawn: the temporary keyfile, the repository environment (`PBS_REPOSITORY`, `PBS_PASSWORD_FD`, `PBS_FINGERPRINT`), and the fingerprint resolution. Backup and restore each kept their own copy of this — the arrangement in which the keyfile cleanup already went missing once. |
+| `RunPreparation.ts`  | Everything both kinds of run need before the spawn: the temporary keyfile, the repository environment (`PBS_REPOSITORY`, `PBS_PASSWORD_FD`, `PBS_FINGERPRINT`), and the fingerprint resolution. Backup and restore each kept their own copy of this — the arrangement in which the keyfile cleanup already went missing once. The keyfile is created exclusively (`0600`), and keyfiles a killed process left in the temp directory are removed at startup. |
 | `CommandBuilder.ts`  | `buildBackupArgs` / `buildRestoreArgs`. Pure functions with no I/O, and therefore the first part of the agent that can be checked without a running process. |
 | `ProcessRunner.ts`   | `runProxmoxClient`, `runScript`, `finishFailedRun` — everything that starts a child process and reports what became of it. Takes an `onSlotRelease` callback rather than knowing about the queue. |
 

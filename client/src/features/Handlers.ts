@@ -17,6 +17,7 @@ import { Connection } from "../core/Connection.js";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
+import { KEYFILE_PREFIX } from "./execution/RunPreparation.js";
 
 export class Handlers {
     static handleRunJob(payload: RunJobPayload) {
@@ -212,7 +213,7 @@ export class Handlers {
         const command = config.executable || "proxmox-backup-client";
         const tempFilePath = path.join(
             os.tmpdir(),
-            `pbcm_keygen_${randomUUID()}.json`,
+            `${KEYFILE_PREFIX.keygen}_${randomUUID()}.json`,
         );
         const args = ["key", "create", tempFilePath, "--kdf", "none"];
 

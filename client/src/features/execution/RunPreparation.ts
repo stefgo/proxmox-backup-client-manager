@@ -19,20 +19,62 @@ const buildRepositoryValue = (repo: Repository) =>
  * cleanup already went missing once — the comment on `runProxmoxClient` records it.
  */
 
+/** Prefixes of the temporary files that hold an encryption key in plain text. */
+export const KEYFILE_PREFIX = {
+    backup: "pbcm_key",
+    restore: "pbcm_restore_key",
+    keygen: "pbcm_keygen",
+} as const;
+
+const STALE_KEYFILE = new RegExp(
+    `^(${Object.values(KEYFILE_PREFIX).join("|")})_.+\\.json$`,
+);
+
 /**
  * Writes the PBS encryption key to a temporary file and returns its path.
  *
  * Mode 0600: the file holds the key in plaintext for the length of the run. The caller is
  * responsible for removing it on every exit path — see `removeTempKeyfile`.
+ *
+ * Created exclusively (`wx`): the mode only applies to a file that is created, so writing
+ * into whatever already sits at the path — a leftover, or a symlink someone planted in the
+ * shared temp directory — would hand the key to its owner. The run fails instead.
  */
 export function writeTempKeyfile(
     runId: string,
     keyContent: string,
-    prefix = "pbcm_key",
+    prefix: string = KEYFILE_PREFIX.backup,
 ): string {
     const keyfilePath = path.join(os.tmpdir(), `${prefix}_${runId}.json`);
-    fs.writeFileSync(keyfilePath, keyContent, { mode: 0o600 });
+    fs.writeFileSync(keyfilePath, keyContent, { mode: 0o600, flag: "wx" });
     return keyfilePath;
+}
+
+/**
+ * Removes keyfiles an earlier agent process left in the temp directory. Every exit path of
+ * a run removes its own, but a process that is killed or crashes takes no exit path, and the
+ * key would stay there in plain text. Called once at startup, before any run can begin.
+ */
+export function removeStaleKeyfiles(): void {
+    const dir = os.tmpdir();
+    let removed = 0;
+    try {
+        for (const name of fs.readdirSync(dir)) {
+            if (!STALE_KEYFILE.test(name)) continue;
+            try {
+                fs.rmSync(path.join(dir, name), { force: true });
+                removed++;
+            } catch (e) {
+                logger.error({ err: e, name }, "Failed to delete a stale keyfile");
+            }
+        }
+    } catch (e) {
+        logger.warn({ err: e, dir }, "Could not scan the temp directory for stale keyfiles");
+        return;
+    }
+    if (removed > 0) {
+        logger.warn({ removed }, "Removed keyfiles left behind by an earlier run");
+    }
 }
 
 /**

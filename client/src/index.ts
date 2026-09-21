@@ -7,8 +7,13 @@ import { logSetupPin } from "./core/SetupPin.js";
 import { ensureDataDir } from "./core/DataStore.js";
 import { config } from "./core/Config.js";
 import { getRegistrationSecret, getServerUrl } from "./core/RegistrationState.js";
+import { removeStaleKeyfiles } from "./features/execution/RunPreparation.js";
 
 ensureDataDir();
+
+// Before anything can start a run: a keyfile left over from a process that was killed
+// still holds an encryption key in plain text.
+removeStaleKeyfiles();
 
 // An agent that still has its SQLite database moves its jobs into the data files first.
 await importLegacyDatabase();
