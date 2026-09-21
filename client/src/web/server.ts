@@ -51,6 +51,23 @@ const __dirname = path.dirname(__filename);
 
 let fastifyInstance: FastifyInstance | null = null;
 
+/**
+ * What to tell the operator when a registration could not be stored, or null when both
+ * halves are on disk. The identity and the server URL live in different files, and which of
+ * them failed decides what has to be made writable.
+ */
+function registrationWarning(identityStored: boolean, urlStored: boolean): string | null {
+    if (identityStored && urlStored) return null;
+    const what = !identityStored
+        ? "the identity in this agent's data directory"
+        : "the server URL in this agent's config.yaml";
+    return (
+        `Registered, but ${what} could not be written. ` +
+        "The agent is working now and will come back unregistered after a restart -- " +
+        "make the file writable and register again."
+    );
+}
+
 export async function startWebServer() {
     // Two calls rather than one conditional options object: `https` is what picks Fastify's
     // server type, so a ternary inside the argument leaves it with no overload to match.
@@ -297,8 +314,11 @@ export async function startWebServer() {
                 const data = JSON.parse(response.text);
 
                 if (data.token && data.clientId) {
-                    setIdentity(data.clientId, data.token);
-                    setServerUrl(url);
+                    // Both are stored before anything else is reported: the server has
+                    // registered this agent either way, so what is still open is only
+                    // whether the agent will still know it after a restart.
+                    const identityStored = setIdentity(data.clientId, data.token);
+                    const urlStored = setServerUrl(url);
                     // There is an identity now, so the PIN has nothing left to protect.
                     clearSetupPin();
                     logger.info(
@@ -308,9 +328,17 @@ export async function startWebServer() {
                     // The agent has been idling without an identity; now it has one.
                     await startAgentActivity();
 
+                    // Reported rather than only logged: the registration worked and the
+                    // agent is running, but it would come back unregistered. Whoever is
+                    // standing in front of the register page is the one who can fix it,
+                    // and they are not reading the log.
+                    const warning = registrationWarning(identityStored, urlStored);
+                    if (warning) logger.error(warning);
+
                     return {
                         success: true,
                         message: "Registration successful",
+                        ...(warning ? { warning } : {}),
                     };
                 } else {
                     return reply.status(500).send({
@@ -421,9 +449,19 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                         return;
                     }
 
-                    setIdentity(clientId, authToken);
+                    const identityStored = setIdentity(clientId, authToken);
                     consumeRegistrationSecret();
                     clearTimeout(timeout);
+
+                    // Logged, not sent back: the caller here is the server, which has
+                    // registered this client either way. What a failed write costs is the
+                    // next restart, and that is an operator's problem on this host.
+                    if (!identityStored) {
+                        logger.error(
+                            "Registered, but the identity could not be written to the data directory -- " +
+                                "this agent will come back unregistered after a restart.",
+                        );
+                    }
 
                     logger.info("Registration successful, identity stored");
 
