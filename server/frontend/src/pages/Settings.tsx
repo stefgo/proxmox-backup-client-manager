@@ -119,17 +119,17 @@ export default function Settings() {
             >
                 <Tabs className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 bg-app-bg border-r border-border py-4 flex flex-col gap-1">
+                    <TabList className="w-full md:w-64 shrink-0 bg-app-bg border-b md:border-b-0 md:border-r border-border py-4 flex flex-col gap-1">
                         <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
                             <Sliders size={18} /> Common
                         </Tab>
                     </TabList>
 
                     {/* Content Area */}
-                    <div className="flex-1 flex flex-col bg-card">
+                    <div className="flex-1 min-w-0 flex flex-col bg-card">
                         <div className="flex-1 p-8">
                             <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
-                                <div className="max-w-3xl space-y-8">
+                                <div className="space-y-8">
                                     <section>
                                         <div className="mb-6">
                                             <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function Settings() {
                         disabled={isSaving}
                         className="shadow-glow-accent"
                     >
-                        {isSaving ? 'Saving...' : 'Save Changes'}
+                        {isSaving ? 'Saving...' : 'Save'}
                     </Button>
                 </div>
             </Card>
