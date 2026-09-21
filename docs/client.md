@@ -115,7 +115,7 @@ Which routes it serves is settled at startup from `config.yaml` (`getWebRoutes()
 | Routes | Served when |
 | :----- | :---------- |
 | `/status`, `/api/status/connection`, `POST /api/connect` | `enableStatusPage` (default `true`) |
-| `/register`, `POST /api/register` | `enableRegisterPage` (default `true`) |
+| `/register`, `POST /api/register` | `enableRegisterPage` (default `true`); answer `404` once the agent is registered |
 | `/`, `/api/status/server`, `/api/status/auth`, the static files | either page is enabled |
 | `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl` |
 | `/api/health` | the agent runs in its container image (`PBCM_CONTAINER=true`); answers loopback only |
@@ -127,7 +127,14 @@ with the setup PIN (or `PBCM_REGISTRATION_SECRET`), and a registered one needs `
 fixed at startup while the mode is not, `/ws/agent` also refuses a connection once the agent
 has been registered inbound through its register page.
 
-The static handler leaves out the HTML file of a disabled page, so `/status.html` is not a
+The register page closes the same way, per request rather than at startup: once the agent
+has an identity, `/register` redirects to `/status` (or answers `404` without a status page),
+`register.html` is no longer served and `POST /api/register` answers `404`. There is nothing
+left to do there — registering a second time would leave the client's old row behind on the
+server — and the setup PIN that guarded it is gone with the registration. The status page
+then shows how to start over instead of a link to the register page.
+
+The static handler leaves out the HTML file of a disabled or closed page, so `/status.html` is not a
 way around `enableStatusPage: false`. With neither page nor outbound mode the server binds
 `127.0.0.1` for the health route alone; outside the container it then does not start at
 all, and says so in the log. This replaces `DISABLE_WEB_UI`, which switched off the

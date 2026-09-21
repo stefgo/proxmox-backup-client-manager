@@ -137,9 +137,10 @@ export const AgentConfigSchema = z.looseObject({
      */
     enableStatusPage: blockOrMissing(z.boolean().default(true)),
     /**
-     * Serve the register page at `/register` and the `/api/register` endpoint behind it.
-     * Worth switching off once the agent is registered: that endpoint decides which server
-     * the agent obeys, and the setup PIN is the only thing guarding it.
+     * Serve the register page at `/register` and the `/api/register` endpoint behind it,
+     * for as long as the agent is unregistered -- both close once it has an identity. Worth
+     * switching off for an agent the server registers (outbound): that endpoint decides
+     * which server the agent obeys, and the setup PIN is the only thing guarding it.
      */
     enableRegisterPage: blockOrMissing(z.boolean().default(true)),
 });

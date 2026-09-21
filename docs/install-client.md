@@ -278,8 +278,8 @@ start and says why in the log -- it would otherwise come up without its jobs.
 
 ### Re-registering a host
 
-An agent that already holds an identity refuses to register again — `409` on the Web UI
-path, close code `4003 Already registered` in outbound mode. That guard is deliberate; to
+An agent that already holds an identity refuses to register again — its register page is
+closed (`404`), and `/ws/register` closes with `4003 Already registered` in outbound mode. That guard is deliberate; to
 move a host on purpose:
 
 1. Stop the container.

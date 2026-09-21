@@ -118,7 +118,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 | `enableStatusPage` | Serve the status page at `/status` (default: `true`). |
-| `enableRegisterPage` | Serve the register page at `/register` and `POST /api/register` behind it (default: `true`). Worth switching off once the agent is registered. Without it, a setup PIN is printed only for outbound mode (no `serverUrl`, no `PBCM_REGISTRATION_SECRET`). |
+| `enableRegisterPage` | Serve the register page at `/register` and `POST /api/register` behind it (default: `true`). Both close by themselves once the agent is registered; switch it off for an agent that should only ever be registered by the server (outbound). Without it, a setup PIN is printed only for outbound mode (no `serverUrl`, no `PBCM_REGISTRATION_SECRET`). |
 
 ### Job execution
 
@@ -214,7 +214,8 @@ an unattended rollout set `PBCM_REGISTRATION_SECRET` (or `PBCM_REGISTRATION_SECR
 the agent and enter that value instead of the PIN; the agent then prints no PIN unless its
 register page is enabled.
 
-An agent that already holds an identity refuses to register again — `409` on the Web UI
-path, close code `4003 Already registered` in outbound mode. To re-register a host on
+An agent that already holds an identity refuses to register again — its register page and
+`POST /api/register` are closed (`404`), and `/ws/register` closes with `4003 Already
+registered` in outbound mode. To re-register a host on
 purpose, delete `identity.json` from its data directory first, and delete the client's old
 row in the UI afterwards. A restarted agent prints a fresh setup PIN.
