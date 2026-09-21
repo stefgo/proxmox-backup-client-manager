@@ -26,7 +26,7 @@ Three parties are involved, and only one of them is a Proxmox product:
 |---|---|---|---|
 | **Proxmox Backup Server** | Proxmox Server Solutions GmbH | The backups themselves — deduplicated, encrypted, kept as snapshots in a datastore | accepts connections from the agents and from the PBCM server |
 | **PBCM server** | this project | Metadata only: the client list, job definitions, run history and repository credentials, in SQLite | the browser, the agents, the PBS API |
-| **PBCM agent** | this project | Its own SQLite copy of the jobs assigned to it — which is what lets it keep working offline | the PBCM server, PBS |
+| **PBCM agent** | this project | The jobs assigned to it, in its own data files — which is what lets it keep working offline | the PBCM server, PBS |
 
 ```mermaid
 flowchart TB
@@ -70,7 +70,7 @@ PBCM sets up and tears down around the run.
 
 1. You define a job in the dashboard — source paths, schedule, target repository.
 2. The server hands it to the agent over `/ws/agent`, and the agent writes it into its
-   **own** SQLite database.
+   **own** data files.
 3. The agent's cron fires. **The schedule belongs to the agent, not to the server** —
    a PBCM server that is down, restarting or unreachable stops no backup.
 4. The agent assembles the `proxmox-backup-client` command, verifies the PBS TLS
@@ -180,7 +180,7 @@ with four workspaces:
 |---|---|
 | [`server/backend`](backend.md) | Fastify API server — the control plane and the WebSocket hub, holding the SQLite database of configurations and job histories. |
 | [`server/frontend`](frontend.md) | React SPA (Vite, Tailwind, Zustand), served by the backend from `server/dist/public`. |
-| [`client`](client.md) | Lightweight Node.js daemon wrapping the `proxmox-backup-client` CLI. It keeps its own SQLite copy of the job configs and runs them on schedule **even while the server is unreachable**. |
+| [`client`](client.md) | Lightweight Node.js daemon wrapping the `proxmox-backup-client` CLI. It keeps the job configs in its own data files and runs them on schedule **even while the server is unreachable**. |
 | `shared` | Single source of truth for the TypeScript types, Zod schemas and constants the other three agree on. |
 
 The central piece on the server side is the `ProxyService`: it owns the live agent

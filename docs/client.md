@@ -15,22 +15,24 @@ The client is a lightweight, headless Node.js process designed to run as a daemo
 
 ```
 client/src/
-├── core/                   # Base services: config, SQLite, WebSocket, process-wide helpers
+├── core/                   # Base services: config, data files, WebSocket, process-wide helpers
 │   ├── CappedLog.ts        # Head-and-tail bounded capture of a run's output
-│   ├── Config.ts           # YAML config loader and writer
+│   ├── Config.ts           # config.yaml, validated once and frozen
+│   ├── ConfigFile.ts       # The YAML document itself, edited with the operator's comments kept
 │   ├── Connection.ts       # WebSocket client with auto-reconnect
-│   ├── Database.ts         # SQLite initialization and migration runner
+│   ├── DataStore.ts        # Data directory, atomic JSON writes, setting damaged files aside
+│   ├── Identity.ts         # clientId + authToken in identity.json, and their move out of config.yaml
 │   ├── ServerHttp.ts       # Requests to the PBCM server, certificate check decided per call
+│   ├── LegacyImport.ts     # One-time import of jobs from an older client.db
 │   ├── Lifecycle.ts        # The single gate between "running" and "working"
 │   ├── LogStream.ts        # Batched LOG_UPDATE frames (250 ms / 8 KB)
+│   ├── RegistrationState.ts # serverUrl and registrationSecret as a registration changes them; agent mode
 │   ├── SetupPin.ts         # In-memory PIN guarding local registration
-│   ├── Version.ts          # Agent version, read from dist/VERSION
-│   └── migrations/         # Database schema migrations (Umzug)
+│   └── Version.ts          # Agent version, read from dist/VERSION
 ├── features/               # Business logic
-│   ├── Cleanup.ts          # Daily DB maintenance
 │   ├── Executor.ts         # Run orchestration and the concurrency queue
 │   ├── Handlers.ts         # WebSocket message routing
-│   ├── Scheduler.ts        # node-cron based job scheduling
+│   ├── Scheduler.ts        # Minute loop that starts jobs whose next run is due
 │   ├── TunnelClient.ts     # Requests a tunnel lease and rewrites PBS_REPOSITORY
 │   └── execution/          # The steps of a single run
 │       ├── CommandBuilder.ts
@@ -54,7 +56,7 @@ server uses, so `LOG_LEVEL` and `LOG_FORMAT` behave identically on both sides.
 ### 0. Lifecycle Gate (`src/core/Lifecycle.ts`)
 
 `startAgentActivity()` is the single gate between "the process is running" and "the agent is
-working". Scheduler, cleanup cron, the recovery of interrupted runs and the outgoing server
+working". Scheduler, the recovery of interrupted runs and the outgoing server
 connection all start there, and only for a **registered** agent.
 
 Everything the agent does happens under its identity — a backup is filed in PBS under
@@ -73,17 +75,17 @@ The `Connection` class manages the persistent WebSocket connection to the centra
 
 - **Features**: Automatic reconnection, ping/pong health checks, and secure transmission of all payload data.
 - **Reconnect**: The delay steps through `5s → 10s → 30s → 60s` and then stays there, with up to 3s of jitter added each time. The same ladder as `ClientConnector.RECONNECT_DELAYS` on the server, which dials outbound agents — the two directions of one link should not behave differently. Before this it was a flat 5s with no jitter, so a fleet of agents and one server restart meant all of them knocking on the same beat. The counter resets on `AUTH_SUCCESS`, not when the socket opens: a connection that dies before the handshake is not a working one. All reconnects go through a single timer, and a connect that times out closes its socket — leaving it open used to let a later `connect()` close it, whose close handler then scheduled a second reconnect alongside the attempt already running.
-- **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `config.yaml`. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
-- **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, remove `clientId` and `authToken` from its `config.yaml` first.
+- **Registration Flow**: If the client is unregistered, the user must provide a temporary registration `token`. The client POSTs this to the server and receives its identity in return — `clientId` and a permanent auth token, both issued by the **server** — which it saves together to `identity.json` in its data directory. The agent never picks an id for itself: the same value is the PBS `--backup-id`, so the side that decides which client a snapshot belongs to is the side that keeps the client list.
+- **Identity on connect**: Every session presents both halves (`/ws/agent?clientId=…&token=…`) and the server checks that they name the same client. An agent that already holds an identity refuses to register a second time — registering again would issue a new id and leave the old row, jobs and history included, behind on the server. To move a client to a fresh identity, delete `identity.json` from its data directory first.
 
 ### 2. Job Scheduler (`src/features/Scheduler.ts`)
 
 The Scheduler is responsible for evaluating and triggering scheduled backup jobs locally, independent of server connectivity.
 
-- It reads job configurations from the local SQLite database (synchronized from the server).
-- For each job with an active schedule, it uses `node-cron` to register a timer.
+- It reads job configurations from the agent's own `jobs.json`.
+- Once a minute it checks every job with an active schedule against its stored next run time.
 - Upon reaching the scheduled time, it triggers the `Executor` autonomously.
-- After execution, it updates the `job_schedule_state` table with the last and next run times, and emits a `JOB_NEXT_RUN_UPDATE` event to the server (if connected).
+- After execution, it records the last and next run times in `schedule.json`, and emits a `JOB_NEXT_RUN_UPDATE` event to the server (if connected).
 
 ### 3. Job Executor (`src/features/Executor.ts`)
 
@@ -99,9 +101,9 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 
 - It translates abstract JSON job configurations into CLI arguments for `proxmox-backup-client backup` or `proxmox-backup-client restore`.
 - It spawns a child process and captures real-time `stdout`/`stderr` streams, forwarding them as `LOG_UPDATE` events over the WebSocket.
-- **Bounded output** (`core/CappedLog.ts`): each channel keeps at most `logCapBytes` (default 256 KB), holding the **head and the tail** with an explicit marker where the middle was dropped. Not a ring buffer: the invocation and the first errors are at the top and the reason a run failed is at the bottom, and a ring buffer keeps only the second half. The cap matters because the captured output is paid for three times — held in memory for the whole run, written to SQLite as a BLOB, and synced to the server from there.
+- **Bounded output** (`core/CappedLog.ts`): each channel keeps at most `logCapBytes` (default 256 KB), holding the **head and the tail** with an explicit marker where the middle was dropped. Not a ring buffer: the invocation and the first errors are at the top and the reason a run failed is at the bottom, and a ring buffer keeps only the second half. The cap matters because the captured output is paid for three times — held in memory for the whole run, written to the run's history file, and synced to the server from there.
 - **Batched log frames** (`core/LogStream.ts`): `LOG_UPDATE` events are collected and sent every 250 ms or once 8 KB accumulate, rather than one frame per chunk from the pipe. Safe because these frames are display-only; what must not slip is their order against the run's final `STATUS_UPDATE`, so the stream is flushed before that and in the spawn-error path.
-- **History Synchronization** (`features/HistorySync.ts`): Every run is a row in the local SQLite database, and every change to it is sent to the server via `SYNC_HISTORY` — within a second, and in batches of 50 rows. Delivery is at-least-once: each row carries a `revision` that a trigger raises on every change, and it stays due until the server has acknowledged that revision with `HISTORY_ACK`. A batch without an ack is offered again after a minute, and everything still due goes out on every reconnect. This replaced a watermark (`lastSyncTime`, still sent for agents of an older build) that compared the server's clock with the agent's: a row the server failed to store, one written in the same second, or one from an agent whose clock lagged fell below it and was never sent again. Against a server of an older build, which sends no `historyAck` in `AUTH_SUCCESS`, the agent keeps using the watermark.
+- **History Synchronization** (`features/HistorySync.ts`): Every run is a file in the agent's `history/` directory, and every change to it is sent to the server via `SYNC_HISTORY` — within a second, and in batches of 50 runs. Delivery is at-least-once: each run carries a `revision` that `JobHistoryRepository` raises whenever a field the server stores changes, and it stays due until the server has acknowledged that revision with `HISTORY_ACK`. A batch without an ack is offered again after a minute, and everything still due goes out on every reconnect. This replaced a watermark (`lastSyncTime`, which the server still sends for agents of an older build) that compared the server's clock with the agent's: a run the server failed to store, one written in the same second, or one from an agent whose clock lagged fell below it and was never sent again. The agent no longer syncs with a server that does not acknowledge; server and agent are released together.
 - **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`probeCertificate` from `@pbcm/shared/node`, called in `features/execution/RunPreparation.ts` — the same function the server uses) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `docs/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
 ### 4. Local Web Server (`src/web/server.ts`)
@@ -172,32 +174,39 @@ do not answer a request: `RUN_BACKUP` and `RUN_RESTORE` go straight to the `Exec
 `TUNNEL_ACQUIRE_RESULT` resolves the lease the `TunnelClient` is waiting on. The validation
 table `INBOUND_SCHEMAS` in that file covers all of them, handled here or not.
 
-### 6. Cleanup (`src/features/Cleanup.ts`)
+## 🗄 Data Files
 
-To prevent the local SQLite database from growing indefinitely, the client performs daily maintenance tasks.
+The agent keeps its state as JSON files in its data directory: `client/data`, or the path in
+`PBCM_CLIENT_DATA_DIR`. In the container that is the `client-data` volume. This is what lets
+the agent run its scheduled backups with no server in reach.
 
-- **Scheduling**: Uses `node-cron` to run a cleanup job every day at 00:00.
-- **Pruning**: Deletes old `job_history` entries and orphaned `job_schedule_state` records based on the configured `retentionTime` (default: 90 days).
+| File                  | Contents                                                              |
+| :-------------------- | :-------------------------------------------------------------------- |
+| `identity.json`       | `clientId` and `authToken`, issued by the server at registration. Without it the agent is unregistered. An older agent's pair is moved here out of `config.yaml` on the first start. |
+| `jobs.json`           | The job configurations. The **only copy** there is: the server lists, saves and deletes jobs through the agent and keeps none of them. |
+| `schedule.json`       | Last and next run time per job. Written on every scheduled run, so it is kept apart from `jobs.json`. |
+| `history/<run>.json`  | One file per run: status, timing, exit code, output, and the sync revisions. |
 
-## 🗄 Database Management
-
-The client uses a minimal **SQLite3** configuration (via `better-sqlite3`) to persist its identity, the jobs downloaded from the server, and local scheduling states. This ensures the client can function and evaluate scheduled backups completely offline.
-
-Schema migrations are managed via **Umzug** and run automatically on startup.
-
-### Database Schema
-
-| Table                  | Contents                                                              |
-| :--------------------- | :-------------------------------------------------------------------- |
-| `job`                  | Job configurations synchronized from the server.                     |
-| `job_history`          | Execution records (status, output, timing) for each backup/restore run. |
-| `job_schedule_state`   | Last and next run timestamps per job for schedule tracking.           |
+- **Atomic writes**: every file is written to a temporary file, synced, and renamed over the
+  old one, so a power cut leaves either the old or the new version, never half of one.
+- **Damaged files are set aside, not overwritten**: a `jobs.json` that does not parse is
+  renamed to `jobs.json.corrupt-<timestamp>` and reported in the log; entries that do not
+  parse are dropped and the original file is kept the same way. Restore from there by hand.
+- **Retention**: a run stays until the server has acknowledged it. Of the acknowledged
+  ones, the newest 50 are kept — as many as the agent's own `HISTORY` answer returns — and
+  the rest are deleted after each acknowledgement. Queued and running runs are always kept.
+  An agent cut off from its server therefore keeps everything until it is back.
+- **Import from SQLite**: an agent that still has the `client.db` of an older version
+  imports its jobs and their schedule state on the first start and renames the database to
+  `client.db.migrated`. The **history is not imported**; runs the server had not received
+  by then do not reach it (the log says how many). The import uses `node:sqlite` and needs
+  Node 22.13 or later; if it fails, the agent does not start, so that no job is lost.
 
 ## Outbound mode and the tunnel
 
 Two separate things, and the agent treats them as such.
 
-With a `registrationSecret` set (or an `authToken` without a `serverUrl`), the agent runs in
+With a `registrationSecret` set (or an identity without a `serverUrl`), the agent runs in
 **outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
 instead. That is the whole of it — it says nothing about how the PBS is reached.
 

@@ -240,7 +240,7 @@ export class ProcessRunner {
         Connection.send(WS_EVENTS.STATUS_UPDATE, runningPayload);
 
         // Bounded, because all three destinations of this output — memory for the length
-        // of the run, a SQLite BLOB, and the sync to the server — pay for every byte.
+        // of the run, the history file, and the sync to the server — pay for every byte.
         const stdoutLog = new CappedLog(config.logCapBytes);
         const stderrLog = new CappedLog(config.logCapBytes);
         const logStream = new LogStream(runId);

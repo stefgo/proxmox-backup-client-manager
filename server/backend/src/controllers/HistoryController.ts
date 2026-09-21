@@ -1,6 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { HistoryQuerySchema } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
+import { HistoryQuerySchema, firstIssue } from "@pbcm/shared";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 
 export class HistoryController {

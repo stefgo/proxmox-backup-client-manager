@@ -32,10 +32,7 @@
                 "src/index.ts"
             ],
             "cwd": "${workspaceFolder}/client",
-            "console": "integratedTerminal",
-            "env": {
-                "SERVER_URL": "wss://localhost:5173/ws"
-            }
+            "console": "integratedTerminal"
         },
         {
             "type": "chrome",

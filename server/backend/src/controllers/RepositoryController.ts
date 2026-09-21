@@ -8,9 +8,9 @@ import {
     RepositorySchema,
     PbsSnapshotListSchema,
     normalizeFingerprint,
+    firstIssue,
 } from "@pbcm/shared";
 import { probeCertificate, logger } from "@pbcm/shared/node";
-import { firstIssue } from "../utils/validation.js";
 import {
     RepositoryConfigRepository,
     type RepositoryRow,

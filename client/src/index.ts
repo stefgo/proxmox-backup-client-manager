@@ -1,12 +1,12 @@
 import { startWebServer, stopWebServer } from "./web/server.js";
 import { logger } from "@pbcm/shared/node";
 import { startAgentActivity } from "./core/Lifecycle.js";
-import { initDatabase } from "./core/Database.js";
-import { isRegistered } from "./core/Config.js";
+import { importLegacyDatabase } from "./core/LegacyImport.js";
+import { isRegistered } from "./core/Identity.js";
 import { logSetupPin } from "./core/SetupPin.js";
 
-// Initialize Database
-await initDatabase();
+// An agent that still has its SQLite database moves its jobs into the data files first.
+await importLegacyDatabase();
 
 // Start Client Web Server (can be disabled via DISABLE_WEB_UI=true). It runs whether or not
 // the agent is registered — it is the surface an operator registers it through.
@@ -23,7 +23,7 @@ if (process.env.DISABLE_WEB_UI !== "true") {
     logger.info("Web UI disabled via DISABLE_WEB_UI environment variable.");
 }
 
-// Scheduler, cleanup and the server connection start only for a registered agent. An
+// Scheduler and the server connection start only for a registered agent. An
 // unregistered one idles here until a registration lets startAgentActivity through.
 await startAgentActivity();
 
@@ -37,7 +37,7 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-// Registered only after initialization completed, so a failed startup (migration,
+// Registered only after initialization completed, so a failed startup (import,
 // config) still fails fast instead of being swallowed here.
 
 // The agent has to survive a stray rejection: it is the only thing triggering the

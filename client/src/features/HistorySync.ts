@@ -28,15 +28,15 @@ const ACK_RETRY_MS = 60_000;
 /**
  * Gets the agent's job history to the server, and knows what arrived.
  *
- * Delivery is at-least-once. Every row carries a revision that the database raises on
- * each change (trigger in migration 03), and a row is due until the server has
- * acknowledged its current revision with HISTORY_ACK. That replaced a watermark: the
- * server used to name the newest `updated_at` it held, by its own clock, and the agent
- * sent what had changed after it by the agent's clock -- a row the server failed to
- * store, or one written in the same second, fell below the line and was never sent again.
+ * Delivery is at-least-once. Every run carries a revision that JobHistoryRepository
+ * raises on each change, and a run is due until the server has acknowledged its current
+ * revision with HISTORY_ACK. That replaced a watermark: the server used to name the newest
+ * `updated_at` it held, by its own clock, and the agent sent what had changed after it by
+ * the agent's clock -- a run the server failed to store, or one written in the same second,
+ * fell below the line and was never sent again.
  *
- * Active only while connected to a server that acknowledges (`historyAck` in
- * AUTH_SUCCESS). With an older server Connection keeps the watermark sync.
+ * Active while connected. The agent no longer syncs with a server that does not
+ * acknowledge; the server and the agent are released together.
  */
 export class HistorySync {
     private static active = false;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE } from "./constants.js";
+import { CLIENT_STATUS, CONNECTION_MODE, DEFAULT_AGENT_PORT } from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
 
 export const RepositorySchema = z.object({
@@ -24,7 +24,124 @@ export const RepositorySchema = z.object({
  * 32-bit integers. Accepting a v6 literal here would store a value that check
  * cannot evaluate.
  */
-export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()]);
+export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()], {
+    error: "Must be an IPv4 address or an IPv4 network in CIDR notation",
+});
+
+/** YAML turns an empty block (`tls:` with nothing below it) into null. */
+const blockOrMissing = <T extends z.ZodType>(schema: T) =>
+    z.preprocess((value) => value ?? undefined, schema);
+
+/** The levels pino accepts. */
+export const LogLevelSchema = z.enum([
+    "trace",
+    "debug",
+    "info",
+    "warn",
+    "error",
+    "fatal",
+    "silent",
+]);
+
+/**
+ * Where the certificate and its private key are, for an agent that terminates TLS. The
+ * paths stay exactly as the operator wrote them -- the agent resolves them against its own
+ * directory and checks at startup that both files can be read.
+ */
+export const AgentTlsConfigSchema = z.object({
+    cert: z.string().trim().min(1, { error: "Must be the path to a certificate file" }),
+    key: z.string().trim().min(1, { error: "Must be the path to a private key file" }),
+});
+
+/**
+ * The whole of the agent's config.yaml -- everything the operator writes, and nothing the
+ * agent writes back: `clientId` and `authToken` are issued by the server and live in the
+ * agent's data directory (see client/src/core/Identity.ts).
+ *
+ * Loose at the top level, so a key this version does not know stays a key it ignores rather
+ * than a reason not to start. The agent edits the file through its YAML document, never by
+ * writing this object back, so nothing here can delete what it did not parse.
+ *
+ * Every field carries its default, which makes this schema the one place that says what an
+ * agent without a config.yaml does. Three settings are deliberately *not* validated here --
+ * `logLevel`, `allowSelfSignedCertificates` and `logCapBytes` are tolerated rather than
+ * fatal, and Config.ts drops a wrong value with a warning before it reaches this schema.
+ */
+export const AgentConfigSchema = z.looseObject({
+    /**
+     * Where the server is, for an agent that dials in. Left unvalidated beyond "a
+     * non-empty string": a URL nobody can parse costs the WebSocket, not the web UI the
+     * operator would fix it in -- so it is a warning at derivation, not a refusal to start.
+     */
+    serverUrl: z.string().trim().min(1).nullish(),
+    /** Outbound mode: the secret the server presents on `/ws/register`, consumed once. */
+    registrationSecret: z.string().min(1).nullish(),
+    logLevel: LogLevelSchema.default("info"),
+    /** The `proxmox-backup-client` binary. In the container image it is on `PATH`. */
+    executable: z.string().trim().min(1).default("proxmox-backup-client"),
+    /** Static arguments appended to every backup, alternating flag and value. */
+    backupParams: blockOrMissing(z.array(z.string()).default([])),
+    /** The same for every restore. */
+    restoreParams: blockOrMissing(z.array(z.string()).default([])),
+    /** Scripts run before and after a job; empty means none. */
+    preScript: z.string().nullish(),
+    postScript: z.string().nullish(),
+    /** Seconds before a queued run is started once the one ahead of it has finished. */
+    queueDelaySeconds: z.number().min(0).default(5),
+    /**
+     * Random delay before requesting a tunnel lease. Clients usually share the same
+     * schedule ("daily at 02:00") and would otherwise all ask in the same second.
+     */
+    tunnelAcquireJitterSeconds: z.number().min(0).default(30),
+    /**
+     * Bytes of stdout and stderr kept per run, each channel counted separately. The output
+     * is held in memory for the whole run, stored with its history and synced to the server,
+     * so an unbounded one costs three times over.
+     */
+    logCapBytes: z.number().int().min(1024).default(256 * 1024),
+    /**
+     * Networks the server may dial `/ws/register` and `/ws/agent` from. Empty means no
+     * restriction. The local web UI on the same port is deliberately not covered: it is
+     * where an operator registers the agent, and a list holding only the server's address
+     * would shut them out of it.
+     */
+    allowedNetworks: blockOrMissing(z.array(Ipv4OrCidrSchema).default([])),
+    /**
+     * The port the local web server listens on. Coerced, because `PBCM_CLIENT_PORT` is laid
+     * over this field as a string. A value that is not a port is refused rather than
+     * silently replaced by the default: an agent listening somewhere other than where its
+     * operator put it is the harder fault to find. Port 0 -- "any free port" to Node -- is
+     * never what this setting means, and the minimum rules it out.
+     */
+    listenPort: z.coerce
+        .number({ error: "Must be an integer between 1 and 65535" })
+        .int({ error: "Must be an integer between 1 and 65535" })
+        .min(1)
+        .max(65535)
+        .default(DEFAULT_AGENT_PORT),
+    /**
+     * Accept a PBCM server certificate that does not validate, for registration and for the
+     * WebSocket alike. Off by default: that WebSocket carries the auth token, and a
+     * certificate nobody checks is one anybody in between can present. The PBS certificate
+     * is a different matter and handled by the fingerprint, not by this.
+     */
+    allowSelfSignedCertificates: z.boolean().default(false),
+    /**
+     * Serve the agent's own web server over TLS. Absent means plain HTTP. The other half of
+     * `allowSelfSignedCertificates`: that one is about the certificate this agent checks
+     * when it dials the server, this one about the certificate it presents when the server
+     * dials it.
+     */
+    tls: blockOrMissing(AgentTlsConfigSchema.optional()),
+});
+
+export type AgentConfigParsed = z.output<typeof AgentConfigSchema>;
+
+/** The identity the server issues at registration, as the agent stores it. */
+export const AgentIdentitySchema = z.object({
+    clientId: z.string().min(1),
+    authToken: z.string().min(1),
+});
 
 export const ClientSchema = z.object({
     id: z.uuid(),

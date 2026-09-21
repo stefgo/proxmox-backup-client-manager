@@ -1,10 +1,11 @@
 import { BackupJob, RestoreSnapshotPayload } from "@pbcm/shared";
-import { config, requireClientId } from "../../core/Config.js";
+import { config } from "../../core/Config.js";
+import { requireClientId } from "../../core/Identity.js";
 
 /**
  * Turns a stored job configuration into the argument list for `proxmox-backup-client`.
  *
- * These two are the only part of a run with no I/O in them — no spawn, no database, no
+ * These two are the only part of a run with no I/O in them — no spawn, no file, no
  * socket. That makes them the first thing in the agent that can be checked without a
  * running process, which is the point of separating them out: an argument list is exactly
  * the kind of thing that is easy to get subtly wrong and hard to notice.

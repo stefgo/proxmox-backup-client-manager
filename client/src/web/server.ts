@@ -5,20 +5,20 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { fileURLToPath } from "url";
+import { config, readTlsMaterial } from "../core/Config.js";
+import { getIdentity, isRegistered, setIdentity } from "../core/Identity.js";
 import {
-    config,
+    consumeRegistrationSecret,
+    getRegistrationSecret,
+    getServerUrl,
     setServerUrl,
-    persistIdentity,
-    isRegistered,
-    deleteRegistrationSecret,
-    readTlsMaterial,
-} from "../core/Config.js";
+} from "../core/RegistrationState.js";
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
 import { secretEquals } from "../core/secrets.js";
-import db from "../core/Database.js";
+import { DATA_DIR } from "../core/DataStore.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
 import { z } from "zod";
@@ -50,6 +50,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let fastifyInstance: FastifyInstance | null = null;
+
+/**
+ * What to tell the operator when a registration could not be stored, or null when both
+ * halves are on disk. The identity and the server URL live in different files, and which of
+ * them failed decides what has to be made writable.
+ */
+function registrationWarning(identityStored: boolean, urlStored: boolean): string | null {
+    if (identityStored && urlStored) return null;
+    const what = !identityStored
+        ? "the identity in this agent's data directory"
+        : "the server URL in this agent's config.yaml";
+    return (
+        `Registered, but ${what} could not be written. ` +
+        "The agent is working now and will come back unregistered after a restart -- " +
+        "make the file writable and register again."
+    );
+}
 
 export async function startWebServer() {
     // Two calls rather than one conditional options object: `https` is what picks Fastify's
@@ -144,7 +161,7 @@ export async function startWebServer() {
         "/api/status/server",
         async (request: FastifyRequest, _reply: FastifyReply) => {
             const query = request.query as StatusQuery;
-            const checkUrl = query.url || config.serverUrl;
+            const checkUrl = query.url || getServerUrl();
             let serverReachable = false;
 
             if (checkUrl) {
@@ -194,8 +211,8 @@ export async function startWebServer() {
      * Liveness for the container's HEALTHCHECK and for monitoring.
      *
      * It deliberately does **not** consult `Connection.isConnected()`. The agent is
-     * offline-capable by design: it runs its jobs from its own SQLite copy via
-     * node-cron whether or not the server can be reached. Wiring the server
+     * offline-capable by design: it runs its jobs from its own data files
+     * whether or not the server can be reached. Wiring the server
      * connection in here would translate every network hiccup into "agent broken"
      * and, under an orchestrator, into a restart that fixes nothing. The connection
      * has its own endpoint directly above; the two must not be conflated.
@@ -204,10 +221,12 @@ export async function startWebServer() {
         "/api/health",
         async (request: FastifyRequest, reply: FastifyReply) => {
             try {
-                db.prepare("SELECT 1").get();
+                // What the agent cannot work without: a data directory it can write to.
+                // Every run, every schedule step and every job save lands there.
+                fs.accessSync(DATA_DIR, fs.constants.W_OK);
                 return { status: "ok" };
             } catch (err) {
-                logger.error({ err }, "Health check failed: database unreachable");
+                logger.error({ err }, "Health check failed: data directory not writable");
                 return reply.code(503).send({ status: "error" });
             }
         },
@@ -261,7 +280,7 @@ export async function startWebServer() {
             // the client's old row on the server behind, jobs and history included.
             if (isRegistered()) {
                 return reply.status(409).send({
-                    error: "This client is already registered. Remove clientId and authToken from its config.yaml to register it again.",
+                    error: "This client is already registered. Delete identity.json from its data directory to register it again.",
                 });
             }
 
@@ -295,8 +314,11 @@ export async function startWebServer() {
                 const data = JSON.parse(response.text);
 
                 if (data.token && data.clientId) {
-                    setServerUrl(url);
-                    persistIdentity(data.clientId, data.token);
+                    // Both are stored before anything else is reported: the server has
+                    // registered this agent either way, so what is still open is only
+                    // whether the agent will still know it after a restart.
+                    const identityStored = setIdentity(data.clientId, data.token);
+                    const urlStored = setServerUrl(url);
                     // There is an identity now, so the PIN has nothing left to protect.
                     clearSetupPin();
                     logger.info(
@@ -306,9 +328,17 @@ export async function startWebServer() {
                     // The agent has been idling without an identity; now it has one.
                     await startAgentActivity();
 
+                    // Reported rather than only logged: the registration worked and the
+                    // agent is running, but it would come back unregistered. Whoever is
+                    // standing in front of the register page is the one who can fix it,
+                    // and they are not reading the log.
+                    const warning = registrationWarning(identityStored, urlStored);
+                    if (warning) logger.error(warning);
+
                     return {
                         success: true,
                         message: "Registration successful",
+                        ...(warning ? { warning } : {}),
                     };
                 } else {
                     return reply.status(500).send({
@@ -347,7 +377,7 @@ export async function startWebServer() {
  * therefore has to allow the proxy's address, not the server's.
  */
 const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
-    isIpInNetworks(req.ip, config.allowedNetworks ?? [], true);
+    isIpInNetworks(req.ip, config.allowedNetworks, true);
 
     // Outbound connection mode: the server dials this agent instead of the other way
     // round. Registration is only possible while a one-time secret is configured and no
@@ -368,7 +398,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                 socket.close(4003, "Already registered");
                 return;
             }
-            if (!config.registrationSecret) {
+            if (!getRegistrationSecret()) {
                 socket.close(4003, "No registration secret configured");
                 return;
             }
@@ -388,7 +418,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
                     const { secret, authToken, clientId } =
                         message.payload || {};
-                    if (!secretEquals(secret, config.registrationSecret)) {
+                    if (!secretEquals(secret, getRegistrationSecret())) {
                         clearTimeout(timeout);
                         logger.warn("Registration rejected: secret mismatch");
                         socket.send(
@@ -419,13 +449,23 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
                         return;
                     }
 
-                    persistIdentity(clientId, authToken);
-                    deleteRegistrationSecret();
+                    const identityStored = setIdentity(clientId, authToken);
+                    consumeRegistrationSecret();
                     clearTimeout(timeout);
+
+                    // Logged, not sent back: the caller here is the server, which has
+                    // registered this client either way. What a failed write costs is the
+                    // next restart, and that is an operator's problem on this host.
+                    if (!identityStored) {
+                        logger.error(
+                            "Registered, but the identity could not be written to the data directory -- " +
+                                "this agent will come back unregistered after a restart.",
+                        );
+                    }
 
                     logger.info("Registration successful, identity stored");
 
-                    // Scheduler and cleanup were held back for the unregistered agent.
+                    // The scheduler was held back for the unregistered agent.
                     // The server opens the agent session itself right after this.
                     void startAgentActivity();
                     socket.send(
@@ -465,13 +505,14 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
             // The id is checked as well as the token: the server has to be dialling the
             // client it thinks it is, or a target address pointed at the wrong host
             // would hand that host somebody else's jobs.
-            if (!secretEquals(token, config.authToken)) {
+            const identity = getIdentity();
+            if (!secretEquals(token, identity?.authToken)) {
                 logger.warn("Agent connection from the server rejected: invalid token");
                 socket.close(4001, "Unauthorized");
                 return;
             }
 
-            if (!clientId || clientId !== config.clientId) {
+            if (!clientId || clientId !== identity?.clientId) {
                 logger.warn(
                     { presented: clientId },
                     "Agent connection from the server rejected: client id mismatch",

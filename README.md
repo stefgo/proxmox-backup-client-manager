@@ -13,7 +13,7 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 - **Real-time Monitoring:** View live log streams and status updates of ongoing backup and restore runs via WebSockets.
 - **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
 - **Secure Communication:** Use secure WebSocket connections between clients and the server, authenticated via short-lived registration tokens.
-- **Daily Maintenance:** Automated cleanup of old job histories and schedule states to keep the local database lean.
+- **Offline-capable Agents:** Each agent keeps its jobs in its own data files and runs them on schedule while the server is unreachable; its run history is kept until the server has received it.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
 
 ## 📚 Documentation
@@ -83,7 +83,7 @@ services:
 
 `proxmox-backup-client` is part of the image — the host needs no Proxmox packages.
 
-1. Copy `client/config.example.yaml` to `client-config.yaml`. Leave `clientId` and `authToken` empty; the server issues both.
+1. Copy `client/config.example.yaml` to `client-config.yaml`. The agent's identity is issued by the server at registration and kept in its data volume, not in this file.
 2. Run `docker compose up -d`, then read the setup PIN from `docker compose logs pbcm-client`.
 3. Open `http://<this-host>:3001/register` and enter the server URL, a registration token from the dashboard, and the PIN.
 

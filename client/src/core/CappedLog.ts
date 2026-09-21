@@ -2,7 +2,7 @@
  * A bounded accumulator for a subprocess output stream.
  *
  * The Executor used to concatenate every chunk into a plain string, without limit. That
- * string is held for the whole run, written to SQLite as a BLOB when the run finishes, and
+ * string is held for the whole run, written to the run's history file when it finishes, and
  * synced to the server from there — so a `proxmox-backup-client` run that talks a lot over
  * a large datastore could push all three past what the agent can carry.
  *
@@ -67,7 +67,7 @@ export class CappedLog {
         );
     }
 
-    /** `null` for an empty stream, so callers can keep writing NULL to the database. */
+    /** `null` for an empty stream, so callers can keep storing null in the history. */
     toDbValue(): string | null {
         const value = this.toString();
         return value.length > 0 ? value : null;

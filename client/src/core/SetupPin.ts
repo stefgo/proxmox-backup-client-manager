@@ -18,7 +18,7 @@ import { config } from "./Config.js";
  *
  * Deliberately not persisted to config.yaml. It is only meaningful while the agent has no
  * identity, it is regenerated on every start, and what is never written never has to be
- * cleaned up -- unlike `registrationSecret`, which needs deleteRegistrationSecret() for
+ * cleaned up -- unlike `registrationSecret`, which needs consumeRegistrationSecret() for
  * exactly that reason.
  */
 

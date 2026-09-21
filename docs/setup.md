@@ -34,8 +34,9 @@ environment:
 
 | Variable            | Description |
 | :------------------ | :---------- |
-| `SERVER_URL`        | Overrides `serverUrl` from `config.yaml`. |
 | `PBCM_CLIENT_PORT`  | Overrides `listenPort` from `config.yaml`. Needed with `network_mode: host` when 3001 is taken — the same port must then appear in the client's target address on the server. |
+| `PBCM_CLIENT_CONFIG` | Path of the agent's `config.yaml` (default: `client/config.yaml`). |
+| `PBCM_CLIENT_DATA_DIR` | Where the agent keeps its jobs, schedule state and run history (default: `client/data`, the `client-data` volume in the image), and its `identity.json`. For an agent that runs outside the container. |
 
 ### Server-only overrides
 
@@ -111,9 +112,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `serverUrl` | URL of the management server (e.g. `wss://backup-server:3000/ws`). **Leave unset for outbound mode** — its absence is what puts the agent into it. |
-| `clientId` | Identity of the client. Issued by the server during registration and written together with `authToken` — never set or changed by hand. |
-| `authToken` | The other half of the identity. Issued by the server; never set by hand. |
-| `registrationSecret` | Outbound mode only: the one-time secret the server presents when it dials this agent to register it. Must match what you enter in the dashboard's outbound wizard. Removed from the file once registration succeeds. |
+| `registrationSecret` | Outbound mode only: the one-time secret the server presents when it dials this agent to register it. Must match what you enter in the dashboard's outbound wizard. Emptied in the file once registration succeeds; the key stays. |
 | `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
@@ -134,8 +133,12 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `logLevel` | Verbosity, overridden by `LOG_LEVEL` (default: `info`). |
-| `retentionTime` | Days to keep job history and schedule state (default: `90`). |
 | `logCapBytes` | Bytes of `stdout` and `stderr` kept per run, each channel separately (default: `262144`, i.e. 256 KB). Head and tail are kept with the middle dropped and marked. Values below 1024 are ignored. |
+
+There is no setting for how long the history is kept. The agent keeps every run until the
+server has acknowledged it, and of those the newest 50; see [Data Files](client.md) in
+the client architecture. A `retentionTime` left over in an older `config.yaml` is ignored
+with a warning.
 
 ## Network and identity
 
@@ -169,9 +172,12 @@ client rather than to all of them.
 
 ### Client identity
 
-A client is identified by a pair: the `clientId` and the `authToken` in its `config.yaml`.
-Both are issued by the **server** during registration and stored together; the agent never
-picks either for itself. Every agent connection presents both
+A client is identified by a pair: the `clientId` and the `authToken`. Both are issued by the
+**server** during registration and stored together in `identity.json` in the agent's data
+directory -- not in `config.yaml`, which holds only what the operator sets. The agent never
+picks either for itself, and an older agent that still has them in `config.yaml` moves them
+over on its next start. The file holds the token in plain text, so the data volume deserves
+the same protection as the host's other secrets. Every agent connection presents both
 (`/ws/agent?clientId=…&token=…`), and the server only admits it if the two name the same
 client. Neither half is sufficient on its own — and the id in particular is not a secret,
 since the same value is the PBS `--backup-id` and can be read from any snapshot name.
@@ -201,5 +207,5 @@ already protected by `registrationSecret` and `allowedNetworks`.
 
 An agent that already holds an identity refuses to register again — `409` on the Web UI
 path, close code `4003 Already registered` in outbound mode. To re-register a host on
-purpose, remove `clientId` and `authToken` from its `config.yaml` first, and delete the
-client's old row in the UI afterwards. A restarted agent prints a fresh setup PIN.
+purpose, delete `identity.json` from its data directory first, and delete the client's old
+row in the UI afterwards. A restarted agent prints a fresh setup PIN.

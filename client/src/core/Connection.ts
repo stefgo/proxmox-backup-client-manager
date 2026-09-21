@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 
 import os from "os";
 import { config } from "./Config.js";
+import { getIdentity } from "./Identity.js";
+import { getWebSocketUrl } from "./RegistrationState.js";
 import {
     WS_EVENTS,
     WsMessage,
@@ -21,7 +23,6 @@ import {
 import type { ZodType } from "zod";
 import { Handlers } from "../features/Handlers.js";
 import { HistorySync } from "../features/HistorySync.js";
-import db from "./Database.js";
 
 import { logger } from "@pbcm/shared/node";
 import { VERSION } from "./Version.js";
@@ -36,28 +37,6 @@ import { isCertificateError } from "./ServerHttp.js";
  * the handlers actually read declared in its schema, or validation would quietly
  * remove it.
  */
-/**
- * A row of the agent's own `job_history` table, as the watermark sync for servers of an
- * older build reads it back (see AUTH_SUCCESS below; current servers go through
- * HistorySync).
- *
- * Written out rather than left as `any[]`: better-sqlite3 hands back `unknown`, and the
- * ten fields below are renamed one by one into the wire format a few lines down -- a typo
- * in one of those names would have travelled to the server as `undefined`.
- */
-interface JobHistoryRow {
-    id: string;
-    job_id: string | null;
-    name: string | null;
-    type: string;
-    status: string;
-    start_time: string | null;
-    end_time: string | null;
-    exit_code: number | null;
-    stdout: string | null;
-    stderr: string | null;
-}
-
 const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.RUN_BACKUP]: RunJobPayloadSchema,
     [WS_EVENTS.RUN_RESTORE]: RestoreSnapshotPayloadSchema,
@@ -183,7 +162,8 @@ export class Connection {
             return Promise.resolve({ connected: true });
         }
 
-        if (!config.websocketURL) {
+        const websocketURL = getWebSocketUrl();
+        if (!websocketURL) {
             logger.warn("No Websocket URL configured. Connection skipped.");
             return Promise.resolve({
                 connected: false,
@@ -191,7 +171,10 @@ export class Connection {
             });
         }
 
-        if (!config.authToken || !config.clientId) {
+        // Both halves go on the wire below: the server resolves the pair and refuses a
+        // connection that presents only one of them.
+        const identity = getIdentity();
+        if (!identity) {
             logger.warn(
                 "No identity. Please register first. Connection skipped.",
             );
@@ -209,11 +192,15 @@ export class Connection {
             this.wsInstance = null;
         }
 
-        const wsUrl = new URL(config.websocketURL);
-        wsUrl.searchParams.set("clientId", config.clientId);
-        wsUrl.searchParams.set("token", config.authToken);
+        const wsUrl = new URL(websocketURL);
+        wsUrl.searchParams.set("clientId", identity.clientId);
+        wsUrl.searchParams.set("token", identity.authToken);
 
-        logger.info(`Connecting to ${wsUrl.toString()}...`);
+        // The URL carries the auth token; the log gets it without, since logs travel further
+        // than this host (`docker logs`, a collector).
+        const logUrl = new URL(wsUrl);
+        logUrl.searchParams.set("token", "***");
+        logger.info(`Connecting to ${logUrl.toString()}...`);
 
         // Explicit rather than inherited from the process, and the same setting the
         // registration used: this connection carries the auth token.
@@ -341,75 +328,10 @@ export class Connection {
                     case WS_EVENTS.AUTH_SUCCESS:
                         logger.info("Authenticated successfully");
 
-                        // A server that acknowledges what it stored gets the history
-                        // through HistorySync. The watermark below is kept for servers
-                        // of an older build, which never send HISTORY_ACK.
-                        if (message.payload?.historyAck === true) {
-                            HistorySync.start();
-                            opts.onAuthSuccess?.();
-                            break;
-                        }
-
-                        // Delta Sync History (older servers)
-                        try {
-                            const lastSyncTime =
-                                message.payload?.lastSyncTime;
-                            let historyToSync: JobHistoryRow[] = [];
-                            if (lastSyncTime) {
-                                historyToSync = db
-                                    .prepare(
-                                        "SELECT * FROM job_history WHERE updated_at > ?",
-                                    )
-                                    .all(lastSyncTime) as JobHistoryRow[];
-                            } else {
-                                historyToSync = db
-                                    .prepare(
-                                        "SELECT * FROM job_history WHERE updated_at IS NOT NULL",
-                                    )
-                                    .all() as JobHistoryRow[];
-                            }
-
-                            if (historyToSync.length > 0) {
-                                // A row without a start time cannot be sent: the server
-                                // validates SYNC_HISTORY as a whole, so one such row would
-                                // cost the entire batch rather than just itself. The
-                                // column carries DEFAULT CURRENT_TIMESTAMP, so this is a
-                                // guard against rows written before that, not the norm.
-                                const syncable = historyToSync.filter(
-                                    (h) => h.start_time !== null,
-                                );
-                                const skipped =
-                                    historyToSync.length - syncable.length;
-                                if (skipped > 0) {
-                                    logger.warn(
-                                        `Skipping ${skipped} history record(s) without a start time`,
-                                    );
-                                }
-
-                                const formattedHistory = syncable.map((h) => ({
-                                    id: h.id,
-                                    jobConfigId: h.job_id,
-                                    name: h.name,
-                                    type: h.type,
-                                    status: h.status,
-                                    startTime: h.start_time as string,
-                                    endTime: h.end_time,
-                                    exitCode: h.exit_code,
-                                    stdout: h.stdout,
-                                    stderr: h.stderr,
-                                }));
-
-                                logger.info(
-                                    `Syncing ${formattedHistory.length} history records to server...`,
-                                );
-                                Connection.send(WS_EVENTS.SYNC_HISTORY, {
-                                    history: formattedHistory,
-                                });
-                            }
-                        } catch (e) {
-                            logger.error({ err: e }, "Failed to sync history");
-                        }
-
+                        // The history goes through HistorySync, which relies on the
+                        // server acknowledging what it stored. A `lastSyncTime` in the
+                        // payload is for agents of an older build and ignored here.
+                        HistorySync.start();
                         opts.onAuthSuccess?.();
                         break;
                     case WS_EVENTS.RUN_BACKUP:

@@ -79,7 +79,7 @@ serves the same purpose.
 
 **What it deliberately does not check.** The server does not consult its agent
 connections: a single offline agent must not mark the control plane as broken. The agent
-does not consult its server connection either — it runs its jobs from its own SQLite copy
+does not consult its server connection either — it runs its jobs from its own data files
 whether or not the server can be reached, so a lost connection is not ill health. The
 agent's connection state has its own endpoint on its web UI (`/api/status/connection`).
 
@@ -1340,9 +1340,9 @@ A token that does not exist answers `404` with `{ "error": "Token not found" }`.
 | `hostname` | string | No       | Hostname of the client device.              |
 
 The agent brings no identity of its own. The **server** issues both `clientId` and the
-permanent `token` below, and the agent stores them together in its `config.yaml`. An id
-chosen by the caller used to be accepted here, which let anyone holding a registration
-token name an existing client and take over its row.
+permanent `token` below, and the agent stores them together in `identity.json` in its
+data directory. An id chosen by the caller used to be accepted here, which let anyone
+holding a registration token name an existing client and take over its row.
 
 **Example Request:**
 

@@ -4,8 +4,8 @@ import {
     CreateRegistrationTokenSchema,
     RegistrationPayloadSchema,
     isIpInCidr,
+    firstIssue,
 } from "@pbcm/shared";
-import { firstIssue } from "../utils/validation.js";
 import { TokenRepository } from "../repositories/TokenRepository.js";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
