@@ -15,6 +15,7 @@ src/
 │   ├── history/      # Execution history views
 │   ├── jobs/         # Global job list views
 │   ├── repositories/ # PBS Repository management & snapshot browser
+│   ├── settings/     # Settings sections (one tab each), their fields and manual runs
 │   ├── tokens/       # Registration token management
 │   └── users/        # User management
 ├── pages/            # Main pages (Entry points for routes)
@@ -66,7 +67,7 @@ shell.
 | `/history`                      | `HistoryOverview`     | Global execution history.                       |
 | `/users`                        | `UserOverview`        | User management.                                |
 | `/tokens`                       | `TokenOverview`       | Registration tokens.                            |
-| `/settings`                     | `Settings`            | Cleanup settings and manual maintenance.        |
+| `/settings`                     | `Settings`            | Cleanup settings, one tab per cleanup.          |
 | `*`                             | `NotFound`            | —                                               |
 
 The job editor is reached from two places and returns to the one it came from, which is why

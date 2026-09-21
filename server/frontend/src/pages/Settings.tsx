@@ -1,100 +1,120 @@
 import { useState, useEffect } from 'react';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
-import { RefreshCw, Save, Settings as SettingsIcon, Sliders } from 'lucide-react';
+import { Save, Settings as SettingsIcon } from 'lucide-react';
+import {
+    Button,
+    Card,
+    cn,
+    FOCUS_RING_INSET,
+    TabList,
+    TabPanel,
+    useConfirm,
+    useTabs,
+    useToast,
+} from '@stefgo/react-ui-components';
 import { useAuth } from '../features/auth/AuthContext';
-import { Card } from '@stefgo/react-ui-components';
-import { Input } from '@stefgo/react-ui-components';
-import { Button } from '@stefgo/react-ui-components';
-import { cn } from '@stefgo/react-ui-components';
-import { FOCUS_RING_INSET, useConfirm } from '@stefgo/react-ui-components';
+import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 import { describeFailure } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
-import { LoadingIndicator } from '../components/LoadingIndicator';
+import {
+    DEFAULT_SETTINGS,
+    SECTIONS,
+    SECTION_IDS,
+    isDirty,
+    type SectionDef,
+    type SectionId,
+    type SettingsValues,
+} from '../features/settings/sections';
+import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
 
+// The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
+// be clipped by the panel border next to it.
+const TAB_CLASS = cn(
+    'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition duration-200 cursor-pointer border-l-4 border-transparent hover:bg-hover',
+    FOCUS_RING_INSET,
+);
+const TAB_SELECTED_CLASS =
+    'bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)] hover:bg-primary/10';
+
+/**
+ * The server's own settings, one section per tab -- laid out like the settings of dim.
+ *
+ * Each section saves on its own and sends only its own keys; the server merges them into the
+ * stored block. A tab with edits that are not saved yet carries a dot, so they are not
+ * forgotten. Each section also runs its own cleanup: the one Manual Run below both used to
+ * start both.
+ *
+ * The open tab is in the URL, like the tabs of the client page.
+ */
 export default function Settings() {
     const { alert } = useConfirm();
+    const { show } = useToast();
     const { isAuthenticated } = useAuth();
-    const [settings, setSettings] = useState<Record<string, string>>({
-        retention_invalid_tokens_days: '30',
-        retention_invalid_tokens_count: '10',
-        retention_job_history_days: '90',
-        retention_job_history_count: '50'
-    });
-    const [isSaving, setIsSaving] = useState(false);
-    const [isCleaning, setIsCleaning] = useState(false);
-    const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+
+    /** What the server holds, as last loaded or saved. */
+    const [saved, setSaved] = useState<SettingsValues>(DEFAULT_SETTINGS);
+    /** What the fields show, saved or not. */
+    const [draft, setDraft] = useState<SettingsValues>(DEFAULT_SETTINGS);
+    const [savingSection, setSavingSection] = useState<SectionId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const [tab, setTab] = useSearchQueryParam('tab');
+    const tabs = useTabs({
+        tabs: SECTION_IDS,
+        value: (SECTION_IDS as readonly string[]).includes(tab) ? tab : SECTION_IDS[0],
+        onChange: setTab,
+        orientation: 'vertical',
+    });
 
     // isLoading starts out true, so the load only ever has to lower it.
     useEffect(() => {
-        const fetchSettings = async () => {
+        if (!isAuthenticated) return;
+        let cancelled = false;
+        const loadSettings = async () => {
             try {
-                const response = await apiFetch('/api/v1/settings/cleanup', {
-                    headers: {
-                    }
-                });
+                const response = await apiFetch('/api/v1/settings/cleanup');
                 if (response.ok) {
-                    const data = await response.json();
-                    setSettings(data);
+                    const data = (await response.json()) as SettingsValues;
+                    if (!cancelled) {
+                        const loaded = { ...DEFAULT_SETTINGS, ...data };
+                        setSaved(loaded);
+                        setDraft(loaded);
+                    }
                 }
             } catch (e) {
                 console.error('Failed to fetch settings:', e);
             } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         };
-        if (isAuthenticated) {
-            fetchSettings();
-        }
+        loadSettings();
+        return () => {
+            cancelled = true;
+        };
     }, [isAuthenticated]);
 
-    useEffect(() => {
-        if (cleanupResult) {
-            const timer = setTimeout(() => setCleanupResult(null), 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [cleanupResult]);
+    const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 
-    const handleSave = async () => {
-        setIsSaving(true);
+    const save = async (section: SectionDef) => {
+        const body = Object.fromEntries(section.keys.map((key) => [key, draft[key] ?? '']));
+        setSavingSection(section.id);
         try {
             const response = await apiFetch('/api/v1/settings/cleanup', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
             });
             if (!response.ok) {
-                // The endpoint validates the body and names the offending field, so pass
-                // that through instead of a generic sentence — same as useRepositoryStore.
+                // The endpoint validates the body and names the offending field.
                 const err = await response.json().catch(() => ({}));
                 throw new Error(err.error || 'Failed to save settings');
             }
+            setSaved((prev) => ({ ...prev, ...body }));
+            show({ variant: 'success', title: `${section.label} saved` });
         } catch (e: unknown) {
             alert(describeFailure('Could not save the settings', e));
         } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleCleanup = async () => {
-        setIsCleaning(true);
-        try {
-            const response = await apiFetch('/api/v1/settings/cleanup', {
-                method: 'POST'
-            });
-            if (!response.ok) {
-                throw new Error('Failed to trigger cleanup');
-            }
-            // The endpoint reports how many rows each pass removed. Saying so beats
-            // "Done", which left it open whether anything had happened at all.
-            const { tokens = 0, history = 0 } = await response.json();
-            setCleanupResult(`${tokens + history} removed`);
-        } catch (e: unknown) {
-            alert(describeFailure('Could not run the cleanup', e));
-        } finally {
-            setIsCleaning(false);
+            setSavingSection(null);
         }
     };
 
@@ -102,147 +122,81 @@ export default function Settings() {
         return <LoadingIndicator />;
     }
 
-    // The tab fills the sidebar's width, so the ring is drawn inside it -- an
-    // outward one would be cut off by the panel border next to it.
-    const tabBaseClass = cn(
-        "w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition duration-200 cursor-pointer border-l-4 border-transparent",
-        FOCUS_RING_INSET,
-    );
-    const tabSelectedClass = "bg-primary/10 text-primary border-l-primary shadow-[inset_0_1px_1px_rgba(0,0,0,0.05)]";
+    const renderSection = (id: SectionId) => {
+        switch (id) {
+            case 'tokens':
+                return <TokenRetentionSection values={draft} onChange={change} />;
+            case 'job-history':
+                return <JobHistorySection values={draft} onChange={change} />;
+        }
+    };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <Card
-                title={<span className="flex items-center gap-2 font-semibold"><SettingsIcon size={18} className="text-text-muted" /> System Settings</span>}
-                className="overflow-visible"
-                padding="none"
-            >
-                <Tabs className="flex flex-col md:flex-row min-h-[450px]">
-                    {/* Sidebar Tabs */}
-                    <TabList className="w-full md:w-64 shrink-0 bg-app-bg border-b md:border-b-0 md:border-r border-border py-4 flex flex-col gap-1">
-                        <Tab className={tabBaseClass} selectedClassName={tabSelectedClass}>
-                            <Sliders size={18} /> Common
-                        </Tab>
-                    </TabList>
+        <Card
+            title={
+                <span className="flex items-center gap-2 font-semibold">
+                    <SettingsIcon size={18} className="text-text-muted" /> System Settings
+                </span>
+            }
+            className="overflow-visible"
+            padding="none"
+        >
+            <div className="flex flex-col md:flex-row min-h-[450px]">
+                <TabList
+                    tabs={tabs}
+                    aria-label="Settings sections"
+                    className="w-full md:w-64 shrink-0 bg-app-bg border-b md:border-b-0 md:border-r border-border py-4 flex flex-col gap-1"
+                >
+                    {SECTIONS.map((section) => {
+                        const { selected, ...tabAttributes } = tabs.tabProps(section.id);
+                        const dirty = isDirty(section, draft, saved);
+                        return (
+                            <button
+                                key={section.id}
+                                type="button"
+                                {...tabAttributes}
+                                className={cn(TAB_CLASS, selected && TAB_SELECTED_CLASS)}
+                            >
+                                <section.icon size={18} />
+                                <span className="flex-1">{section.label}</span>
+                                {dirty && (
+                                    <>
+                                        <span aria-hidden="true" className="w-2 h-2 rounded-full bg-warning" />
+                                        <span className="sr-only">(unsaved changes)</span>
+                                    </>
+                                )}
+                            </button>
+                        );
+                    })}
+                </TabList>
 
-                    {/* Content Area */}
-                    <div className="flex-1 min-w-0 flex flex-col bg-card">
-                        <div className="flex-1 flex flex-col px-8 pt-8 pb-4">
-                            <TabPanel className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-2 duration-300">
-                                <div className="flex-1 flex flex-col gap-8">
-                                    <section>
-                                        <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
-                                                Retention of invalid client tokens
-                                            </h3>
-                                            <p className="text-sm text-text-muted">
-                                                Define how long registration tokens are kept after they become invalid.
-                                            </p>
-                                        </div>
+                <div className="flex-1 min-w-0 flex flex-col">
+                    {SECTIONS.map((section) => (
+                        <TabPanel
+                            key={section.id}
+                            tabs={tabs}
+                            value={section.id}
+                            className="flex-1 flex flex-col px-8 pt-8 pb-4 animate-in fade-in slide-in-from-right-2 duration-300"
+                        >
+                            <div className="flex-1 flex flex-col gap-8">
+                                {renderSection(section.id)}
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <Input
-                                                label="Retention Time (Days)"
-                                                type="number"
-                                                min="0"
-                                                value={settings.retention_invalid_tokens_days}
-                                                onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                placeholder="30"
-                                                hint="Number of days an invalid token remains in the database."
-                                            />
-                                            <Input
-                                                label="Minimum Keep Count"
-                                                type="number"
-                                                min="0"
-                                                value={settings.retention_invalid_tokens_count}
-                                                onChange={(e) => setSettings({ ...settings, retention_invalid_tokens_count: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                placeholder="10"
-                                                hint="Ensure at least this many invalid tokens are always kept."
-                                            />
-                                        </div>
-                                    </section>
-
-                                    <hr className="border-border" />
-
-                                    <section>
-                                        <div className="mb-6">
-                                            <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
-                                                Retention of global job history
-                                            </h3>
-                                            <p className="text-sm text-text-muted">
-                                                Define how long job execution history records are kept on the server.
-                                            </p>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <Input
-                                                label="Retention Time (Days)"
-                                                type="number"
-                                                min="0"
-                                                value={settings.retention_job_history_days}
-                                                onChange={(e) => setSettings({ ...settings, retention_job_history_days: Math.max(0, parseInt(e.target.value) || 0).toString() })}
-                                                placeholder="90"
-                                                hint="Number of days job history entries remain in the database."
-                                                classNames={{ input: "bg-app-bg rounded-xl" }}
-                                            />
-                                            <Input
-                                                label="Minimum Keep Count (per client)"
-                                                type="number"
-                                                min="1"
-                                                value={settings.retention_job_history_count}
-                                                onChange={(e) => setSettings({ ...settings, retention_job_history_count: Math.max(1, parseInt(e.target.value) || 1).toString() })}
-                                                placeholder="50"
-                                                hint="Ensure at least this many entries are kept for each client."
-                                                classNames={{ input: "bg-app-bg rounded-xl" }}
-                                            />
-                                        </div>
-                                    </section>
-
-                                    <hr className="border-border" />
-
-                                    {/* One block, below both sections: the endpoint runs
-                                        cleanupTokens() and cleanupJobHistory() together,
-                                        so there is no such thing as a separate run. */}
-                                    <div className="p-4 bg-app-bg rounded-xl border border-border flex items-center justify-between gap-4">
-                                        <div>
-                                            <h4 className="text-sm font-bold text-text-primary">Manual Run</h4>
-                                            <p className="text-xs text-text-muted">Apply both retention rules above right now, using the settings as last saved.</p>
-                                        </div>
-                                        <Button
-                                            variant="secondary"
-                                            onClick={handleCleanup}
-                                            disabled={isCleaning || !!cleanupResult}
-                                            className="w-[140px]"
-                                        >
-                                            {isCleaning ? (
-                                                <RefreshCw size={16} className="animate-spin" />
-                                            ) : cleanupResult ? (
-                                                <span className="animate-in zoom-in duration-300">{cleanupResult}</span>
-                                            ) : (
-                                                <span>Run Now</span>
-                                            )}
-                                        </Button>
-                                    </div>
-
-                                    {/* Inside the panel, like the settings of dim and kasm:
-                                        each tab saves what it shows. */}
-                                    <div className="mt-auto flex justify-end border-t border-border pt-4">
-                                        <Button
-                                            variant="primary"
-                                            icon={Save}
-                                            onClick={handleSave}
-                                            disabled={isSaving}
-                                            isLoading={isSaving}
-                                        >
-                                            Save
-                                        </Button>
-                                    </div>
+                                <div className="mt-auto flex justify-end border-t border-border pt-4">
+                                    <Button
+                                        variant="primary"
+                                        icon={Save}
+                                        onClick={() => save(section)}
+                                        disabled={!isDirty(section, draft, saved) || savingSection !== null}
+                                        isLoading={savingSection === section.id}
+                                    >
+                                        Save
+                                    </Button>
                                 </div>
-                            </TabPanel>
-                        </div>
-                    </div>
-                </Tabs>
-            </Card>
-        </div>
+                            </div>
+                        </TabPanel>
+                    ))}
+                </div>
+            </div>
+        </Card>
     );
 }

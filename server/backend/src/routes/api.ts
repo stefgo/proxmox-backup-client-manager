@@ -236,6 +236,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/cleanup",
                     SettingsController.runMaintenance,
                 );
+                protectedRoutes.post(
+                    "/settings/cleanup/invalid-tokens",
+                    SettingsController.cleanupInvalidTokens,
+                );
+                protectedRoutes.post(
+                    "/settings/cleanup/job-history",
+                    SettingsController.cleanupJobHistory,
+                );
             });
 
             // Register Client (Public but API)

@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 // Library Components
-import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING, ToastProvider } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
@@ -470,10 +470,13 @@ function App() {
         <ThemeProvider>
             <AuthProvider>
                 <WebSocketProvider>
-                    {/* Every page asks through useConfirm(); the one dialog that answers lives here. */}
-                    <ConfirmProvider>
-                        <AppRoutes />
-                    </ConfirmProvider>
+                    {/* Every page asks through useConfirm() and reports through useToast();
+                        the one dialog and the one toast stack that answer live here. */}
+                    <ToastProvider>
+                        <ConfirmProvider>
+                            <AppRoutes />
+                        </ConfirmProvider>
+                    </ToastProvider>
                 </WebSocketProvider>
             </AuthProvider>
         </ThemeProvider>

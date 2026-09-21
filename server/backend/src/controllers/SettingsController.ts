@@ -49,4 +49,32 @@ export class SettingsController {
                 .send({ error: "Failed to run maintenance" });
         }
     }
+
+    // One cleanup each, for the settings tab that shapes it. runMaintenance above stays
+    // for callers that want both at once.
+    static async cleanupInvalidTokens(request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const { CleanupService } =
+                await import("../services/CleanupService.js");
+            return reply.send({ removed: CleanupService.cleanupTokens() });
+        } catch (e) {
+            request.log.error(e);
+            return reply
+                .code(500)
+                .send({ error: "Failed to clean up invalid tokens" });
+        }
+    }
+
+    static async cleanupJobHistory(request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const { CleanupService } =
+                await import("../services/CleanupService.js");
+            return reply.send({ removed: CleanupService.cleanupJobHistory() });
+        } catch (e) {
+            request.log.error(e);
+            return reply
+                .code(500)
+                .send({ error: "Failed to clean up job history" });
+        }
+    }
 }

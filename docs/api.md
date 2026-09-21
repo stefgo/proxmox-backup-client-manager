@@ -50,6 +50,8 @@
     - [Get Cleanup Settings](#get-cleanup-settings)
     - [Update Cleanup Settings](#update-cleanup-settings)
     - [Run Maintenance](#run-maintenance)
+    - [Clean Up Invalid Tokens](#clean-up-invalid-tokens)
+    - [Clean Up Job History](#clean-up-job-history)
 - [Reachability](#-reachability)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
@@ -1383,10 +1385,10 @@ that stores only one of them cannot connect.
 
 ```json
 {
-    "keepLast": 10,
-    "keepDaily": 7,
-    "keepWeekly": 4,
-    "keepMonthly": 12
+    "retention_invalid_tokens_days": "30",
+    "retention_invalid_tokens_count": "10",
+    "retention_job_history_days": "90",
+    "retention_job_history_count": "50"
 }
 ```
 
@@ -1398,13 +1400,51 @@ that stores only one of them cannot connect.
 
 #### Request Body
 
-_Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._
+_Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._ Only the
+keys sent are changed; the others keep their stored value, so each tab of the settings page
+sends just its own.
 
 ### Run Maintenance
 
 `POST /v1/settings/cleanup`
 
 **Description:** Manually triggers the cleanup/maintenance task based on current settings.
+
+Runs both cleanups below and answers with what each removed:
+
+```json
+{
+    "success": true,
+    "tokens": 2,
+    "history": 14
+}
+```
+
+### Clean Up Invalid Tokens
+
+`POST /v1/settings/cleanup/invalid-tokens`
+
+**Description:** Removes invalid registration tokens according to the saved
+`retention_invalid_tokens_*` settings. The settings page runs this from its Client Tokens tab.
+
+```json
+{
+    "removed": 2
+}
+```
+
+### Clean Up Job History
+
+`POST /v1/settings/cleanup/job-history`
+
+**Description:** Removes job history records according to the saved
+`retention_job_history_*` settings. The settings page runs this from its Job History tab.
+
+```json
+{
+    "removed": 14
+}
+```
 
 ---
 
