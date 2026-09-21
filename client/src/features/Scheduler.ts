@@ -24,8 +24,8 @@ export class Scheduler {
     private static invalidScheduleWarned = new Set<string>();
 
     /**
-     * Parses the schedule blob stored in SQLite against the same schema the API
-     * validates against. A row that fails here could not have been written by a
+     * Parses the schedule stored in jobs.json against the same schema the API
+     * validates against. An entry that fails here could not have been written by a
      * current client — it is legacy or corrupt data, and running it would mean
      * guessing at the interval.
      *
@@ -63,7 +63,7 @@ export class Scheduler {
     }
 
     /**
-     * Starts the client-side scheduling loop. Checks the database every minute
+     * Starts the client-side scheduling loop. Checks the jobs every minute
      * for any jobs that have reached their scheduled 'next_run' time. If a job
      * should run, it spawns the Executor.
      */

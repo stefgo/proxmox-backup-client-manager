@@ -18,7 +18,7 @@ import { startAgentActivity } from "../core/Lifecycle.js";
 import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
 import { secretEquals } from "../core/secrets.js";
-import db from "../core/Database.js";
+import { DATA_DIR } from "../core/DataStore.js";
 import { logger } from "@pbcm/shared/node";
 import { WS_EVENTS, isIpInNetworks } from "@pbcm/shared";
 import { z } from "zod";
@@ -194,8 +194,8 @@ export async function startWebServer() {
      * Liveness for the container's HEALTHCHECK and for monitoring.
      *
      * It deliberately does **not** consult `Connection.isConnected()`. The agent is
-     * offline-capable by design: it runs its jobs from its own SQLite copy via
-     * node-cron whether or not the server can be reached. Wiring the server
+     * offline-capable by design: it runs its jobs from its own data files
+     * whether or not the server can be reached. Wiring the server
      * connection in here would translate every network hiccup into "agent broken"
      * and, under an orchestrator, into a restart that fixes nothing. The connection
      * has its own endpoint directly above; the two must not be conflated.
@@ -204,10 +204,12 @@ export async function startWebServer() {
         "/api/health",
         async (request: FastifyRequest, reply: FastifyReply) => {
             try {
-                db.prepare("SELECT 1").get();
+                // What the agent cannot work without: a data directory it can write to.
+                // Every run, every schedule step and every job save lands there.
+                fs.accessSync(DATA_DIR, fs.constants.W_OK);
                 return { status: "ok" };
             } catch (err) {
-                logger.error({ err }, "Health check failed: database unreachable");
+                logger.error({ err }, "Health check failed: data directory not writable");
                 return reply.code(503).send({ status: "error" });
             }
         },
@@ -425,7 +427,7 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
                     logger.info("Registration successful, identity stored");
 
-                    // Scheduler and cleanup were held back for the unregistered agent.
+                    // The scheduler was held back for the unregistered agent.
                     // The server opens the agent session itself right after this.
                     void startAgentActivity();
                     socket.send(

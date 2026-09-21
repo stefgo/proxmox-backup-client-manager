@@ -36,6 +36,7 @@ environment:
 | :------------------ | :---------- |
 | `SERVER_URL`        | Overrides `serverUrl` from `config.yaml`. |
 | `PBCM_CLIENT_PORT`  | Overrides `listenPort` from `config.yaml`. Needed with `network_mode: host` when 3001 is taken — the same port must then appear in the client's target address on the server. |
+| `PBCM_CLIENT_DATA_DIR` | Where the agent keeps its jobs, schedule state and run history (default: `client/data`, the `client-data` volume in the image). For an agent that runs outside the container. |
 
 ### Server-only overrides
 
@@ -134,8 +135,12 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `logLevel` | Verbosity, overridden by `LOG_LEVEL` (default: `info`). |
-| `retentionTime` | Days to keep job history and schedule state (default: `90`). |
 | `logCapBytes` | Bytes of `stdout` and `stderr` kept per run, each channel separately (default: `262144`, i.e. 256 KB). Head and tail are kept with the middle dropped and marked. Values below 1024 are ignored. |
+
+There is no setting for how long the history is kept. The agent keeps every run until the
+server has acknowledged it, and of those the newest 50; see [Data Files](client.md) in
+the client architecture. A `retentionTime` left over in an older `config.yaml` is ignored
+with a warning.
 
 ## Network and identity
 

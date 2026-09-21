@@ -79,7 +79,7 @@ serves the same purpose.
 
 **What it deliberately does not check.** The server does not consult its agent
 connections: a single offline agent must not mark the control plane as broken. The agent
-does not consult its server connection either — it runs its jobs from its own SQLite copy
+does not consult its server connection either — it runs its jobs from its own data files
 whether or not the server can be reached, so a lost connection is not ill health. The
 agent's connection state has its own endpoint on its web UI (`/api/status/connection`).
 

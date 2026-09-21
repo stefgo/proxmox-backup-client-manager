@@ -60,7 +60,7 @@ services:
     volumes:
       # Persist client configuration
       - ./client-config.yaml:/app/client/config.yaml
-      # Persist SQLite database and other data
+      # Persist the agent's data files: its jobs (the only copy), schedule state and run history
       - client-data:/app/client/data
     restart: unless-stopped
     environment:

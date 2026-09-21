@@ -202,7 +202,7 @@ export class Handlers {
     /**
      * Generates a new encryption key via `proxmox-backup-client key create`.
      * The key is written to a temp file, read back, and returned over WS.
-     * The job database is NOT modified here — the caller is responsible for
+     * The stored jobs are NOT modified here — the caller is responsible for
      * including keyContent in the job config when saving.
      */
     static handleGenerateKey(

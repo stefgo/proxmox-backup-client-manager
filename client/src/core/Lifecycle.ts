@@ -1,7 +1,6 @@
 import { logger } from "@pbcm/shared/node";
 import { config, isOutboundMode, isRegistered } from "./Config.js";
 import { Connection } from "./Connection.js";
-import { Cleanup } from "../features/Cleanup.js";
 import { Executor } from "../features/Executor.js";
 import { Scheduler } from "../features/Scheduler.js";
 
@@ -42,7 +41,6 @@ export async function startAgentActivity(): Promise<boolean> {
     await Executor.cleanupRunningJobs();
     await Executor.resumeQueuedJobs();
 
-    Cleanup.initialize();
     Scheduler.start();
 
     // In outbound mode the server dials us: the agent only hosts /ws/register and /ws/agent

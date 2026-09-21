@@ -1,7 +1,7 @@
 # Installing a Client Agent
 
 The agent runs on every machine you back up. It wraps the `proxmox-backup-client` CLI,
-keeps its own SQLite copy of the jobs assigned to it, and runs them on schedule **even
+keeps the jobs assigned to it in its own data directory, and runs them on schedule **even
 while the PBCM server is unreachable**. This page describes the only supported way to run
 it — Docker Compose.
 
@@ -91,7 +91,8 @@ services:
         volumes:
             # Configuration, created in step 1 — the agent writes its identity back here
             - ./client-config.yaml:/app/client/config.yaml
-            # SQLite database: the agent's own copy of its jobs, schedules and history
+            # Data directory: the agent's jobs, their schedule state and its run history.
+            # The jobs exist nowhere else -- back this volume up with the host.
             - client-data:/app/client/data
             # The data to back up. Read-only is enough for backups; see the note below.
             - /:/mnt/host:ro
@@ -203,7 +204,7 @@ Jobs are defined server-side, in the dashboard, and pushed to the agent over the
 WebSocket. Remember that the source paths are **container** paths — `/mnt/host/etc`, not
 `/etc`, for the mount in step 2.
 
-The schedule then belongs to the agent: its own cron fires it, out of its own database. A
+The schedule then belongs to the agent: its own scheduler fires it, from its own data files. A
 PBCM server that is down, restarting or unreachable stops no backup.
 
 ## Operating it
@@ -219,7 +220,7 @@ curl -fsS http://localhost:3001/api/health
 ```
 
 **It reports on the agent, not on the connection to the server.** An agent that cannot
-reach the server is still healthy: it keeps its jobs in its own database and runs them on
+reach the server is still healthy: it keeps its jobs in its own data files and runs them on
 schedule regardless. Whether it is connected is a different question, answered on the
 agent's status page and by `GET /api/status/connection`.
 
@@ -248,8 +249,15 @@ docker compose pull
 docker compose up -d
 ```
 
-In the same window as the server update. Migrations on the agent's own database run at
-startup.
+In the same window as the server update.
+
+An agent that still keeps its jobs in the SQLite database of an older version (`client.db`
+in the data volume) imports them into the data files on its first start and renames the
+database to `client.db.migrated`. Only the jobs and their schedule state are taken over,
+not the run history: whatever the server had not received by then stays behind, and the
+log says how many runs that were. Let the agent sync with the server once before the
+update if you want to be sure nothing is left. Should the import fail, the agent does not
+start and says why in the log -- it would otherwise come up without its jobs.
 
 ### Re-registering a host
 

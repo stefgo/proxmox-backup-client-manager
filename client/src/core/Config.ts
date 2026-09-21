@@ -66,7 +66,6 @@ export interface ClientConfig {
      * kept with the middle dropped — see core/CappedLog.ts.
      */
     logCapBytes: number;
-    retentionTime: number;
     preScript?: string;
     postScript?: string;
     /**
@@ -178,7 +177,6 @@ type LoadedConfig = {
     restoreParams?: unknown;
     queueDelaySeconds?: unknown;
     logCapBytes?: unknown;
-    retentionTime?: unknown;
     registrationSecret?: unknown;
     allowedNetworks?: unknown;
     allowSelfSignedCertificates?: unknown;
@@ -204,7 +202,6 @@ export const config: ClientConfig = {
     restoreParams: [],
     queueDelaySeconds: 5,
     logCapBytes: 256 * 1024,
-    retentionTime: 90,
     preScript: undefined,
     postScript: undefined,
 };
@@ -313,8 +310,12 @@ if (fs.existsSync(CONFIG_PATH)) {
             );
         }
 
-        if (typeof loadedConfig.retentionTime === "number") {
-            config.retentionTime = loadedConfig.retentionTime;
+        // Gone with the SQLite database: the agent keeps what the server has not
+        // acknowledged plus the last runs, and ages nothing out by days any more.
+        if ("retentionTime" in loadedConfig) {
+            logger.warn(
+                "Ignoring retentionTime in config.yaml: the agent no longer ages out its history by days",
+            );
         }
 
         if (typeof loadedConfig.registrationSecret === "string") {

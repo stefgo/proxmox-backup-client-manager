@@ -29,7 +29,7 @@ RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/
 
 # Prune dev dependencies.
 # `npm prune` works purely on the existing node_modules tree - no registry round
-# trip and no rebuild of native modules (better-sqlite3), unlike `npm ci --omit=dev`.
+# trip and no rebuild of native modules, unlike `npm ci --omit=dev`.
 RUN npm prune --omit=dev
 
 # Runner Stage
@@ -38,7 +38,7 @@ FROM debian:bookworm-slim AS runner
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=production
 
-# Install dependencies (Node.js + Proxmox Backup Client + libsqlite3)
+# Install dependencies (Node.js + Proxmox Backup Client)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
@@ -46,7 +46,6 @@ RUN apt-get update && \
     gnupg \
     curl \
     lsb-release \
-    libsqlite3-0 \
     && \
     # Proxmox Repo
     wget -qO - https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg && \
@@ -81,7 +80,7 @@ WORKDIR /app/client
 # HTTP server by design, and reporting that as unhealthy would be a false alarm.
 #
 # Deliberately unrelated to the server connection. The agent runs its jobs from its own
-# SQLite copy whether or not the server is reachable, so a lost connection is not a
+# data files whether or not the server is reachable, so a lost connection is not a
 # reason to call it unhealthy. Note also that Docker does not restart an unhealthy
 # container -- restart policies react to a process exiting, not to health.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

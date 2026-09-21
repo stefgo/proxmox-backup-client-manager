@@ -71,8 +71,8 @@ Agent ────WS /ws/agent────────────────�
 ```
 
 - The **`ProxyService`** in the backend is the central hub: it manages active agent WebSocket connections, caches job states, and broadcasts updates to dashboard clients.
-- The **client agent** runs completely offline-capable: it stores downloaded job configs in its own SQLite DB and runs backups via `node-cron` independently of the server connection.
-- Both server and client use **SQLite** (`better-sqlite3`) with **umzug** migrations. DB files live at `server/backend/data/server.db` and `client/data/client.db`.
+- The **client agent** runs completely offline-capable: it keeps its job configs in its own data files and runs backups independently of the server connection.
+- The **server** uses **SQLite** (`better-sqlite3`) with **umzug** migrations (`server/backend/data/server.db`). The **client** keeps JSON files in `client/data` (`PBCM_CLIENT_DATA_DIR`) through `client/src/core/DataStore.ts`: `jobs.json` (the only copy of the job configuration), `schedule.json`, and one file per run under `history/`. Writes are atomic (temp file, fsync, rename); a damaged `jobs.json` is set aside, never overwritten. A `client.db` of an older version is imported once with `node:sqlite` (`core/LegacyImport.ts`) — jobs and schedule state only.
 
 ### Frontend State Management
 

@@ -110,12 +110,12 @@ export class Executor {
     }
 
     /**
-     * Executes a backup job. Resolves the job configuration from the local database,
+     * Executes a backup job. Resolves the job configuration from the local jobs.json,
      * mounts repository credentials and processes encryption keys, then hands the
      * finished command line to runProxmoxClient.
      *
      * @param runId - A unique identifier for this specific execution run.
-     * @param jobId - The database ID of the job configuration to execute.
+     * @param jobId - The ID of the job configuration to execute.
      */
     static async executeBackup(runId: string, jobId: string) {
         // Backstop to the lifecycle gate in core/Lifecycle.ts. Nothing should reach here
