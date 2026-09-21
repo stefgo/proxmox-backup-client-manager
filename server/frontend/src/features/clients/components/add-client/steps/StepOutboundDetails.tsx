@@ -38,11 +38,12 @@ export const StepOutboundDetails = ({ form, onPatch, error }: StepOutboundDetail
             hint={`Host and port of the agent's web server. Without a port, :${DEFAULT_AGENT_PORT} is used.`}
         />
         <Input
-            label="Registration Secret"
+            label="Setup PIN"
             required
             value={form.registrationSecret}
             onChange={(e) => onPatch({ registrationSecret: e.target.value })}
-            hint="One-time secret from the agent's config.yaml. It is consumed on the first successful registration."
+            placeholder="K7QM-3XRD"
+            hint="Printed in the agent's log on startup (docker logs pbcm-client, journalctl -u pbcm-client) — or the value of PBCM_REGISTRATION_SECRET, if the agent was given one."
         />
 
         {error && <div className="text-sm text-error break-words">{error}</div>}

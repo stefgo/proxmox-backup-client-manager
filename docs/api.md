@@ -605,13 +605,17 @@ is appended. `wss://` dials the agent over TLS, which requires the agent to serv
 other scheme, and a path, query or credentials, are refused — the value is interpolated into a
 WebSocket URL. What is stored is the normalised form.
 
+`registrationSecret` is what the server presents on the agent's `/ws/register`: the setup PIN
+from the agent's log, or the value of `PBCM_REGISTRATION_SECRET` if the agent has one. The
+agent tells the two apart.
+
 **Example Request:**
 
 ```json
 {
     "hostname": "backup-host",
     "outboundTargetAddress": "192.168.1.50:3001",
-    "registrationSecret": "one-time-secret"
+    "registrationSecret": "K7QM-3XRD"
 }
 ```
 

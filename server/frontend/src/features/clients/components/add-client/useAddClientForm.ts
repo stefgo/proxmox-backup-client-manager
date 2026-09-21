@@ -13,6 +13,7 @@ export interface InboundForm {
 export interface OutboundForm {
     hostname: string;
     targetAddress: string;
+    /** The agent's setup PIN or its `PBCM_REGISTRATION_SECRET`, sent as `registrationSecret` either way. */
     registrationSecret: string;
 }
 
