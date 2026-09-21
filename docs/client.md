@@ -227,6 +227,9 @@ the agent run its scheduled backups with no server in reach.
 
 - **Atomic writes**: every file is written to a temporary file, synced, and renamed over the
   old one, so a power cut leaves either the old or the new version, never half of one.
+- **Readable by the agent only**: the directory is `0700` (set again at every start) and every
+  file `0600`. `jobs.json` holds the PBS encryption keys and the repository secrets in plain
+  text.
 - **Damaged files are set aside, not overwritten**: a `jobs.json` that does not parse is
   renamed to `jobs.json.corrupt-<timestamp>` and reported in the log; entries that do not
   parse are dropped and the original file is kept the same way. Restore from there by hand.

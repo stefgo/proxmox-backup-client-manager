@@ -28,9 +28,21 @@ export const DATA_DIR =
  * until it is registered, and the health check answers for a directory it can write to --
  * so without this a new installation reports itself unhealthy. Throws when the directory
  * cannot be created: an agent that cannot keep its jobs should not come up.
+ *
+ * Mode 0700, and set again on an existing directory: `jobs.json` holds the PBS encryption
+ * keys and the repository secrets in plain text. Tightening the directory protects files an
+ * older agent wrote world-readable at once, not only after their next write.
  */
 export function ensureDataDir(): void {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+    try {
+        fs.chmodSync(DATA_DIR, 0o700);
+    } catch (err) {
+        logger.warn(
+            { err, dir: DATA_DIR },
+            "Could not restrict the data directory to the agent; it holds encryption keys",
+        );
+    }
 }
 
 /** A name relative to DATA_DIR, e.g. `jobs.json` or `history/<id>.json`. */
@@ -108,6 +120,10 @@ function syncDirectory(dir: string): void {
  *
  * Answers whether it worked. Callers whose loss is cheap ignore that; the ones that hold the
  * only copy of something log it where somebody will look.
+ *
+ * Every file is 0600, since `jobs.json` carries keys and secrets. The mode is set explicitly
+ * as well as on open: open only applies it when it creates the file, and a `.tmp` left
+ * behind by a crash would otherwise keep whatever mode it had.
  */
 export function writeJsonFile(name: string, value: unknown): boolean {
     const file = pathOf(name);
@@ -115,8 +131,9 @@ export function writeJsonFile(name: string, value: unknown): boolean {
     const temp = `${file}.tmp`;
     let fd: number | null = null;
     try {
-        fs.mkdirSync(dir, { recursive: true });
-        fd = fs.openSync(temp, "w");
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        fd = fs.openSync(temp, "w", 0o600);
+        fs.fchmodSync(fd, 0o600);
         fs.writeFileSync(fd, JSON.stringify(value, null, 4));
         fs.fsyncSync(fd);
         fs.closeSync(fd);
