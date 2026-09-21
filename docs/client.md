@@ -26,8 +26,8 @@ client/src/
 │   ├── LegacyImport.ts     # One-time import of jobs from an older client.db
 │   ├── Lifecycle.ts        # The single gate between "running" and "working"
 │   ├── LogStream.ts        # Batched LOG_UPDATE frames (250 ms / 8 KB)
-│   ├── RegistrationState.ts # serverUrl and registrationSecret as a registration changes them; agent mode
-│   ├── SetupPin.ts         # In-memory PIN guarding local registration
+│   ├── RegistrationState.ts # serverUrl and registration secret as a registration changes them; agent mode
+│   ├── SetupPin.ts         # In-memory PIN guarding registration, local and outbound
 │   └── Version.ts          # Agent version, read from dist/VERSION
 ├── features/               # Business logic
 │   ├── Executor.ts         # Run orchestration and the concurrency queue
@@ -117,12 +117,13 @@ Which routes it serves is settled at startup from `config.yaml` (`getWebRoutes()
 | `/status`, `/api/status/connection`, `POST /api/connect` | `enableStatusPage` (default `true`) |
 | `/register`, `POST /api/register` | `enableRegisterPage` (default `true`) |
 | `/`, `/api/status/server`, `/api/status/auth`, the static files | either page is enabled |
-| `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl`, and a `registrationSecret` **or** an identity |
+| `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl` |
 | `/api/health` | the agent runs in its container image (`PBCM_CONTAINER=true`); answers loopback only |
 
 A `serverUrl` means inbound mode, which needs no route here — the agent dials the server.
-The identity counts for outbound because registering consumes the secret: a registered
-outbound agent has only its identity left and still needs `/ws/agent`. Since the routes are
+Without one, an unregistered agent waits on `/ws/register` for the server to register it
+with the setup PIN (or `PBCM_REGISTRATION_SECRET`), and a registered one needs `/ws/agent`.
+`/ws/register` refuses every caller once the agent has an identity. Since the routes are
 fixed at startup while the mode is not, `/ws/agent` also refuses a connection once the agent
 has been registered inbound through its register page.
 
@@ -148,9 +149,10 @@ It is unrelated to the SSH reverse tunnel, which carries backup traffic to the P
 
 - **Status Page**: Provides a quick overview of the client's connectivity and scheduling state.
 - **Registration**: Allows manual registration via the web interface by entering a registration token obtained from the dashboard. The PBCM server's certificate is verified for the registration request and for the WebSocket connection; for a server with a self-signed certificate set `allowSelfSignedCertificates: true`, which then applies to both. Only the reachability check tolerates any certificate, since it sends nothing and trusts nothing it receives. The decision is made per request (`core/ServerHttp.ts`, the WebSocket options) — previously this was a process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0` that stayed switched off for the lifetime of the agent and would have defeated the certificate probe above, and later a tolerant registration followed by a strict WebSocket, so a self-signed server registered but never connected.
-- **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` requires a PIN that the agent
-  prints to its log on startup while it has no identity and the register page is enabled (`docker logs`,
-  `journalctl -u pbcm-client`). Without it, anyone who can route to `listenPort` could
+- **Setup PIN** (`core/SetupPin.ts`): `POST /api/register` and `/ws/register` require a PIN
+  that the agent prints to its log on startup while it has no identity — when the register
+  page is enabled, or when it has no `serverUrl` and no `PBCM_REGISTRATION_SECRET`
+  (`docker logs`, `journalctl -u pbcm-client`). Without it, anyone who can route to `listenPort` could
   point an unregistered agent at a server of their choosing — the caller supplies both the
   server URL and the token. `allowedNetworks` cannot serve as that check (see below), so
   the guard is a shared secret instead of an address; whoever can read the machine's log
@@ -160,8 +162,16 @@ It is unrelated to the SSH reverse tunnel, which carries backup traffic to the P
   exists, and rotated after five failed attempts — which ends online guessing without
   locking the operator out, since they read the new value from the same place. It is
   checked **before** the `isRegistered()` gate, so the status code does not reveal whether
-  the agent already has an identity. The outbound path over `/ws/register` is unaffected:
-  it is already protected by `registrationSecret` and `allowedNetworks`.
+  the agent already has an identity.
+
+  On `/ws/register` the server presents the same PIN, entered by the operator in the
+  dashboard's outbound wizard. For an unattended rollout, `PBCM_REGISTRATION_SECRET` — or
+  `PBCM_REGISTRATION_SECRET_FILE` naming a file that holds it — sets a secret that is accepted
+  there instead; it is read from the environment only, and setting both variables, or a file
+  that cannot be read or is empty, stops the agent. Once used it is dropped from memory and the
+  log asks for it to be removed from the environment. A `registrationSecret` left in
+  `config.yaml` by an earlier version is ignored with a warning. `allowedNetworks` still
+  restricts who may dial `/ws/register` at all.
 - **Port**: `listenPort` in `config.yaml` (default `3001`), overridden by the environment
   variable `PBCM_CLIENT_PORT`. In outbound mode the same server also serves `/ws/register`
   and `/ws/agent`, so a changed port must match the client's target address on the server —
@@ -171,9 +181,8 @@ It is unrelated to the SSH reverse tunnel, which carries backup traffic to the P
   address, which is what the agent did before the setting existed. It matters most for
   `/ws/register`: there the *caller* supplies the auth token the agent then stores, and the
   listener binds every interface the host has. The local Web UI on the same port is
-  deliberately **not** restricted — it is the surface an operator uses to set the
-  registration secret, and a list holding only the server's address would shut them out of
-  it; that surface is guarded by the setup PIN above instead. The address checked is the
+  deliberately **not** restricted — it is the surface an operator registers the agent
+  through, and a list holding only the server's address would shut them out of it; that surface is guarded by the setup PIN above instead. The address checked is the
   socket's peer (no `trustProxy`), so an agent behind a
   reverse proxy must allow the proxy's address, not the server's. A wrong value is only
   repairable locally on the client host: the connection one would fix it over is the one
@@ -228,8 +237,7 @@ the agent run its scheduled backups with no server in reach.
 
 Two separate things, and the agent treats them as such.
 
-With a `registrationSecret` set (or an identity without a `serverUrl`), the agent runs in
-**outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
+Without a `serverUrl`, the agent runs in **outbound mode**: it does not dial out itself but serves `/ws/register` and `/ws/agent`
 instead. That is the whole of it — it says nothing about how the PBS is reached.
 
 Whether a run goes **through the tunnel** is each job's own setting: `tunnel.required` arrives

@@ -74,11 +74,10 @@ function registrationWarning(identityStored: boolean, urlStored: boolean): strin
  * configuration says the agent is for.
  *
  * - `statusPage` / `registerPage` -- the operator's two pages and the endpoints they call.
- * - `outbound` -- `/ws/register` and `/ws/agent`, the server dialling in. An agent without a
- *   server URL is outbound when it holds a registration secret *or* an identity: the secret is
- *   consumed by the registration, so a registered outbound agent has only its identity left,
- *   and still needs `/ws/agent`. A server URL means inbound, which needs no route here -- the
- *   agent dials out itself. Both set is inbound, as in `getAgentMode()`.
+ * - `outbound` -- `/ws/register` and `/ws/agent`, the server dialling in. Every agent without
+ *   a server URL: unregistered, it waits for the server to register it with the setup PIN (or
+ *   `PBCM_REGISTRATION_SECRET`); registered, it needs `/ws/agent`. A server URL means inbound,
+ *   which needs no route here -- the agent dials out itself.
  * - `health` -- `/api/health`, for the container's HEALTHCHECK only.
  */
 export interface WebRoutes {
@@ -100,7 +99,9 @@ export function getWebRoutes(): WebRoutes {
     return {
         statusPage: config.enableStatusPage,
         registerPage: config.enableRegisterPage,
-        outbound: !getServerUrl() && (getRegistrationSecret() !== null || isRegistered()),
+        // Without a server URL the server has to dial in: to register an agent that has no
+        // identity yet, with the setup PIN or the registration secret, and to reach one that has.
+        outbound: !getServerUrl(),
         health: isRunningInContainer(),
     };
 }
@@ -506,8 +507,8 @@ const isFromAllowedNetwork = (req: FastifyRequest): boolean =>
 
 function registerOutbound(fastify: FastifyInstance) {
     // Outbound connection mode: the server dials this agent instead of the other way
-    // round. Registration is only possible while a one-time secret is configured and no
-    // auth token exists yet.
+    // round. Registration is open while the agent has no identity; the server presents the
+    // setup PIN or PBCM_REGISTRATION_SECRET.
     fastify.get(
         "/ws/register",
         { websocket: true },
@@ -522,10 +523,6 @@ function registerOutbound(fastify: FastifyInstance) {
             }
             if (isRegistered()) {
                 socket.close(4003, "Already registered");
-                return;
-            }
-            if (!getRegistrationSecret()) {
-                socket.close(4003, "No registration secret configured");
                 return;
             }
 
@@ -544,13 +541,22 @@ function registerOutbound(fastify: FastifyInstance) {
 
                     const { secret, authToken, clientId } =
                         message.payload || {};
-                    if (!secretEquals(secret, getRegistrationSecret())) {
+                    // The secret first: a wrong value then counts against the PIN only when it
+                    // matched neither, and a right secret never costs the operator their PIN.
+                    // The close reason stays "Invalid secret" for servers that match on it.
+                    const accepted =
+                        secretEquals(secret, getRegistrationSecret()) ||
+                        verifySetupPin(secret);
+                    if (!accepted) {
                         clearTimeout(timeout);
-                        logger.warn("Registration rejected: secret mismatch");
+                        logger.warn(
+                            { ip: req.ip },
+                            "Registration rejected: wrong setup PIN or registration secret",
+                        );
                         socket.send(
                             JSON.stringify({
                                 type: WS_EVENTS.REGISTRATION_FAILURE,
-                                payload: { error: "Secret mismatch" },
+                                payload: { error: "Wrong setup PIN or registration secret" },
                             }),
                         );
                         socket.close(4003, "Invalid secret");
@@ -577,6 +583,8 @@ function registerOutbound(fastify: FastifyInstance) {
 
                     const identityStored = setIdentity(clientId, authToken);
                     consumeRegistrationSecret();
+                    // There is an identity now, so the PIN has nothing left to protect.
+                    clearSetupPin();
                     clearTimeout(timeout);
 
                     // Logged, not sent back: the caller here is the server, which has

@@ -74,8 +74,6 @@ export const AgentConfigSchema = z.looseObject({
      * operator would fix it in -- so it is a warning at derivation, not a refusal to start.
      */
     serverUrl: z.string().trim().min(1).nullish(),
-    /** Outbound mode: the secret the server presents on `/ws/register`, consumed once. */
-    registrationSecret: z.string().min(1).nullish(),
     logLevel: LogLevelSchema.default("info"),
     /** The `proxmox-backup-client` binary. In the container image it is on `PATH`. */
     executable: z.string().trim().min(1).default("proxmox-backup-client"),
@@ -206,6 +204,10 @@ export const TargetAddressSchema = z
 /** `POST /api/v1/clients/outbound`. */
 export const CreateOutboundClientSchema = z.object({
     outboundTargetAddress: TargetAddressSchema,
+    /**
+     * What the server presents on the agent's `/ws/register`: the setup PIN from the agent's
+     * log, or the agent's `PBCM_REGISTRATION_SECRET`. The agent tells the two apart itself.
+     */
     registrationSecret: z.string().min(1),
     hostname: z.string().optional(),
 });

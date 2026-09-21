@@ -30,14 +30,18 @@ export async function startAgentActivity(): Promise<boolean> {
         if (config.enableRegisterPage) {
             ways.push(`via the register page (port ${config.listenPort})`);
         }
-        if (!getServerUrl() && getRegistrationSecret()) {
-            ways.push("from the server (outbound mode)");
+        if (!getServerUrl()) {
+            ways.push(
+                getRegistrationSecret()
+                    ? "from the server (outbound mode, with PBCM_REGISTRATION_SECRET)"
+                    : "from the server (outbound mode, with the setup PIN above)",
+            );
         }
         logger.warn(
             ways.length > 0
                 ? `Client is not registered — no jobs will run. Register it ${ways.join(" or ")}.`
                 : "Client is not registered — no jobs will run, and there is no way to register it: " +
-                      "enable the register page, or set a registrationSecret without a serverUrl for outbound mode.",
+                      "enable the register page, or remove the serverUrl so the server can register it (outbound mode).",
         );
         return false;
     }

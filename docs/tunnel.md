@@ -71,19 +71,20 @@ restrict,port-forwarding,permitlisten="127.0.0.1:*" ssh-ed25519 AAAA... pbcm-ser
 
 ### 2. Configure the agent
 
-Set a one-time secret in the agent's `config.yaml` and leave `serverUrl` **unset**:
+Leave `serverUrl` **unset** in the agent's `config.yaml`:
 
 ```yaml
-registrationSecret: "<random secret>"
 tunnelAcquireJitterSeconds: 30   # 0 disables the delay
 ```
 
 From this the agent infers outbound mode: it does not dial the server, and instead serves
-`/ws/register` and `/ws/agent` on port 3001. The secret is removed from the configuration once
-registration succeeds.
+`/ws/register` and `/ws/agent` on port 3001. It prints a setup PIN to its log, which the
+server presents when it registers the agent — enter it in the outbound wizard. For an
+unattended rollout, `PBCM_REGISTRATION_SECRET` on the agent sets a value that is accepted
+instead.
 
 The registration handshake hands the agent its identity — `clientId` and `authToken`, both
-issued by the server — and the agent writes them to its `config.yaml` together. Every session
+issued by the server — and the agent writes them to `identity.json` in its data directory together. Every session
 the server then opens presents both (`/ws/agent?clientId=…&token=…`), and the agent checks the
 id against its own: the server has to be dialling the client it thinks it is, or a target
 address pointed at the wrong host would hand that host somebody else's jobs. An agent that
@@ -104,7 +105,7 @@ is fixed for good, and nothing else.
 **+ Add Client** in the clients area opens the wizard. Its first step is the connection mode, because
 it cannot be changed afterwards. **Inbound** then takes a display name and an optional allowed
 IP and issues a registration token; the client exists once its agent redeems it. **Outbound**
-takes the agent's target address, the registration secret and a display name, and **Create**
+takes the agent's target address, its setup PIN (or `PBCM_REGISTRATION_SECRET`) and a display name, and **Create**
 dials the agent and registers it.
 
 The tunnel comes afterwards, from the client list's row action — **Add SSH Tunnel**, or **Edit
@@ -233,8 +234,9 @@ leave no trace, items 9-14 the interplay of client credentials and per-run route
    Expected: the WS disconnect drops all leases, the tunnel closes after `idleGraceMs`.
 2. **Port change after reconnect** — interrupt the SSH connection during a run.
    Expected: the lease is dropped, the run fails with a clear message, no access to a dead port.
-3. **Failed registration** — create an outbound client with a wrong registration secret.
-   Expected: no row in `clients`; the message points at the consumed secret. The wizard asks
+3. **Failed registration** — create an outbound client with a wrong setup PIN.
+   Expected: no row in `clients`; the message says the PIN was rejected and where to read the
+   current one. The wizard asks
    for no SSH details at all, so there is nothing half-written to check for.
 4. **Parallel jobs** — start two jobs of the same client at once.
    Expected: exactly **one** SSH connection, one forward per target repository, both runs

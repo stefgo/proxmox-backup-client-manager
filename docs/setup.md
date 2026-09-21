@@ -37,6 +37,8 @@ environment:
 | `PBCM_CLIENT_PORT`  | Overrides `listenPort` from `config.yaml`. Needed with `network_mode: host` when 3001 is taken — the same port must then appear in the client's target address on the server. |
 | `PBCM_CLIENT_CONFIG` | Path of the agent's `config.yaml` (default: `client/config.yaml`). |
 | `PBCM_CLIENT_DATA_DIR` | Where the agent keeps its jobs, schedule state and run history (default: `client/data`, the `client-data` volume in the image), and its `identity.json`. For an agent that runs outside the container. |
+| `PBCM_REGISTRATION_SECRET` | Outbound mode: a secret the dashboard's outbound wizard accepts in place of the setup PIN from the agent's log, for a rollout where nobody reads that log. Remove it once the agent is registered. |
+| `PBCM_REGISTRATION_SECRET_FILE` | The same, read from a file (e.g. `/run/secrets/…`). Setting both variables, or a file that cannot be read or is empty, ends the start. |
 
 ### Server-only overrides
 
@@ -112,12 +114,11 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `serverUrl` | URL of the management server (e.g. `wss://backup-server:3000/ws`). **Leave unset for outbound mode** — its absence is what puts the agent into it. |
-| `registrationSecret` | Outbound mode only: the one-time secret the server presents when it dials this agent to register it. Must match what you enter in the dashboard's outbound wizard. Emptied in the file once registration succeeds; the key stays. |
 | `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 | `enableStatusPage` | Serve the status page at `/status` (default: `true`). |
-| `enableRegisterPage` | Serve the register page at `/register` and `POST /api/register` behind it (default: `true`). Worth switching off once the agent is registered. Without it, no setup PIN is printed. |
+| `enableRegisterPage` | Serve the register page at `/register` and `POST /api/register` behind it (default: `true`). Worth switching off once the agent is registered. Without it, a setup PIN is printed only for outbound mode (no `serverUrl`, no `PBCM_REGISTRATION_SECRET`). |
 
 ### Job execution
 
@@ -188,13 +189,14 @@ The `clientId` also decides which snapshots the UI shows under a client. It must
 never be edited by hand: a changed id starts a new snapshot group in PBS and orphans
 everything backed up so far.
 
-Registering through the agent's Web UI additionally requires the **setup PIN**. While the
-agent has no identity it prints one to its log on every start:
+Registering the agent — through its Web UI or from the server in outbound mode — requires the
+**setup PIN**. While the agent has no identity it prints one to its log on every start:
 
 ```
 ──────────────────────────────────────────────
   Setup PIN:  7K4M-9QX2
   Web UI:     http://<this-host>:3001/register
+  Outbound:   enter it in the server's Add Client wizard
   The PIN is required to register this agent.
 ──────────────────────────────────────────────
 ```
@@ -203,9 +205,14 @@ Read it with `docker compose logs pbcm-client` and enter it alongside the server
 the registration token. Without it the endpoint answers `403` — otherwise anyone able to
 reach `listenPort` could point an unregistered agent at a server of their own, since the
 caller supplies both the URL and the token. The PIN is held in memory only, is rotated
-after five failed attempts, and stops existing once the agent is registered. Registration
-in **outbound mode** does not use it: there the server dials the agent and the handshake is
-already protected by `registrationSecret` and `allowedNetworks`.
+after five failed attempts, and stops existing once the agent is registered. The `Web UI` line
+appears only with the register page, the `Outbound` line only without a `serverUrl`.
+
+In **outbound mode** enter the PIN in the dashboard's outbound wizard instead; the server
+presents it when it dials the agent, and `allowedNetworks` restricts who may dial at all. For
+an unattended rollout set `PBCM_REGISTRATION_SECRET` (or `PBCM_REGISTRATION_SECRET_FILE`) on
+the agent and enter that value instead of the PIN; the agent then prints no PIN unless its
+register page is enabled.
 
 An agent that already holds an identity refuses to register again — `409` on the Web UI
 path, close code `4003 Already registered` in outbound mode. To re-register a host on

@@ -90,7 +90,7 @@ services:
             - "3001:3001"
         volumes:
             # Configuration, created in step 1. The agent writes back to it only the
-            # serverUrl of a web UI registration and the used registrationSecret.
+            # serverUrl of a web UI registration.
             - ./client-config.yaml:/app/client/config.yaml
             # Data directory: the identity issued at registration, the agent's jobs, their
             # schedule state and its run history. The jobs exist nowhere else, and without
@@ -164,21 +164,24 @@ changed afterwards**.
     [SSH reverse tunnel](tunnel.md) to reach the PBS. The server opens the connection, so
     **this machine must be reachable from the server** on `listenPort`.
 
-    1. Set a one-time secret in `client-config.yaml` and leave `serverUrl` **unset** — the
-       agent infers outbound mode from exactly that:
+    1. Leave `serverUrl` **unset** in `client-config.yaml` — the agent infers outbound mode
+       from exactly that. Restricting who may dial it is recommended:
 
         ```yaml
-        registrationSecret: "<a random secret>"
         allowedNetworks:
             - "10.0.0.0/24"     # the network the PBCM server dials from
         ```
 
-    2. Start the container: `docker compose up -d`
+    2. Start the container and read the **setup PIN** from its log:
+       `docker compose logs pbcm-client`.
     3. In the dashboard, **+ Add Client → Outbound**, with this machine's address and port
-       and the same secret. **Create** dials the agent and registers it.
+       and the PIN. **Create** dials the agent and registers it.
 
-    The secret is removed from the config file once registration succeeds. No setup PIN is
-    involved here: the handshake is already guarded by the secret and `allowedNetworks`.
+    The PIN guards the handshake together with `allowedNetworks`; it is rotated after five
+    failed attempts and stops existing once the agent is registered. For an unattended
+    rollout, give the agent `PBCM_REGISTRATION_SECRET` (or `PBCM_REGISTRATION_SECRET_FILE`,
+    e.g. a Docker secret) and enter that value instead of the PIN; remove it again once the
+    agent is registered.
 
     !!! danger "Outbound plus tunnel needs `network_mode: host`"
 
@@ -282,8 +285,7 @@ move a host on purpose:
 1. Stop the container.
 2. Delete `identity.json` from the data volume, e.g.
    `docker run --rm -v pbcm-client_client-data:/data alpine rm /data/identity.json`
-   (the volume name depends on your Compose project), and set a fresh
-   `registrationSecret` in `client-config.yaml` for outbound mode.
+   (the volume name depends on your Compose project).
 3. Start it again — a new setup PIN is printed — and register as in step 3.
 4. Delete the old client row in the dashboard.
 
