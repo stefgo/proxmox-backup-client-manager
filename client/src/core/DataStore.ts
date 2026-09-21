@@ -23,6 +23,16 @@ const ROOT_DIR = path.resolve(__dirname, "../../");
 export const DATA_DIR =
     process.env.PBCM_CLIENT_DATA_DIR?.trim() || path.resolve(ROOT_DIR, "data");
 
+/**
+ * Creates DATA_DIR at startup. Writes create it on demand, but a fresh agent writes nothing
+ * until it is registered, and the health check answers for a directory it can write to --
+ * so without this a new installation reports itself unhealthy. Throws when the directory
+ * cannot be created: an agent that cannot keep its jobs should not come up.
+ */
+export function ensureDataDir(): void {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
 /** A name relative to DATA_DIR, e.g. `jobs.json` or `history/<id>.json`. */
 export function pathOf(name: string): string {
     return path.join(DATA_DIR, name);

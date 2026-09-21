@@ -4,6 +4,9 @@ import { startAgentActivity } from "./core/Lifecycle.js";
 import { importLegacyDatabase } from "./core/LegacyImport.js";
 import { isRegistered } from "./core/Identity.js";
 import { logSetupPin } from "./core/SetupPin.js";
+import { ensureDataDir } from "./core/DataStore.js";
+
+ensureDataDir();
 
 // An agent that still has its SQLite database moves its jobs into the data files first.
 await importLegacyDatabase();
