@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
-import { RefreshCw, Settings as SettingsIcon, Sliders } from 'lucide-react';
+import { RefreshCw, Save, Settings as SettingsIcon, Sliders } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import { Card } from '@stefgo/react-ui-components';
 import { Input } from '@stefgo/react-ui-components';
@@ -127,9 +127,9 @@ export default function Settings() {
 
                     {/* Content Area */}
                     <div className="flex-1 min-w-0 flex flex-col bg-card">
-                        <div className="flex-1 p-8">
-                            <TabPanel className="animate-in fade-in slide-in-from-right-2 duration-300">
-                                <div className="space-y-8">
+                        <div className="flex-1 flex flex-col px-8 pt-8 pb-4">
+                            <TabPanel className="flex-1 flex flex-col animate-in fade-in slide-in-from-right-2 duration-300">
+                                <div className="flex-1 flex flex-col gap-8">
                                     <section>
                                         <div className="mb-6">
                                             <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -223,21 +223,25 @@ export default function Settings() {
                                             )}
                                         </Button>
                                     </div>
+
+                                    {/* Inside the panel, like the settings of dim and kasm:
+                                        each tab saves what it shows. */}
+                                    <div className="mt-auto flex justify-end border-t border-border pt-4">
+                                        <Button
+                                            variant="primary"
+                                            icon={Save}
+                                            onClick={handleSave}
+                                            disabled={isSaving}
+                                            isLoading={isSaving}
+                                        >
+                                            Save
+                                        </Button>
+                                    </div>
                                 </div>
                             </TabPanel>
                         </div>
                     </div>
                 </Tabs>
-                {/* Sticky Action Footer */}
-                <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg rounded-b-xl">
-                    <Button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="shadow-glow-accent"
-                    >
-                        {isSaving ? 'Saving...' : 'Save'}
-                    </Button>
-                </div>
             </Card>
         </div>
     );
