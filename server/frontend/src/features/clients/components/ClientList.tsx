@@ -100,7 +100,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                         <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                         <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                             {client.displayName || client.hostname}
-                            {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                         </div>
                         <ConnectionBadge client={client} />
                     </div>
@@ -147,7 +146,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                     <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
                     <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
-                        {client.displayName && <span className="text-xs font-normal text-text-muted ml-2">({client.hostname})</span>}
                     </div>
                     <ConnectionBadge client={client} />
                 </div>
