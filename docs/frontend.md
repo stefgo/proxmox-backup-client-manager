@@ -28,6 +28,7 @@ src/
 │   ├── useClientFileSystemStore.ts # Remote file browsing for a client
 │   ├── useGlobalJobsStore.ts       # Centralized backup job configurations
 │   ├── useRepositoryStore.ts       # PBS repository configurations
+│   ├── useSchedulerStore.ts        # Status of the server's cleanup schedulers
 │   └── useRepositorySnapshotStore.ts # PBS snapshot management
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
 ├── hooks/            # Global Custom Hooks (WebSocket subscriptions)
@@ -67,7 +68,7 @@ shell.
 | `/history`                      | `HistoryOverview`     | Global execution history.                       |
 | `/users`                        | `UserOverview`        | User management.                                |
 | `/tokens`                       | `TokenOverview`       | Registration tokens.                            |
-| `/settings`                     | `Settings`            | Cleanup settings, one tab per cleanup.          |
+| `/settings`                     | `Settings`            | Cleanup settings and scheduler status, one tab per cleanup. |
 | `*`                             | `NotFound`            | —                                               |
 
 The job editor is reached from two places and returns to the one it came from, which is why
@@ -130,12 +131,13 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useRepositoryStore`**: Holds the configured PBS repositories.
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 - **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
+- **`useSchedulerStore`**: The status of the server's own schedulers (`token-cleanup`, `job-history-cleanup`). Filled by `GET /api/v1/settings/scheduler-status` when the settings page loads and after each save, kept current by `SCHEDULER_STATUS_UPDATE`, which carries one scheduler at a time.
 
 ### Two realtime channels, and why
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
 
-**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE` and `JOBS_UPDATE`. These are
+**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE`, `JOBS_UPDATE` and `SCHEDULER_STATUS_UPDATE`. These are
 *state*: a handful of messages describing something the whole application reads.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --

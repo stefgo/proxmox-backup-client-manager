@@ -33,7 +33,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing, certificate probe, fingerprint distribution. |
 | `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |
-| `SettingsController.ts`     | Cleanup settings read/write and manual maintenance trigger.                 |
+| `SettingsController.ts`     | Cleanup settings read/write, manual cleanup runs, scheduler status.         |
 | `HistoryController.ts`      | Global job history across all clients.                                      |
 | `TunnelController.ts`       | SSH tunnel credentials per client (CRUD), key pair generation, connection tests against form values and against stored credentials. |
 | `WebSocketController.ts`    | Entry point for WebSocket connections (agents and dashboards).               |
@@ -47,7 +47,11 @@ Services contain the heavy business logic of the application. They are designed 
 - **`SessionCookie.ts`**: The browser session, as two cookies — `pbcm_session` (the JWT, `HttpOnly`) and `pbcm_auth` (a flag with no secret, readable so the UI knows whether to show the login form). Both are set from one place so the local login and the OIDC return cannot drift apart. `Secure` follows `request.protocol` rather than being hardcoded: set unconditionally it would make a plain-HTTP installation discard the cookie, and the login would look successful while every following request came back `401` — a failure that never shows on localhost, which counts as a secure context.
 - **`SettingsService.ts`**: Manages global application settings and persistence.
 - **`FingerprintObservations.ts`**: In-memory record of fingerprints reported by agents (`FINGERPRINT_OBSERVED`). Deliberately never written into the repository config — a single compromised client must not be able to set the value every other client then trusts.
-- **`CleanupService.ts`**: Periodic tasks to prune old history logs (job history), inactive tokens, or old registration tokens. Supports retention by age and minimum count.
+- **`ScheduledJob.ts`**: The timer, the bookkeeping and the status of one server scheduler. Every run — the timer's and a manual one — goes through `run()`, which keeps the scheduler's row in `scheduler_state` and pushes `SCHEDULER_STATUS_UPDATE` to the dashboards. A run that throws is recorded as `failed` with its error and logged; there is no activity list to report it to. The timer is a chain of timeouts rather than an interval, so the first run after a restart can be placed one interval after the last run started (at once if overdue) instead of one after startup; without a stored run it is one interval after startup. Waits longer than `setTimeout` allows (~24.8 days) are taken in steps.
+- **`TokenCleanupService.ts`**: Scheduler `token-cleanup`. Removes registration tokens that have been invalid (used or expired) for longer than `token_retention_days`, every `token_cleanup_interval_hours` (`0` switches the timer off).
+- **`JobHistoryCleanupService.ts`**: Scheduler `job-history-cleanup`. Removes job history older than `retention_job_history_days`, always keeping the newest `retention_job_history_count` entries per client (at least one); `0` days means no age limit. Runs every `job_history_cleanup_interval_hours`.
+
+  Both are started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. `SettingsService.updateSettings` restarts the one whose keys changed.
 - **`ClientConnector.ts`**: Dials outbound clients — registration through the agent's `/ws/register`, then a session over `/ws/agent`. Its `RECONNECT_DELAYS` ladder is the same one the agent uses in the other direction, because the two ends of one link should not behave differently.
 - **`TunnelService.ts`**: Establishes and tears down the SSH reverse tunnel on a client's request. See [tunnel.md](tunnel.md).
 - **`SecretCrypto.ts`**: Encrypts the stored SSH private keys at rest (AES-256-GCM). The key is derived via HKDF from `tunnel.keySecret` and deliberately **not** from `jwtSecret` — rotating the secret that signs sessions must not make every stored SSH key unreadable. Configuring a tunnel therefore requires `tunnel.keySecret`; without it the service refuses rather than storing a key in the clear.
@@ -101,7 +105,24 @@ The `WebSocketController` acts as the entry point, while `ProxyService` manages 
 The backend relies on **SQLite3** wrapped with `better-sqlite3` for fast, synchronous database operations.
 
 - The `core/` directory handles initializing the DB file location and running schema migrations via **Umzug**.
-- It stores: User credentials, client tokens, registered clients, PBS repository configurations, job configurations (cache), and complete job histories.
+- It stores: User credentials, client tokens, registered clients, PBS repository configurations, job configurations (cache), complete job histories, and the state of the server schedulers.
+
+#### `scheduler_state`
+
+One row per scheduler (`SchedulerStateRepository`), written over on every run — there is no
+history.
+
+| Column | Meaning |
+| :----- | :------ |
+| `scheduler` | Primary key: `token-cleanup`, `job-history-cleanup`. |
+| `running_since`, `running_trigger` | Set while a run is in progress, cleared when it ends. Kept apart from `last_*` so the last run stays visible during a run. |
+| `last_started_at`, `last_finished_at`, `last_trigger` | The last finished run; `last_finished_at` is `NULL` for an interrupted one. |
+| `last_status` | `success`, `partial`, `failed` or `interrupted`. |
+| `last_result`, `last_error` | JSON result (`{ removed }`) or the error message. |
+| `state` | JSON the scheduler carries from one run to the next; unused by both cleanups. |
+
+A row that still carries `running_since` at startup belongs to a run the previous process
+did not finish: `markInterrupted()` turns it into the last run with status `interrupted`.
 
 ## 🔐 Authentication Flow
 
