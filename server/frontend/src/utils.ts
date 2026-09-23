@@ -1,5 +1,8 @@
 import type { AlertOptions } from '@stefgo/react-ui-components';
 
+/** What a value that is not there yet shows, such as the last run of a scheduler that never ran. */
+export const EMPTY_VALUE = '–';
+
 export const formatDate = (
     date: Date | string | number | null | undefined,
 ): string => {

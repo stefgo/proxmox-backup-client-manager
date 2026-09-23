@@ -67,28 +67,21 @@ export class TokenRepository {
     }
 
     /**
-     * Drops used and expired tokens older than `cutoff`, but always keeps the
-     * `minCount` newest of them, so a freshly cleaned table still shows recent
-     * history. Returns how many rows went.
+     * Removes registration tokens that have become invalid (used or expired) and whose
+     * invalidation timestamp is older than the given TTL in days. Returns how many rows went.
+     *
+     * An invalid token is considered invalidated at COALESCE(used_at, expires_at). Both go
+     * through datetime(): `expires_at` is written as ISO text, `used_at` by SQLite itself,
+     * and compared as plain strings the two formats disagree within the same day.
      */
-    static deleteExpired(minCount: number, cutoff: string): number {
-        const result = db
-            .prepare(
-                `
+    static cleanupInvalidTokens(ttlDays: number): number {
+        const days = Number.isFinite(ttlDays) && ttlDays >= 0 ? Math.floor(ttlDays) : 0;
+
+        const result = db.prepare(`
             DELETE FROM registration_tokens
-            WHERE token IN (
-                SELECT token FROM (
-                    SELECT token,
-                           ROW_NUMBER() OVER (ORDER BY created_at DESC) as rn,
-                           COALESCE(used_at, expires_at, created_at) as compare_date
-                    FROM registration_tokens
-                    WHERE used_at IS NOT NULL OR (expires_at IS NOT NULL AND expires_at < datetime('now'))
-                )
-                WHERE rn > ? AND compare_date < ?
-            )
-        `,
-            )
-            .run(minCount, cutoff);
+            WHERE (used_at IS NOT NULL OR datetime(expires_at) <= datetime('now'))
+              AND datetime(COALESCE(used_at, expires_at)) < datetime('now', ?)
+        `).run(`-${days} days`);
         return result.changes;
     }
 }

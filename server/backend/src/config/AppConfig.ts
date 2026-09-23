@@ -30,6 +30,14 @@ export type TunnelSettings = AppConfigParsed["tunnel"];
 
 const DEFAULT_TUNNEL: TunnelSettings = TunnelSettingsSchema.parse({});
 
+/** Setting keys that were renamed or dropped; removed from the file on startup. */
+const OBSOLETE_SETTINGS_KEYS = [
+    // Renamed to token_retention_days without carrying the value over.
+    "retention_invalid_tokens_days",
+    // The token cleanup keeps no minimum any more.
+    "retention_invalid_tokens_count",
+];
+
 let configDoc: YAML.Document = new YAML.Document({});
 let config: Partial<AppConfig> = {};
 
@@ -48,6 +56,18 @@ function loadConfig() {
             config = (configDoc.toJS() ?? {}) as Partial<AppConfig>;
         } catch (e) {
             logger.error({ err: e }, "Failed to load config.yaml");
+        }
+    }
+
+    // validateConfig() writes the file back on every start, so dropping a key from the
+    // object and the document here is all it takes to remove it from the file.
+    const settings = config.settings as Record<string, unknown> | undefined;
+    if (settings && typeof settings === "object") {
+        for (const key of OBSOLETE_SETTINGS_KEYS) {
+            if (key in settings) {
+                delete settings[key];
+                configDoc.deleteIn(["settings", key]);
+            }
         }
     }
 }

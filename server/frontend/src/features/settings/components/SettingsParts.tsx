@@ -39,7 +39,7 @@ export const NumberField = ({ label, value, onChange, min = 0, placeholder, hint
     </div>
 );
 
-interface ManualRunBoxProps {
+interface ManualRunProps {
     description: string;
     /** Runs the job and returns what the button shows for a moment afterwards. Throws on failure. */
     onRun: () => Promise<string>;
@@ -50,10 +50,10 @@ interface ManualRunBoxProps {
 }
 
 /**
- * "Run the job now", below the settings that shape it. The button spins while the job runs,
- * then shows its result for three seconds.
+ * "Run the job now", inside the `SchedulerBox` of the job, below its status. The button spins
+ * while the job runs, then shows its result for three seconds.
  */
-export const ManualRunBox = ({ description, onRun, failureTitle, buttonClassName = 'w-[160px]' }: ManualRunBoxProps) => {
+export const ManualRun = ({ description, onRun, failureTitle, buttonClassName = 'w-[160px]' }: ManualRunProps) => {
     const { alert } = useConfirm();
     const [isRunning, setIsRunning] = useState(false);
     const [result, setResult] = useState<string | null>(null);
@@ -76,9 +76,9 @@ export const ManualRunBox = ({ description, onRun, failureTitle, buttonClassName
     };
 
     return (
-        <div className="mt-8 p-4 bg-hover rounded-xl border border-border flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
             <div>
-                <h4 className="text-sm font-bold text-text-primary">Manual Run</h4>
+                <h5 className="text-sm font-bold text-text-primary">Manual Run</h5>
                 <p className="text-xs text-text-muted">{description}</p>
             </div>
             <Button

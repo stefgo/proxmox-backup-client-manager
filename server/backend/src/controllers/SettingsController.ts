@@ -1,6 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { CleanupSettingsSchema, firstIssue } from "@pbcm/shared";
+import { CleanupSettingsSchema, firstIssue, type SchedulerStatuses } from "@pbcm/shared";
 import { SettingsService } from "../services/SettingsService.js";
+import { TokenCleanupService } from "../services/TokenCleanupService.js";
+import { JobHistoryCleanupService } from "../services/JobHistoryCleanupService.js";
 
 export class SettingsController {
     static async getSettings(request: FastifyRequest, reply: FastifyReply) {
@@ -35,13 +37,16 @@ export class SettingsController {
         }
     }
 
+    /** Both cleanups, one after the other, each recorded as a manual run of its scheduler. */
     static async runMaintenance(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const { CleanupService } =
-                await import("../services/CleanupService.js");
-            const tokens = CleanupService.cleanupTokens();
-            const history = CleanupService.cleanupJobHistory();
-            return reply.send({ success: true, tokens, history });
+            const tokens = await TokenCleanupService.run("manual");
+            const history = await JobHistoryCleanupService.run("manual");
+            return reply.send({
+                success: true,
+                tokens: tokens.removed,
+                history: history.removed,
+            });
         } catch (e) {
             request.log.error(e);
             return reply
@@ -54,9 +59,8 @@ export class SettingsController {
     // for callers that want both at once.
     static async cleanupInvalidTokens(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const { CleanupService } =
-                await import("../services/CleanupService.js");
-            return reply.send({ removed: CleanupService.cleanupTokens() });
+            const { removed } = await TokenCleanupService.run("manual");
+            return reply.send({ removed });
         } catch (e) {
             request.log.error(e);
             return reply
@@ -67,14 +71,23 @@ export class SettingsController {
 
     static async cleanupJobHistory(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const { CleanupService } =
-                await import("../services/CleanupService.js");
-            return reply.send({ removed: CleanupService.cleanupJobHistory() });
+            const { removed } = await JobHistoryCleanupService.run("manual");
+            return reply.send({ removed });
         } catch (e) {
             request.log.error(e);
             return reply
                 .code(500)
                 .send({ error: "Failed to clean up job history" });
         }
+    }
+
+    /** Every scheduler the server runs: whether it is running, its next and its last run. */
+    static async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
+        return reply.send({
+            schedulers: {
+                "token-cleanup": TokenCleanupService.getStatus(),
+                "job-history-cleanup": JobHistoryCleanupService.getStatus(),
+            } satisfies SchedulerStatuses,
+        });
     }
 }

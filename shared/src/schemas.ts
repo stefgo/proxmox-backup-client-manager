@@ -636,10 +636,13 @@ export const UpdateUserSchema = z.object({
     auth_methods: z.string().min(1).optional(),
 });
 
-/** A retention value as the settings UI sends it: a count of days or of entries. */
+/**
+ * A numeric setting as the settings UI sends it: a count of days, entries or hours. Still
+ * named after the retention values it was written for; the cleanup intervals share it.
+ */
 const RetentionValueSchema = z
     .string()
-    .regex(/^\d+$/, "Retention values must be whole numbers");
+    .regex(/^\d+$/, "Settings values must be whole numbers");
 
 /**
  * `PUT /api/v1/settings/cleanup`.
@@ -653,10 +656,11 @@ const RetentionValueSchema = z
  * must be numbers, and `security` decides which networks may register a client.
  */
 export const CleanupSettingsSchema = z.looseObject({
-    retention_invalid_tokens_days: RetentionValueSchema.optional(),
-    retention_invalid_tokens_count: RetentionValueSchema.optional(),
+    token_retention_days: RetentionValueSchema.optional(),
+    token_cleanup_interval_hours: RetentionValueSchema.optional(),
     retention_job_history_days: RetentionValueSchema.optional(),
     retention_job_history_count: RetentionValueSchema.optional(),
+    job_history_cleanup_interval_hours: RetentionValueSchema.optional(),
     security: z
         .object({
             allowed_networks: z.array(z.string()).optional(),
@@ -737,13 +741,27 @@ export const TunnelSettingsSchema = z.object({
 });
 
 /**
- * The retention block. Loose for the same reason `CleanupSettingsSchema` is: the settings
- * page reads this object whole and writes it back, so a key an operator added by hand has
- * to survive the round trip.
+ * A numeric setting as config.yaml may hold it. `retention_job_history_days: 60` without
+ * quotes is a number to the YAML parser and was accepted before these keys had defaults
+ * here (see SettingsService.getSetting); refusing to start over it would break a working
+ * installation, so a whole number is taken and written back as text.
+ */
+const StoredSettingValueSchema = z.preprocess(
+    (value) => (typeof value === "number" ? String(value) : value),
+    RetentionValueSchema,
+);
+
+/**
+ * The settings block: retention values and cleanup intervals. Loose for the same reason
+ * `CleanupSettingsSchema` is: the settings page reads this object whole and writes it back,
+ * so a key an operator added by hand has to survive the round trip.
  */
 export const AppSettingsSchema = z.looseObject({
-    retention_invalid_tokens_days: RetentionValueSchema.default("30"),
-    retention_invalid_tokens_count: RetentionValueSchema.default("10"),
+    token_retention_days: StoredSettingValueSchema.default("30"),
+    token_cleanup_interval_hours: StoredSettingValueSchema.default("24"),
+    retention_job_history_days: StoredSettingValueSchema.default("90"),
+    retention_job_history_count: StoredSettingValueSchema.default("50"),
+    job_history_cleanup_interval_hours: StoredSettingValueSchema.default("24"),
 });
 
 export const OidcConfigSchema = z.object({
@@ -781,8 +799,11 @@ export const AppConfigSchema = z.looseObject({
     port: z.number().int().min(1).max(65535).optional(),
     oidc: OidcConfigSchema.optional(),
     settings: AppSettingsSchema.default({
-        retention_invalid_tokens_days: "30",
-        retention_invalid_tokens_count: "10",
+        token_retention_days: "30",
+        token_cleanup_interval_hours: "24",
+        retention_job_history_days: "90",
+        retention_job_history_count: "50",
+        job_history_cleanup_interval_hours: "24",
     }),
     security: z
         .object({

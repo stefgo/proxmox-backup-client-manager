@@ -1,6 +1,28 @@
 import type { AppConfig } from "../config/AppConfig.js";
 import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
+import { TokenCleanupService } from "./TokenCleanupService.js";
+import { JobHistoryCleanupService } from "./JobHistoryCleanupService.js";
+
+const TOKEN_CLEANUP_KEYS = new Set([
+    "token_retention_days",
+    "token_cleanup_interval_hours",
+]);
+
+const JOB_HISTORY_CLEANUP_KEYS = new Set([
+    "retention_job_history_days",
+    "retention_job_history_count",
+    "job_history_cleanup_interval_hours",
+]);
+
+/** Whether any of `keys` differs between the two settings blocks. */
+function changed(
+    keys: Set<string>,
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+): boolean {
+    return [...keys].some((key) => before[key] !== after[key]);
+}
 
 /**
  * Reads and writes the operator-facing part of `config.yaml`.
@@ -59,17 +81,27 @@ export class SettingsService {
             // back out of the flat object the page sends before the rest is merged in.
             const { security, ...rest } = settings;
 
-            const updates: Partial<AppConfig> = {
-                settings: {
-                    ...appConfig.settings,
-                    ...(rest as Record<string, string>),
-                },
+            const previousSettings = { ...appConfig.settings };
+            const newSettings = {
+                ...appConfig.settings,
+                ...(rest as Record<string, string>),
             };
+
+            const updates: Partial<AppConfig> = { settings: newSettings };
             if (security) {
                 updates.security = security as AppConfig["security"];
             }
 
             updateConfig(updates);
+
+            // An interval or a retention value changed: the timer starts over from the
+            // new settings, so a changed interval takes effect without a restart.
+            if (changed(TOKEN_CLEANUP_KEYS, previousSettings, newSettings)) {
+                TokenCleanupService.restartScheduler();
+            }
+            if (changed(JOB_HISTORY_CLEANUP_KEYS, previousSettings, newSettings)) {
+                JobHistoryCleanupService.restartScheduler();
+            }
         } catch (e) {
             logger.error({ err: e }, "Failed to update settings");
             throw e;

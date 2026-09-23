@@ -30,6 +30,9 @@ export const WS_EVENTS = {
 
     GET_VERSION: "GET_VERSION", // Client <-> Server
 
+    // Server -> Dashboard (scheduler)
+    SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
+
     // Internal
     ERROR: "ERROR",
 } as const;
@@ -111,3 +114,18 @@ export const REPOSITORY_STATUS = {
     UNKNOWN: "unknown",
     LOADING: "loading",
 } as const;
+
+/**
+ * The background jobs the server runs on a timer. Each keeps one row in `scheduler_state`:
+ * its last finished run and whatever it has to remember from one run to the next.
+ */
+export const SCHEDULER_IDS = ["token-cleanup", "job-history-cleanup"] as const;
+
+/** Whether the timer started a run or a user did, through the settings page. */
+export const SCHEDULER_TRIGGERS = ["schedule", "manual"] as const;
+
+/**
+ * How a finished run ended. `partial` finished but left work undone; `interrupted` never
+ * finished, because the server stopped while it ran.
+ */
+export const SCHEDULER_RUN_STATUSES = ["success", "partial", "failed", "interrupted"] as const;
