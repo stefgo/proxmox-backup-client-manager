@@ -8,16 +8,22 @@ import { Badge } from '@stefgo/react-ui-components';
 
 interface TokenListProps {
     tokens: Token[];
-    deleteToken: (token: string) => void;
+    /** Takes the token's hash: the server keeps nothing else to name it by. */
+    deleteToken: (tokenHash: string) => void;
 }
 
 export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
     const columns: DataTableDef<Token>[] = [
         {
-            tableHeader: "Token",
+            // The token's SHA-256 hash, shortened like a commit hash; the full value is in
+            // the tooltip. The token itself was shown once, when it was issued.
+            tableHeader: "Token Hash",
             tableItemRender: (t) => (
-                <span className={`font-mono text-sm text-text-primary ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}>
-                    {t.token}
+                <span
+                    title={t.tokenHash}
+                    className={`font-mono text-sm text-text-primary ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}
+                >
+                    {t.tokenHash.slice(0, 12)}
                 </span>
             ),
         },
@@ -63,12 +69,12 @@ export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
             tableCellClassName: "text-right text-sm font-medium",
             tableItemRender: (t) => (
                 <DataAction
-                    rowId={t.token}
+                    rowId={t.tokenHash}
                     menuEntries={[
                         {
                             label: 'Delete Token',
                             icon: Trash2,
-                            onClick: () => deleteToken(t.token),
+                            onClick: () => deleteToken(t.tokenHash),
                             variant: 'danger',
                         },
                     ]}
@@ -87,7 +93,7 @@ export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
                 itemDef={columns}
                 // colIndex 2 is "Expires / Used"; the Client column sits before it.
                 sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
-                keyField="token"
+                keyField="tokenHash"
                 emptyMessage="No tokens generated"
                 className="rounded-b-xl border-0 shadow-none"
                 pagination={{

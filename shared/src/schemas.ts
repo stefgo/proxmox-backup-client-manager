@@ -307,8 +307,10 @@ export const RegistrationResponseSchema = z.object({
     clientId: z.string(),
 });
 
+/** A registration token as the list shows it: by its hash, never the token itself. */
 export const TokenSchema = z.object({
-    token: z.string(),
+    /** SHA-256 of the token, hex. Also what `DELETE /api/v1/tokens/:tokenHash` takes. */
+    tokenHash: z.string(),
     createdAt: z.string(),
     expiresAt: z.string(),
     usedAt: z.string().optional(),
@@ -328,6 +330,17 @@ export const TokenSchema = z.object({
 export const CreateRegistrationTokenSchema = z.object({
     displayName: z.string().trim().min(1).max(100).optional(),
     allowedIp: Ipv4OrCidrSchema.optional(),
+});
+
+/**
+ * `POST /api/v1/tokens`: the one response that carries the token in the clear. The server
+ * stores only its hash, so this is the only time it can be shown.
+ */
+export const CreatedTokenSchema = z.object({
+    token: z.string(),
+    expiresAt: z.string(),
+    displayName: z.string().optional(),
+    allowedIp: z.string().optional(),
 });
 
 export const SnapshotSchema = z.object({

@@ -13,8 +13,10 @@ import { ProxyService } from "../services/ProxyService.js";
 export class TokenController {
     static async list(_request: FastifyRequest, _reply: FastifyReply) {
         const tokens = TokenRepository.findAll();
+        // Only the hash leaves the server: the token itself was shown once, when it was issued.
         return tokens.map((t) => ({
             ...t,
+            tokenHash: t.token_hash,
             createdAt: t.created_at,
             expiresAt: t.expires_at,
             usedAt: t.used_at,
@@ -36,14 +38,15 @@ export class TokenController {
         const token = crypto.randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
         TokenRepository.create(token, expiresAt, parsed.data);
+        // The one response that carries the token in the clear; only its hash is stored.
         return { token, expiresAt, ...parsed.data };
     }
 
     static async delete(request: FastifyRequest, reply: FastifyReply) {
-        const { token } = request.params as { token: string };
+        const { tokenHash } = request.params as { tokenHash: string };
         // A token that was not there is a 404, like every other delete: reporting "deleted"
         // for a token nobody holds hides a typo in the path as a success.
-        const { changes } = TokenRepository.delete(token);
+        const { changes } = TokenRepository.delete(tokenHash);
         if (changes === 0) {
             return reply.code(404).send({ error: "Token not found" });
         }
@@ -99,7 +102,7 @@ export class TokenController {
             // changed. Without a choice the column stays NULL and the check is off.
             const allowedIp = tokenRow.allowed_ip ?? null;
 
-            TokenRepository.markUsed(token);
+            TokenRepository.markUsed(tokenRow.token_hash);
 
             ClientRepository.createInbound(
                 clientId,

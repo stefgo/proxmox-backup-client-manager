@@ -20,6 +20,7 @@ import { migration07 } from "./migrations/07_token_registration_defaults.js";
 import { migration08 } from "./migrations/08_rename_inbound_allowed_ip.js";
 import { migration09 } from "./migrations/09_job_history_revision.js";
 import { migration10 } from "./migrations/10_scheduler_state.js";
+import { migration11 } from "./migrations/11_registration_token_hash.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -85,6 +86,11 @@ const migrator = new Umzug<Database.Database>({
             name: "10_scheduler_state",
             up: migration10.up,
             down: migration10.down,
+        },
+        {
+            name: "11_registration_token_hash",
+            up: migration11.up,
+            down: migration11.down,
         },
     ],
     context: db,

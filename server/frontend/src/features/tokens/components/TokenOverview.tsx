@@ -40,9 +40,9 @@ export const TokenOverview = () => {
 
     // A refused delete says so: a token the server no longer knows answers 404, and the row
     // used to stay where it was without a word.
-    const deleteToken = async (tokenStr: string) => {
+    const deleteToken = async (tokenHash: string) => {
         try {
-            const res = await apiFetch(`/api/v1/tokens/${tokenStr}`, {
+            const res = await apiFetch(`/api/v1/tokens/${tokenHash}`, {
                 method: 'DELETE'});
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));

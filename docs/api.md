@@ -1247,13 +1247,13 @@ reported, not queued.
 
 `GET /v1/tokens`
 
-**Description:** Lists active client registration tokens.
+**Description:** Lists active client registration tokens, by their hash: the token itself is not stored and cannot be listed.
 
 #### Response (Array of Token objects)
 
 | Field       | Type   | Description                                     |
 | :---------- | :----- | :---------------------------------------------- |
-| `token`     | string | The token string.                               |
+| `tokenHash` | string | SHA-256 of the token, hex.                      |
 | `createdAt` | string | ISO 8601 timestamp of creation.                 |
 | `expiresAt` | string | ISO 8601 timestamp of expiry.                   |
 | `usedAt`    | string | ISO 8601 timestamp of when it was used (optional). |
@@ -1265,7 +1265,7 @@ reported, not queued.
 ```json
 [
     {
-        "token": "token-123",
+        "tokenHash": "9f86d081884c...",
         "createdAt": "2023-10-27T10:00:00Z",
         "expiresAt": "2023-10-27T14:00:00Z",
         "usedAt": null,
@@ -1280,6 +1280,8 @@ reported, not queued.
 `POST /v1/tokens`
 
 **Description:** Generates a new short-lived token for client registration.
+
+The response is the only place the token appears in the clear: the server stores just its SHA-256 hash, and [List Tokens](#list-tokens) returns that hash.
 
 #### Request Body (optional)
 
@@ -1313,15 +1315,15 @@ unattended, so anything not set here has to be corrected by hand afterwards.
 
 ### Delete Token
 
-`DELETE /v1/tokens/:token`
+`DELETE /v1/tokens/:tokenHash`
 
 **Description:** Manually invalidates/deletes a registration token.
 
 #### Path Parameters
 
-| Parameter | Type   | Required | Description                 |
-| :-------- | :----- | :------- | :-------------------------- |
-| `token`   | string | **Yes**  | The token string to delete. |
+| Parameter   | Type   | Required | Description                                       |
+| :---------- | :----- | :------- | :------------------------------------------------ |
+| `tokenHash` | string | **Yes**  | The `tokenHash` of the token, as the list returns it. |
 
 #### Response
 
