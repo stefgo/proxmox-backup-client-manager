@@ -82,6 +82,7 @@ State is split across Zustand stores in `server/frontend/src/stores/`:
 - `useClientDetailStore` – selected client data, history, jobs
 - `useGlobalJobsStore` – centralized backup job configs
 - `useRepositoryStore` / `useRepositorySnapshotStore` – PBS repository data
+- `useSchedulerStore` – status of the server's cleanup schedulers (settings page)
 
 WebSocket updates from `/ws/dashboard` flow into these stores; the frontend does not poll.
 

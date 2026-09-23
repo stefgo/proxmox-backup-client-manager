@@ -15,7 +15,9 @@ import { initOIDC, appConfig, serverPort } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
-import { CleanupService } from "./services/CleanupService.js";
+import { TokenCleanupService } from "./services/TokenCleanupService.js";
+import { JobHistoryCleanupService } from "./services/JobHistoryCleanupService.js";
+import { SchedulerStateRepository } from "./repositories/SchedulerStateRepository.js";
 import { ClientConnector } from "./services/ClientConnector.js";
 import { TunnelService } from "./services/TunnelService.js";
 
@@ -27,7 +29,11 @@ import { initDatabase } from "./core/Database.js";
 await initDatabase();
 await initOIDC();
 await AuthService.initializeAdmin(); // Ensure admin user
-await CleanupService.initialize();
+// A run still marked as in progress died with the previous process; record it as such
+// before the timers read the last run to place their first one.
+SchedulerStateRepository.markInterrupted();
+TokenCleanupService.startScheduler();
+JobHistoryCleanupService.startScheduler();
 
 import { loggerOptions } from "@pbcm/shared/node";
 
@@ -189,6 +195,8 @@ ClientConnector.connectAll().catch((err) =>
 
 const shutdown = () => {
     server.log.info("Shutting down server...");
+    TokenCleanupService.stopScheduler();
+    JobHistoryCleanupService.stopScheduler();
     TunnelService.shutdown();
     server.close(() => {
         process.exit(0);
@@ -211,6 +219,8 @@ process.on("unhandledRejection", (reason) => {
 // the supervisor restart us (compose.yaml: restart: unless-stopped).
 process.on("uncaughtException", (err) => {
     server.log.fatal({ err }, "Uncaught exception, terminating");
+    TokenCleanupService.stopScheduler();
+    JobHistoryCleanupService.stopScheduler();
     TunnelService.shutdown();
     // Give the pino transport worker a moment to flush before we go.
     setTimeout(() => process.exit(1), 250);

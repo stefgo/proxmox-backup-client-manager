@@ -244,6 +244,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/settings/cleanup/job-history",
                     SettingsController.cleanupJobHistory,
                 );
+                protectedRoutes.get(
+                    "/settings/scheduler-status",
+                    SettingsController.getSchedulerStatus,
+                );
             });
 
             // Register Client (Public but API)

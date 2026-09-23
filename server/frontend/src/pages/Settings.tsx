@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Save, Settings as SettingsIcon } from 'lucide-react';
 import {
     Button,
@@ -26,6 +26,23 @@ import {
     type SettingsValues,
 } from '../features/settings/sections';
 import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
+import { useSchedulerStore } from '../stores/useSchedulerStore';
+import type { SchedulerStatuses } from '@pbcm/shared';
+
+interface SchedulerStatusResponse {
+    schedulers?: Partial<SchedulerStatuses>;
+}
+
+/** Loads the scheduler status without touching state; null when it cannot be read. */
+async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null> {
+    try {
+        const response = await apiFetch('/api/v1/settings/scheduler-status');
+        return response.ok ? await response.json() : null;
+    } catch (e) {
+        console.error('Failed to fetch scheduler status:', e);
+        return null;
+    }
+}
 
 // The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
 // be clipped by the panel border next to it.
@@ -41,8 +58,8 @@ const TAB_SELECTED_CLASS =
  *
  * Each section saves on its own and sends only its own keys; the server merges them into the
  * stored block. A tab with edits that are not saved yet carries a dot, so they are not
- * forgotten. Each section also runs its own cleanup: the one Manual Run below both used to
- * start both.
+ * forgotten. Each section shows its scheduler below its fields -- status, last and next
+ * run -- and runs its own cleanup from there.
  *
  * The open tab is in the URL, like the tabs of the client page.
  */
@@ -66,7 +83,17 @@ export default function Settings() {
         orientation: 'vertical',
     });
 
-    // isLoading starts out true, so the load only ever has to lower it.
+    const setSchedulers = useSchedulerStore((s) => s.setSchedulers);
+
+    // Split into a request that touches no state and a function that applies its answer:
+    // the effect below may only set state once the response is there, and a save loads the
+    // status again afterwards. The store setter is stable.
+    const applySchedulerStatus = useCallback((data: SchedulerStatusResponse) => {
+        if (data.schedulers) setSchedulers(data.schedulers);
+    }, [setSchedulers]);
+
+    // Settings and scheduler status are loaded once, inside the effect. isLoading starts
+    // out true, so the load only ever has to lower it.
     useEffect(() => {
         if (!isAuthenticated) return;
         let cancelled = false;
@@ -88,10 +115,13 @@ export default function Settings() {
             }
         };
         loadSettings();
+        requestSchedulerStatus().then((data) => {
+            if (!cancelled && data) applySchedulerStatus(data);
+        });
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated]);
+    }, [isAuthenticated, applySchedulerStatus]);
 
     const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -111,6 +141,9 @@ export default function Settings() {
             }
             setSaved((prev) => ({ ...prev, ...body }));
             show({ variant: 'success', title: `${section.label} saved` });
+            // A changed interval moves the next scheduled run.
+            const status = await requestSchedulerStatus();
+            if (status) applySchedulerStatus(status);
         } catch (e: unknown) {
             alert(describeFailure('Could not save the settings', e));
         } finally {

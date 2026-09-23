@@ -52,6 +52,7 @@
     - [Run Maintenance](#run-maintenance)
     - [Clean Up Invalid Tokens](#clean-up-invalid-tokens)
     - [Clean Up Job History](#clean-up-job-history)
+    - [Scheduler Status](#scheduler-status)
 - [Reachability](#-reachability)
 - [WebSockets](#-websockets)
     - [Dashboard Connection](#dashboard-connection)
@@ -1391,12 +1392,19 @@ that stores only one of them cannot connect.
 
 ```json
 {
-    "retention_invalid_tokens_days": "30",
-    "retention_invalid_tokens_count": "10",
+    "token_retention_days": "30",
+    "token_cleanup_interval_hours": "24",
     "retention_job_history_days": "90",
-    "retention_job_history_count": "50"
+    "retention_job_history_count": "50",
+    "job_history_cleanup_interval_hours": "24"
 }
 ```
+
+The response also carries `security` and any key an operator added to the `settings`
+block by hand. An interval of `"0"` switches that cleanup's timer off; the manual endpoints
+below keep working. `retention_invalid_tokens_days` and `retention_invalid_tokens_count`
+are gone: the first is now `token_retention_days` (its value is not carried over), the
+second has no successor. The server removes both from `config.yaml` at startup.
 
 ### Update Cleanup Settings
 
@@ -1410,13 +1418,17 @@ _Same fields as the response of [Get Cleanup Settings](#get-cleanup-settings)._ 
 keys sent are changed; the others keep their stored value, so each tab of the settings page
 sends just its own.
 
+Changing a cleanup's retention values or interval restarts its scheduler, so the next run
+moves at once (see [Scheduler Status](#scheduler-status)).
+
 ### Run Maintenance
 
 `POST /v1/settings/cleanup`
 
 **Description:** Manually triggers the cleanup/maintenance task based on current settings.
 
-Runs both cleanups below and answers with what each removed:
+Runs both cleanups below, one after the other, each recorded as a manual run of its
+scheduler, and answers with what each removed:
 
 ```json
 {
@@ -1430,8 +1442,9 @@ Runs both cleanups below and answers with what each removed:
 
 `POST /v1/settings/cleanup/invalid-tokens`
 
-**Description:** Removes invalid registration tokens according to the saved
-`retention_invalid_tokens_*` settings. The settings page runs this from its Client Tokens tab.
+**Description:** Removes registration tokens that have been invalid (used or expired) for
+longer than the saved `token_retention_days`. Recorded as a manual run of the
+`token-cleanup` scheduler. The settings page runs this from its Client Tokens tab.
 
 ```json
 {
@@ -1444,13 +1457,56 @@ Runs both cleanups below and answers with what each removed:
 `POST /v1/settings/cleanup/job-history`
 
 **Description:** Removes job history records according to the saved
-`retention_job_history_*` settings. The settings page runs this from its Job History tab.
+`retention_job_history_*` settings. Recorded as a manual run of the `job-history-cleanup`
+scheduler. The settings page runs this from its Job History tab.
 
 ```json
 {
     "removed": 14
 }
 ```
+
+### Scheduler Status
+
+`GET /v1/settings/scheduler-status`
+
+**Description:** The state of every scheduler the server runs: whether a run is in
+progress, when the timer fires next (`null` when its interval is `0`) and the last run it
+finished. The last run survives a restart (table `scheduler_state`); there is no history
+beyond it.
+
+```json
+{
+    "schedulers": {
+        "token-cleanup": {
+            "isRunning": false,
+            "nextRun": "2026-09-24T16:11:22.336Z",
+            "lastRun": {
+                "trigger": "manual",
+                "status": "success",
+                "startedAt": "2026-09-23T16:11:34.355Z",
+                "finishedAt": "2026-09-23T16:11:34.355Z",
+                "result": { "removed": 0 },
+                "error": null
+            }
+        },
+        "job-history-cleanup": {
+            "isRunning": false,
+            "nextRun": null,
+            "lastRun": null
+        }
+    }
+}
+```
+
+- `trigger`: `schedule` (the timer) or `manual` (a cleanup endpoint above).
+- `status`: `success`, `partial`, `failed` (with `error`) or `interrupted` — the server
+  stopped while the run was in progress; `finishedAt` is `null` then.
+- `result`: `{ removed }` for both schedulers, `null` unless the run succeeded.
+
+The first run after a restart comes one interval after the last run started — at once if
+that is already past — or one interval after startup when the scheduler has never run.
+Every change is pushed as [`SCHEDULER_STATUS_UPDATE`](#dashboard-connection).
 
 ---
 
@@ -1512,6 +1568,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | `JOB_UPDATE`         | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.                |
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
 | `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
+| `SCHEDULER_STATUS_UPDATE` | `{ scheduler: SchedulerId, status: SchedulerStatus }`            | One server scheduler, whenever a run starts or ends or its timer moves. Same shape as one entry of [Scheduler Status](#scheduler-status). |
 
 ### Agent Connection
 

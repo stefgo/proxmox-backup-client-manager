@@ -137,7 +137,7 @@ PBCM sets up and tears down around the run.
 - **Reachability** — clients with no route to the PBS back up through an
   [SSH reverse tunnel](tunnel.md), opened per run.
 - **Authentication** — local admin accounts and OIDC single sign-on.
-- **Daily maintenance** — automatic cleanup of old histories and schedule state.
+- **Maintenance** — automatic cleanup of old job history and used tokens, on an interval you set, with the last run visible on the settings page.
 
 ## The dashboard
 

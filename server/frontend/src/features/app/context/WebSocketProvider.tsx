@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
+import { useSchedulerStore } from '../../../stores/useSchedulerStore';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
 
@@ -79,6 +80,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     if (data.type === 'JOB_NEXT_RUN_UPDATE') {
                         emit('jobNextRunUpdate', data.payload);
+                    }
+
+                    // One scheduler at a time, whenever a run starts or ends or its timer moves.
+                    if (data.type === 'SCHEDULER_STATUS_UPDATE') {
+                        if (typeof data.payload?.scheduler === 'string' && data.payload.status) {
+                            useSchedulerStore.getState().applyUpdate(data.payload);
+                        }
                     }
 
                 } catch (e) {

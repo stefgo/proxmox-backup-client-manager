@@ -5,6 +5,9 @@ import {
     CONNECTION_MODE,
     TUNNEL_STATUS,
     REPOSITORY_STATUS,
+    SCHEDULER_IDS,
+    SCHEDULER_RUN_STATUSES,
+    SCHEDULER_TRIGGERS,
 } from "./constants.js";
 import {
     ClientSchema,
@@ -277,3 +280,42 @@ export interface ProtocolMap {
         res: void;
     };
 }
+
+export type SchedulerId = (typeof SCHEDULER_IDS)[number];
+export type SchedulerTrigger = (typeof SCHEDULER_TRIGGERS)[number];
+export type SchedulerRunStatus = (typeof SCHEDULER_RUN_STATUSES)[number];
+
+/** What each scheduler reports as the result of a run. */
+export interface SchedulerRunResults {
+    "token-cleanup": { removed: number };
+    "job-history-cleanup": { removed: number };
+}
+
+/** The last run a scheduler finished, as `scheduler_state` keeps it. */
+export interface SchedulerRunSummary<Id extends SchedulerId = SchedulerId> {
+    trigger: SchedulerTrigger;
+    status: SchedulerRunStatus;
+    startedAt: string;
+    /** Null for a run the server did not live to finish (`interrupted`). */
+    finishedAt: string | null;
+    /** Null unless the run succeeded, fully or in part. */
+    result: SchedulerRunResults[Id] | null;
+    error: string | null;
+}
+
+export interface SchedulerStatus<Id extends SchedulerId = SchedulerId> {
+    isRunning: boolean;
+    /** Null when the scheduler is switched off. */
+    nextRun: string | null;
+    lastRun: SchedulerRunSummary<Id> | null;
+}
+
+/** `GET /api/v1/settings/scheduler-status`: every scheduler the server runs. */
+export type SchedulerStatuses = {
+    [Id in SchedulerId]: SchedulerStatus<Id>;
+};
+
+/** The payload of `SCHEDULER_STATUS_UPDATE`: one scheduler, whenever a run starts or ends. */
+export type SchedulerStatusUpdate = {
+    [Id in SchedulerId]: { scheduler: Id; status: SchedulerStatuses[Id] };
+}[SchedulerId];
