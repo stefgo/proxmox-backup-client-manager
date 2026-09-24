@@ -231,6 +231,11 @@ docker compose exec pbcm-client node -e "fetch('http://127.0.0.1:3001/api/health
 It is there whatever `config.yaml` disables — with both pages off and no outbound mode, the
 agent still starts its web server for it, bound to `127.0.0.1`.
 
+The check follows the port and scheme the agent actually listens on, whether they come from
+`config.yaml` (`listenPort`, `tls`) or from `PBCM_CLIENT_PORT` — see
+[Health check](client.md#health-check). The command above assumes the defaults; with a moved
+port or TLS, adjust its URL.
+
 **It reports on the agent, not on the connection to the server.** An agent that cannot
 reach the server is still healthy: it keeps its jobs in its own data files and runs them on
 schedule regardless. Whether it is connected is a different question, answered on the

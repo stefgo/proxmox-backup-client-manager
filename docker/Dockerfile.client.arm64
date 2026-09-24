@@ -75,9 +75,17 @@ COPY --from=builder /app/client/dist ./client/dist
 # Switch to client directory so paths align with dev environment (config.json resolution)
 WORKDIR /app/client
 
-# Liveness probe. Node is installed here anyway and Node 22 has fetch as a global,
-# so the check needs neither curl nor wget. The port follows the agent's own config
-# (PBCM_CLIENT_PORT, default 3001 -- see client/src/core/Config.ts).
+# Liveness probe. Node is installed here anyway, so the check needs neither curl nor wget.
+#
+# The address comes from /tmp/pbcm-health.json, which the agent writes after listen() with
+# the port and scheme it actually serves -- so a listenPort or `tls` block set only in
+# config.yaml is followed as well as PBCM_CLIENT_PORT (see HEALTH_FILE in
+# client/src/web/server.ts). Without that file -- during start-up, or in an image from
+# before it existed -- the probe asks PBCM_CLIENT_PORT (default 3001), plain HTTP first;
+# only a failed connection falls through to HTTPS, so a 503 over HTTP stays a 503.
+#
+# The certificate is not verified: the request goes to 127.0.0.1 inside the container,
+# where no name in it would match, and sends nothing that needs protecting.
 #
 # The route exists in this image whatever config.yaml says, and answers loopback only.
 # With both pages disabled and no outbound mode the web server still starts for it, bound
@@ -88,6 +96,6 @@ WORKDIR /app/client
 # reason to call it unhealthy. Note also that Docker does not restart an unhealthy
 # container -- restart policies react to a process exiting, not to health.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD node -e 'const p = process.env.PBCM_CLIENT_PORT || 3001; fetch("http://127.0.0.1:" + p + "/api/health").then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'
+    CMD node -e 'const get = (u) => new Promise((done) => require(u.split(":")[0]).get(u, { rejectUnauthorized: false }, (r) => done(r.statusCode)).on("error", () => done(0))); let f; try { f = JSON.parse(require("fs").readFileSync("/tmp/pbcm-health.json", "utf8")).url; } catch {} const u = "://127.0.0.1:" + (process.env.PBCM_CLIENT_PORT || 3001) + "/api/health"; (f ? get(f) : get("http" + u).then((s) => s || get("https" + u))).then((s) => process.exit(s === 200 ? 0 : 1))'
 
 CMD ["node", "dist/index.js"]

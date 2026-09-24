@@ -148,7 +148,7 @@ tls:
     key: /etc/pbcm/agent.key
 ```
 
-Relative paths resolve against the agent's directory. Both files are read and checked at startup, and **a `tls` block that cannot be read ends the start** rather than falling back to HTTP — an agent configured for TLS that quietly served plaintext would hand its auth token out on `/ws/register` while looking perfectly healthy. The log line after `listen()` names the scheme actually in use, as does the setup PIN block.
+Relative paths resolve against the agent's directory. Both files are read and checked at startup, and **a `tls` block that cannot be read ends the start** rather than falling back to HTTP — an agent configured for TLS that quietly served plaintext would hand its auth token out on `/ws/register` while looking perfectly healthy. The log line after `listen()` names the scheme actually in use, as does the setup PIN block. The container's health check follows the scheme without being told (see [Health check](#health-check)).
 
 This matters in outbound mode, where the server dials `/ws/agent` with the auth token in the query string. With TLS on, the client's target address on the server has to say so: `wss://host:port`. The two are set separately and have to agree. A reverse proxy terminating TLS in front of the agent works just as well — leave `tls` unset and point the proxy at the plain port. What the agent stores is the path you wrote, so saving its configuration does not rewrite a relative path into an absolute one.
 
@@ -194,6 +194,26 @@ It is unrelated to the SSH reverse tunnel, which carries backup traffic to the P
   reverse proxy must allow the proxy's address, not the server's. A wrong value is only
   repairable locally on the client host: the connection one would fix it over is the one
   being refused.
+
+#### Health check
+
+The client images declare a `HEALTHCHECK` against `/api/health`. It reports on the agent —
+whether its data directory is writable — not on the connection to the server: an agent that
+cannot reach the server still runs its jobs.
+
+The probe cannot read `config.yaml`, so the agent tells it where to ask: after `listen()` it
+writes the address it actually serves to `/tmp/pbcm-health.json`
+(`{"url":"https://127.0.0.1:4001/api/health"}`). A port or `tls` block set only in
+`config.yaml` is therefore followed just like `PBCM_CLIENT_PORT`, and an edited
+`config.yaml` does not move the probe before the agent has restarted onto it. The file lives
+under `/tmp` rather than in the data volume, so an address from an earlier container does not
+outlive it, and it is removed before each `listen()`, so a failed start leaves none behind.
+
+Without the file — before the first `listen()`, or in an image from before it existed — the
+probe asks `PBCM_CLIENT_PORT` (default `3001`), plain HTTP first and HTTPS only when the
+connection fails. The certificate is not verified in either case: the request goes to
+`127.0.0.1` inside the container, where no name in it would match, and sends nothing that
+needs protecting.
 
 ### 5. Event Handlers (`src/features/Handlers.ts`)
 

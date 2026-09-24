@@ -40,6 +40,9 @@ RUN npm prune --omit=dev
 FROM node:22-bookworm-slim AS runner
 
 ENV NODE_ENV=production
+# Tells the server it runs in this image, which is where it writes the address the
+# HEALTHCHECK below asks -- see server/backend/src/core/HealthFile.ts.
+ENV PBCM_CONTAINER=true
 
 WORKDIR /app
 
@@ -59,9 +62,10 @@ WORKDIR /app/server/backend
 
 # Liveness probe. This image carries neither curl nor wget, but it does carry Node,
 # and Node 22 has fetch as a global -- so the check needs no extra package.
-# The probe reads PBCM_SERVER_PORT itself so it follows a moved port; a port set only in
-# config.yaml needs this variable too, or the probe asks 3000 while the server listens
-# elsewhere.
+# The address comes from /tmp/pbcm-health.json, which the server writes after listen() with
+# the port it actually serves -- so a port set in config.yaml is followed as well as
+# PBCM_SERVER_PORT (see server/backend/src/core/HealthFile.ts). Without that file there is
+# nothing to ask, and the probe fails.
 #
 # start-period covers the startup work before listen(): migrations, OIDC discovery
 # and the initial admin account.
@@ -71,6 +75,6 @@ WORKDIR /app/server/backend
 # lets compose use `depends_on: condition: service_healthy`, and gives monitoring
 # something to read.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD node -e 'fetch(`http://127.0.0.1:${process.env.PBCM_SERVER_PORT || 3000}/api/health`).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))'
+    CMD node -e 'Promise.resolve().then(() => fetch(JSON.parse(require("fs").readFileSync("/tmp/pbcm-health.json", "utf8")).url)).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
 
 CMD ["node", "dist/index.js"]

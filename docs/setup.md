@@ -44,7 +44,7 @@ environment:
 
 | Variable            | Description |
 | :------------------ | :---------- |
-| `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check reads it too, so the probe follows a moved port; a port set only in `config.yaml` needs this variable as well or the probe keeps asking 3000. |
+| `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check follows the port either way, whether it comes from here or from `config.yaml` (see [Health](install-server.md#health)). |
 
 ## Server
 
@@ -129,7 +129,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `serverUrl` | URL of the management server (e.g. `wss://backup-server:3000/ws`). **Leave unset for outbound mode** — its absence is what puts the agent into it. |
-| `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. |
+| `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. The container's health check follows the port either way. |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 | `enableStatusPage` | Serve the status page at `/status` (default: `true`). |

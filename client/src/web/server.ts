@@ -120,6 +120,42 @@ function isLoopback(request: FastifyRequest): boolean {
     return ip === "::1" || isIpInCidr(ip, "127.0.0.0/8");
 }
 
+/**
+ * Where the agent tells the container's HEALTHCHECK which address to ask. The probe cannot
+ * work the port and scheme out for itself: they come from config.yaml or PBCM_CLIENT_PORT,
+ * and repeating that resolution in a one-line probe would drift from this one -- and would
+ * follow an edited config.yaml before the agent had restarted onto it. So the agent writes
+ * what it actually listens on, and the probe reads that. The probe in the images and in
+ * compose.yaml names the same path.
+ *
+ * Under /tmp, not DATA_DIR: that is a volume, and an address from a previous container
+ * must not outlive it.
+ */
+const HEALTH_FILE = "/tmp/pbcm-health.json";
+
+/**
+ * Removed before listen() so that a failed start leaves no address from the previous one
+ * behind -- the probe would then ask a port that was right once. Failures are logged and
+ * nothing more: the probe falls back to PBCM_CLIENT_PORT, and an agent must not refuse to
+ * run its backups over its health check.
+ */
+function clearHealthFile(): void {
+    try {
+        fs.rmSync(HEALTH_FILE, { force: true });
+    } catch (err) {
+        logger.warn({ err, file: HEALTH_FILE }, "Could not remove the health check address");
+    }
+}
+
+function writeHealthFile(port: number): void {
+    const url = `${config.tls ? "https" : "http"}://127.0.0.1:${port}/api/health`;
+    try {
+        fs.writeFileSync(HEALTH_FILE, JSON.stringify({ url }));
+    } catch (err) {
+        logger.warn({ err, file: HEALTH_FILE }, "Could not write the health check address");
+    }
+}
+
 export async function startWebServer() {
     const routes = getWebRoutes();
     const pages = routes.statusPage || routes.registerPage;
@@ -160,9 +196,15 @@ export async function startWebServer() {
     // Without a page or the outbound routes nothing here is meant for another machine, and
     // the health route only answers loopback anyway -- so the socket need not be reachable.
     const host = pages || routes.outbound ? "0.0.0.0" : "127.0.0.1";
+    if (routes.health) {
+        clearHealthFile();
+    }
     try {
         const port = config.listenPort;
         await fastify.listen({ port, host });
+        if (routes.health) {
+            writeHealthFile(port);
+        }
         logger.info(
             {
                 statusPage: routes.statusPage,

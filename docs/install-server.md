@@ -148,6 +148,13 @@ To change the timings, or to make the check visible in the file you maintain, de
 [`compose.yaml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/compose.yaml)
 in the repository does exactly that, and is a working example to copy from.
 
+The check does not read `PBCM_SERVER_PORT` or `config.yaml` itself. Once the server listens,
+it writes the address it serves to `/tmp/pbcm-health.json` inside the container, and the
+check asks that address — so a port moved in either place is followed without anything else
+to set. Without that file the check has nothing to ask and reports `unhealthy`: during
+start-up, which `start_period` covers, and when the repository's `compose.yaml` runs an image
+from before the file existed. A `healthcheck:` block of your own should read the same file.
+
 ### Logs
 
 ```bash
