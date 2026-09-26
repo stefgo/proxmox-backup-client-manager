@@ -8,6 +8,14 @@ export const SCHEDULE_FILE = "schedule.json";
 export const ScheduleStateSchema = z.object({
     lastRun: z.string().nullable().default(null),
     nextRun: z.string().nullable().default(null),
+    /**
+     * The start the operator entered, kept apart from `nextRun` because that one moves. A
+     * daily or weekly schedule takes its time of day from here, so a run that had to move --
+     * 02:30 on the night the clocks go forward does not exist -- does not carry the shift
+     * into every run after it. `null` for state written before the field, and for a job
+     * the scheduler initialised itself; its runs keep the time of day of the previous one.
+     */
+    anchor: z.string().nullable().default(null),
 });
 export type ScheduleState = z.infer<typeof ScheduleStateSchema>;
 
@@ -15,6 +23,7 @@ export interface StateRow {
     id: string;
     last_run: string | null;
     next_run: string | null;
+    anchor: string | null;
 }
 
 /**
@@ -58,21 +67,30 @@ export class JobScheduleStateRepository {
 
     static findById(id: string): StateRow | undefined {
         const state = this.load().get(id);
-        return state ? { id, last_run: state.lastRun, next_run: state.nextRun } : undefined;
+        return state
+            ? { id, last_run: state.lastRun, next_run: state.nextRun, anchor: state.anchor }
+            : undefined;
     }
 
-    static updateNextRun(id: string, nextRun: string | null): void {
+    /** `anchor` left out keeps the stored one; the scheduler moves `nextRun` alone. */
+    static updateNextRun(id: string, nextRun: string | null, anchor?: string | null): void {
         const state = this.load().get(id);
         if (!state) return;
-        this.set(id, { ...state, nextRun });
+        this.set(id, { ...state, nextRun, ...(anchor === undefined ? {} : { anchor }) });
     }
 
-    static insert(id: string, nextRun: string | null, lastRun: string | null): void {
-        this.set(id, { lastRun, nextRun });
+    static insert(
+        id: string,
+        nextRun: string | null,
+        lastRun: string | null,
+        anchor: string | null = null,
+    ): void {
+        this.set(id, { lastRun, nextRun, anchor });
     }
 
     static updateBoth(id: string, lastRun: string, nextRun: string | null): void {
-        this.set(id, { lastRun, nextRun });
+        const anchor = this.load().get(id)?.anchor ?? null;
+        this.set(id, { lastRun, nextRun, anchor });
     }
 
     static delete(id: string): void {

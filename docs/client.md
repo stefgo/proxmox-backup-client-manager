@@ -85,6 +85,11 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
 - It reads job configurations from the agent's own `jobs.json`.
 - Once a minute it checks every job with an active schedule against its stored next run time.
 - Upon reaching the scheduled time, it triggers the `Executor` autonomously.
+- Days and weeks are stepped by calendar date in the agent's time zone (`TZ`), not by 24-hour
+  blocks, so a job keeps its time of day across daylight saving changes. The time of day comes
+  from the start entered in the dashboard, which `schedule.json` keeps as `anchor`: a run that
+  had to move because its time did not exist that night does not shift every run after it.
+  Hours, minutes and seconds stay fixed intervals. Weekdays are checked in the same zone.
 - After execution, it records the last and next run times in `schedule.json`, and emits a `JOB_NEXT_RUN_UPDATE` event to the server (if connected).
 
 ### 3. Job Executor (`src/features/Executor.ts`)
@@ -242,7 +247,7 @@ the agent run its scheduled backups with no server in reach.
 | :-------------------- | :-------------------------------------------------------------------- |
 | `identity.json`       | `clientId` and `authToken`, issued by the server at registration. Without it the agent is unregistered. An older agent's pair is moved here out of `config.yaml` on the first start. |
 | `jobs.json`           | The job configurations. The **only copy** there is: the server lists, saves and deletes jobs through the agent and keeps none of them. |
-| `schedule.json`       | Last and next run time per job. Written on every scheduled run, so it is kept apart from `jobs.json`. |
+| `schedule.json`       | Last and next run time per job, plus the entered start (`anchor`) the time of day is taken from. Written on every scheduled run, so it is kept apart from `jobs.json`. |
 | `history/<run>.json`  | One file per run: status, timing, exit code, output, and the sync revisions. |
 
 - **Atomic writes**: every file is written to a temporary file, synced, and renamed over the

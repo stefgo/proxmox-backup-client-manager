@@ -166,10 +166,12 @@ export class Handlers {
             if (scheduleEnabled && nextRunAt) {
                 const existingState =
                     JobScheduleStateRepository.findById(jobId);
+                // The entered start is also the anchor every later run takes its time of
+                // day from (see ScheduleStateSchema).
                 if (existingState) {
-                    JobScheduleStateRepository.updateNextRun(jobId, nextRunAt);
+                    JobScheduleStateRepository.updateNextRun(jobId, nextRunAt, nextRunAt);
                 } else {
-                    JobScheduleStateRepository.insert(jobId, nextRunAt, null);
+                    JobScheduleStateRepository.insert(jobId, nextRunAt, null, nextRunAt);
                 }
             }
 

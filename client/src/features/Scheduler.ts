@@ -9,12 +9,21 @@ import { Connection } from "../core/Connection.js";
 /** Upper bound for the catch-up loop, so a pathological schedule cannot stall the tick. */
 const MAX_CATCHUP_STEPS = 1000;
 
+/** Units that are a fixed length of time. */
 const UNIT_MULTIPLIERS: { [key: string]: number } = {
     seconds: 1000,
     minutes: 60 * 1000,
     hours: 60 * 60 * 1000,
-    days: 24 * 60 * 60 * 1000,
-    weeks: 7 * 24 * 60 * 60 * 1000,
+};
+
+/**
+ * Units that are calendar days, stepped by date rather than by milliseconds: a day is 23
+ * or 25 hours long when the clocks change, and a job at 02:00 has to stay at 02:00 on the
+ * agent's clock rather than move to 01:00 or 03:00 for the rest of the season.
+ */
+const UNIT_DAYS: { [key: string]: number } = {
+    days: 1,
+    weeks: 7,
 };
 
 export class Scheduler {
@@ -78,12 +87,42 @@ export class Scheduler {
         this.run();
     }
 
+    /**
+     * The same time of day `days` calendar days later, on the agent's clock (its `TZ`).
+     * The time of day comes from `clock` when there is one, else from `date` itself.
+     */
+    private static addCalendarDays(date: Date, days: number, clock: Date | null): Date {
+        const source = clock ?? date;
+        const next = new Date(date.getTime());
+        next.setDate(next.getDate() + days);
+        next.setHours(
+            source.getHours(),
+            source.getMinutes(),
+            source.getSeconds(),
+            source.getMilliseconds(),
+        );
+        return next;
+    }
+
+    /**
+     * The run after `fromDate`. Days and weeks are stepped by date, the shorter units by a
+     * fixed length (see UNIT_DAYS). Everything here is on the agent's clock: the time of day
+     * a daily job keeps and the weekday it is checked against are those of the agent's time
+     * zone, which the dashboard shows next to the schedule.
+     */
     private static calculateNextRun(
         schedule: ScheduleConfig,
         fromDate: Date,
+        anchor: Date | null,
     ): Date {
-        const intervalMs = schedule.interval * UNIT_MULTIPLIERS[schedule.unit];
-        let nextDate = new Date(fromDate.getTime() + intervalMs);
+        const days = UNIT_DAYS[schedule.unit];
+        // Only a calendar schedule takes its time of day from the anchor; an hourly one
+        // with weekdays has no time of day of its own.
+        const clock = days === undefined ? null : anchor;
+        let nextDate =
+            days === undefined
+                ? new Date(fromDate.getTime() + schedule.interval * UNIT_MULTIPLIERS[schedule.unit])
+                : this.addCalendarDays(fromDate, schedule.interval * days, clock);
 
         if (schedule.weekdays && schedule.weekdays.length > 0) {
             let checks = 0;
@@ -94,7 +133,7 @@ export class Scheduler {
                 if (schedule.weekdays.includes(dayName)) {
                     break;
                 }
-                nextDate = new Date(nextDate.getTime() + 24 * 60 * 60 * 1000);
+                nextDate = this.addCalendarDays(nextDate, 1, clock);
                 checks++;
             }
         }
@@ -116,11 +155,12 @@ export class Scheduler {
         from: Date,
         now: Date,
         jobName: string,
+        anchor: Date | null,
     ): Date {
-        let next = this.calculateNextRun(schedule, from);
+        let next = this.calculateNextRun(schedule, from, anchor);
 
         for (let i = 0; next <= now && i < MAX_CATCHUP_STEPS; i++) {
-            next = this.calculateNextRun(schedule, next);
+            next = this.calculateNextRun(schedule, next, anchor);
         }
 
         if (next <= now) {
@@ -131,7 +171,7 @@ export class Scheduler {
                 `Job ${jobName} is more than ${MAX_CATCHUP_STEPS} intervals behind; ` +
                     `anchoring the next run on the current time.`,
             );
-            next = this.calculateNextRun(schedule, now);
+            next = this.calculateNextRun(schedule, now, anchor);
         }
 
         return next;
@@ -193,11 +233,13 @@ export class Scheduler {
                     const runId = randomUUID();
                     Executor.executeBackup(runId, job.id);
 
+                    const anchor = state.anchor ? new Date(state.anchor) : null;
                     const newNextRun = this.advancePastNow(
                         schedule,
                         nextRun,
                         now,
                         job.name,
+                        anchor && !isNaN(anchor.getTime()) ? anchor : null,
                     );
                     const nextDateStr = newNextRun.toISOString();
 

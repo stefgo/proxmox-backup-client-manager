@@ -100,6 +100,8 @@ services:
             - /:/mnt/host:ro
         environment:
             - NODE_ENV=production
+            # The clock job schedules repeat on (see "Time zones" below). Without it: UTC.
+            # - TZ=Europe/Berlin
         restart: unless-stopped
 
 volumes:
@@ -211,6 +213,19 @@ WebSocket. Remember that the source paths are **container** paths — `/mnt/host
 
 The schedule then belongs to the agent: its own scheduler fires it, from its own data files. A
 PBCM server that is down, restarting or unreachable stops no backup.
+
+### Time zones
+
+The **start** of a schedule is entered in the browser and means that moment in the browser's
+time. Every run **after** it is planned by the agent on its own clock: a daily or weekly job
+keeps the time of day of its start in the agent's time zone, across daylight saving changes,
+and the weekdays are checked in that zone as well. Hours, minutes and seconds are fixed
+intervals.
+
+The agent's zone is the `TZ` of its process. The published image sets none, so it is **UTC**
+until you add `TZ` to the Compose file above. A job started at 02:00 in Berlin then repeats at
+00:00 UTC, which is 01:00 in Berlin in winter. The client page shows the zone each agent
+reported, and the job editor shows it next to the schedule.
 
 ## Operating it
 

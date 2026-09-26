@@ -87,6 +87,9 @@ function readScheduleStates(db: DatabaseSync, jobIds: Set<string>): Record<strin
         states[row.id] = {
             lastRun: isoTimestamp(row.last_run),
             nextRun: isoTimestamp(row.next_run),
+            // The old database kept no entered start; the runs keep the time of day of
+            // the previous one.
+            anchor: null,
         };
     }
     return states;
