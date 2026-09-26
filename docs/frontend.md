@@ -351,7 +351,7 @@ throw away, and a warning the operator has scrolled past protects nothing at tha
 Saving does not leave either editor. The caller passes a client that may be a stale
 snapshot, which is why the live one is read from the store instead.
 
-`StatusDot` (`features/clients/components/StatusDot.tsx`) takes a **tone** and a **label**
+`StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label**
 separately, because
 the domains name the same state differently — a client is `online`, a tunnel is `up`. The
 component knows four visual tones and no vocabulary; the caller brings its own word, which the

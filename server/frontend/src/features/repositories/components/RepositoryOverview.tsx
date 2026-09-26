@@ -24,8 +24,8 @@ import {
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
-import { StatusDot } from '../../clients/components/StatusDot';
-import { STATUS_TONE } from '../../clients/components/statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 
 
 /**

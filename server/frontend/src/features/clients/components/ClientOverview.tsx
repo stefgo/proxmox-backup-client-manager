@@ -7,8 +7,8 @@ import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@
 import { describeFailure, formatDate } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
-import { StatusDot } from './StatusDot';
-import { STATUS_TONE } from './statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';

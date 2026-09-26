@@ -10,8 +10,8 @@ import {
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, DescriptionList, Input } from '@stefgo/react-ui-components';
-import { StatusDot } from './StatusDot';
-import { STATUS_TONE } from './statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 import { formatDate } from '../../../utils';
 
 interface ClientIdentityCardProps {
