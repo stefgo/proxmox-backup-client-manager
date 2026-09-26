@@ -14,10 +14,10 @@ export interface GlobalJob extends BackupJob {
 }
 
 /**
- * lastHistory mixes two shapes: rows fetched from GET /api/v1/history and entries
- * pushed over the WebSocket, which arrive in the agent's HistoryEntry form. Both
- * satisfy the list's BaseHistoryItem contract; nothing reads the fields where they
- * differ (jobId vs jobConfigId).
+ * latestPerJob mixes two shapes: rows fetched from GET /api/v1/history/latest and
+ * entries pushed over the WebSocket, which arrive in the agent's HistoryEntry form.
+ * Both satisfy the list's BaseHistoryItem contract; the one field where they differ
+ * and that is read here -- the job's id, jobId vs jobConfigId -- goes through jobIdOf.
  *
  * The list does read hostname/displayName, though (`showClientName`), and only the
  * REST rows carry them -- an agent knows neither. updateSession therefore fills them
@@ -32,16 +32,20 @@ export type SessionHistoryItem =
           displayName: string | null;
       });
 
-/**
- * How far back lastHistory reaches, and how many rows it keeps. The list's title
- * states the window, so both read it from here rather than repeating the number.
- */
-export const LAST_HISTORY_HOURS = 24;
-const LAST_HISTORY_LIMIT = 10;
+/** The job a history row belongs to, null for a row that belongs to none. */
+export const jobIdOf = (item: SessionHistoryItem): string | null =>
+    'jobId' in item ? item.jobId : item.jobConfigId;
+
+const isSameJob = (a: SessionHistoryItem, b: SessionHistoryItem) =>
+    a.clientId === b.clientId && jobIdOf(a) === jobIdOf(b);
+
+const byStartTimeDesc = (a: SessionHistoryItem, b: SessionHistoryItem) =>
+    new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
 
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
-    lastHistory: SessionHistoryItem[];
+    /** The newest history row of every job, newest first. */
+    latestPerJob: SessionHistoryItem[];
     isLoading: boolean;
     error: string | null;
 
@@ -57,7 +61,7 @@ interface GlobalJobsState {
 
 export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     globalJobs: [],
-    lastHistory: [],
+    latestPerJob: [],
     isLoading: false,
     error: null,
 
@@ -66,7 +70,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
         try {
             const [jobsRes, historyRes] = await Promise.all([
                 apiFetch('/api/v1/jobs'),
-                apiFetch('/api/v1/history'),
+                apiFetch('/api/v1/history/latest'),
             ]);
 
             if (!jobsRes.ok) throw new Error('Failed to fetch jobs');
@@ -83,11 +87,11 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             );
             if (!parsedHistory.success) {
                 console.error(
-                    'Unexpected /api/v1/history payload:',
+                    'Unexpected /api/v1/history/latest payload:',
                     parsedHistory.error.issues,
                 );
             }
-            const allHistory: GlobalHistoryEntry[] = parsedHistory.success
+            const latestPerJob: GlobalHistoryEntry[] = parsedHistory.success
                 ? parsedHistory.data.data
                 : [];
 
@@ -102,19 +106,9 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 }
             }
 
-            const windowStart = Date.now() - LAST_HISTORY_HOURS * 60 * 60 * 1000;
-            const initLastHistory = allHistory
-                .filter((j) => {
-                    const timeToCheck = j.endTime
-                        ? new Date(j.endTime).getTime()
-                        : new Date(j.startTime).getTime();
-                    return timeToCheck > windowStart;
-                })
-                .slice(0, LAST_HISTORY_LIMIT);
-
             set({
                 globalJobs: flattenedJobs,
-                lastHistory: initLastHistory,
+                latestPerJob,
                 isLoading: false,
             });
         } catch (e: unknown) {
@@ -150,14 +144,6 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 displayName: client?.displayName ?? null,
             };
 
-            const windowStart = Date.now() - LAST_HISTORY_HOURS * 60 * 60 * 1000;
-            const isWithinWindow = (j: SessionHistoryItem) => {
-                const timeToCheck = j.endTime
-                    ? new Date(j.endTime).getTime()
-                    : new Date(j.startTime).getTime();
-                return timeToCheck > windowStart;
-            };
-
             // An existing row may already carry the client columns from the REST
             // fetch, so the resolved ones only win where they actually resolved --
             // an unknown client must not blank out a name that was already there.
@@ -168,20 +154,29 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 displayName: entry.displayName ?? j.displayName,
             });
 
-            let updatedHistory: SessionHistoryItem[];
-            const exists = state.lastHistory.some((j) => j.id === job.id);
-            if (exists) {
-                updatedHistory = state.lastHistory.map((j) =>
-                    j.id === job.id ? merge(j) : j,
-                );
-            } else {
-                updatedHistory = [entry, ...state.lastHistory];
+            // A run that belongs to no job has no row here.
+            if (jobIdOf(entry) === null) return {};
+
+            // Same run: a status update of the row already shown.
+            if (state.latestPerJob.some((j) => j.id === job.id)) {
+                return {
+                    latestPerJob: state.latestPerJob.map((j) =>
+                        j.id === job.id ? merge(j) : j,
+                    ),
+                };
             }
 
-            updatedHistory = updatedHistory
-                .filter(isWithinWindow)
-                .slice(0, LAST_HISTORY_LIMIT);
-            return { lastHistory: updatedHistory };
+            // Another run of a job already shown replaces its row -- unless it is older,
+            // which a late status update of an earlier run can be.
+            const current = state.latestPerJob.find((j) => isSameJob(j, entry));
+            if (current && byStartTimeDesc(entry, current) > 0) return {};
+
+            return {
+                latestPerJob: [
+                    entry,
+                    ...state.latestPerJob.filter((j) => !isSameJob(j, entry)),
+                ].sort(byStartTimeDesc),
+            };
         }),
     updateJobNextRunAt: (clientId, jobId, nextRunAt) =>
         set((state) => ({

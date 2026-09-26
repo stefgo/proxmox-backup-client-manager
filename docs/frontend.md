@@ -59,7 +59,7 @@ shell.
 | `/client/:clientId/tunnel`      | `ClientTunnelEditor`  | Adds, changes or removes the SSH reverse tunnel. |
 | `/client/:clientId/jobs/new`    | `ClientJobEditor`     | New job for this client.                        |
 | `/client/:clientId/jobs/:jobId` | `ClientJobEditor`     | Edit a job; closes onto `/client/:clientId`.    |
-| `/jobs`                         | `ManagedJobs`         | Global job list across all clients.             |
+| `/jobs`                         | `ManagedJobs`         | Global job list, plus each job's last run.      |
 | `/jobs/new`                     | `ClientJobEditor`     | New job, client picked in the form.             |
 | `/jobs/:clientId/:jobId`        | `ClientJobEditor`     | Same editor; closes onto `/jobs`.               |
 | `/repositories`                 | `ManagedRepositories` | Repository list.                                |

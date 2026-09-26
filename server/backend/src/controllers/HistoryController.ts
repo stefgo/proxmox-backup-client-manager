@@ -54,6 +54,26 @@ export class HistoryController {
         }
     }
 
+    /** The newest history row of every job, newest first. Same shape as getGlobalHistory. */
+    static async getLatestPerJob(req: FastifyRequest, reply: FastifyReply) {
+        try {
+            const records = JobHistoryRepository.findLatestPerJob();
+            return reply.send({
+                success: true,
+                count: records.length,
+                data: records,
+            });
+        } catch (error) {
+            req.log.error({
+                msg: "Failed to fetch latest history per job",
+                err: error,
+            });
+            return reply
+                .code(500)
+                .send({ success: false, error: "Internal Server Error" });
+        }
+    }
+
     /** How far the session's user has looked at the history. */
     static async getSeen(req: FastifyRequest, reply: FastifyReply) {
         const username = sessionUser(req);

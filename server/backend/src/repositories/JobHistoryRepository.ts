@@ -34,6 +34,36 @@ export class JobHistoryRepository {
     }
 
     /**
+     * The newest row of every job, newest first -- one per (client, job). A window over
+     * the whole table rather than a filter over `findGlobal`: a page of the latest runs
+     * drops a job that has not run for a while as soon as the others fill the page.
+     * Rows without a job (job_id NULL) belong to no job and are left out.
+     */
+    static findLatestPerJob(): GlobalHistoryEntry[] {
+        return db
+            .prepare(
+                `
+            SELECT
+                h.id, h.client_id as clientId, h.job_id as jobId, h.name,
+                h.type, h.status, h.start_time as startTime, h.end_time as endTime,
+                h.exit_code as exitCode, h.stdout, h.stderr,
+                c.hostname, c.display_name as displayName
+            FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY client_id, job_id ORDER BY start_time DESC
+                ) AS rn
+                FROM job_history
+                WHERE job_id IS NOT NULL
+            ) h
+            LEFT JOIN clients c ON h.client_id = c.id
+            WHERE h.rn = 1
+            ORDER BY h.start_time DESC
+        `,
+            )
+            .all() as GlobalHistoryEntry[];
+    }
+
+    /**
      * Failed runs that ended after `since`, or all of them for null. Compared as text:
      * `end_time` is the agent's ISO timestamp, and `since` comes from `toISOString()`, so
      * the two sort the same way.

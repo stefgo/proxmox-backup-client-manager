@@ -168,6 +168,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     HistoryController.getGlobalHistory,
                 );
                 protectedRoutes.get(
+                    "/history/latest",
+                    HistoryController.getLatestPerJob,
+                );
+                protectedRoutes.get(
                     "/history/seen",
                     HistoryController.getSeen,
                 );
