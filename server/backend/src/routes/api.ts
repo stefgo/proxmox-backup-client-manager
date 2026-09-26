@@ -167,6 +167,14 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/history",
                     HistoryController.getGlobalHistory,
                 );
+                protectedRoutes.get(
+                    "/history/seen",
+                    HistoryController.getSeen,
+                );
+                protectedRoutes.put(
+                    "/history/seen",
+                    HistoryController.markSeen,
+                );
 
                 // Client Keys
                 protectedRoutes.post(

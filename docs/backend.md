@@ -34,7 +34,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |
 | `SettingsController.ts`     | Cleanup settings read/write, manual cleanup runs, scheduler status.         |
-| `HistoryController.ts`      | Global job history across all clients.                                      |
+| `HistoryController.ts`      | Global job history across all clients; per-user "seen" state of the history. |
 | `TunnelController.ts`       | SSH tunnel credentials per client (CRUD), key pair generation, connection tests against form values and against stored credentials. |
 | `WebSocketController.ts`    | Entry point for WebSocket connections (agents and dashboards).               |
 
@@ -124,6 +124,21 @@ history.
 
 A row that still carries `running_since` at startup belongs to a run the previous process
 did not finish: `markInterrupted()` turns it into the last run with status `interrupted`.
+
+#### `history_seen`
+
+When each user last opened the job history (`HistorySeenRepository`, migration 14). One
+timestamp per user rather than a flag per run: the sidebar only asks "has anything failed
+since I last looked", and `JobHistoryRepository.countFailedSince()` answers that from
+`job_history.end_time`. Keyed by username, because an OIDC user has no row in `users`.
+
+| Column | Meaning |
+| :----- | :------ |
+| `username` | Primary key: the `username` claim of the session. |
+| `seen_at` | ISO 8601 timestamp of the last `PUT /api/v1/history/seen`. |
+
+A failed run an agent syncs late (after an offline stretch) counts by its own `end_time`,
+so it does not mark the history if the user has looked since it ended.
 
 ## 🔐 Authentication Flow
 

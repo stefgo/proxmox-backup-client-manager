@@ -1,6 +1,19 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { HistoryQuerySchema, firstIssue } from "@pbcm/shared";
+import { HistoryQuerySchema, HistorySeen, firstIssue } from "@pbcm/shared";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
+import { HistorySeenRepository } from "../repositories/HistorySeenRepository.js";
+import { ProxyService } from "../services/ProxyService.js";
+
+/** The session's user; every route here sits behind the JWT hook, which sets it. */
+function sessionUser(req: FastifyRequest): string | null {
+    const user = req.user as { username?: unknown } | undefined;
+    return typeof user?.username === "string" && user.username ? user.username : null;
+}
+
+function seenState(username: string): HistorySeen {
+    const seenAt = HistorySeenRepository.get(username);
+    return { seenAt, unseenFailed: JobHistoryRepository.countFailedSince(seenAt) };
+}
 
 export class HistoryController {
     /**
@@ -39,5 +52,30 @@ export class HistoryController {
                 .code(500)
                 .send({ success: false, error: "Internal Server Error" });
         }
+    }
+
+    /** How far the session's user has looked at the history. */
+    static async getSeen(req: FastifyRequest, reply: FastifyReply) {
+        const username = sessionUser(req);
+        if (!username) return reply.code(401).send({ error: "No user in session" });
+        return reply.send(seenState(username));
+    }
+
+    /**
+     * Records that the session's user has looked at the history now. Broadcast as
+     * `HISTORY_SEEN`, so the user's other tabs clear the mark as well; every dashboard
+     * receives it and keeps only its own user's.
+     */
+    static async markSeen(req: FastifyRequest, reply: FastifyReply) {
+        const username = sessionUser(req);
+        if (!username) return reply.code(401).send({ error: "No user in session" });
+
+        HistorySeenRepository.set(username, new Date().toISOString());
+        const state = seenState(username);
+        ProxyService.broadcastToDashboard({
+            type: "HISTORY_SEEN",
+            payload: { username, ...state },
+        });
+        return reply.send(state);
     }
 }

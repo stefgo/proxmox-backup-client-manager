@@ -23,6 +23,7 @@ import { migration10 } from "./migrations/10_scheduler_state.js";
 import { migration11 } from "./migrations/11_registration_token_hash.js";
 import { migration12 } from "./migrations/12_client_timezone.js";
 import { migration13 } from "./migrations/13_scheduler_next_run.js";
+import { migration14 } from "./migrations/14_history_seen.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -103,6 +104,11 @@ const migrator = new Umzug<Database.Database>({
             name: "13_scheduler_next_run",
             up: migration13.up,
             down: migration13.down,
+        },
+        {
+            name: "14_history_seen",
+            up: migration14.up,
+            down: migration14.down,
         },
     ],
     context: db,
