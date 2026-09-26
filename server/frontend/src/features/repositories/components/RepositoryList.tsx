@@ -41,20 +41,15 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             sortable: true,
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
-                <>
-                    <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
-                            : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
-                                : 'bg-border'
-                            }`} />
-                        <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
-                            {repo.baseUrl}:{repo.datastore}
-                        </div>
+                <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
+                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
+                            : 'bg-border'
+                        }`} />
+                    <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
+                        {repo.baseUrl}:{repo.datastore}
                     </div>
-                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
-                        {repo.id}
-                    </div>
-                </>
+                </div>
             )
         });
 
