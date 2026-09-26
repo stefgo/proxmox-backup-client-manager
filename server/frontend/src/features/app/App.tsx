@@ -333,7 +333,7 @@ function AppLayout() {
     );
 
     const navGroups: DashboardNavGroup[] = [
-        { id: 'resources', title: 'Ressources' },
+        { id: 'resources', title: 'Resources' },
         { id: 'administration', title: 'Administration' },
     ];
 
