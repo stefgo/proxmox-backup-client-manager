@@ -27,7 +27,7 @@ import { describeDeleteJob } from '../../jobs/confirmations';
  * inside the popover would be clipped by it. Shared by the entries below so they cannot drift.
  */
 const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    'w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2',
     FOCUS_RING_NONE,
 );
 
@@ -83,7 +83,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // array. Depending on the reference reloaded every snapshot once per repository,
     // and each reload is itself one request per repository.
     const repositoryIds = useMemo(
-        () => repositories.map((r) => r.id).join(","),
+        () => repositories.map((r) => r.id).join(','),
         [repositories],
     );
 
@@ -271,7 +271,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={configuredJobs.length.toString()}
                             sub="Configurations"
                             icon={HardDrive}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                         <StatCard
                             {...tabs.tabProps('snapshots')}
@@ -279,7 +279,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={clientSnapshots.length.toString()}
                             sub="Available Backups"
                             icon={FileBox}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                         <StatCard
                             {...tabs.tabProps('history')}
@@ -287,7 +287,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={backupJobs.length.toString()}
                             sub="Recorded Runs"
                             icon={Activity}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                     </TabList>
 

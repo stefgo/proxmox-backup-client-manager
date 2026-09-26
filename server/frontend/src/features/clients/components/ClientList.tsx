@@ -94,7 +94,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         const cols: DataTableDef<Client>[] = [];
 
         cols.push({
-            tableHeader: "Client",
+            tableHeader: 'Client',
             sortable: true,
             sortValue: (client) => client.displayName || client.hostname,
             tableItemRender: (client) => (
@@ -110,7 +110,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
 
         cols.push({
             tableHeader: null,
-            tableCellClassName: "align-top text-sm text-text-primary",
+            tableCellClassName: 'align-top text-sm text-text-primary',
             tableItemRender: (client) => (
                 client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
@@ -121,9 +121,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         });
 
         cols.push({
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
@@ -186,8 +186,8 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         });
 
         return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" }
+            { fields: contentFields, columnClassName: 'flex-1' },
+            { fields: actionFields, columnClassName: 'md:text-right' }
         ];
     };
 
@@ -203,7 +203,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: "clientViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'clientViewMode', scope: 'local' } }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}

@@ -1,7 +1,7 @@
-import { ClientStatus } from "@pbcm/shared";
-import { GlobalJob } from "../../../stores/useGlobalJobsStore";
-import { BaseJobList } from "./BaseJobList";
-import { PAGE_SIZE } from "../../../components/listDefaults";
+import { ClientStatus } from '@pbcm/shared';
+import { GlobalJob } from '../../../stores/useGlobalJobsStore';
+import { BaseJobList } from './BaseJobList';
+import { PAGE_SIZE } from '../../../components/listDefaults';
 
 interface JobListProps {
     jobs: GlobalJob[];

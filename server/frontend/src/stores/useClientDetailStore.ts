@@ -1,12 +1,12 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import {
     BackupJob,
     HistoryEntry,
     ManagedRepository,
     Snapshot,
-} from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+} from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 /**
  * The snapshot endpoint is per repository, so the repository a snapshot came from
@@ -113,7 +113,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
                     const snaps = (await res.json()) as Snapshot[];
                     return snaps.map((s) => ({ ...s, repository: repo }));
                 } catch (e) {
-                    console.error("Failed to fetch client snapshots", repo.id, e);
+                    console.error('Failed to fetch client snapshots', repo.id, e);
                     failed.push(`${repo.baseUrl}:${repo.datastore}`);
                     return [];
                 }
@@ -130,7 +130,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         set({
             clientSnapshots: allSnapshots,
             snapshotsError: failed.length > 0
-                ? `Could not read the snapshots of ${failed.join(", ")}.`
+                ? `Could not read the snapshots of ${failed.join(', ')}.`
                 : null,
         });
     },
@@ -143,14 +143,14 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,
                 {
-                    method: "DELETE",
+                    method: 'DELETE',
                 },
             );
             if (res.ok) {
                 get().removeBackupJob(jobId);
             } else {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to delete job");
+                throw new Error(data.error || 'Failed to delete job');
             }
         } catch (e: unknown) {
             console.error(e);
@@ -166,16 +166,16 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
                 {
-                    method: "POST",
+                    method: 'POST',
                     headers: {
-                        "Content-Type": "application/json",
+                        'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({}),
                 },
             );
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to trigger job");
+                throw new Error(data.error || 'Failed to trigger job');
             }
         } catch (e: unknown) {
             console.error(e);

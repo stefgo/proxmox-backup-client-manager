@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { JOB_STATUS } from "@pbcm/shared";
-import { Switch } from "@stefgo/react-ui-components";
-import { useAuth } from "../../auth/AuthContext";
-import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
-import { apiFetch } from "../../../lib/apiFetch";
-import { LoadingIndicator } from "../../../components/LoadingIndicator";
-import { useHistorySeenStore } from "../../../stores/useHistorySeenStore";
-import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
-import { PAGE_SIZE } from "../../../components/listDefaults";
+import { useEffect, useMemo, useState } from 'react';
+import { JOB_STATUS } from '@pbcm/shared';
+import { Switch } from '@stefgo/react-ui-components';
+import { useAuth } from '../../auth/AuthContext';
+import { BaseHistoryList, BaseHistoryItem } from './BaseHistoryList';
+import { apiFetch } from '../../../lib/apiFetch';
+import { LoadingIndicator } from '../../../components/LoadingIndicator';
+import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE } from '../../../components/listDefaults';
 
 export const HistoryOverview = () => {
     const { isAuthenticated } = useAuth();
@@ -16,7 +16,7 @@ export const HistoryOverview = () => {
     const [error, setError] = useState<string | null>(null);
     const markSeen = useHistorySeenStore((s) => s.markSeen);
     // In the URL, so a link from the failure dot or a colleague lands on the same view.
-    const [status, setStatus] = useSearchQueryParam("status");
+    const [status, setStatus] = useSearchQueryParam('status');
     const failedOnly = status === JOB_STATUS.FAILED;
     const visible = useMemo(
         () => (failedOnly ? history.filter((h) => h.status === JOB_STATUS.FAILED) : history),
@@ -36,7 +36,7 @@ export const HistoryOverview = () => {
         const fetchHistory = async () => {
             if (!isAuthenticated) return;
             try {
-                const response = await apiFetch("/api/v1/history?limit=1000", {
+                const response = await apiFetch('/api/v1/history?limit=1000', {
                     headers: {
                     },
                 });
@@ -44,10 +44,10 @@ export const HistoryOverview = () => {
                 if (result.success) {
                     setHistory(result.data);
                 } else {
-                    setError("Failed to fetch history");
+                    setError('Failed to fetch history');
                 }
             } catch {
-                setError("An error occurred while fetching history");
+                setError('An error occurred while fetching history');
             } finally {
                 setLoading(false);
             }
@@ -75,12 +75,12 @@ export const HistoryOverview = () => {
             items={visible}
             showClientName={true}
             pageSize={PAGE_SIZE.page}
-            emptyMessage={failedOnly ? "No failed runs" : undefined}
+            emptyMessage={failedOnly ? 'No failed runs' : undefined}
             action={
                 <Switch
                     label="Failures only"
                     value={failedOnly}
-                    onChange={(on) => setStatus(on ? JOB_STATUS.FAILED : "")}
+                    onChange={(on) => setStatus(on ? JOB_STATUS.FAILED : '')}
                 />
             }
         />

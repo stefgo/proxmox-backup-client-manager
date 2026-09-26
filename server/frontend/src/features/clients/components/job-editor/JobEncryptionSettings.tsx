@@ -19,7 +19,7 @@ export const JobEncryptionSettings: React.FC = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `pbcm_encryption_key.json`;
+        a.download = 'pbcm_encryption_key.json';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

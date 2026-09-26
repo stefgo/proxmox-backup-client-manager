@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { Client, TunnelState } from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { create } from 'zustand';
+import { Client, TunnelState } from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 interface ClientsState {
     clients: Client[];
@@ -42,8 +42,8 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     fetchClients: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await apiFetch("/api/v1/clients");
-            if (!res.ok) throw new Error("Failed to fetch clients");
+            const res = await apiFetch('/api/v1/clients');
+            if (!res.ok) throw new Error('Failed to fetch clients');
             const data = await res.json();
             set({ clients: data });
         } catch (e: unknown) {
@@ -65,12 +65,12 @@ export const useClientStore = create<ClientsState>((set, get) => ({
 
         try {
             const res = await apiFetch(`/api/v1/clients/${clientId}`, {
-                method: "DELETE",
+                method: 'DELETE',
             });
 
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to delete client");
+                throw new Error(data.error || 'Failed to delete client');
             }
         } catch (e: unknown) {
             // Revert on error
@@ -90,16 +90,16 @@ export const useClientStore = create<ClientsState>((set, get) => ({
 
         try {
             const res = await apiFetch(`/api/v1/clients/${clientId}`, {
-                method: "PUT",
+                method: 'PUT',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(data),
             });
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || "Failed to update client");
+                throw new Error(err.error || 'Failed to update client');
             }
         } catch (e: unknown) {
             // Revert

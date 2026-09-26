@@ -6,27 +6,27 @@ export const EMPTY_VALUE = '–';
 export const formatDate = (
     date: Date | string | number | null | undefined,
 ): string => {
-    if (!date) return "Never";
+    if (!date) return 'Never';
 
     let d = new Date(date);
 
-    if (typeof date === "string") {
+    if (typeof date === 'string') {
         // Handle SQLite default format "YYYY-MM-DD HH:MM:SS" -> Treat as UTC
-        if (date.includes(" ") && !date.includes("T")) {
-            d = new Date(date.replace(" ", "T") + "Z");
+        if (date.includes(' ') && !date.includes('T')) {
+            d = new Date(date.replace(' ', 'T') + 'Z');
         }
     }
 
     if (isNaN(d.getTime())) {
-        return "Invalid Date";
+        return 'Invalid Date';
     }
 
-    return new Intl.DateTimeFormat("de-DE", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
+    return new Intl.DateTimeFormat('de-DE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
         hour12: false,
     }).format(d);
 };
@@ -40,17 +40,17 @@ export const formatDate = (
  */
 export const toLocalDateInput = (date: Date): string =>
     `${date.getFullYear()}-` +
-    `${String(date.getMonth() + 1).padStart(2, "0")}-` +
-    `${String(date.getDate()).padStart(2, "0")}`;
+    `${String(date.getMonth() + 1).padStart(2, '0')}-` +
+    `${String(date.getDate()).padStart(2, '0')}`;
 
 /** Value for an <input type="time">, in the viewer's own timezone. */
 export const toLocalTimeInput = (date: Date): string =>
-    `${String(date.getHours()).padStart(2, "0")}:` +
-    `${String(date.getMinutes()).padStart(2, "0")}`;
+    `${String(date.getHours()).padStart(2, '0')}:` +
+    `${String(date.getMinutes()).padStart(2, '0')}`;
 
 export const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;
-    if (typeof error === "string") return error;
+    if (typeof error === 'string') return error;
     try {
         return JSON.stringify(error);
     } catch {

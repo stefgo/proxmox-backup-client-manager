@@ -48,7 +48,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         const cols: DataTableDef<Repository>[] = [];
 
         cols.push({
-            tableHeader: "Repository",
+            tableHeader: 'Repository',
             sortable: true,
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
@@ -62,9 +62,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         cols.push({
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
             tableItemRender: (repo) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
@@ -162,8 +162,8 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" }
+            { fields: contentFields, columnClassName: 'flex-1' },
+            { fields: actionFields, columnClassName: 'md:text-right' }
         ];
     };
 
@@ -179,7 +179,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: "repositoryViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'repositoryViewMode', scope: 'local' } }}
             data={filteredRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}

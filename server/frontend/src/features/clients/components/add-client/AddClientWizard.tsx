@@ -168,7 +168,7 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
             className="flex flex-col"
             title="Add Client"
             action={<ActionButton icon={X} tooltip="Cancel" onClick={onClose} />}
-            classNames={{ header: "py-6 px-7", headerTitle: "text-xl font-bold" }}
+            classNames={{ header: 'py-6 px-7', headerTitle: 'text-xl font-bold' }}
         >
             <Wizard
                 steps={steps}

@@ -1,19 +1,19 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { CLIENT_STATUS } from "@pbcm/shared";
-import { useConfirm, useToast } from "@stefgo/react-ui-components";
-import { useAuth } from "../../auth/AuthContext";
-import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
-import { useClientStore } from "../../../stores/useClientStore";
-import { JobList } from "./JobList";
-import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
-import { useRepositoryStore } from "../../../stores/useRepositoryStore";
-import { GlobalJob, LAST_HISTORY_HOURS } from "../../../stores/useGlobalJobsStore";
-import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
-import { getErrorMessage } from "../../../utils";
-import { describeDeleteJob } from "../confirmations";
-import { apiFetch, throwIfNotOk } from "../../../lib/apiFetch";
-import { markJobRunAsked, forgetJobRunAsked } from "../../../hooks/useJobResultToasts";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CLIENT_STATUS } from '@pbcm/shared';
+import { useConfirm, useToast } from '@stefgo/react-ui-components';
+import { useAuth } from '../../auth/AuthContext';
+import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
+import { useClientStore } from '../../../stores/useClientStore';
+import { JobList } from './JobList';
+import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
+import { useRepositoryStore } from '../../../stores/useRepositoryStore';
+import { GlobalJob, LAST_HISTORY_HOURS } from '../../../stores/useGlobalJobsStore';
+import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
+import { getErrorMessage } from '../../../utils';
+import { describeDeleteJob } from '../confirmations';
+import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 
 export const ManagedJobs = () => {
     const { isAuthenticated } = useAuth();
@@ -52,14 +52,14 @@ export const ManagedJobs = () => {
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
                 {
-                    method: "POST",
+                    method: 'POST',
                 },
             );
-            await throwIfNotOk(res, "Failed to trigger job");
-            show({ variant: "success", title: "Job started" });
+            await throwIfNotOk(res, 'Failed to trigger job');
+            show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
             forgetJobRunAsked(clientId, jobId);
-            show({ variant: "error", title: "Could not start the job", description: getErrorMessage(e) });
+            show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };
 
@@ -79,9 +79,9 @@ export const ManagedJobs = () => {
             ...describeDeleteJob(job.name, getClientName(job.clientId)),
             onConfirm: async () => {
                 const res = await apiFetch(`/api/v1/clients/${job.clientId}/jobs/${job.id}`, {
-                    method: "DELETE",
+                    method: 'DELETE',
                 });
-                await throwIfNotOk(res, "Failed to delete job");
+                await throwIfNotOk(res, 'Failed to delete job');
                 handleRefresh();
             },
         });
@@ -93,8 +93,8 @@ export const ManagedJobs = () => {
      * path because the job is saved through its client's endpoint.
      */
     const openJobEditor = (job?: GlobalJob) => {
-        navigate(job ? `/jobs/${job.clientId}/${job.id}` : "/jobs/new", {
-            state: { from: "/jobs" },
+        navigate(job ? `/jobs/${job.clientId}/${job.id}` : '/jobs/new', {
+            state: { from: '/jobs' },
         });
     };
 

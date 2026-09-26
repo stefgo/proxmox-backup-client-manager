@@ -53,7 +53,7 @@ export const ClientSelect = ({
     onSelect,
     isSelecting: externalIsSelecting,
     onSetIsSelecting,
-    label = "Target Client",
+    label = 'Target Client',
     locked = false,
     disableOffline = false,
 }: ClientSelectProps) => {
@@ -77,7 +77,7 @@ export const ClientSelect = ({
                     <label className="block text-xs font-bold text-text-muted uppercase">Select Client</label>
                     <button
                         onClick={() => onSetIsSelecting?.(false)}
-                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
+                        className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
                     </button>
@@ -151,7 +151,7 @@ export const ClientSelect = ({
                 {!locked && (
                     <button
                         onClick={() => onSetIsSelecting?.(true)}
-                        className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}
+                        className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}
                     >
                         {selectedClient ? 'Change Client' : 'Set Client'}
                     </button>

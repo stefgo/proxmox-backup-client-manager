@@ -41,7 +41,7 @@ export const JobRepositorySelect = ({
     onSelect,
     isSelecting,
     onSetIsSelecting,
-    label = "Repository"
+    label = 'Repository'
 }: JobRepositorySelectProps) => {
     const [expandedRepoId, setExpandedRepoId] = useState<string | number | null>(null);
     const [isSelectedRepoExpanded, setIsSelectedRepoExpanded] = useState(false);
@@ -79,7 +79,7 @@ export const JobRepositorySelect = ({
                     <label className="block text-xs font-bold text-text-muted uppercase">Select Repository</label>
                     <button
                         onClick={() => onSetIsSelecting(false)}
-                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
+                        className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
                     </button>
@@ -131,7 +131,7 @@ export const JobRepositorySelect = ({
             <div className="space-y-1">
                 <div className="flex justify-between items-center">
                     <label className="block text-xs font-bold text-text-muted uppercase">{label} <span className="text-error">*</span></label>
-                    <button onClick={() => onSetIsSelecting(true)} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
+                    <button onClick={() => onSetIsSelecting(true)} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                         {selectedRepository ? 'Change Repository' : 'Set Repository'}
                     </button>
                 </div>

@@ -1,10 +1,10 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import {
     ManagedRepository as Repository,
     REPOSITORY_STATUS,
-} from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+} from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 export interface CertificateCheck {
     storedFingerprint: string | null;
@@ -60,7 +60,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     fetchRepositories: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await apiFetch("/api/v1/repositories");
+            const res = await apiFetch('/api/v1/repositories');
             if (res.ok) {
                 const data = await res.json();
                 set({ repositories: data });
@@ -70,7 +70,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
                     get().checkRepositoryStatus(repo.id);
                 });
             } else {
-                throw new Error("Failed to fetch repositories");
+                throw new Error('Failed to fetch repositories');
             }
         } catch (e: unknown) {
             set({ error: getErrorMessage(e) });
@@ -116,35 +116,35 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         const res = await apiFetch(`/api/v1/repositories/${id}/certificate`);
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || "Certificate check failed");
+            throw new Error(err.error || 'Certificate check failed');
         }
         return (await res.json()) as CertificateCheck;
     },
 
     distributeFingerprint: async (id) => {
         const res = await apiFetch(`/api/v1/repositories/${id}/distribute`, {
-            method: "POST",
+            method: 'POST',
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || "Distribution failed");
+            throw new Error(err.error || 'Distribution failed');
         }
         return (await res.json()) as DistributeResult;
     },
 
     addRepository: async (repo) => {
         try {
-            const res = await apiFetch("/api/v1/repositories", {
-                method: "POST",
+            const res = await apiFetch('/api/v1/repositories', {
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(repo),
             });
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || "Failed to add repository");
+                throw new Error(err.error || 'Failed to add repository');
             }
 
             // Refresh
@@ -157,16 +157,16 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     updateRepository: async (id, repo) => {
         try {
             const res = await apiFetch(`/api/v1/repositories/${id}`, {
-                method: "PUT",
+                method: 'PUT',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(repo),
             });
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || "Failed to update repository");
+                throw new Error(err.error || 'Failed to update repository');
             }
 
             // Refresh
@@ -179,12 +179,12 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     deleteRepository: async (id) => {
         try {
             const res = await apiFetch(`/api/v1/repositories/${id}`, {
-                method: "DELETE",
+                method: 'DELETE',
             });
 
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || "Failed to delete repository");
+                throw new Error(err.error || 'Failed to delete repository');
             }
 
             // Removed once the server confirmed it, not before: nothing to roll back.

@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface UIState {
     isSidebarCollapsed: boolean;
@@ -19,7 +19,7 @@ export const useUIStore = create<UIState>()(
                 set({ isSidebarCollapsed: collapsed }),
         }),
         {
-            name: "pbcm-ui-storage",
+            name: 'pbcm-ui-storage',
         },
     ),
 );

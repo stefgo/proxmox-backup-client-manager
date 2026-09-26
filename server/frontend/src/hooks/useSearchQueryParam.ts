@@ -18,7 +18,7 @@ import { useSearchParams } from 'react-router-dom';
  */
 export function useSearchQueryParam(key = 'search'): [string, (value: string) => void] {
     const [searchParams, setSearchParams] = useSearchParams();
-    const value = searchParams.get(key) ?? "";
+    const value = searchParams.get(key) ?? '';
 
     const setValue = useCallback(
         (next: string) => {

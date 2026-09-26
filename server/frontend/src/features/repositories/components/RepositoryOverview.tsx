@@ -33,7 +33,7 @@ import { STATUS_TONE } from '../../../components/statusTone';
  * inside the popover would be clipped by it. Same rule as the client detail page.
  */
 const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    'w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2',
     FOCUS_RING_NONE,
 );
 
@@ -81,7 +81,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
             <div className="flex flex-col items-center justify-center h-full text-error gap-4">
                 <AlertCircle size={48} />
                 <p>Repository not found</p>
-                <button onClick={() => navigate('/')} className={cn("text-info hover:underline rounded-sm", FOCUS_RING)}>Go Back</button>
+                <button onClick={() => navigate('/')} className={cn('text-info hover:underline rounded-sm', FOCUS_RING)}>Go Back</button>
             </div>
         );
     }
@@ -172,7 +172,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             value={snapshots.length.toString()}
                             sub="Available Backups"
                             icon={FileBox}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                     </div>
 

@@ -73,7 +73,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
 
     if (showClientColumn) {
         tableDef.push({
-            tableHeader: "Client",
+            tableHeader: 'Client',
             sortable: true,
             sortValue: (snap) => (snap.backupId && getClientName ? getClientName(snap.backupId) : '') ?? '',
             tableItemRender: (snap) => {
@@ -85,7 +85,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                     <div className="flex items-center gap-3">
                         <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
                         <div
-                            className={`text-sm ${online ? "text-text-primary" : ""
+                            className={`text-sm ${online ? 'text-text-primary' : ''
                                 } max-w-[150px] truncate`}
                             title={name}
                         >
@@ -98,7 +98,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     }
 
     tableDef.push({
-        tableHeader: "Date",
+        tableHeader: 'Date',
         sortable: true,
         sortValue: (snap) => snap.backupTime,
         tableItemRender: (snap) => (
@@ -109,7 +109,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     });
 
     tableDef.push({
-        tableHeader: "Size",
+        tableHeader: 'Size',
         sortable: true,
         sortValue: (snap) => snap.size ?? 0,
         tableItemRender: (snap) => (
@@ -120,8 +120,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     });
 
     tableDef.push({
-        tableHeader: "Actions",
-        tableHeaderClassName: "text-right",
+        tableHeader: 'Actions',
+        tableHeaderClassName: 'text-right',
         tableItemRender: (snap) => (
             <DataAction
                 rowId={snapshotKey(snap)}
@@ -129,8 +129,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                     {
                         icon: ArchiveRestore,
                         onClick: () => onRestore(snap),
-                        color: "blue",
-                        tooltip: "Restore Snapshot",
+                        color: 'blue',
+                        tooltip: 'Restore Snapshot',
                     }
                 ]}
             />
@@ -153,8 +153,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                         <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
                         <span
                             className={`${isOnline
-                                ? "text-text-primary"
-                                : "text-inherit"
+                                ? 'text-text-primary'
+                                : 'text-inherit'
                                 }`}
                         >
                             {name}
@@ -166,21 +166,21 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     }
 
     fields.push({
-        listLabel: "Snapshot",
+        listLabel: 'Snapshot',
         listItemRender: (snap) => `${snap.backupType} / ${snap.backupId}`
     });
 
     fields.push({
-        listLabel: "Date",
+        listLabel: 'Date',
         listItemRender: (snap) => formatDate(snap.backupTime * 1000)
     });
 
     fields.push({
-        listLabel: "Size",
+        listLabel: 'Size',
         listItemRender: (snap) => snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'
     });
 
-    listColumns.push({ fields, columnClassName: "flex-1" });
+    listColumns.push({ fields, columnClassName: 'flex-1' });
 
     listColumns.push({
         fields: [{
@@ -193,15 +193,15 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                             {
                                 icon: ArchiveRestore,
                                 onClick: () => onRestore(snap),
-                                color: "blue",
-                                tooltip: "Restore Snapshot",
+                                color: 'blue',
+                                tooltip: 'Restore Snapshot',
                             }
                         ]}
                     />
                 </div>
             )
         }],
-        columnClassName: "md:text-right"
+        columnClassName: 'md:text-right'
     });
 
     const dateSortColIndex = showClientColumn ? 1 : 0;
@@ -214,7 +214,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             listColumns={listColumns}
             keyField={snapshotKey}
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
-            viewMode={{ persist: { key: "snapshotListViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'snapshotListViewMode', scope: 'local' } }}
             searchable
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}

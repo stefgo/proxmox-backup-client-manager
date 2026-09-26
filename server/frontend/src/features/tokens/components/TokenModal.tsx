@@ -27,7 +27,7 @@ export const TokenModal = ({ token, expiresAt, onClose }: TokenModalProps) => {
                         readOnly
                         value={token}
                         onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className={cn("flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary", FOCUS_RING)}
+                        className={cn('flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary', FOCUS_RING)}
                     />
                     {/*
                         No shape classes: an ActionButton is a round icon button
