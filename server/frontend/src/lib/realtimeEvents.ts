@@ -1,5 +1,5 @@
 import mitt from 'mitt';
-import { HistoryEntry } from '@pbcm/shared';
+import { HistoryEntry, StatusUpdatePayload } from '@pbcm/shared';
 
 /**
  * The second realtime channel, alongside the Zustand stores.
@@ -35,8 +35,15 @@ export type RealtimeEvents = {
      * A job changed state. `clientId` travels alongside because the agent's status update
      * carries no client columns, and dropping it here is what once produced
      * "Unknown Client" in the history list.
+     *
+     * On the wire `job` is a `StatusUpdatePayload`: it names the job config `jobId` rather
+     * than `jobConfigId`, and may carry an `error`. Those two are declared here so the
+     * result toasts can read them; the rest stays typed as the history row it becomes.
      */
-    jobUpdate: { clientId: string; job: HistoryEntry };
+    jobUpdate: {
+        clientId: string;
+        job: HistoryEntry & Pick<StatusUpdatePayload, 'jobId' | 'error'>;
+    };
 
     /** One chunk of a running job's output. `jobId` is the run id, not the job config id. */
     logUpdate: {

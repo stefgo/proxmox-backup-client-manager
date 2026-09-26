@@ -17,6 +17,7 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, useToast, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
@@ -129,10 +130,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { show } = useToast();
 
     const handleTriggerJob = async (jobId: string) => {
+        // Before the request: a run that is skipped at once can report before it returns.
+        markJobRunAsked(client.id, jobId);
         try {
             await triggerJob(client.id, jobId);
             show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
+            forgetJobRunAsked(client.id, jobId);
             show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };

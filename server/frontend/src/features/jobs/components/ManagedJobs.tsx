@@ -13,6 +13,7 @@ import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 import { getErrorMessage } from "../../../utils";
 import { describeDeleteJob } from "../confirmations";
 import { apiFetch, throwIfNotOk } from "../../../lib/apiFetch";
+import { markJobRunAsked, forgetJobRunAsked } from "../../../hooks/useJobResultToasts";
 
 export const ManagedJobs = () => {
     const { isAuthenticated } = useAuth();
@@ -46,6 +47,8 @@ export const ManagedJobs = () => {
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
         if (!isAuthenticated) return;
+        // Before the request: a run that is skipped at once can report before it returns.
+        markJobRunAsked(clientId, jobId);
         try {
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
@@ -56,6 +59,7 @@ export const ManagedJobs = () => {
             await throwIfNotOk(res, "Failed to trigger job");
             show({ variant: "success", title: "Job started" });
         } catch (e: unknown) {
+            forgetJobRunAsked(clientId, jobId);
             show({ variant: "error", title: "Could not start the job", description: getErrorMessage(e) });
         }
     };

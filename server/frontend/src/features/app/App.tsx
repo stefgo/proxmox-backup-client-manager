@@ -28,6 +28,8 @@ import { useClientStore } from '../../stores/useClientStore';
 import { useRepositoryStore } from '../../stores/useRepositoryStore';
 import { useGlobalJobsStore } from '../../stores/useGlobalJobsStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { useHistorySeenStore } from '../../stores/useHistorySeenStore';
+import { useJobResultToasts } from '../../hooks/useJobResultToasts';
 
 // Page components – loaded on demand, so a chunk only arrives when its route does.
 const TokenOverview = lazy(() => import('../tokens/components/TokenOverview').then(m => ({ default: m.TokenOverview })));
@@ -297,6 +299,12 @@ function AppLayout() {
     const { clients, fetchClients } = useClientStore();
     const { repositories: repos, fetchRepositories: refreshRepos } = useRepositoryStore();
     const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
+    const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
+    // Not on the history page itself: what fails there is in view as it arrives.
+    const unseenFailures = useHistorySeenStore((s) => s.unseenFailed > 0) && path !== '/history';
+
+    // In the shell rather than a page: a run outlives the page it was started from.
+    useJobResultToasts();
 
     // Initial Fetch
     useEffect(() => {
@@ -304,8 +312,9 @@ function AppLayout() {
             fetchClients();
             refreshRepos();
             fetchAllJobs();
+            fetchSeen();
         }
-    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs]);
+    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs, fetchSeen]);
 
     // Stats
     const stats = useMemo(
@@ -408,6 +417,8 @@ function AppLayout() {
                 groupId: 'resources',
                 label: 'History',
                 icon: Activity,
+                badgeDot: unseenFailures,
+                badgeTone: unseenFailures ? 'error' : undefined,
                 onClick: () => navigate('/history'),
             },
         },
@@ -444,7 +455,7 @@ function AppLayout() {
                 onClick: () => navigate('/settings'),
             },
         },
-    ], [stats, navigate]);
+    ], [stats, navigate, unseenFailures]);
 
     return (
         <Dashboard

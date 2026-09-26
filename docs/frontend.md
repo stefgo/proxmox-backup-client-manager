@@ -132,12 +132,22 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 - **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
 - **`useSchedulerStore`**: The status of the server's own schedulers (`token-cleanup`, `job-history-cleanup`). Filled by `GET /api/v1/settings/scheduler-status` when the settings page loads and after each save, kept current by `SCHEDULER_STATUS_UPDATE`, which carries one scheduler at a time.
+- **`useHistorySeenStore`**: Whether failed runs happened that this user has not looked at yet -- the red dot on "History" in the sidebar. Filled by `GET /api/v1/history/seen` when the shell loads, raised by every failed `jobUpdate`, reset by `PUT /api/v1/history/seen` when the history page opens and closes, and by `HISTORY_SEEN` from the user's other tabs. The record is the server's, so it survives a reload and follows the user to another browser.
+
+### Job result toasts
+
+`hooks/useJobResultToasts.ts`, mounted once in `AppLayout`, turns finished runs from `jobUpdate`
+into toasts on whatever page is open. A **failure** is always reported and stays until
+dismissed. A **success** or an **abort** only for a job started from this browser
+(`markJobRunAsked` at "Run now"): with many clients, every scheduled run would otherwise raise
+one. A run is reported once (an agent re-sends finished runs after a reconnect), and not at
+all if it ended before the page was loaded.
 
 ### Two realtime channels, and why
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
 
-**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE`, `JOBS_UPDATE` and `SCHEDULER_STATUS_UPDATE`. These are
+**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE`, `JOBS_UPDATE`, `SCHEDULER_STATUS_UPDATE` and `HISTORY_SEEN`. These are
 *state*: a handful of messages describing something the whole application reads.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
