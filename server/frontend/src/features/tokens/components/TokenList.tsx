@@ -1,109 +1,191 @@
+import { useMemo } from 'react';
 import { Key, Trash2 } from 'lucide-react';
 import { Token } from '@pbcm/shared';
+import {
+    Badge,
+    DataAction,
+    DataListColumnDef,
+    DataListDef,
+    DataMultiView,
+    DataTableDef,
+} from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
-import { DataTable, DataTableDef } from '@stefgo/react-ui-components';
-import { DataAction } from '@stefgo/react-ui-components';
-import { Card } from '@stefgo/react-ui-components';
-import { Badge } from '@stefgo/react-ui-components';
+import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
 interface TokenListProps {
     tokens: Token[];
+    isLoading: boolean;
     /** Takes the token's hash: the server keeps nothing else to name it by. */
     deleteToken: (tokenHash: string) => void;
 }
 
-export const TokenList = ({ tokens, deleteToken }: TokenListProps) => {
-    const columns: DataTableDef<Token>[] = [
+const isExpired = (t: Token) => new Date(t.expiresAt) < new Date();
+
+/**
+ * The token's SHA-256 hash, shortened like a commit hash; the full value is in the tooltip.
+ * The token itself was shown once, when it was issued. Struck through once it can no
+ * longer register a client.
+ */
+const TokenHash = ({ token: t }: { token: Token }) => (
+    <span
+        title={t.tokenHash}
+        className={`font-mono text-sm text-text-primary ${t.usedAt || isExpired(t) ? 'line-through opacity-60' : ''}`}
+    >
+        {t.tokenHash.slice(0, 12)}
+    </span>
+);
+
+/**
+ * A token carries decisions -- the name the client will get and the network it may
+ * register from. Hiding them would leave two tokens looking identical while behaving
+ * differently.
+ */
+const ClientDefaults = ({ token: t }: { token: Token }) => {
+    if (!t.displayName && !t.allowedIp) return <span className="text-sm text-text-muted">—</span>;
+    return (
+        <div className="text-sm">
+            {t.displayName && <div className="text-text-primary">{t.displayName}</div>}
+            {t.allowedIp && <div className="font-mono text-xs text-text-muted">{t.allowedIp}</div>}
+        </div>
+    );
+};
+
+const Validity = ({ token: t }: { token: Token }) => {
+    if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
+    if (isExpired(t)) return <>Expired: {formatDate(t.expiresAt)}</>;
+    return <>Expires: {formatDate(t.expiresAt)}</>;
+};
+
+const StatusBadge = ({ token: t }: { token: Token }) => {
+    if (t.usedAt) return <Badge variant="neutral" size="sm">Used</Badge>;
+    if (isExpired(t)) return <Badge variant="error" size="sm">Expired</Badge>;
+    return <Badge variant="success" size="sm">Active</Badge>;
+};
+
+/**
+ * The registration tokens, built like every other list of the app. Tokens are issued in the
+ * add-client wizard, which is also where the defaults a token carries are entered -- so the
+ * list has no add button.
+ */
+export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) => {
+    const [searchQuery, setSearchQuery] = useSearchQueryParam();
+
+    const filteredTokens = useMemo(() => {
+        if (!searchQuery) return tokens;
+        const q = searchQuery.toLowerCase();
+        return tokens.filter(
+            (t) =>
+                t.tokenHash.includes(q) ||
+                (t.displayName ?? '').toLowerCase().includes(q) ||
+                (t.allowedIp ?? '').toLowerCase().includes(q),
+        );
+    }, [tokens, searchQuery]);
+
+    // One set of actions for both views, so the table and the list cannot drift apart.
+    const renderActions = (t: Token) => (
+        <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+                rowId={t.tokenHash}
+                menuEntries={[
+                    {
+                        label: 'Delete Token',
+                        icon: Trash2,
+                        onClick: () => deleteToken(t.tokenHash),
+                        variant: 'danger',
+                    },
+                ]}
+            />
+        </div>
+    );
+
+    const tableDef: DataTableDef<Token>[] = [
         {
-            // The token's SHA-256 hash, shortened like a commit hash; the full value is in
-            // the tooltip. The token itself was shown once, when it was issued.
-            tableHeader: "Token Hash",
-            tableItemRender: (t) => (
-                <span
-                    title={t.tokenHash}
-                    className={`font-mono text-sm text-text-primary ${(t.usedAt || new Date(t.expiresAt) < new Date()) ? 'line-through opacity-60' : ''}`}
-                >
-                    {t.tokenHash.slice(0, 12)}
-                </span>
-            ),
+            tableHeader: 'Token Hash',
+            tableItemRender: (t) => <TokenHash token={t} />,
         },
         {
-            // A token now carries decisions — the name the client will get and
-            // the network it may register from. Hiding them would leave two
-            // tokens looking identical while behaving differently.
-            tableHeader: "Client",
-            tableCellClassName: "text-sm",
-            tableItemRender: (t) => (
-                (t.displayName || t.allowedIp) ? (
-                    <div>
-                        {t.displayName && <div className="text-text-primary">{t.displayName}</div>}
-                        {t.allowedIp && <div className="font-mono text-xs text-text-muted">{t.allowedIp}</div>}
-                    </div>
-                ) : <span className="text-text-muted">—</span>
-            ),
+            tableHeader: 'Client',
+            tableItemRender: (t) => <ClientDefaults token={t} />,
         },
         {
-            tableHeader: "Expires / Used",
-            tableCellClassName: "text-sm text-text-muted",
+            tableHeader: 'Expires / Used',
+            tableCellClassName: 'text-sm text-text-muted',
             sortable: true,
             sortValue: (t) => t.usedAt ?? t.expiresAt,
-            tableItemRender: (t) => {
-                if (t.usedAt) return <>Used: {formatDate(t.usedAt)}</>;
-                if (new Date(t.expiresAt) < new Date()) return <>Expired: {formatDate(t.expiresAt)}</>;
-                return <>Expires: {formatDate(t.expiresAt)}</>;
-            }
+            tableItemRender: (t) => <Validity token={t} />,
         },
         {
-            tableHeader: "Status",
+            tableHeader: 'Status',
             sortable: true,
-            sortValue: (t) => t.usedAt ? 2 : new Date(t.expiresAt) < new Date() ? 1 : 0,
-            tableItemRender: (t) => {
-                if (t.usedAt) return <Badge variant="neutral" size="sm">Used</Badge>;
-                if (new Date(t.expiresAt) < new Date()) return <Badge variant="error" size="sm">Expired</Badge>;
-                return <Badge variant="success" size="sm">Active</Badge>;
-            }
+            sortValue: (t) => (t.usedAt ? 2 : isExpired(t) ? 1 : 0),
+            tableItemRender: (t) => <StatusBadge token={t} />,
         },
         {
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-right",
-            tableCellClassName: "text-right text-sm font-medium",
-            tableItemRender: (t) => (
-                <DataAction
-                    rowId={t.tokenHash}
-                    menuEntries={[
-                        {
-                            label: 'Delete Token',
-                            icon: Trash2,
-                            onClick: () => deleteToken(t.tokenHash),
-                            variant: 'danger',
-                        },
-                    ]}
-                />
-            )
-        }
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
+            tableItemRender: renderActions,
+        },
+    ];
+
+    const listColumns: DataListColumnDef<Token>[] = [
+        {
+            fields: [
+                {
+                    listLabel: null,
+                    listItemRender: (t) => (
+                        <div className="flex items-center gap-2 py-1">
+                            <StatusBadge token={t} />
+                            <TokenHash token={t} />
+                        </div>
+                    ),
+                },
+                {
+                    listLabel: 'Client',
+                    listItemRender: (t) => <ClientDefaults token={t} />,
+                },
+                {
+                    listLabel: 'Validity',
+                    listItemRender: (t) => (
+                        <span className="text-sm text-text-muted">
+                            <Validity token={t} />
+                        </span>
+                    ),
+                },
+            ] satisfies DataListDef<Token>[],
+            columnClassName: 'flex-1 min-w-0',
+        },
+        {
+            fields: [
+                {
+                    listLabel: null,
+                    listItemRender: (t) => (
+                        <div className="mt-2 md:mt-0 flex justify-center">{renderActions(t)}</div>
+                    ),
+                },
+            ] satisfies DataListDef<Token>[],
+            columnClassName: 'md:text-right',
+        },
     ];
 
     return (
-        <Card
+        <DataMultiView
             title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
-            padding="none"
-        >
-            <DataTable
-                data={tokens}
-                itemDef={columns}
-                // colIndex 2 is "Expires / Used"; the Client column sits before it.
-                sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
-                keyField="tokenHash"
-                emptyMessage="No tokens generated"
-                className="rounded-b-xl border-0 shadow-none"
-                pagination={{
-                    // The view owns the page state and does the slicing; it sorts across
-                    // the whole set first, so a column sort is never limited to the rows
-                    // that happen to be on screen.
-                    defaultValue: { pageSize: 10 },
-                    hideOnSinglePage: true,
-                }}
-            />
-        </Card>
+            // colIndex 2 is "Expires / Used"; the Client column sits before it.
+            sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
+            viewMode={{ persist: { key: 'tokenViewMode', scope: 'local' } }}
+            data={filteredTokens}
+            tableDef={tableDef}
+            listColumns={listColumns}
+            keyField="tokenHash"
+            isLoading={isLoading}
+            loadingMessage="Loading tokens…"
+            searchable
+            searchPlaceholder="Search tokens…"
+            search={{ value: searchQuery, onChange: setSearchQuery }}
+            emptyMessage="No tokens generated"
+            pagination={pagination(PAGE_SIZE.page)}
+        />
     );
 };

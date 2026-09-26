@@ -10,6 +10,8 @@ export const TokenOverview = () => {
     const { isAuthenticated } = useAuth();
     const { show } = useToast();
     const [tokens, setTokens] = useState<Token[]>([]);
+    // Only ever lowered: the first load starts with it set, a refresh keeps the rows showing.
+    const [isLoading, setIsLoading] = useState(true);
 
     // Declared before the effect that uses it: the other way round the effect read
     // `loadTokens` before its initialiser had run on that render. It returns the
@@ -31,7 +33,9 @@ export const TokenOverview = () => {
         let cancelled = false;
         void (async () => {
             const list = await loadTokens();
-            if (!cancelled && list) setTokens(list);
+            if (cancelled) return;
+            if (list) setTokens(list);
+            setIsLoading(false);
         })();
         return () => { cancelled = true; };
     }, [isAuthenticated, loadTokens]);
@@ -59,6 +63,7 @@ export const TokenOverview = () => {
         <div className="space-y-6">
             <TokenList
                 tokens={tokens}
+                isLoading={isLoading}
                 deleteToken={deleteToken}
             />
         </div>
