@@ -72,6 +72,8 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # The clock job schedules repeat on. Without it the agent uses UTC.
+      # - TZ=Europe/Berlin
       # Outbound registration takes the setup PIN from `docker logs pbcm-client`. For an
       # unattended rollout give the agent a secret the Add Client wizard accepts instead
       # (with the `secrets:` entries here and below). Remove it once the agent is registered.

@@ -10,7 +10,10 @@ export const JobScheduleSettings = () => {
         scheduleWeekdays, setScheduleWeekdays,
         scheduleStartDate, setScheduleStartDate,
         scheduleStartTime, setScheduleStartTime,
+        agentTimezone,
     } = useJobFormContext();
+
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     return (
         <div className="space-y-1">
@@ -42,7 +45,11 @@ export const JobScheduleSettings = () => {
                                     fullWidth={false}
                                 />
                             </div>
-                            <div className="text-[10px] text-text-muted mt-1">If set, the job will not run before this time.</div>
+                            <div className="text-[10px] text-text-muted mt-1">
+                                If set, the job will not run before this time. Entered in your browser's
+                                time ({browserTimezone}); the agent repeats it at the same time of day and
+                                checks the weekdays on its own clock ({agentTimezone ?? 'not reported yet'}).
+                            </div>
                         </div>
 
                         <div>

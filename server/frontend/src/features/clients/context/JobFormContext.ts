@@ -44,6 +44,8 @@ export interface JobFormContextType {
     setScheduleStartDate: (val: string) => void;
     scheduleStartTime: string;
     setScheduleStartTime: (val: string) => void;
+    /** The IANA zone the agent repeats the schedule in; `null` until it has reported one. */
+    agentTimezone: string | null;
 
     saveBackupJob: () => void;
     /** True while the save request is in flight. */

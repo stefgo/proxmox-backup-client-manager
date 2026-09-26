@@ -187,6 +187,13 @@ export const ClientSchema = z.object({
      * and unlike the mode this one can be set up and removed at any time.
      */
     tunnelConfigured: z.boolean().optional(),
+    /**
+     * The IANA time zone the agent reported on its last connect. The first run of a job is
+     * the point in time entered in the browser; every repetition after it keeps the agent's
+     * clock time in this zone. `null` for an agent that has not connected yet or predates
+     * the field. Observed, never set.
+     */
+    timezone: z.string().nullish(),
 });
 
 /**
@@ -371,6 +378,12 @@ export const SnapshotSchema = z.object({
 export const AuthPayloadSchema = z.object({
     hostname: z.string(),
     version: z.string().optional(),
+    /**
+     * The IANA time zone of the agent process (`TZ`, UTC in a container without it). The
+     * scheduler repeats a job in this zone; the server stores it only to show it next to the
+     * schedule. Absent from agents that predate the field.
+     */
+    timezone: z.string().optional(),
 });
 
 export const RunJobPayloadSchema = z.object({

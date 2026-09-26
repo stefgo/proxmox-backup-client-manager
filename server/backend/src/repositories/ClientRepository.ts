@@ -18,6 +18,8 @@ export interface ClientRow {
     outbound_target_address: string | null;
     ip_address: string | null;
     version: string | null;
+    /** The IANA time zone the agent reported on its last connect (migration 12). */
+    timezone: string | null;
     last_seen: string | null;
     created_at: string;
     updated_at: string | null;
@@ -152,22 +154,27 @@ export class ClientRepository {
         id: string,
         ipAddress: string,
         version: string | null,
+        timezone: string | null,
     ): void {
         const now = new Date().toISOString();
         db.prepare(
-            "UPDATE clients SET last_seen=?, updated_at=?, ip_address=?, version=? WHERE id=?",
-        ).run(now, now, ipAddress, version, id);
+            "UPDATE clients SET last_seen=?, updated_at=?, ip_address=?, version=?, timezone=? WHERE id=?",
+        ).run(now, now, ipAddress, version, timezone, id);
     }
 
     /**
      * Same as updateAuthSuccess but without an IP: for outbound clients the server is
      * the connecting party, so there is no remote IP to record.
      */
-    static updateOutboundAuthSuccess(id: string, version: string | null): void {
+    static updateOutboundAuthSuccess(
+        id: string,
+        version: string | null,
+        timezone: string | null,
+    ): void {
         const now = new Date().toISOString();
         db.prepare(
-            "UPDATE clients SET last_seen=?, updated_at=?, version=? WHERE id=?",
-        ).run(now, now, version, id);
+            "UPDATE clients SET last_seen=?, updated_at=?, version=?, timezone=? WHERE id=?",
+        ).run(now, now, version, timezone, id);
     }
 
     /**

@@ -373,6 +373,7 @@ server that issued it instead.
 | `status`      | string | Connection status: `"online"` or `"offline"`.      |
 | `lastSeen`    | string | ISO 8601 timestamp of the last connection.         |
 | `version`     | string | Version of the client agent (if reported).         |
+| `timezone`    | string \| null | IANA time zone the agent reported on its last connect: the clock it repeats job schedules on. `null` until it has connected, or for an agent that predates the field. |
 
 **Example Response:**
 
@@ -384,7 +385,8 @@ server that issued it instead.
         "displayName": "Production Server",
         "status": "online",
         "lastSeen": "2023-10-27T12:30:00.000Z",
-        "version": "1.2.0"
+        "version": "1.2.0",
+        "timezone": "Europe/Berlin"
     }
 ]
 ```
@@ -1619,9 +1621,14 @@ A second connection under the same client id replaces the first, which is closed
 ```json
 {
     "hostname": "client-hostname",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "timezone": "Europe/Berlin"
 }
 ```
+
+`timezone` is the IANA zone of the agent process (`TZ`, UTC in a container without it), the
+one its scheduler repeats jobs in. The server stores it only to show it. Optional, since older
+agents do not send it.
 
 **`TUNNEL_ACQUIRE`**
 **Description:** Requests an SSH reverse tunnel lease before a run of a job configured for the

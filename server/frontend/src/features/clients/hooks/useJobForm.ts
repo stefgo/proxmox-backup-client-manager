@@ -44,6 +44,12 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     );
     const tunnelAvailable = tunnelConfigured || tunnelRequired;
 
+    // The clock the agent repeats the schedule on, shown next to it. `null` until the agent
+    // has reported one.
+    const agentTimezone = useClientStore(
+        (s) => s.clients.find((c) => c.id === clientId)?.timezone ?? null,
+    );
+
     // Encryption State
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);
     const [encryptionKeyContent, setEncryptionKeyContent] = useState<string | null>(null);
@@ -356,6 +362,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         scheduleWeekdays, setScheduleWeekdays,
         scheduleStartDate, setScheduleStartDate,
         scheduleStartTime, setScheduleStartTime,
+        agentTimezone,
 
         // Tunnel
         tunnelRequired, setTunnelRequired,

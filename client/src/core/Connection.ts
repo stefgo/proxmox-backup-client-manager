@@ -29,6 +29,12 @@ import { VERSION } from "./Version.js";
 import { isCertificateError } from "./ServerHttp.js";
 
 /**
+ * The zone the scheduler repeats jobs in, reported so the dashboard can say which clock a
+ * schedule runs on. Read once: `TZ` does not change under a process.
+ */
+const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/**
  * Schemas for everything the server pushes at us. The server has always validated
  * the agent's messages; this is the missing other half — and it matters more in this
  * direction, because RUN_BACKUP and RUN_RESTORE end up as arguments to a subprocess.
@@ -248,6 +254,7 @@ export class Connection {
                 Connection.send(WS_EVENTS.AUTH, {
                     hostname: os.hostname(),
                     version: VERSION,
+                    timezone: TIMEZONE,
                 });
             });
 
@@ -414,7 +421,7 @@ export class Connection {
         ws.send(
             JSON.stringify({
                 type: WS_EVENTS.AUTH,
-                payload: { hostname: os.hostname(), version: VERSION },
+                payload: { hostname: os.hostname(), version: VERSION, timezone: TIMEZONE },
             }),
         );
     }

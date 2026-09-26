@@ -121,6 +121,7 @@ export function attachAgentSession(options: AgentSessionOptions): void {
             clearTimeout(authTimeout);
 
             const version = parsed.data.version || null;
+            const timezone = parsed.data.timezone || null;
 
             onAuthenticated?.(version);
             // The address is recorded only here, past the allowed-address check the
@@ -128,9 +129,9 @@ export function attachAgentSession(options: AgentSessionOptions): void {
             // always one that was let in, which is what makes it a useful reference in
             // the client editor.
             if (ip === null) {
-                ClientRepository.updateOutboundAuthSuccess(clientId, version);
+                ClientRepository.updateOutboundAuthSuccess(clientId, version, timezone);
             } else {
-                ClientRepository.updateAuthSuccess(clientId, ip, version);
+                ClientRepository.updateAuthSuccess(clientId, ip, version, timezone);
             }
 
             log.info({ msg: "Agent authenticated", clientId, connectionMode });

@@ -249,6 +249,7 @@ export class ProxyService {
             lastSeen: client.last_seen,
             ipAddress: client.ip_address,
             version: client.version,
+            timezone: client.timezone,
             connectionMode: client.connection_mode || CONNECTION_MODE.INBOUND,
             outboundTargetAddress: client.outbound_target_address,
             inboundAllowedIp: client.inbound_allowed_ip,

@@ -209,6 +209,19 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                         )}
                     </div>
 
+                    <div>
+                        <div className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">
+                            Agent Time Zone
+                        </div>
+                        <span className="ml-1 text-sm text-text-primary">
+                            {client.timezone || 'Unknown'}
+                        </span>
+                        <p className="mt-1 text-xs text-text-muted leading-relaxed ml-1">
+                            The clock the agent repeats job schedules on. Set with <code>TZ</code> on
+                            the agent; UTC in a container without it.
+                        </p>
+                    </div>
+
                     <Input
                         label="Display Name"
                         value={displayName}
