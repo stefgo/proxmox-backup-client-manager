@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CLIENT_STATUS } from '@pbcm/shared';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
@@ -8,7 +8,7 @@ import { useClientStore } from '../../../stores/useClientStore';
 import { JobList } from './JobList';
 import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
-import { GlobalJob, LAST_HISTORY_HOURS } from '../../../stores/useGlobalJobsStore';
+import { GlobalJob, jobIdOf } from '../../../stores/useGlobalJobsStore';
 import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
 import { getErrorMessage } from '../../../utils';
 import { describeDeleteJob } from '../confirmations';
@@ -18,7 +18,7 @@ import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultT
 export const ManagedJobs = () => {
     const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
+    const { globalJobs, latestPerJob, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
     const { confirm } = useConfirm();
@@ -40,6 +40,31 @@ export const ManagedJobs = () => {
     }, [isAuthenticated, fetchAllJobs, fetchClients, fetchRepositories]);
 
     useGlobalSubscription();
+
+    /**
+     * Leaves out the rows of deleted jobs -- as far as that can be told. The server knows a
+     * client's jobs only while it is connected and reports an empty list once it drops, so
+     * "not in the list" means deleted only for an online client whose list has arrived. An
+     * offline client keeps its rows, and so does an online one whose list is still empty.
+     */
+    const latestOfExistingJobs = useMemo(() => {
+        const jobsByClient = new Map<string, Set<string>>();
+        for (const job of globalJobs) {
+            if (!job.id) continue;
+            const ids = jobsByClient.get(job.clientId) ?? new Set<string>();
+            ids.add(job.id);
+            jobsByClient.set(job.clientId, ids);
+        }
+        const onlineClients = new Set(
+            clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).map((c) => c.id),
+        );
+        return latestPerJob.filter((row) => {
+            const jobs = jobsByClient.get(row.clientId);
+            if (!jobs || !onlineClients.has(row.clientId)) return true;
+            const jobId = jobIdOf(row);
+            return jobId !== null && jobs.has(jobId);
+        });
+    }, [latestPerJob, globalJobs, clients]);
 
     const handleRefresh = () => {
         fetchAllJobs();
@@ -131,10 +156,10 @@ export const ManagedJobs = () => {
 
             <div className="mt-6">
                 <ClientHistoryList
-                    title={`Last History (${LAST_HISTORY_HOURS}h)`}
-                    history={lastHistory}
+                    title="Last Activity"
+                    history={latestOfExistingJobs}
                     showClientName={true}
-                    emptyMessage={`No runs in the last ${LAST_HISTORY_HOURS} hours.`}
+                    emptyMessage="No job has run yet."
                 />
             </div>
         </div>

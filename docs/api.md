@@ -34,6 +34,7 @@
 - [Global Data Views](#-global-data-views)
     - [List All Jobs](#list-all-jobs)
     - [Get Global History](#get-global-history)
+    - [Get Latest History per Job](#get-latest-history-per-job)
     - [Get History Seen State](#get-history-seen-state)
     - [Mark History Seen](#mark-history-seen)
 - [Repositories](#-repositories)
@@ -1027,6 +1028,19 @@ _Same structure as [List Client Jobs](#list-client-jobs)._
 #### Response
 
 _Same structure as [Get Client History](#get-client-history)._
+
+### Get Latest History per Job
+
+`GET /v1/history/latest`
+
+**Description:** The newest history entry of every job, one per client and job, newest first.
+Entries that belong to no job are left out. Unlike a page of [Get Global History](#get-global-history),
+this includes jobs that have not run for a long time. The Jobs page shows it as
+"Last Activity".
+
+#### Response
+
+_Same structure as [Get Global History](#get-global-history)._
 
 ### Get History Seen State
 
