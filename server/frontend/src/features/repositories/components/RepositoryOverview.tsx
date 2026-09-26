@@ -13,6 +13,7 @@ import {
     ActionButton,
     ActionMenu,
     Card,
+    DescriptionList,
     StatCard,
     cn,
     useActionMenu,
@@ -96,9 +97,6 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             <h2 className="text-2xl font-bold">
                                 {repo.baseUrl}:{repo.datastore}
                             </h2>
-                            <div className="text-sm font-mono text-text-muted">
-                                {repo.id}
-                            </div>
                         </div>
                     </div>
                 }
@@ -130,7 +128,13 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         </ActionMenu>
                     </div>
                 }
-            />
+                padding="md"
+            >
+                <DescriptionList
+                    columns={1}
+                    items={[{ label: 'ID', value: repo.id, copyable: String(repo.id) }]}
+                />
+            </Card>
 
             {/* Without this the snapshot fetch could fail and leave nothing but the
                 header card on screen, with no hint as to why. */}
