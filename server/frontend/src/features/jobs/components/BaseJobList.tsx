@@ -167,17 +167,12 @@ export const BaseJobList = <T extends BaseJobItem>({
             tableItemRender: (job) => {
                 const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                 return (
-                    <>
-                        <div
-                            className={`text-sm ${online ? 'font-medium text-text-primary' : ''
-                                }`}
-                        >
-                            {job.name}
-                        </div>
-                        <div className="text-xs font-mono text-text-muted truncate opacity-70 mt-0.5">
-                            {job.id}
-                        </div>
-                    </>
+                    <div
+                        className={`text-sm ${online ? 'font-medium text-text-primary' : ''
+                            }`}
+                    >
+                        {job.name}
+                    </div>
                 );
             },
         });
