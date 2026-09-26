@@ -15,7 +15,7 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { ActionMenu, Card, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Card, DescriptionList, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
 
@@ -187,9 +187,6 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                   */}
                                 <ConnectionBadge client={client} />
                             </div>
-                            <div className="text-sm font-mono text-text-muted">
-                                {client.id}
-                            </div>
                         </div>
                     </div>
                 }
@@ -246,7 +243,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         </div>
                     </div>
                 }
-            />
+                padding="md"
+            >
+                <DescriptionList
+                    columns={1}
+                    items={[{ label: 'ID', value: client.id, copyable: client.id }]}
+                />
+            </Card>
 
             {client.status === CLIENT_STATUS.ONLINE && (
                 <>

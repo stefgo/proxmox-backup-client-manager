@@ -9,7 +9,7 @@ import {
     normaliseTargetAddress,
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, Input } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, Checkbox, DescriptionList, Input } from '@stefgo/react-ui-components';
 import { StatusDot } from './StatusDot';
 import { STATUS_TONE } from './statusTone';
 import { formatDate } from '../../../utils';
@@ -147,11 +147,6 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                         <div className="text-xl font-bold">
                             {client.displayName || client.hostname}
                         </div>
-                        {/* Same shape as the ClientOverview header: the id belongs to the
-                            name it identifies, on its own line beneath it. */}
-                        <div className="text-sm font-mono text-text-muted">
-                            {client.id}
-                        </div>
                         {/* Only while offline: for a connected client the pulsing dot
                             already says the agent is here, and a timestamp beside it just
                             invites the question whether it is stale. */}
@@ -169,8 +164,16 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
         >
             <div className="px-7 py-6 bg-card">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Read-only, and first: it decides whether there is a target address
-                        and a tunnel card at all, so it reads as context for the fields
+                    {/* A `DescriptionList` for its copy button. The classes line its label
+                        and value up with the read-only fields below. */}
+                    <DescriptionList
+                        columns={1}
+                        items={[{ label: 'Client ID', value: client.id, copyable: client.id }]}
+                        classNames={{ label: 'mb-1.5 ml-1', value: 'ml-1' }}
+                    />
+
+                    {/* Read-only, and first after the id: it decides whether there is a target
+                        address and a tunnel card at all, so it reads as context for the fields
                         below rather than as a footnote after them. */}
                     <div>
                         {/* Not a `FormField`: there is no control to label. The classes are
