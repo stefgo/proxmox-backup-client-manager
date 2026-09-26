@@ -6,6 +6,7 @@ import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { StatusDot } from '../../../components/StatusDot';
 import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 
@@ -189,13 +190,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             emptyMessage="No repositories added."
             rowClassName="align-top"
             onRowClick={onSelect}
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.page)}
         />
     );
 };

@@ -4,6 +4,7 @@ import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { StatusDot } from '../../../components/StatusDot';
 import { STATUS_TONE } from '../../../components/statusTone';
 
@@ -218,13 +219,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No snapshots found in this repository."
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.embedded)}
         />
     );
 };

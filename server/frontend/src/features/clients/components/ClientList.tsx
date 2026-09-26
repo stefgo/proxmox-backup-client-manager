@@ -11,6 +11,7 @@ import { ConnectionBadge } from './ConnectionBadge';
 import { StatusDot } from '../../../components/StatusDot';
 import { STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
 interface ClientListProps {
     clients: Client[];
@@ -213,13 +214,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.page)}
         />
     );
 };

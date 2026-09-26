@@ -8,7 +8,11 @@ export const PAGE_SIZE = {
     embedded: 10,
 } as const;
 
-/** The pagination every list uses; only the size differs. */
+/**
+ * The pagination every list uses; only the size differs. The view owns the page state and
+ * does the slicing; it sorts across the whole set first, so a column sort is never limited
+ * to the rows that happen to be on screen.
+ */
 export const pagination = (pageSize: number) => ({
     defaultValue: { pageSize },
     hideOnSinglePage: true,

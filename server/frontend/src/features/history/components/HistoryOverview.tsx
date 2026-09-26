@@ -7,6 +7,7 @@ import { apiFetch } from "../../../lib/apiFetch";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { useHistorySeenStore } from "../../../stores/useHistorySeenStore";
 import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
+import { PAGE_SIZE } from "../../../components/listDefaults";
 
 export const HistoryOverview = () => {
     const { isAuthenticated } = useAuth();
@@ -73,6 +74,7 @@ export const HistoryOverview = () => {
         <BaseHistoryList
             items={visible}
             showClientName={true}
+            pageSize={PAGE_SIZE.page}
             emptyMessage={failedOnly ? "No failed runs" : undefined}
             action={
                 <Switch

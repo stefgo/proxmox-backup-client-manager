@@ -5,6 +5,7 @@ import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_STATUS } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
 // The status maps to a role, not to a colour -- Badge owns what each role
 // looks like, in both themes. "neutral" covers idle, queued, skipped and
@@ -45,6 +46,8 @@ export interface BaseHistoryListProps {
     emptyMessage?: string;
     /** Controls in the card header, e.g. a filter. */
     action?: ReactNode;
+    /** Rows per page: `PAGE_SIZE.page` where the list is the page, embedded otherwise. */
+    pageSize?: number;
 }
 
 export const BaseHistoryList = ({
@@ -53,6 +56,7 @@ export const BaseHistoryList = ({
     showClientName = false,
     emptyMessage = 'No history available',
     action,
+    pageSize = PAGE_SIZE.embedded,
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -167,13 +171,7 @@ export const BaseHistoryList = ({
                 className="rounded-b-xl border-0 shadow-none flex-1"
                 emptyMessage={emptyMessage}
                 rowClassName="!px-5 !py-3"
-                pagination={{
-                    // The view owns the page state and does the slicing; it sorts across
-                    // the whole set first, so a column sort is never limited to the rows
-                    // that happen to be on screen.
-                    defaultValue: { pageSize: 10 },
-                    hideOnSinglePage: true,
-                }}
+                pagination={pagination(pageSize)}
             />
         </Card>
     );
