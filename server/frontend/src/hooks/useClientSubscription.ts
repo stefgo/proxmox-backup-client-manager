@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
-import { useClientDetailStore } from "../stores/useClientDetailStore";
-import { HistoryEntry } from "@pbcm/shared";
-import { subscribe } from "../lib/realtimeEvents";
+import { useEffect, useRef } from 'react';
+import { useClientDetailStore } from '../stores/useClientDetailStore';
+import { HistoryEntry } from '@pbcm/shared';
+import { subscribe } from '../lib/realtimeEvents';
 
 export const useClientSubscription = (
     clientId: string | null,
@@ -22,7 +22,7 @@ export const useClientSubscription = (
         // No cast: the payload shape comes from the event map, so a mismatch between
         // what the provider emits and what this reads is a compile error, not a
         // runtime surprise.
-        return subscribe("jobUpdate", ({ clientId: updateClientId, job }) => {
+        return subscribe('jobUpdate', ({ clientId: updateClientId, job }) => {
             if (updateClientId !== clientId) return;
             updateHistory(job);
             updateLastHistory(job);

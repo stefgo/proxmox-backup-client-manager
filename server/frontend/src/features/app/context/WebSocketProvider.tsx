@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
 import { useSchedulerStore } from '../../../stores/useSchedulerStore';
+import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
 
@@ -11,8 +12,13 @@ interface WebSocketProviderProps {
 }
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, username } = useAuth();
     const { setClients } = useClientStore();
+    // Read by the socket's handler, which must not reconnect when the name arrives.
+    const usernameRef = useRef(username);
+    useEffect(() => {
+        usernameRef.current = username;
+    }, [username]);
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,6 +86,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     if (data.type === 'JOB_NEXT_RUN_UPDATE') {
                         emit('jobNextRunUpdate', data.payload);
+                    }
+
+                    // Every dashboard receives every user's; only this user's own concerns this tab.
+                    if (data.type === 'HISTORY_SEEN') {
+                        if (data.payload?.username === usernameRef.current) {
+                            useHistorySeenStore.getState().applySeen(data.payload);
+                        }
                     }
 
                     // One scheduler at a time, whenever a run starts or ends or its timer moves.

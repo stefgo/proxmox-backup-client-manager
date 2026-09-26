@@ -63,6 +63,7 @@ import {
     UpdateUserSchema,
     CleanupSettingsSchema,
     HistoryQuerySchema,
+    HistorySeenSchema,
     PbsSnapshotSchema,
 } from "./schemas.js";
 
@@ -158,6 +159,7 @@ export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
 export type HistoryAck = z.infer<typeof HistoryAckSchema>;
 export type GlobalHistoryEntry = z.infer<typeof GlobalHistoryEntrySchema>;
 export type GlobalHistoryResponse = z.infer<typeof GlobalHistoryResponseSchema>;
+export type HistorySeen = z.infer<typeof HistorySeenSchema>;
 export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
 >;

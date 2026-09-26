@@ -23,8 +23,8 @@ const TONE_CLASSES: Record<StatusTone, string> = {
 };
 
 /**
- * The connection indicator used across the client surfaces: a coloured dot, and the state's
- * word on it rather than beside it.
+ * The connection indicator used across clients, repositories and jobs: a coloured dot, and
+ * the state's word on it rather than beside it.
  *
  * A `span`, not a `div`, so it is valid inside a heading as well as inside a `div` title —
  * as a flex child it is blockified either way.

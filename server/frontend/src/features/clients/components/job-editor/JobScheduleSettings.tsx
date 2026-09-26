@@ -61,7 +61,7 @@ export const JobScheduleSettings = () => {
                                     value={scheduleInterval}
                                     onChange={(e) => setScheduleInterval(parseInt(e.target.value) || 1)}
                                     fullWidth={false}
-                                    classNames={{ input: "w-20" }}
+                                    classNames={{ input: 'w-20' }}
                                 />
                                 <Select
                                     value={scheduleUnit}
@@ -88,7 +88,7 @@ export const JobScheduleSettings = () => {
                             <div className="flex flex-wrap gap-2">
                                 {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => (
                                     <button key={day} onClick={() => { if (scheduleWeekdays.includes(day)) { if (scheduleWeekdays.length > 1) setScheduleWeekdays(scheduleWeekdays.filter(d => d !== day)); } else { setScheduleWeekdays([...scheduleWeekdays, day]); } }} className={cn(
-                                        "px-2 py-1 text-[10px] uppercase font-bold rounded border transition-colors",
+                                        'px-2 py-1 text-[10px] uppercase font-bold rounded border transition-colors',
                                         scheduleWeekdays.includes(day)
                                             ? 'bg-primary/20 border-primary text-primary shadow-glow-accent'
                                             : 'bg-card border-border text-text-muted opacity-60',

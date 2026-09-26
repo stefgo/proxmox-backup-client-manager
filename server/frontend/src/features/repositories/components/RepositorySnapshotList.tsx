@@ -4,6 +4,9 @@ import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
@@ -70,7 +73,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
 
     if (showClientColumn) {
         tableDef.push({
-            tableHeader: "Client",
+            tableHeader: 'Client',
             sortable: true,
             sortValue: (snap) => (snap.backupId && getClientName ? getClientName(snap.backupId) : '') ?? '',
             tableItemRender: (snap) => {
@@ -80,14 +83,9 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-3">
+                        <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
                         <div
-                            className={`w-2 h-2 rounded-full shrink-0 ${online
-                                ? "bg-success shadow-glow-success"
-                                : "bg-border"
-                                }`}
-                        />
-                        <div
-                            className={`text-sm ${online ? "text-text-primary" : ""
+                            className={`text-sm ${online ? 'text-text-primary' : ''
                                 } max-w-[150px] truncate`}
                             title={name}
                         >
@@ -100,7 +98,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     }
 
     tableDef.push({
-        tableHeader: "Date",
+        tableHeader: 'Date',
         sortable: true,
         sortValue: (snap) => snap.backupTime,
         tableItemRender: (snap) => (
@@ -111,7 +109,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     });
 
     tableDef.push({
-        tableHeader: "Size",
+        tableHeader: 'Size',
         sortable: true,
         sortValue: (snap) => snap.size ?? 0,
         tableItemRender: (snap) => (
@@ -122,8 +120,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     });
 
     tableDef.push({
-        tableHeader: "Actions",
-        tableHeaderClassName: "text-right",
+        tableHeader: 'Actions',
+        tableHeaderClassName: 'text-right',
         tableItemRender: (snap) => (
             <DataAction
                 rowId={snapshotKey(snap)}
@@ -131,8 +129,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                     {
                         icon: ArchiveRestore,
                         onClick: () => onRestore(snap),
-                        color: "blue",
-                        tooltip: "Restore Snapshot",
+                        color: 'blue',
+                        tooltip: 'Restore Snapshot',
                     }
                 ]}
             />
@@ -152,13 +150,11 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const isOnline = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-2 py-1">
-                        <span
-                            className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-border"}`}
-                        />
+                        <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
                         <span
                             className={`${isOnline
-                                ? "text-text-primary"
-                                : "text-inherit"
+                                ? 'text-text-primary'
+                                : 'text-inherit'
                                 }`}
                         >
                             {name}
@@ -170,21 +166,21 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     }
 
     fields.push({
-        listLabel: "Snapshot",
+        listLabel: 'Snapshot',
         listItemRender: (snap) => `${snap.backupType} / ${snap.backupId}`
     });
 
     fields.push({
-        listLabel: "Date",
+        listLabel: 'Date',
         listItemRender: (snap) => formatDate(snap.backupTime * 1000)
     });
 
     fields.push({
-        listLabel: "Size",
+        listLabel: 'Size',
         listItemRender: (snap) => snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'
     });
 
-    listColumns.push({ fields, columnClassName: "flex-1" });
+    listColumns.push({ fields, columnClassName: 'flex-1' });
 
     listColumns.push({
         fields: [{
@@ -197,15 +193,15 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                             {
                                 icon: ArchiveRestore,
                                 onClick: () => onRestore(snap),
-                                color: "blue",
-                                tooltip: "Restore Snapshot",
+                                color: 'blue',
+                                tooltip: 'Restore Snapshot',
                             }
                         ]}
                     />
                 </div>
             )
         }],
-        columnClassName: "md:text-right"
+        columnClassName: 'md:text-right'
     });
 
     const dateSortColIndex = showClientColumn ? 1 : 0;
@@ -218,18 +214,12 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             listColumns={listColumns}
             keyField={snapshotKey}
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
-            viewMode={{ persist: { key: "snapshotListViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'snapshotListViewMode', scope: 'local' } }}
             searchable
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
             emptyMessage="No snapshots found in this repository."
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.embedded)}
         />
     );
 };

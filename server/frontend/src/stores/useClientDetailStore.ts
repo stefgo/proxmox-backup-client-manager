@@ -1,12 +1,12 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import {
     BackupJob,
     HistoryEntry,
     ManagedRepository,
     Snapshot,
-} from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+} from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 /**
  * The snapshot endpoint is per repository, so the repository a snapshot came from
@@ -20,6 +20,11 @@ interface ClientDataState {
     configuredJobs: BackupJob[];
     lastHistory: HistoryEntry[];
     clientSnapshots: SnapshotWithRepository[];
+    /**
+     * Set when one or more repositories could not be read. The snapshots of the others are
+     * still shown, so a partial list does not pass for the complete one without a word.
+     */
+    snapshotsError: string | null;
     isLoading: boolean;
     error: string | null;
 
@@ -54,6 +59,7 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     configuredJobs: [],
     lastHistory: [],
     clientSnapshots: [],
+    snapshotsError: null,
     isLoading: false,
     error: null,
 
@@ -96,32 +102,37 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         clientId: string,
         repositories: ManagedRepository[],
     ) => {
-        try {
-            const promises = repositories.map((repo) =>
-                apiFetch(`/api/v1/repositories/${repo.id}/snapshots`)
-                    .then((res) =>
-                        res.ok
-                            ? (res.json() as Promise<Snapshot[]>)
-                            : ([] as Snapshot[]),
-                    )
-                    .then((snaps): SnapshotWithRepository[] =>
-                        snaps.map((s) => ({ ...s, repository: repo })),
-                    )
-                    .catch((): SnapshotWithRepository[] => []),
-            );
+        // Each repository answers on its own; one that fails is recorded rather than
+        // turned into an empty list, so the view can say which part is missing.
+        const failed: string[] = [];
+        const results = await Promise.all(
+            repositories.map(async (repo): Promise<SnapshotWithRepository[]> => {
+                try {
+                    const res = await apiFetch(`/api/v1/repositories/${repo.id}/snapshots`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const snaps = (await res.json()) as Snapshot[];
+                    return snaps.map((s) => ({ ...s, repository: repo }));
+                } catch (e) {
+                    console.error('Failed to fetch client snapshots', repo.id, e);
+                    failed.push(`${repo.baseUrl}:${repo.datastore}`);
+                    return [];
+                }
+            }),
+        );
 
-            const results = await Promise.all(promises);
-            const allSnapshots = results
-                .flat()
-                .filter((s) => s.backupId === clientId);
+        const allSnapshots = results
+            .flat()
+            .filter((s) => s.backupId === clientId);
 
-            // Sort by time desc
-            allSnapshots.sort((a, b) => b.backupTime - a.backupTime);
+        // Sort by time desc
+        allSnapshots.sort((a, b) => b.backupTime - a.backupTime);
 
-            set({ clientSnapshots: allSnapshots });
-        } catch (e) {
-            console.error("Failed to fetch client snapshots", e);
-        }
+        set({
+            clientSnapshots: allSnapshots,
+            snapshotsError: failed.length > 0
+                ? `Could not read the snapshots of ${failed.join(', ')}.`
+                : null,
+        });
     },
 
     deleteBackupJob: async (
@@ -132,14 +143,14 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}`,
                 {
-                    method: "DELETE",
+                    method: 'DELETE',
                 },
             );
             if (res.ok) {
                 get().removeBackupJob(jobId);
             } else {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to delete job");
+                throw new Error(data.error || 'Failed to delete job');
             }
         } catch (e: unknown) {
             console.error(e);
@@ -155,16 +166,16 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
             const res = await apiFetch(
                 `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
                 {
-                    method: "POST",
+                    method: 'POST',
                     headers: {
-                        "Content-Type": "application/json",
+                        'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({}),
                 },
             );
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to trigger job");
+                throw new Error(data.error || 'Failed to trigger job');
             }
         } catch (e: unknown) {
             console.error(e);

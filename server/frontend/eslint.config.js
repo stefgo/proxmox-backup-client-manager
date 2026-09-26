@@ -65,6 +65,11 @@ export default defineConfig([
             // rather than a quick edit.
             "react-hooks/set-state-in-effect": "warn",
             "react-hooks/immutability": "warn",
+            // The frontend is single-quoted (see CLAUDE.md); without a formatter nothing
+            // held it, and thirteen files had drifted to double quotes. `avoidEscape`
+            // keeps "it's" readable. The core rule is deprecated and goes with ESLint 11
+            // -- then `@stylistic/quotes` takes the same options.
+            quotes: ["error", "single", { avoidEscape: true }],
         },
     },
 ]);

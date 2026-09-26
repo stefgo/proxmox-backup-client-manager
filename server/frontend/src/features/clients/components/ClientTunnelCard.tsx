@@ -3,8 +3,8 @@ import { TunnelState, TunnelStatus, TUNNEL_STATUS } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Input, useConfirm } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
-import { StatusDot } from './StatusDot';
-import { STATUS_TONE, type StatusTone } from './statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
 import { LoadingIndicator } from '../../../components/LoadingIndicator';
@@ -417,13 +417,13 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         );
     }
 
-    // A short, silent gap would make the card jump into the layout; the one full-panel
-    // spinner keeps the page still without inventing a second loading idiom.
+    // A short, silent gap would read as an empty card; the one loading indicator says
+    // what is on its way without inventing a second loading idiom.
     if (!loaded) {
         return (
             <Card title={title} titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
                 <div className="px-7 py-6 bg-card" aria-busy>
-                    <LoadingIndicator className="h-40" />
+                    <LoadingIndicator label="Loading tunnel…" />
                 </div>
             </Card>
         );

@@ -169,7 +169,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
             action={
                 <ActionButton icon={X} tooltip="Close" onClick={requestClose} />
             }
-            classNames={{ headerTitle: "text-xl font-bold" }}
+            classNames={{ headerTitle: 'text-xl font-bold' }}
         >
             <form onSubmit={handleSubmit} className="flex flex-col">
                 <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">

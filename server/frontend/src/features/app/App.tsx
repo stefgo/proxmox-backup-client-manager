@@ -11,11 +11,12 @@ import {
 } from 'lucide-react';
 
 // Library Components
-import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING, ToastProvider } from '@stefgo/react-ui-components';
+import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, ToastProvider } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
+import { NotFoundCard } from '../../components/NotFoundCard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { useTheme } from './context/ThemeContext';
 import { AuthProvider } from '../auth/AuthProvider';
@@ -27,6 +28,8 @@ import { useClientStore } from '../../stores/useClientStore';
 import { useRepositoryStore } from '../../stores/useRepositoryStore';
 import { useGlobalJobsStore } from '../../stores/useGlobalJobsStore';
 import { useUIStore } from '../../stores/useUIStore';
+import { useHistorySeenStore } from '../../stores/useHistorySeenStore';
+import { useJobResultToasts } from '../../hooks/useJobResultToasts';
 
 // Page components – loaded on demand, so a chunk only arrives when its route does.
 const TokenOverview = lazy(() => import('../tokens/components/TokenOverview').then(m => ({ default: m.TokenOverview })));
@@ -67,7 +70,6 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 function ClientsRoute() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { isAuthenticated } = useAuth();
     const { clients, fetchClients, deleteClient } = useClientStore();
 
     // Every editor route knows where back is because the surface that opened it says so.
@@ -77,12 +79,8 @@ function ClientsRoute() {
         <ManagedClients
             clients={clients}
             onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate('/'))}
-            onRefresh={() => {
-                if (isAuthenticated) fetchClients();
-            }}
-            onDelete={(id) =>
-                isAuthenticated ? deleteClient(id) : Promise.resolve()
-            }
+            onRefresh={fetchClients}
+            onDelete={deleteClient}
             onAdd={() => open('/clients/new')}
             onEdit={(c) => open(`/client/${c.id}/edit`)}
             onEditTunnel={(c) => open(`/client/${c.id}/tunnel`)}
@@ -102,33 +100,47 @@ function AddClientRoute() {
 }
 
 /**
- * The three client routes below all resolve the client from the store and bail out to the
- * list if it is gone — a stale bookmark or a deleted client must not render an editor over
- * `undefined`.
+ * The client routes below resolve the client from the store. Until the list has arrived
+ * once they show the spinner: a reloaded or shared URL renders before `AppLayout`'s first
+ * fetch returns, and an empty list then says nothing about whether the client exists. Only
+ * after that is a missing client really gone -- a stale bookmark or a deleted client gets
+ * the not-found card, and the URL stays where it was.
  */
 function useRouteClient() {
     const { clientId } = useParams();
-    return useClientStore((s) => s.clients.find((c) => c.id === clientId));
+    const client = useClientStore((s) => s.clients.find((c) => c.id === clientId));
+    const loaded = useClientStore((s) => s.loaded);
+    return { client, loaded };
+}
+
+function ClientMissing({ loaded }: { loaded: boolean }) {
+    if (!loaded) return <LoadingIndicator label="Loading client…" />;
+
+    return (
+        <NotFoundCard title="Client not found" backTo="/clients" backLabel="Back to clients">
+            There is no client with this ID. It may have been deleted.
+        </NotFoundCard>
+    );
 }
 
 function ClientDetailRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientOverview client={client} />;
 }
 
 function ClientEditRoute() {
-    const client = useRouteClient();
+    const { client, loaded } = useRouteClient();
     const { updateClient } = useClientStore();
-    if (!client) return <Navigate to="/clients" replace />;
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientEditor client={client} onSave={updateClient} />;
 }
 
 function ClientTunnelRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientTunnelEditor client={client} />;
 }
@@ -144,8 +156,8 @@ function ClientTunnelRoute() {
  * change hands, and one started from a client already has its answer.
  */
 function NewClientJobRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <JobEditorPage lockedClientId={client.id} fallbackBack={`/client/${client.id}`} />;
 }
@@ -179,7 +191,13 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
     const job = globalJobs.find((j) => j.clientId === clientId && j.id === jobId);
     if (!job) {
-        return resolved ? <Navigate to="/jobs" replace /> : <LoadingIndicator />;
+        if (!resolved) return <LoadingIndicator label="Loading job…" />;
+
+        return (
+            <NotFoundCard title="Job not found" backTo="/jobs" backLabel="Back to jobs">
+                There is no job with this ID on this client. It may have been deleted.
+            </NotFoundCard>
+        );
     }
 
     return <JobEditorPage lockedClientId={job.clientId} job={job} fallbackBack={fallback(job.clientId)} />;
@@ -187,26 +205,40 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
 function RepositoriesRoute() {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
     const { repositories, addRepository, updateRepository, deleteRepository } = useRepositoryStore();
 
     return (
         <ManagedRepositories
             repositories={repositories}
             onSelect={(r) => (r ? navigate(`/repository/${r.id}`) : navigate('/'))}
-            onAdd={(r) => (isAuthenticated ? addRepository(r) : Promise.reject())}
-            onUpdate={(id, r) => (isAuthenticated ? updateRepository(id, r) : Promise.reject())}
-            onDelete={(id) => (isAuthenticated ? deleteRepository(id) : Promise.reject())}
+            onAdd={addRepository}
+            onUpdate={updateRepository}
+            onDelete={deleteRepository}
         />
     );
 }
 
-function RepositoryDetailRoute() {
+/** Same waiting and not-found handling as `useRouteClient`, for the repository routes. */
+function useRouteRepository() {
     const { repoId } = useParams();
-    const { repositories } = useRepositoryStore();
+    const repo = useRepositoryStore((s) => s.repositories.find((r) => String(r.id) === repoId));
+    const loaded = useRepositoryStore((s) => s.loaded);
+    return { repoId, repo, loaded };
+}
 
-    const repo = repositories.find((r) => String(r.id) === repoId);
-    if (!repo) return <Navigate to="/repositories" replace />;
+function RepositoryMissing({ loaded }: { loaded: boolean }) {
+    if (!loaded) return <LoadingIndicator label="Loading repository…" />;
+
+    return (
+        <NotFoundCard title="Repository not found" backTo="/repositories" backLabel="Back to repositories">
+            There is no repository with this ID. It may have been deleted.
+        </NotFoundCard>
+    );
+}
+
+function RepositoryDetailRoute() {
+    const { repo, loaded } = useRouteRepository();
+    if (!repo) return <RepositoryMissing loaded={loaded} />;
 
     return <RepositoryOverview repo={repo} />;
 }
@@ -217,15 +249,14 @@ function RepositoryDetailRoute() {
  * menu was opened on, so Cancel returns there instead of always falling back to the list.
  */
 function RepositoryEditRoute() {
-    const { repoId } = useParams();
+    const { repoId, repo, loaded } = useRouteRepository();
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { repositories, updateRepository } = useRepositoryStore();
+    const updateRepository = useRepositoryStore((s) => s.updateRepository);
 
-    const repo = repositories.find((r) => String(r.id) === repoId);
     const back = (state as { from?: string } | null)?.from ?? `/repository/${repoId}`;
 
-    if (!repo) return <Navigate to="/repositories" replace />;
+    if (!repo) return <RepositoryMissing loaded={loaded} />;
 
     return (
         <RepositoryEditor
@@ -240,22 +271,12 @@ function RepositoryEditRoute() {
 }
 
 function NotFound() {
-    const navigate = useNavigate();
     const { pathname } = useLocation();
 
     return (
-        <Card title="Page not found" padding="md" classNames={{ content: 'space-y-4' }}>
-            <p className="text-text-secondary">
-                There is nothing at <code className="font-mono text-sm">{pathname}</code>.
-            </p>
-            <button
-                type="button"
-                onClick={() => navigate('/clients')}
-                className={cn('text-primary hover:text-primary-hover font-medium rounded-sm', FOCUS_RING)}
-            >
-                Back to clients
-            </button>
-        </Card>
+        <NotFoundCard title="Page not found" backTo="/clients" backLabel="Back to clients">
+            There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+        </NotFoundCard>
     );
 }
 
@@ -272,6 +293,12 @@ function AppLayout() {
     const { clients, fetchClients } = useClientStore();
     const { repositories: repos, fetchRepositories: refreshRepos } = useRepositoryStore();
     const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
+    const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
+    // Not on the history page itself: what fails there is in view as it arrives.
+    const unseenFailures = useHistorySeenStore((s) => s.unseenFailed > 0) && path !== '/history';
+
+    // In the shell rather than a page: a run outlives the page it was started from.
+    useJobResultToasts();
 
     // Initial Fetch
     useEffect(() => {
@@ -279,8 +306,9 @@ function AppLayout() {
             fetchClients();
             refreshRepos();
             fetchAllJobs();
+            fetchSeen();
         }
-    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs]);
+    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs, fetchSeen]);
 
     // Stats
     const stats = useMemo(
@@ -333,7 +361,7 @@ function AppLayout() {
     );
 
     const navGroups: DashboardNavGroup[] = [
-        { id: 'resources', title: 'Ressources' },
+        { id: 'resources', title: 'Resources' },
         { id: 'administration', title: 'Administration' },
     ];
 
@@ -383,6 +411,8 @@ function AppLayout() {
                 groupId: 'resources',
                 label: 'History',
                 icon: Activity,
+                badgeDot: unseenFailures,
+                badgeTone: unseenFailures ? 'error' : undefined,
                 onClick: () => navigate('/history'),
             },
         },
@@ -419,7 +449,7 @@ function AppLayout() {
                 onClick: () => navigate('/settings'),
             },
         },
-    ], [stats, navigate]);
+    ], [stats, navigate, unseenFailures]);
 
     return (
         <Dashboard
@@ -435,7 +465,7 @@ function AppLayout() {
             navGroups={navGroups}
             currentPath={path}
         >
-            <Suspense fallback={<div className="p-6 text-text-muted">Loading…</div>}>
+            <Suspense fallback={<LoadingIndicator />}>
                 <Routes>
                     <Route path="/" element={<ClientsRoute />} />
                     <Route path="/clients" element={<ClientsRoute />} />

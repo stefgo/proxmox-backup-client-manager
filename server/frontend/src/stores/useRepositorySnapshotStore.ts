@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { ManagedRepository as Repository, Snapshot } from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { create } from 'zustand';
+import { ManagedRepository as Repository, Snapshot } from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 interface RepositorySnapshotsState {
     snapshots: Snapshot[];
@@ -41,7 +41,7 @@ export const useRepositorySnapshotStore = create<RepositorySnapshotsState>(
                     set({ snapshots: data });
                 } else {
                     const err = await res.json();
-                    set({ error: err.error || "Failed to fetch snapshots" });
+                    set({ error: err.error || 'Failed to fetch snapshots' });
                 }
             } catch (e: unknown) {
                 set({ error: getErrorMessage(e) });

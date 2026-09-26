@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { FsFile } from "@stefgo/react-ui-components";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
+import { create } from 'zustand';
+import { FsFile } from '@stefgo/react-ui-components';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
 
 interface ClientFileSystemState {
     fileList: FsFile[];
@@ -52,7 +52,7 @@ export const useClientFileSystemStore = create<ClientFileSystemState>(
                     // than the one the browser now names.
                     set({
                         fileList: [],
-                        error: body?.error || res.statusText || "Directory could not be listed",
+                        error: body?.error || res.statusText || 'Directory could not be listed',
                     });
                 }
             } catch (e: unknown) {

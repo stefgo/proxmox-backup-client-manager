@@ -8,7 +8,10 @@ import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
 interface ClientListProps {
     clients: Client[];
@@ -91,12 +94,12 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         const cols: DataTableDef<Client>[] = [];
 
         cols.push({
-            tableHeader: "Client",
+            tableHeader: 'Client',
             sortable: true,
             sortValue: (client) => client.displayName || client.hostname,
             tableItemRender: (client) => (
                 <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                    <StatusDot size="sm" tone={client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={client.status} />
                     <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                     </div>
@@ -107,7 +110,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
 
         cols.push({
             tableHeader: null,
-            tableCellClassName: "align-top text-sm text-text-primary",
+            tableCellClassName: 'align-top text-sm text-text-primary',
             tableItemRender: (client) => (
                 client.status !== CLIENT_STATUS.ONLINE ? (
                     <div className="whitespace-nowrap opacity-70">
@@ -118,9 +121,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         });
 
         cols.push({
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
             tableItemRender: (client) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
@@ -138,7 +141,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                    <StatusDot size="sm" tone={client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={client.status} />
                     <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                     </div>
@@ -183,8 +186,8 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         });
 
         return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" }
+            { fields: contentFields, columnClassName: 'flex-1' },
+            { fields: actionFields, columnClassName: 'md:text-right' }
         ];
     };
 
@@ -200,7 +203,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: "clientViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'clientViewMode', scope: 'local' } }}
             data={filteredClients}
             tableDef={tableColumns}
             listColumns={listColumns}
@@ -211,13 +214,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             emptyMessage="No clients connected."
             rowClassName="align-top"
             onRowClick={setSelectedClient}
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.page)}
         />
     );
 };

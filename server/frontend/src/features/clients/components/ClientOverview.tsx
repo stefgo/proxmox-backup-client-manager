@@ -4,11 +4,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
-import { describeFailure, formatDate } from '../../../utils';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
-import { StatusDot } from './StatusDot';
-import { STATUS_TONE } from './statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
@@ -17,7 +17,8 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
+import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, useToast, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
 
@@ -26,7 +27,7 @@ import { describeDeleteJob } from '../../jobs/confirmations';
  * inside the popover would be clipped by it. Shared by the entries below so they cannot drift.
  */
 const MENU_ENTRY = cn(
-    "w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2",
+    'w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2',
     FOCUS_RING_NONE,
 );
 
@@ -60,23 +61,14 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         history: backupJobs,
         lastHistory,
         clientSnapshots,
+        snapshotsError,
         fetchClientData,
-        deleteBackupJob: storeDeleteJob,
-        triggerBackupJob: storeTriggerJob,
+        deleteBackupJob: deleteJob,
+        triggerBackupJob: triggerJob,
         fetchClientSnapshots
     } = useClientDetailStore();
 
     const { repositories, fetchRepositories } = useRepositoryStore();
-
-    const deleteJob = (clientId: string, jobId: string) => {
-        if (isAuthenticated) return storeDeleteJob(clientId, jobId);
-        return Promise.reject('Not authenticated');
-    };
-
-    const triggerJob = (clientId: string, jobId: string) => {
-        if (isAuthenticated) return storeTriggerJob(clientId, jobId);
-        return Promise.reject('Not authenticated');
-    };
 
     // Init Data & Subscriptions
     useEffect(() => {
@@ -91,7 +83,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // array. Depending on the reference reloaded every snapshot once per repository,
     // and each reload is itself one request per repository.
     const repositoryIds = useMemo(
-        () => repositories.map((r) => r.id).join(","),
+        () => repositories.map((r) => r.id).join(','),
         [repositories],
     );
 
@@ -104,7 +96,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     }, [client.id, isAuthenticated, repositoryIds, fetchClientSnapshots]);
 
     useClientSubscription(client.id, (job) => {
-        if (job.status === JOB_STATUS.SUCCESS && isAuthenticated) {
+        if (job.status === JOB_STATUS.SUCCESS) {
             fetchClientSnapshots(client.id, repositories);
         }
     });
@@ -124,14 +116,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
-    const { confirm, alert } = useConfirm();
+    const { confirm } = useConfirm();
+    const { show } = useToast();
 
     const handleTriggerJob = async (jobId: string) => {
+        // Before the request: a run that is skipped at once can report before it returns.
+        markJobRunAsked(client.id, jobId);
         try {
             await triggerJob(client.id, jobId);
-            // Optional: toast or feedback
+            show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
-            alert(describeFailure('Could not start the job', e));
+            forgetJobRunAsked(client.id, jobId);
+            show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };
 
@@ -275,7 +271,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={configuredJobs.length.toString()}
                             sub="Configurations"
                             icon={HardDrive}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                         <StatCard
                             {...tabs.tabProps('snapshots')}
@@ -283,7 +279,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={clientSnapshots.length.toString()}
                             sub="Available Backups"
                             icon={FileBox}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                         <StatCard
                             {...tabs.tabProps('history')}
@@ -291,7 +287,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             value={backupJobs.length.toString()}
                             sub="Recorded Runs"
                             icon={Activity}
-                            classNames={{ icon: "text-text-muted" }}
+                            classNames={{ icon: 'text-text-muted' }}
                         />
                     </TabList>
 
@@ -330,12 +326,19 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     onCancel={() => setRestoreSnapshot(null)}
                                 />
                             ) : (
-                                <RepositorySnapshotList
-                                    searchParamKey="search.snapshots"
-                                    snapshots={clientSnapshots}
-                                    showClientColumn={false}
-                                    onRestore={setRestoreSnapshot}
-                                />
+                                <>
+                                    {snapshotsError && (
+                                        <div role="alert" className="mb-4 text-sm text-error break-words">
+                                            {snapshotsError}
+                                        </div>
+                                    )}
+                                    <RepositorySnapshotList
+                                        searchParamKey="search.snapshots"
+                                        snapshots={clientSnapshots}
+                                        showClientColumn={false}
+                                        onRestore={setRestoreSnapshot}
+                                    />
+                                </>
                             )}
                         </TabPanel>
 

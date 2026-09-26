@@ -34,6 +34,8 @@
 - [Global Data Views](#-global-data-views)
     - [List All Jobs](#list-all-jobs)
     - [Get Global History](#get-global-history)
+    - [Get History Seen State](#get-history-seen-state)
+    - [Mark History Seen](#mark-history-seen)
 - [Repositories](#-repositories)
     - [List Repositories](#list-repositories)
     - [Get Repository Status](#get-repository-status)
@@ -1026,6 +1028,36 @@ _Same structure as [List Client Jobs](#list-client-jobs)._
 
 _Same structure as [Get Client History](#get-client-history)._
 
+### Get History Seen State
+
+`GET /v1/history/seen`
+
+**Description:** How far the session's user has looked at the job history. The frontend marks
+the History entry in the sidebar while `unseenFailed` is above zero.
+
+#### Response
+
+| Field          | Type           | Description                                                                 |
+| :------------- | :------------- | :-------------------------------------------------------------------------- |
+| `seenAt`       | string \| null | When the user last opened the history (ISO 8601), `null` if never.         |
+| `unseenFailed` | number         | Failed runs whose `endTime` lies after `seenAt` -- all failed runs if `null`. |
+
+```json
+{
+    "seenAt": "2026-09-26T08:14:02.311Z",
+    "unseenFailed": 2
+}
+```
+
+### Mark History Seen
+
+`PUT /v1/history/seen`
+
+**Description:** Records that the session's user has looked at the history now. No request body.
+Answers with the new state (same shape as [Get History Seen State](#get-history-seen-state),
+`unseenFailed` then `0`) and broadcasts it as [`HISTORY_SEEN`](#dashboard-connection), so the
+user's other tabs clear the mark too. Stored per username, so it works for OIDC users as well.
+
 ---
 
 ## 🗄 Repositories
@@ -1583,6 +1615,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
 | `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler: SchedulerId, status: SchedulerStatus }`            | One server scheduler, whenever a run starts or ends or its timer moves. Same shape as one entry of [Scheduler Status](#scheduler-status). |
+| `HISTORY_SEEN`       | `{ username: string, seenAt: string \| null, unseenFailed: number }`  | A user opened the history ([Mark History Seen](#mark-history-seen)). Sent to every dashboard; each keeps only its own user's. |
 
 ### Agent Connection
 

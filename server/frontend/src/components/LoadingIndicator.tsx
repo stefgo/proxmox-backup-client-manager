@@ -1,19 +1,34 @@
-import { RefreshCw } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
+import { cn } from '@stefgo/react-ui-components';
+
+interface LoadingIndicatorProps {
+    /** What is being waited for. Shown next to the spinner and announced with it. */
+    label?: string;
+    className?: string;
+}
 
 /**
- * The one full-panel loading state.
+ * The one loading state, wherever a view has nothing to show yet.
  *
- * There used to be two: a hand-rolled CSS spinner in `HistoryOverview` (a bare `div`
- * with `animate-spin` and a palette colour) and this icon in `Settings`. They did not
- * look alike, and only one of them survived a theme switch. Anything that needs to
- * show a page or panel waiting uses this instead of building a third.
+ * There used to be three: a hand-rolled CSS spinner in `HistoryOverview`, a large icon
+ * with no text in `Settings`, and a line of muted text as the fallback for lazy routes.
+ * No two looked alike. Anything that waits uses this instead of building another.
  *
- * `className` sizes the box, because the two callers sit in different layouts — one
- * fills a flex column, the other needs its own height.
+ * `role="status"` so the text is announced when it appears; the spinner itself is
+ * decorative and stays out of the accessibility tree.
  */
-export const LoadingIndicator = ({ className = 'h-64' }: { className?: string }) => (
-    <div className={`flex items-center justify-center ${className}`}>
-        <RefreshCw className="animate-spin text-primary" size={32} aria-hidden />
-        <span className="sr-only">Loading</span>
+export const LoadingIndicator = ({
+    label = 'Loading…',
+    className,
+}: LoadingIndicatorProps) => (
+    <div
+        role="status"
+        className={cn(
+            'flex items-center justify-center gap-2 py-8 text-sm text-text-muted',
+            className,
+        )}
+    >
+        <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+        {label}
     </div>
 );

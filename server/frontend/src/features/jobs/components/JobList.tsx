@@ -1,6 +1,7 @@
-import { ClientStatus } from "@pbcm/shared";
-import { GlobalJob } from "../../../stores/useGlobalJobsStore";
-import { BaseJobList } from "./BaseJobList";
+import { ClientStatus } from '@pbcm/shared';
+import { GlobalJob } from '../../../stores/useGlobalJobsStore';
+import { BaseJobList } from './BaseJobList';
+import { PAGE_SIZE } from '../../../components/listDefaults';
 
 interface JobListProps {
     jobs: GlobalJob[];
@@ -38,6 +39,7 @@ export const JobList = ({
             getClientStatus={getClientStatus}
             getClientName={getClientName}
             viewModePersistKey="globalJobViewMode"
+            pageSize={PAGE_SIZE.page}
         />
     );
 };

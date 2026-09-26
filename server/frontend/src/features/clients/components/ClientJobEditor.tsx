@@ -66,8 +66,8 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                     <ActionButton icon={X} tooltip="Close" onClick={close} />
                 }
                 classNames={{
-                    header: "py-6 px-7",
-                    headerTitle: "text-xl font-bold"
+                    header: 'py-6 px-7',
+                    headerTitle: 'text-xl font-bold'
                 }}
             >
 
@@ -93,8 +93,8 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                                 onChange={(e) => setNewJobName(e.target.value)}
                                 placeholder="e.g. Production System"
                                 classNames={{
-                                    label: "mb-2",
-                                    input: "bg-app-bg border-border"
+                                    label: 'mb-2',
+                                    input: 'bg-app-bg border-border'
                                 }}
                             />
 

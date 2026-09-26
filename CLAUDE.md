@@ -83,6 +83,7 @@ State is split across Zustand stores in `server/frontend/src/stores/`:
 - `useGlobalJobsStore` – centralized backup job configs
 - `useRepositoryStore` / `useRepositorySnapshotStore` – PBS repository data
 - `useSchedulerStore` – status of the server's cleanup schedulers (settings page)
+- `useHistorySeenStore` – unseen failed runs behind the dot on "History" (server-side seen state)
 
 WebSocket updates from `/ws/dashboard` flow into these stores; the frontend does not poll.
 
@@ -188,11 +189,13 @@ See `docs/development.md` for the workflow details.
 - **Icons**: passed as components (`icon={Save}`), never as elements — the
   surface sets the size and `aria-hidden` itself.
 - **Quotes**: `'single'` in `server/frontend`, `"double"` in `shared`, `client` and
-  `server/backend`. The split is a fact of the codebase, not an accident — the
-  frontend runs about 250 single-quoted imports against 70 the other way, the three
-  Node workspaces the reverse — and with no formatter to enforce either, flipping one
-  side would be a diff nothing maintains. **A file picks one and stays with it**; that
-  is the part worth checking in review.
+  `server/backend`. The split is a fact of the codebase, not an accident — the three
+  Node workspaces use double quotes throughout, and flipping them would be a diff
+  nothing maintains. The frontend side is enforced: its ESLint config sets
+  `quotes: ['error', 'single', { avoidEscape: true }]`, so `npm run lint:frontend`
+  rejects a double-quoted string (and `--fix` repairs it). In the Node workspaces
+  nothing enforces it — **a file picks one and stays with it**; that is the part worth
+  checking in review.
 - **Loading state**: one full-panel spinner, `components/LoadingIndicator`. A second
   hand-built one is how the first two came to look different.
 

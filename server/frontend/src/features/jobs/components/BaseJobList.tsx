@@ -14,6 +14,9 @@ import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 
 /**
  * The structural contract this list needs -- deliberately closed. An index
@@ -53,6 +56,8 @@ export interface BaseJobListProps<T extends BaseJobItem> {
      * inheriting the one next door.
      */
     searchParamKey?: string;
+    /** Rows per page: `PAGE_SIZE.page` where the list is the page, embedded otherwise. */
+    pageSize?: number;
 }
 
 export const BaseJobList = <T extends BaseJobItem>({
@@ -68,6 +73,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     getClientName,
     viewModePersistKey = 'jobViewMode',
     searchParamKey = 'search',
+    pageSize = PAGE_SIZE.embedded,
 }: BaseJobListProps<T>) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
 
@@ -135,12 +141,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-3 mb-1">
-                            <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${online
-                                    ? 'bg-success shadow-glow-success'
-                                    : 'bg-border'
-                                    }`}
-                            />
+                            <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
                             <div
                                 className={`text-sm ${online ? 'text-text-primary' : ''
                                     } max-w-[150px] truncate`}
@@ -286,9 +287,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-2 py-1">
-                            <span
-                                className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-border'}`}
-                            />
+                            <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
                             <span
                                 className={`${isOnline
                                     ? 'text-text-primary'
@@ -444,13 +443,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     ? 'align-top'
                     : 'bg-app-bg text-text-muted opacity-75'
             }
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(pageSize)}
         />
     );
 };

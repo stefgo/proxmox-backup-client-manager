@@ -36,7 +36,7 @@ export const JobArchiveEditor = () => {
                     <label className="field-label">Add Directory</label>
                     <button
                         onClick={() => setIsAddingArchive(false)}
-                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
+                        className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
                     </button>

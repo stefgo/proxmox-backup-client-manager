@@ -18,7 +18,7 @@ export const JobExcludeList = () => {
         <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-text-muted uppercase">Exclusions</label>
-                <button onClick={startAddExclude} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
+                <button onClick={startAddExclude} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                     <Plus size={12} /> Add Exclusion
                 </button>
             </div>

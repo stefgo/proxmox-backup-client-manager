@@ -1,8 +1,9 @@
-import { Client } from "@pbcm/shared";
-import { useConfirm } from "@stefgo/react-ui-components";
-import { ClientList } from "./ClientList";
-import { apiFetch } from "../../../lib/apiFetch";
-import { describeDeleteClient } from "../confirmations";
+import { Client } from '@pbcm/shared';
+import { useConfirm, useToast } from '@stefgo/react-ui-components';
+import { ClientList } from './ClientList';
+import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { getErrorMessage } from '../../../utils';
+import { describeDeleteClient } from '../confirmations';
 
 interface ManagedClientsProps {
     clients: Client[];
@@ -36,7 +37,8 @@ export const ManagedClients = ({
     onEdit,
     onEditTunnel,
 }: ManagedClientsProps) => {
-    const { confirm, alert } = useConfirm();
+    const { confirm } = useConfirm();
+    const { show } = useToast();
 
     // A failed delete keeps the dialog open with the message in it: the store reverts its
     // optimistic removal, so the row comes back, and closing would hide both the failure
@@ -48,18 +50,23 @@ export const ManagedClients = ({
     const handleReconnect = async (client: Client) => {
         try {
             const res = await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
-                method: "POST",
+                method: 'POST',
             });
+            await throwIfNotOk(res, 'Failed to reconnect');
             const data = await res.json();
-            if (!data.connected) {
-                alert({
-                    title: "Could not reach the client",
-                    description: "The server keeps retrying in the background.",
+            if (data.connected) {
+                show({ variant: 'success', title: 'Client reconnected' });
+            } else {
+                show({
+                    variant: 'warning',
+                    title: 'Could not reach the client',
+                    description: 'The server keeps retrying in the background.',
                 });
             }
             onRefresh();
         } catch (e) {
             console.error(e);
+            show({ variant: 'error', title: 'Could not reconnect', description: getErrorMessage(e) });
         }
     };
 

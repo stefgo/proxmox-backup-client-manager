@@ -1,5 +1,6 @@
 import db from "../core/Database.js";
 import {
+    JOB_STATUS,
     StatusUpdatePayload,
     HistoryEntry,
     GlobalHistoryEntry,
@@ -30,6 +31,23 @@ export class JobHistoryRepository {
         `,
             )
             .all(limit, offset) as GlobalHistoryEntry[];
+    }
+
+    /**
+     * Failed runs that ended after `since`, or all of them for null. Compared as text:
+     * `end_time` is the agent's ISO timestamp, and `since` comes from `toISOString()`, so
+     * the two sort the same way.
+     */
+    static countFailedSince(since: string | null): number {
+        const row = db
+            .prepare(
+                `
+            SELECT COUNT(*) as n FROM job_history
+            WHERE status = ? AND end_time IS NOT NULL AND (? IS NULL OR end_time > ?)
+        `,
+            )
+            .get(JOB_STATUS.FAILED, since, since) as { n: number };
+        return row.n;
     }
 
     /**

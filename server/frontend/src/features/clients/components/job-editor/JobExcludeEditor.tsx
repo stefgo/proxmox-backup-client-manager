@@ -42,7 +42,7 @@ export const JobExcludeEditor = () => {
                     <label className="field-label">Add Exclusion</label>
                     <button
                         onClick={() => setIsAddingExclude(false)}
-                        className={cn("text-xs text-primary font-bold hover:underline rounded-sm", FOCUS_RING)}
+                        className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
                     </button>

@@ -10,8 +10,8 @@ import {
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, DescriptionList, Input } from '@stefgo/react-ui-components';
-import { StatusDot } from './StatusDot';
-import { STATUS_TONE } from './statusTone';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 import { formatDate } from '../../../utils';
 
 interface ClientIdentityCardProps {
@@ -247,7 +247,7 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
                                 disabled={isSaving}
                                 hint={
                                     restrictIp
-                                        ? "The agent is rejected when it connects from anywhere else."
+                                        ? 'The agent is rejected when it connects from anywhere else.'
                                         : `Any address may connect with this client's token.${
                                               client.ipAddress ? ` Its last successful connection came from ${client.ipAddress}.` : ''
                                           }`

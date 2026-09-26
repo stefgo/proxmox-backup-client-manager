@@ -6,6 +6,17 @@ import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+
+/** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
+const repositoryTone = (repo: Repository): StatusTone =>
+    repo.status === REPOSITORY_STATUS.ONLINE
+        ? STATUS_TONE.ONLINE
+        : repo.status === REPOSITORY_STATUS.LOADING
+            ? STATUS_TONE.CONNECTING
+            : STATUS_TONE.OFFLINE;
 
 interface RepositoryListProps {
     repositories: Repository[];
@@ -37,15 +48,12 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         const cols: DataTableDef<Repository>[] = [];
 
         cols.push({
-            tableHeader: "Repository",
+            tableHeader: 'Repository',
             sortable: true,
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
                 <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
-                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
-                            : 'bg-border'
-                        }`} />
+                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
                     <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -54,9 +62,9 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         cols.push({
-            tableHeader: "Actions",
-            tableHeaderClassName: "text-center",
-            tableCellClassName: "content-center",
+            tableHeader: 'Actions',
+            tableHeaderClassName: 'text-center',
+            tableCellClassName: 'content-center',
             tableItemRender: (repo) => (
                 <div onClick={(e) => e.stopPropagation()}>
                     <DataAction
@@ -92,10 +100,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
-                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
-                            : 'bg-border'
-                        }`} />
+                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
                     <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -157,8 +162,8 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         });
 
         return [
-            { fields: contentFields, columnClassName: "flex-1" },
-            { fields: actionFields, columnClassName: "md:text-right" }
+            { fields: contentFields, columnClassName: 'flex-1' },
+            { fields: actionFields, columnClassName: 'md:text-right' }
         ];
     };
 
@@ -174,7 +179,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: "repositoryViewMode", scope: 'local' } }}
+            viewMode={{ persist: { key: 'repositoryViewMode', scope: 'local' } }}
             data={filteredRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}
@@ -185,13 +190,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             emptyMessage="No repositories added."
             rowClassName="align-top"
             onRowClick={onSelect}
-            pagination={{
-                // The view owns the page state and does the slicing; it sorts across
-                // the whole set first, so a column sort is never limited to the rows
-                // that happen to be on screen.
-                defaultValue: { pageSize: 10 },
-                hideOnSinglePage: true,
-            }}
+            pagination={pagination(PAGE_SIZE.page)}
         />
     );
 };

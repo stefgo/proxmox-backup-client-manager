@@ -712,6 +712,16 @@ export const HistoryQuerySchema = z.object({
 });
 
 /**
+ * How far one user has looked at the job history: `seenAt` is when they last opened it
+ * (null if never), `unseenFailed` how many failed runs ended after that. The sidebar marks
+ * the History entry while it is above zero.
+ */
+export const HistorySeenSchema = z.object({
+    seenAt: z.string().nullable(),
+    unseenFailed: z.number().int().min(0),
+});
+
+/**
  * One snapshot as the Proxmox Backup Server API returns it.
  *
  * Separate from `SnapshotSchema` on purpose: PBS speaks kebab-case over the wire and this

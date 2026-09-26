@@ -1,13 +1,13 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 import {
     BackupJob,
     GlobalHistoryEntry,
     GlobalHistoryResponseSchema,
     HistoryEntry,
-} from "@pbcm/shared";
-import { getErrorMessage } from "../utils";
-import { apiFetch } from "../lib/apiFetch";
-import { useClientStore } from "./useClientStore";
+} from '@pbcm/shared';
+import { getErrorMessage } from '../utils';
+import { apiFetch } from '../lib/apiFetch';
+import { useClientStore } from './useClientStore';
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -65,12 +65,12 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
         set({ isLoading: true, error: null });
         try {
             const [jobsRes, historyRes] = await Promise.all([
-                apiFetch("/api/v1/jobs"),
-                apiFetch("/api/v1/history"),
+                apiFetch('/api/v1/jobs'),
+                apiFetch('/api/v1/history'),
             ]);
 
-            if (!jobsRes.ok) throw new Error("Failed to fetch jobs");
-            if (!historyRes.ok) throw new Error("Failed to fetch history");
+            if (!jobsRes.ok) throw new Error('Failed to fetch jobs');
+            if (!historyRes.ok) throw new Error('Failed to fetch history');
 
             const data: { clientId: string; jobs: BackupJob[] }[] =
                 await jobsRes.json();
@@ -83,7 +83,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             );
             if (!parsedHistory.success) {
                 console.error(
-                    "Unexpected /api/v1/history payload:",
+                    'Unexpected /api/v1/history payload:',
                     parsedHistory.error.issues,
                 );
             }

@@ -25,10 +25,10 @@ export const JobArchiveList = ({ readOnly = false }: JobArchiveListProps) => {
     } = useJobFormContext();
 
     return (
-        <div className={cn("flex-1 flex flex-col gap-1", !readOnly && "min-h-[200px]")}>
+        <div className={cn('flex-1 flex flex-col gap-1', !readOnly && 'min-h-[200px]')}>
             <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-text-muted uppercase">Archives <span className="text-error">*</span></label>
-                {!readOnly && <button onClick={() => { setIsAddingArchive(true); setEditingArchiveIndex(null); setNewItemName(''); setNewItemPath(''); setFileBrowserPath('/'); }} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
+                {!readOnly && <button onClick={() => { setIsAddingArchive(true); setEditingArchiveIndex(null); setNewItemName(''); setNewItemPath(''); setFileBrowserPath('/'); }} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                     <Plus size={12} /> Add Archive
                 </button>}
             </div>
