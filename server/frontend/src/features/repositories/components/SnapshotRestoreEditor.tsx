@@ -6,7 +6,7 @@ import { useClientFileSystemStore } from '../../../stores/useClientFileSystemSto
 import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
-import { getErrorMessage } from '../../../utils';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { apiFetch } from '../../../lib/apiFetch';
 
 interface SnapshotRestoreEditorProps {
@@ -177,7 +177,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                         <Folder size={20} className="text-text-muted" /> Restore Snapshot
                     </h3>
                     <div className="text-xs text-text-muted font-mono mt-1">
-                        {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? new Date(snapshot.backupTime * 1000).toLocaleString() : 'Unknown Date'})
+                        {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? formatDate(snapshot.backupTime * 1000) : 'Unknown Date'})
                     </div>
                 </div>
                 <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
