@@ -351,12 +351,12 @@ throw away, and a warning the operator has scrolled past protects nothing at tha
 Saving does not leave either editor. The caller passes a client that may be a stale
 snapshot, which is why the live one is read from the store instead.
 
-`StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label**
-separately, because
-the domains name the same state differently — a client is `online`, a tunnel is `up`. The
-component knows four visual tones and no vocabulary; the caller brings its own word, which the
-dot carries in `aria-label`/`title` so no badge beside it has to repeat it. The dots still
-inlined in `ClientList` and `RepositoryList` predate it and are the obvious next callers.
+`StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately,
+because the domains name the same state differently — a client is `online`, a tunnel is `up`.
+The component knows four visual tones and no vocabulary; the caller brings its own word, which
+the dot carries in `aria-label`/`title` so no badge beside it has to repeat it. Every status
+dot in the lists (clients, repositories, snapshots, jobs) is one; a hand-built `w-2 h-2
+rounded-full` dot has no label for a screen reader and drifts from the others' look.
 
 ### Add-Client Wizard (`features/clients/components/add-client/`)
 

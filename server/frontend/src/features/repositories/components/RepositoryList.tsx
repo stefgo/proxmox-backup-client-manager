@@ -6,6 +6,16 @@ import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+
+/** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
+const repositoryTone = (repo: Repository): StatusTone =>
+    repo.status === REPOSITORY_STATUS.ONLINE
+        ? STATUS_TONE.ONLINE
+        : repo.status === REPOSITORY_STATUS.LOADING
+            ? STATUS_TONE.CONNECTING
+            : STATUS_TONE.OFFLINE;
 
 interface RepositoryListProps {
     repositories: Repository[];
@@ -42,10 +52,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
                 <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
-                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
-                            : 'bg-border'
-                        }`} />
+                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
                     <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -92,10 +99,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${repo.status === REPOSITORY_STATUS.ONLINE ? 'bg-success shadow-glow-success'
-                        : repo.status === REPOSITORY_STATUS.LOADING ? 'bg-warning animate-pulse'
-                            : 'bg-border'
-                        }`} />
+                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
                     <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>

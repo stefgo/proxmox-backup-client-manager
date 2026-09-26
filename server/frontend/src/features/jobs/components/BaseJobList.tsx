@@ -14,6 +14,8 @@ import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { StatusDot } from '../../../components/StatusDot';
+import { STATUS_TONE } from '../../../components/statusTone';
 
 /**
  * The structural contract this list needs -- deliberately closed. An index
@@ -135,12 +137,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-3 mb-1">
-                            <div
-                                className={`w-2 h-2 rounded-full shrink-0 ${online
-                                    ? 'bg-success shadow-glow-success'
-                                    : 'bg-border'
-                                    }`}
-                            />
+                            <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
                             <div
                                 className={`text-sm ${online ? 'text-text-primary' : ''
                                     } max-w-[150px] truncate`}
@@ -286,9 +283,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-2 py-1">
-                            <span
-                                className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-border'}`}
-                            />
+                            <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
                             <span
                                 className={`${isOnline
                                     ? 'text-text-primary'
