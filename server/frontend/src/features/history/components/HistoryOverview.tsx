@@ -35,7 +35,7 @@ export const HistoryOverview = () => {
     }, [isAuthenticated]);
 
     if (loading) {
-        return <LoadingIndicator className="flex-1 h-full" />;
+        return <LoadingIndicator label="Loading history…" />;
     }
 
     if (error) {

@@ -152,7 +152,7 @@ export default function Settings() {
     };
 
     if (isLoading) {
-        return <LoadingIndicator />;
+        return <LoadingIndicator label="Loading settings…" />;
     }
 
     const renderSection = (id: SectionId) => {

@@ -435,7 +435,7 @@ function AppLayout() {
             navGroups={navGroups}
             currentPath={path}
         >
-            <Suspense fallback={<div className="p-6 text-text-muted">Loading…</div>}>
+            <Suspense fallback={<LoadingIndicator />}>
                 <Routes>
                     <Route path="/" element={<ClientsRoute />} />
                     <Route path="/clients" element={<ClientsRoute />} />
