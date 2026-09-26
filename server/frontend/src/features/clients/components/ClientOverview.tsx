@@ -2,13 +2,12 @@ import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucid
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
+import { StatCard, ActionButton, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
@@ -18,18 +17,9 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
-import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, useToast, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
-
-/**
- * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
- * inside the popover would be clipped by it. Shared by the entries below so they cannot drift.
- */
-const MENU_ENTRY = cn(
-    'w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2',
-    FOCUS_RING_NONE,
-);
 
 /** The tabs, in the order the arrow keys walk them. */
 const TABS = ['jobs', 'snapshots', 'history'] as const;
@@ -192,7 +182,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
             <EntityHeader
                 leading={
                     <StatusDot
-                        tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE}
+                        size="md"
+                        {...STATUS_DOT[isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]}
                         label={client.status}
                     />
                 }
@@ -225,36 +216,34 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
+                            <MenuItem
+                                icon={Edit}
                                 onClick={() => {
                                     // `from` is how the editor knows that back is this
                                     // page and not the client list.
                                     navigate(`/client/${client.id}/edit`, {
                                         state: { from: pathname },
                                     });
-                                    closeMenu();
                                 }}
-                                className={MENU_ENTRY}
                             >
-                                <Edit size={16} /> Edit Client
-                            </button>
+                                Edit Client
+                            </MenuItem>
                             {/*
                               * Same entry as in the client list: setting a tunnel up and
                               * changing one are the same form on the same endpoint, so only
                               * the label turns on whether credentials are stored. Offered for
                               * either connection mode, because both can have a tunnel.
                               */}
-                            <button
+                            <MenuItem
+                                icon={Network}
                                 onClick={() => {
                                     navigate(`/client/${client.id}/tunnel`, {
                                         state: { from: pathname },
                                     });
-                                    closeMenu();
                                 }}
-                                className={MENU_ENTRY}
                             >
-                                <Network size={16} /> {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
-                            </button>
+                                {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }

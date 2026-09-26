@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { JOB_STATUS } from '@pbcm/shared';
-import { Switch } from '@stefgo/react-ui-components';
+import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { BaseHistoryList, BaseHistoryItem } from './BaseHistoryList';
 import { apiFetch } from '../../../lib/apiFetch';
-import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE } from '../../../components/listDefaults';

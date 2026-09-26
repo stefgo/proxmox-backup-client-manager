@@ -10,10 +10,10 @@ import {
     useConfirm,
     useTabs,
     useToast,
+    LoadingIndicator,
 } from '@stefgo/react-ui-components';
 import { useAuth } from '../features/auth/AuthContext';
 import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
-import { LoadingIndicator } from '../components/LoadingIndicator';
 import { describeFailure } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
 import {

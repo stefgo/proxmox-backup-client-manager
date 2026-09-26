@@ -2,14 +2,13 @@ import { useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTableDef } from '@stefgo/react-ui-components';
+import { DataTableDef, StatusDot } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
@@ -99,7 +98,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             sortValue: (client) => client.displayName || client.hostname,
             tableItemRender: (client) => (
                 <div className="flex items-center gap-3">
-                    <StatusDot size="sm" tone={client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={client.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={client.status} />
                     <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                     </div>
@@ -141,7 +140,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         contentFields.push({
             listItemRender: (client) => (
                 <div className="flex items-center gap-2 py-1">
-                    <StatusDot size="sm" tone={client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={client.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={client.status} />
                     <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                     </div>

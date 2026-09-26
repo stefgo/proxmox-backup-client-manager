@@ -11,11 +11,10 @@ import {
 } from 'lucide-react';
 
 // Library Components
-import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, ToastProvider } from '@stefgo/react-ui-components';
+import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, ToastProvider, LoadingIndicator } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
-import { LoadingIndicator } from '../../components/LoadingIndicator';
 import { NotFoundCard } from '../../components/NotFoundCard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { useTheme } from './context/ThemeContext';

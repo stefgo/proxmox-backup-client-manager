@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
-import { DataTableDef, Button } from '@stefgo/react-ui-components';
+import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 
 /** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
 const repositoryTone = (repo: Repository): StatusTone =>
@@ -53,7 +52,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
                 <div className="flex items-center gap-3">
-                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
                     <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -100,7 +99,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
                     <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>

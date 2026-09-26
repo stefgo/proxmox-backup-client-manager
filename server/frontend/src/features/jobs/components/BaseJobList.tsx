@@ -9,14 +9,13 @@ import {
 import { useMemo } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTableDef, Button } from '@stefgo/react-ui-components';
+import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataMultiView } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 
 /**
  * The structural contract this list needs -- deliberately closed. An index
@@ -141,7 +140,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const online = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-3 mb-1">
-                            <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
+                            <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />
                             <div
                                 className={`text-sm ${online ? 'text-text-primary' : ''
                                     } max-w-[150px] truncate`}
@@ -287,7 +286,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
                     return (
                         <div className="flex items-center gap-2 py-1">
-                            <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(job)} />
+                            <StatusDot size="sm" {...STATUS_DOT[isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />
                             <span
                                 className={`${isOnline
                                     ? 'text-text-primary'

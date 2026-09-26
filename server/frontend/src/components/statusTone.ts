@@ -1,13 +1,10 @@
+import type { StatusDotProps } from '@stefgo/react-ui-components';
+
 /**
  * The visual states a status dot has, independent of what the domain calls them — which is
  * why this lives here and not in `@pbcm/shared`: it is a palette, not part of the wire
  * contract. `ClientTunnelCard` maps `TunnelStatus` onto it precisely because the two
  * vocabularies are allowed to differ.
- *
- * Derived from the constant like every status vocabulary in `shared`, so the tone table in
- * `StatusDot` cannot fall behind it. It sits in its own module rather than next to that
- * component because a value export beside a component costs Fast Refresh — see the
- * `react-refresh/only-export-components` note in `eslint.config.js`.
  */
 export const STATUS_TONE = {
     ONLINE: 'online',
@@ -17,3 +14,14 @@ export const STATUS_TONE = {
 } as const;
 
 export type StatusTone = (typeof STATUS_TONE)[keyof typeof STATUS_TONE];
+
+/**
+ * How each tone is drawn by the library's `StatusDot`: `<StatusDot {...STATUS_DOT[tone]} />`.
+ * Connecting pulses without the glow, which the library reserves for success.
+ */
+export const STATUS_DOT: Record<StatusTone, Pick<StatusDotProps, 'tone' | 'pulse'>> = {
+    [STATUS_TONE.ONLINE]: { tone: 'success' },
+    [STATUS_TONE.CONNECTING]: { tone: 'warning', pulse: true },
+    [STATUS_TONE.ERROR]: { tone: 'error' },
+    [STATUS_TONE.OFFLINE]: { tone: 'neutral' },
+};
