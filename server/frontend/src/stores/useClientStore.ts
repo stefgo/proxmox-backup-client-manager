@@ -6,6 +6,12 @@ import { apiFetch } from "../lib/apiFetch";
 interface ClientsState {
     clients: Client[];
     isLoading: boolean;
+    /**
+     * Whether the list has arrived once, by fetch or by broadcast -- also after a failed
+     * fetch, so a route waiting on it does not wait forever. An empty list before that
+     * says nothing about whether a client exists.
+     */
+    loaded: boolean;
     error: string | null;
 
     fetchClients: () => Promise<void>;
@@ -26,6 +32,7 @@ interface ClientsState {
 export const useClientStore = create<ClientsState>((set, get) => ({
     clients: [],
     isLoading: false,
+    loaded: false,
     error: null,
 
     /**
@@ -42,7 +49,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
         } catch (e: unknown) {
             set({ error: getErrorMessage(e) });
         } finally {
-            set({ isLoading: false });
+            set({ isLoading: false, loaded: true });
         }
     },
 
@@ -102,7 +109,7 @@ export const useClientStore = create<ClientsState>((set, get) => ({
     },
 
     setClients: (clients) => {
-        set({ clients });
+        set({ clients, loaded: true });
     },
 
     /**

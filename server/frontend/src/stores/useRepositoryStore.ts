@@ -25,6 +25,12 @@ export interface DistributeResult {
 interface RepositoriesState {
     repositories: Repository[];
     isLoading: boolean;
+    /**
+     * Whether the list has arrived once -- also after a failed fetch, so a route waiting
+     * on it does not wait forever. An empty list before that says nothing about whether a
+     * repository exists.
+     */
+    loaded: boolean;
     error: string | null;
 
     fetchRepositories: () => Promise<void>;
@@ -48,6 +54,7 @@ interface RepositoriesState {
 export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     repositories: [],
     isLoading: false,
+    loaded: false,
     error: null,
 
     fetchRepositories: async () => {
@@ -68,7 +75,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         } catch (e: unknown) {
             set({ error: getErrorMessage(e) });
         } finally {
-            set({ isLoading: false });
+            set({ isLoading: false, loaded: true });
         }
     },
 

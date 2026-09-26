@@ -103,33 +103,47 @@ function AddClientRoute() {
 }
 
 /**
- * The three client routes below all resolve the client from the store and bail out to the
- * list if it is gone — a stale bookmark or a deleted client must not render an editor over
- * `undefined`.
+ * The client routes below resolve the client from the store. Until the list has arrived
+ * once they show the spinner: a reloaded or shared URL renders before `AppLayout`'s first
+ * fetch returns, and an empty list then says nothing about whether the client exists. Only
+ * after that is a missing client really gone -- a stale bookmark or a deleted client gets
+ * the not-found card, and the URL stays where it was.
  */
 function useRouteClient() {
     const { clientId } = useParams();
-    return useClientStore((s) => s.clients.find((c) => c.id === clientId));
+    const client = useClientStore((s) => s.clients.find((c) => c.id === clientId));
+    const loaded = useClientStore((s) => s.loaded);
+    return { client, loaded };
+}
+
+function ClientMissing({ loaded }: { loaded: boolean }) {
+    if (!loaded) return <LoadingIndicator label="Loading client…" />;
+
+    return (
+        <NotFoundCard title="Client not found" backTo="/clients" backLabel="Back to clients">
+            There is no client with this ID. It may have been deleted.
+        </NotFoundCard>
+    );
 }
 
 function ClientDetailRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientOverview client={client} />;
 }
 
 function ClientEditRoute() {
-    const client = useRouteClient();
+    const { client, loaded } = useRouteClient();
     const { updateClient } = useClientStore();
-    if (!client) return <Navigate to="/clients" replace />;
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientEditor client={client} onSave={updateClient} />;
 }
 
 function ClientTunnelRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <ClientTunnelEditor client={client} />;
 }
@@ -145,8 +159,8 @@ function ClientTunnelRoute() {
  * change hands, and one started from a client already has its answer.
  */
 function NewClientJobRoute() {
-    const client = useRouteClient();
-    if (!client) return <Navigate to="/clients" replace />;
+    const { client, loaded } = useRouteClient();
+    if (!client) return <ClientMissing loaded={loaded} />;
 
     return <JobEditorPage lockedClientId={client.id} fallbackBack={`/client/${client.id}`} />;
 }
@@ -180,7 +194,13 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
     const job = globalJobs.find((j) => j.clientId === clientId && j.id === jobId);
     if (!job) {
-        return resolved ? <Navigate to="/jobs" replace /> : <LoadingIndicator />;
+        if (!resolved) return <LoadingIndicator label="Loading job…" />;
+
+        return (
+            <NotFoundCard title="Job not found" backTo="/jobs" backLabel="Back to jobs">
+                There is no job with this ID on this client. It may have been deleted.
+            </NotFoundCard>
+        );
     }
 
     return <JobEditorPage lockedClientId={job.clientId} job={job} fallbackBack={fallback(job.clientId)} />;
@@ -202,12 +222,27 @@ function RepositoriesRoute() {
     );
 }
 
-function RepositoryDetailRoute() {
+/** Same waiting and not-found handling as `useRouteClient`, for the repository routes. */
+function useRouteRepository() {
     const { repoId } = useParams();
-    const { repositories } = useRepositoryStore();
+    const repo = useRepositoryStore((s) => s.repositories.find((r) => String(r.id) === repoId));
+    const loaded = useRepositoryStore((s) => s.loaded);
+    return { repoId, repo, loaded };
+}
 
-    const repo = repositories.find((r) => String(r.id) === repoId);
-    if (!repo) return <Navigate to="/repositories" replace />;
+function RepositoryMissing({ loaded }: { loaded: boolean }) {
+    if (!loaded) return <LoadingIndicator label="Loading repository…" />;
+
+    return (
+        <NotFoundCard title="Repository not found" backTo="/repositories" backLabel="Back to repositories">
+            There is no repository with this ID. It may have been deleted.
+        </NotFoundCard>
+    );
+}
+
+function RepositoryDetailRoute() {
+    const { repo, loaded } = useRouteRepository();
+    if (!repo) return <RepositoryMissing loaded={loaded} />;
 
     return <RepositoryOverview repo={repo} />;
 }
@@ -218,15 +253,14 @@ function RepositoryDetailRoute() {
  * menu was opened on, so Cancel returns there instead of always falling back to the list.
  */
 function RepositoryEditRoute() {
-    const { repoId } = useParams();
+    const { repoId, repo, loaded } = useRouteRepository();
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { repositories, updateRepository } = useRepositoryStore();
+    const updateRepository = useRepositoryStore((s) => s.updateRepository);
 
-    const repo = repositories.find((r) => String(r.id) === repoId);
     const back = (state as { from?: string } | null)?.from ?? `/repository/${repoId}`;
 
-    if (!repo) return <Navigate to="/repositories" replace />;
+    if (!repo) return <RepositoryMissing loaded={loaded} />;
 
     return (
         <RepositoryEditor
