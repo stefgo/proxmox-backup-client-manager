@@ -42,7 +42,7 @@ export class TokenRepository {
     ): RegistrationTokenRow | undefined {
         return db
             .prepare(
-                "SELECT * FROM registration_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')",
+                "SELECT * FROM registration_tokens WHERE token_hash = ? AND used_at IS NULL AND datetime(expires_at) > datetime('now')",
             )
             .get(hashToken(token)) as RegistrationTokenRow | undefined;
     }
