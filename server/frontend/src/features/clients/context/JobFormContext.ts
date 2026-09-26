@@ -22,6 +22,8 @@ export interface JobFormContextType {
     setFileBrowserPath: (path: string) => void;
     fileList: FsFile[];
     isLoadingFiles: boolean;
+    /** Why the current directory could not be listed; its listing is empty meanwhile. */
+    fileListError?: string | null;
     newItemName: string;
     setNewItemName: (name: string) => void;
     newItemPath: string;
@@ -30,6 +32,20 @@ export interface JobFormContextType {
     selectPath: (path: string) => void;
     addArchiveItem: () => void;
     handleEditArchiveItem: (index: number) => void;
+
+    // Exclusions
+    /** `--exclude` patterns of the job, relative to each archive's root. */
+    jobExcludes: string[];
+    setJobExcludes: (excludes: string[]) => void;
+    isAddingExclude: boolean;
+    setIsAddingExclude: (val: boolean) => void;
+    newExcludePattern: string;
+    setNewExcludePattern: (pattern: string) => void;
+    startAddExclude: () => void;
+    handleEditExcludeItem: (index: number) => void;
+    addExcludeItem: () => void;
+    /** The anchored pattern for a path picked in the browser; `null` outside every archive. */
+    excludePatternFromPath: (path: string) => string | null;
 
     // Schedule
     scheduleEnabled: boolean;

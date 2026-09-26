@@ -140,6 +140,7 @@ export class JobRepository {
                 id: job.id,
                 name: job.name,
                 archives: config.archives ?? [],
+                excludes: config.excludes ?? [],
                 schedule,
                 scheduleEnabled: job.scheduleEnabled,
                 // `?? undefined` rather than null: a job that has never run has no state,

@@ -282,6 +282,11 @@ export const JobSchema = z.object({
 
 export const BackupJobSchema = JobSchema.extend({
     archives: z.array(ArchiveSchema),
+    // Passed to `proxmox-backup-client` as one `--exclude` each. The CLI applies every
+    // pattern to every archive of the run, relative to that archive's root, so they
+    // belong to the job and not to a single archive. Defaulted so that a job stored
+    // before exclusions existed still parses.
+    excludes: z.array(z.string().trim().min(1)).default([]),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
     tunnel: TunnelModeSchema.optional(),

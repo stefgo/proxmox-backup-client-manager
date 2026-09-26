@@ -20,8 +20,12 @@ export interface KeyfileArgs {
 }
 
 /**
- * `proxmox-backup-client backup <name>.pxar:<path> … --backup-id <clientId>
- *  [--keyfile <path> --crypt-mode encrypt]`
+ * `proxmox-backup-client backup <name>.pxar:<path> … [--exclude <pattern> …]
+ *  --backup-id <clientId> [--keyfile <path> --crypt-mode encrypt]`
+ *
+ * `--exclude` is an option of the whole run, not of one archive: the CLI matches each
+ * pattern against every archive, relative to that archive's root (gitignore syntax, a
+ * leading `/` anchors it there). That is why exclusions are stored on the job.
  *
  * `--backup-id` is this agent's own client id, never a chosen value: the same string is
  * the snapshot group in PBS, so the side that decides which client a snapshot belongs to
@@ -41,6 +45,13 @@ export function buildBackupArgs(
     if (Array.isArray(archives)) {
         for (const item of archives) {
             args.push(`${item.name}.pxar:${item.path}`);
+        }
+    }
+
+    const excludes = jobConfigData.excludes || [];
+    if (Array.isArray(excludes)) {
+        for (const pattern of excludes) {
+            args.push("--exclude", pattern);
         }
     }
 

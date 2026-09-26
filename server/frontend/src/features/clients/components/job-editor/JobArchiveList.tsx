@@ -3,7 +3,16 @@ import { useJobFormContext } from '../../context/JobFormContext';
 import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 
-export const JobArchiveList = () => {
+interface JobArchiveListProps {
+    /**
+     * Shown without its controls -- while an exclusion is edited, the archives are the
+     * reference its pattern is relative to, but opening the archive editor from there
+     * would stack two editors on top of each other.
+     */
+    readOnly?: boolean;
+}
+
+export const JobArchiveList = ({ readOnly = false }: JobArchiveListProps) => {
     const {
         jobArchives,
         setJobArchives,
@@ -16,12 +25,12 @@ export const JobArchiveList = () => {
     } = useJobFormContext();
 
     return (
-        <div className="flex-1 flex flex-col gap-1 min-h-[200px]">
+        <div className={cn("flex-1 flex flex-col gap-1", !readOnly && "min-h-[200px]")}>
             <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-text-muted uppercase">Archives <span className="text-error">*</span></label>
-                <button onClick={() => { setIsAddingArchive(true); setEditingArchiveIndex(null); setNewItemName(''); setNewItemPath(''); setFileBrowserPath('/'); }} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
+                {!readOnly && <button onClick={() => { setIsAddingArchive(true); setEditingArchiveIndex(null); setNewItemName(''); setNewItemPath(''); setFileBrowserPath('/'); }} className={cn("text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm", FOCUS_RING)}>
                     <Plus size={12} /> Add Archive
-                </button>
+                </button>}
             </div>
 
             <div className="flex-1 border rounded-lg bg-app-bg overflow-y-auto p-2 space-y-2">
@@ -31,10 +40,10 @@ export const JobArchiveList = () => {
                             <div className="font-bold text-text-primary text-sm">{bk.name}</div>
                             <div className="text-xs text-primary opacity-80 font-mono mb-1">{bk.path}</div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        {!readOnly && <div className="flex items-center gap-2">
                             <ActionButton icon={Pencil} size="sm" color="orange" tooltip="Edit archive" onClick={() => handleEditArchiveItem(idx)} />
                             <ActionButton icon={Trash2} size="sm" color="orange" tooltip="Remove archive" onClick={() => setJobArchives(jobArchives.filter((_, i) => i !== idx))} />
-                        </div>
+                        </div>}
                     </div>
                 ))}
                 {jobArchives.length === 0 && (

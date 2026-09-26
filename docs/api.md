@@ -804,6 +804,7 @@ repository and is covered by `GET /v1/repositories/:repositoryId/status`.
 | `nextRunAt`       | string          | ISO 8601 timestamp of the next scheduled run (optional). |
 | `lastRunAt`       | string          | ISO 8601 timestamp of the last run (optional).           |
 | `archives`        | Archive[]       | Array of archive objects (see below).                    |
+| `excludes`        | string[]        | Exclusion patterns, one `--exclude` each (see below). `[]` if none. |
 | `repository`      | Repository      | The PBS repository configuration.                        |
 
 **ScheduleConfig object:**
@@ -821,6 +822,12 @@ repository and is covered by `GET /v1/repositories/:repositoryId/status`.
 | `path` | string | Absolute path on the client to include in the backup.    |
 | `name` | string | Archive name in the PBS datastore (e.g., `"etc.pxar"`).  |
 
+**Exclusion patterns:** passed to `proxmox-backup-client backup` as `--exclude <pattern>`.
+The CLI applies every pattern to **every** archive of the job, relative to that archive's
+root — not to `/` of the client. The syntax is that of `.gitignore`: a leading `/` anchors
+the pattern at the archive root (`/stefan/.cache` in an archive of `/home`), a pattern
+without one matches at any depth (`node_modules`), and `*` / `**` are globs.
+
 **Example Response:**
 
 ```json
@@ -836,6 +843,7 @@ repository and is covered by `GET /v1/repositories/:repositoryId/status`.
         "scheduleEnabled": true,
         "nextRunAt": "2023-10-27T02:00:00.000Z",
         "archives": [{ "path": "/etc", "name": "etc.pxar" }],
+        "excludes": ["/ssl/private"],
         "repository": {
             "baseUrl": "https://pbs.local:8007",
             "datastore": "backups",
@@ -865,6 +873,7 @@ repository and is covered by `GET /v1/repositories/:repositoryId/status`.
 | `id`              | string         | No       | UUID of the job. If provided, updates existing job; otherwise creates new. |
 | `name`            | string         | **Yes**  | Name of the job.                                                           |
 | `archives`        | Archive[]      | **Yes**  | Array of archive objects with `path` and `name`.                           |
+| `excludes`        | string[]       | No       | Exclusion patterns (see above). Send `[]` to clear them on an update.      |
 | `schedule`        | ScheduleConfig | No       | Schedule configuration object (nullable).                                  |
 | `scheduleEnabled` | boolean        | **Yes**  | Enable/disable the schedule.                                               |
 | `repository`      | string         | **Yes**  | The ID of the repository to use.                                           |

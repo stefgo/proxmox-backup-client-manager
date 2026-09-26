@@ -26,6 +26,13 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const [newItemName, setNewItemName] = useState('');
     const [newItemPath, setNewItemPath] = useState('');
 
+    // Exclusions State -- patterns, not paths: the CLI matches each one against every
+    // archive, relative to that archive's root (see buildBackupArgs on the agent).
+    const [jobExcludes, setJobExcludes] = useState<string[]>([]);
+    const [isAddingExclude, setIsAddingExclude] = useState(false);
+    const [editingExcludeIndex, setEditingExcludeIndex] = useState<number | null>(null);
+    const [newExcludePattern, setNewExcludePattern] = useState('');
+
     // Config State
     const [jobRepository, setJobRepository] = useState<Repository | null>(null);
     const [isSelectingRepository, setIsSelectingRepository] = useState(false);
@@ -78,6 +85,10 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setIsCreatingJob(true);
         setIsAddingArchive(false);
         setEditingArchiveIndex(null);
+        setJobExcludes([]);
+        setIsAddingExclude(false);
+        setEditingExcludeIndex(null);
+        setNewExcludePattern('');
 
         // Reset Schedule Defaults
         setScheduleEnabled(false);
@@ -109,6 +120,11 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setEditingJobId(job.id);
         setIsCreatingJob(true);
         setIsAddingArchive(false);
+        setJobExcludes(job.excludes || []);
+        setIsAddingExclude(false);
+        setEditingExcludeIndex(null);
+        setNewExcludePattern('');
+        setFileBrowserPath('/');
 
         if (job.schedule) {
             setScheduleEnabled(!!job.scheduleEnabled);
@@ -210,6 +226,71 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     };
 
     /**
+     * The pattern that excludes `path` from the archive it lies in, or `null` if it lies
+     * in none. The CLI reads an exclusion relative to the archive root, not to `/`, so a
+     * path picked in the file browser has to be rebased -- `/home/stefan/.cache` in an
+     * archive of `/home` is `/stefan/.cache`. The leading slash anchors it at the root, so
+     * it does not also match a `.cache` further down. The deepest archive wins, which is
+     * the one the path actually ends up in when archives are nested.
+     */
+    const excludePatternFromPath = (path: string): string | null => {
+        const clean = '/' + path.split('/').filter(Boolean).join('/');
+        let best: string | null = null;
+        for (const archive of jobArchives) {
+            const root = '/' + archive.path.split('/').filter(Boolean).join('/');
+            const prefix = root === '/' ? '/' : root + '/';
+            if (clean === root || !clean.startsWith(prefix)) continue;
+            if (best === null || root.length > best.length) best = root;
+        }
+        if (best === null) return null;
+        return best === '/' ? clean : clean.slice(best.length);
+    };
+
+    const startAddExclude = () => {
+        setEditingExcludeIndex(null);
+        setNewExcludePattern('');
+        setFileBrowserPath(jobArchives[0]?.path || '/');
+        setIsAddingExclude(true);
+    };
+
+    /**
+     * Where the browser opens for an edited exclusion: the parent of the directory an
+     * anchored, glob-free pattern names in the first archive, else that archive itself.
+     * Only a guess to start browsing from -- the pattern itself is not touched by it.
+     */
+    const excludeBrowseStart = (pattern: string): string => {
+        const fallback = jobArchives[0]?.path || '/';
+        if (!pattern.startsWith('/') || /[*?[\]]/.test(pattern)) return fallback;
+        const root = '/' + (jobArchives[0]?.path ?? '').split('/').filter(Boolean).join('/');
+        const target = (root === '/' ? '' : root) + pattern;
+        return getParentPath(target) || fallback;
+    };
+
+    const handleEditExcludeItem = (index: number) => {
+        setFileBrowserPath(excludeBrowseStart(jobExcludes[index]));
+        setNewExcludePattern(jobExcludes[index]);
+        setEditingExcludeIndex(index);
+        setIsAddingExclude(true);
+    };
+
+    const addExcludeItem = () => {
+        const pattern = newExcludePattern.trim();
+        if (!pattern) return;
+
+        if (editingExcludeIndex !== null) {
+            const updated = [...jobExcludes];
+            updated[editingExcludeIndex] = pattern;
+            setJobExcludes(updated);
+        } else if (!jobExcludes.includes(pattern)) {
+            setJobExcludes([...jobExcludes, pattern]);
+        }
+
+        setIsAddingExclude(false);
+        setEditingExcludeIndex(null);
+        setNewExcludePattern('');
+    };
+
+    /**
      * Everything the job itself consists of, in one comparable value. The editor's fields
      * are too many for an honest `||` chain -- one forgotten field there means the exit
      * stops asking and the operator's work goes silently. UI state (the open file browser,
@@ -218,6 +299,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const snapshot = JSON.stringify({
         newJobName,
         jobArchives,
+        jobExcludes,
         jobRepository,
         scheduleEnabled,
         scheduleInterval,
@@ -274,6 +356,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
             const payload: Partial<BackupJob> = {
                 name: newJobName,
                 archives: jobArchives,
+                // Always sent, including empty: an update without it would keep the
+                // exclusions stored before, and removing the last one would not take.
+                excludes: jobExcludes,
                 scheduleEnabled: scheduleEnabled,
                 nextRunAt: (scheduleStartDate && scheduleStartTime) ? new Date(`${scheduleStartDate}T${scheduleStartTime}`).toISOString() : undefined,
                 schedule: {
@@ -352,6 +437,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         jobArchives, setJobArchives,
         isAddingArchive, setIsAddingArchive,
         editingArchiveIndex, setEditingArchiveIndex,
+        jobExcludes, setJobExcludes,
+        isAddingExclude, setIsAddingExclude,
+        newExcludePattern, setNewExcludePattern,
         jobRepository, setJobRepository,
         fileBrowserPath, setFileBrowserPath,
         newItemName, setNewItemName: (name: string) => setNewItemName(sanitizeArchiveName(name)),
@@ -382,6 +470,10 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         startEditJob,
         addArchiveItem,
         handleEditArchiveItem,
+        startAddExclude,
+        handleEditExcludeItem,
+        addExcludeItem,
+        excludePatternFromPath,
         selectPath,
         saveBackupJob,
         parentPath: getParentPath

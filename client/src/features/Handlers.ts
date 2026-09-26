@@ -132,6 +132,7 @@ export class Handlers {
                 id,
                 name,
                 archives,
+                excludes,
                 schedule,
                 scheduleEnabled,
                 nextRunAt,
@@ -146,6 +147,7 @@ export class Handlers {
             // cached copy of anything — this job's setting lives here and nowhere else.
             const configObj = {
                 archives: archives || [],
+                excludes: excludes || [],
                 repository: repository || undefined,
                 encryption: encryption || undefined,
                 tunnel: tunnel || undefined,

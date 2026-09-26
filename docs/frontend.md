@@ -416,7 +416,13 @@ The detail view of a client. It consists of multiple tabs/sections:
 ### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
 
 One section per aspect of a job, all reading from `JobFormContext` rather than props:
-repository, archives, encryption, tunnel, schedule.
+repository, archives, exclusions, encryption, tunnel, schedule.
+
+- **`JobExcludeList` / `JobExcludeEditor`** — the job's `--exclude` patterns. The CLI reads a
+  pattern relative to each archive's root, so a directory picked in the file browser is
+  rebased by `excludePatternFromPath` onto the deepest archive containing it
+  (`/home/stefan/.cache` in `/home` → `/stefan/.cache`); a path in no archive is refused.
+  Patterns can also be typed directly. They apply to every archive of the job.
 
 - **`JobTunnelSettings`** — whether *this job* reaches its repository through the client's SSH
   reverse tunnel. Per job because one client can have a PBS it reaches directly and another it

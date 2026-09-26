@@ -4,6 +4,8 @@ import { JobScheduleSettings } from './job-editor/JobScheduleSettings';
 import { JobRepositorySelect } from './job-editor/JobRepositorySelect';
 import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
 import { JobArchiveList } from './job-editor/JobArchiveList';
+import { JobExcludeEditor } from './job-editor/JobExcludeEditor';
+import { JobExcludeList } from './job-editor/JobExcludeList';
 import { JobEncryptionSettings } from './job-editor/JobEncryptionSettings';
 import { JobTunnelSettings } from './job-editor/JobTunnelSettings';
 import { JobFormProvider, JobFormContextType } from '../context/JobFormContext';
@@ -39,6 +41,7 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
         setNewJobName,
         jobRepository,
         isAddingArchive,
+        isAddingExclude,
         isSelectingRepository,
         setIsSelectingRepository,
         repositories,
@@ -108,9 +111,15 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
 
                                 {isSelectingRepository ? null : isAddingArchive ? (
                                     <JobArchiveEditor />
+                                ) : isAddingExclude ? (
+                                    <div className="space-y-6">
+                                        <JobArchiveList readOnly />
+                                        <JobExcludeEditor />
+                                    </div>
                                 ) : (
                                     <div className="space-y-6">
                                         <JobArchiveList />
+                                        <JobExcludeList />
                                         <JobEncryptionSettings />
                                         <JobTunnelSettings />
                                         <JobScheduleSettings />
