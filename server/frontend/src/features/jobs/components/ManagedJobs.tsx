@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { CLIENT_STATUS } from "@pbcm/shared";
-import { useConfirm } from "@stefgo/react-ui-components";
+import { useConfirm, useToast } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
 import { useGlobalJobsStore } from "../../../stores/useGlobalJobsStore";
 import { useClientStore } from "../../../stores/useClientStore";
@@ -10,9 +10,9 @@ import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
 import { useRepositoryStore } from "../../../stores/useRepositoryStore";
 import { GlobalJob, LAST_HISTORY_HOURS } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
-import { describeFailure } from "../../../utils";
+import { getErrorMessage } from "../../../utils";
 import { describeDeleteJob } from "../confirmations";
-import { apiFetch } from "../../../lib/apiFetch";
+import { apiFetch, throwIfNotOk } from "../../../lib/apiFetch";
 
 export const ManagedJobs = () => {
     const { isAuthenticated } = useAuth();
@@ -20,7 +20,8 @@ export const ManagedJobs = () => {
     const { globalJobs, lastHistory, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
     const { clients, fetchClients } = useClientStore();
-    const { confirm, alert } = useConfirm();
+    const { confirm } = useConfirm();
+    const { show } = useToast();
     // Only the action: the repository list itself is read through getState() below,
     // so this view no longer re-renders on every repository status change.
     const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
@@ -52,9 +53,10 @@ export const ManagedJobs = () => {
                     method: "POST",
                 },
             );
-            if (!res.ok) throw new Error("Failed to trigger job");
+            await throwIfNotOk(res, "Failed to trigger job");
+            show({ variant: "success", title: "Job started" });
         } catch (e: unknown) {
-            alert(describeFailure("Could not start the job", e));
+            show({ variant: "error", title: "Could not start the job", description: getErrorMessage(e) });
         }
     };
 
@@ -77,7 +79,7 @@ export const ManagedJobs = () => {
                 const res = await apiFetch(`/api/v1/clients/${job.clientId}/jobs/${job.id}`, {
                     method: "DELETE",
                 });
-                if (!res.ok) throw new Error("Failed to delete job");
+                await throwIfNotOk(res, "Failed to delete job");
                 handleRefresh();
             },
         });

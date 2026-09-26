@@ -1,28 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Token } from '@pbcm/shared';
 import { TokenList } from './TokenList';
 import { useAuth } from '../../auth/AuthContext';
-import { apiFetch } from '../../../lib/apiFetch';
-import { useConfirm } from '@stefgo/react-ui-components';
+import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { useToast } from '@stefgo/react-ui-components';
+import { getErrorMessage } from '../../../utils';
 
 export const TokenOverview = () => {
     const { isAuthenticated } = useAuth();
-    const { alert } = useConfirm();
+    const { show } = useToast();
     const [tokens, setTokens] = useState<Token[]>([]);
 
     // Declared before the effect that uses it: the other way round the effect read
     // `loadTokens` before its initialiser had run on that render. It returns the
     // list rather than storing it, so the effect can discard a response that only
     // arrived after `token` changed.
-    const loadTokens = async (): Promise<Token[] | null> => {
+    const loadTokens = useCallback(async (): Promise<Token[] | null> => {
         try {
             const res = await apiFetch('/api/v1/tokens');
-            return res.ok ? await res.json() : null;
+            await throwIfNotOk(res, 'Failed to load tokens');
+            return await res.json();
         } catch (e) {
             console.error(e);
+            show({ variant: 'error', title: 'Could not load the tokens', description: getErrorMessage(e) });
             return null;
         }
-    };
+    }, [show]);
 
     useEffect(() => {
         let cancelled = false;
@@ -31,7 +34,7 @@ export const TokenOverview = () => {
             if (!cancelled && list) setTokens(list);
         })();
         return () => { cancelled = true; };
-    }, [isAuthenticated]);
+    }, [isAuthenticated, loadTokens]);
 
     const refreshTokens = async () => {
         const list = await loadTokens();
@@ -44,15 +47,12 @@ export const TokenOverview = () => {
         try {
             const res = await apiFetch(`/api/v1/tokens/${tokenHash}`, {
                 method: 'DELETE'});
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                alert({
-                    title: 'Could not delete the token',
-                    description: data.error || 'The server refused the request.',
-                });
-            }
-            refreshTokens();
-        } catch (e) { console.error(e); }
+            await throwIfNotOk(res, 'The server refused the request.');
+        } catch (e) {
+            console.error(e);
+            show({ variant: 'error', title: 'Could not delete the token', description: getErrorMessage(e) });
+        }
+        refreshTokens();
     };
 
     return (

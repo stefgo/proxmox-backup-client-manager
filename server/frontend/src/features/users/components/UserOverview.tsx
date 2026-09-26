@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
-import { useConfirm } from '@stefgo/react-ui-components';
+import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteUser, describeLastUser } from '../confirmations';
-import { apiFetch } from '../../../lib/apiFetch';
+import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { getErrorMessage } from '../../../utils';
 
 export const UserOverview = () => {
     const { isAuthenticated } = useAuth();
@@ -13,6 +14,7 @@ export const UserOverview = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const { confirm, alert } = useConfirm();
+    const { show } = useToast();
 
     /** Bumped to load the list again after a change; the effect below is the only loader. */
     const [reloadCount, setReloadCount] = useState(0);
@@ -23,17 +25,17 @@ export const UserOverview = () => {
         const load = async () => {
             try {
                 const res = await apiFetch('/api/v1/users');
-                if (res.ok) {
-                    setUsers(await res.json());
-                }
+                await throwIfNotOk(res, 'Failed to load users');
+                setUsers(await res.json());
             } catch (e) {
                 console.error(e);
+                show({ variant: 'error', title: 'Could not load the users', description: getErrorMessage(e) });
             } finally {
                 setIsLoading(false);
             }
         };
         load();
-    }, [isAuthenticated, reloadCount]);
+    }, [isAuthenticated, reloadCount, show]);
 
     const fetchUsers = () => {
         setIsLoading(true);

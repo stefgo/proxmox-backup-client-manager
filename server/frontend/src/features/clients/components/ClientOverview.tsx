@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
 import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
-import { describeFailure, formatDate } from '../../../utils';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { StatusDot } from '../../../components/StatusDot';
@@ -17,7 +17,7 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, useToast, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
 
@@ -60,6 +60,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         history: backupJobs,
         lastHistory,
         clientSnapshots,
+        snapshotsError,
         fetchClientData,
         deleteBackupJob: storeDeleteJob,
         triggerBackupJob: storeTriggerJob,
@@ -124,14 +125,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
-    const { confirm, alert } = useConfirm();
+    const { confirm } = useConfirm();
+    const { show } = useToast();
 
     const handleTriggerJob = async (jobId: string) => {
         try {
             await triggerJob(client.id, jobId);
-            // Optional: toast or feedback
+            show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
-            alert(describeFailure('Could not start the job', e));
+            show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };
 
@@ -330,12 +332,19 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     onCancel={() => setRestoreSnapshot(null)}
                                 />
                             ) : (
-                                <RepositorySnapshotList
-                                    searchParamKey="search.snapshots"
-                                    snapshots={clientSnapshots}
-                                    showClientColumn={false}
-                                    onRestore={setRestoreSnapshot}
-                                />
+                                <>
+                                    {snapshotsError && (
+                                        <div role="alert" className="mb-4 text-sm text-error break-words">
+                                            {snapshotsError}
+                                        </div>
+                                    )}
+                                    <RepositorySnapshotList
+                                        searchParamKey="search.snapshots"
+                                        snapshots={clientSnapshots}
+                                        showClientColumn={false}
+                                        onRestore={setRestoreSnapshot}
+                                    />
+                                </>
                             )}
                         </TabPanel>
 
