@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback } from 'react';
 import { Key, Trash2 } from 'lucide-react';
 import { Token } from '@pbcm/shared';
 import {
@@ -71,16 +71,14 @@ const StatusBadge = ({ token: t }: { token: Token }) => {
 export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
-    const filteredTokens = useMemo(() => {
-        if (!searchQuery) return tokens;
-        const q = searchQuery.toLowerCase();
-        return tokens.filter(
-            (t) =>
-                t.tokenHash.includes(q) ||
-                (t.displayName ?? '').toLowerCase().includes(q) ||
-                (t.allowedIp ?? '').toLowerCase().includes(q),
-        );
-    }, [tokens, searchQuery]);
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((t: Token, query: string) => {
+        const q = query.toLowerCase();
+        return t.tokenHash.includes(q) ||
+            (t.displayName ?? '').toLowerCase().includes(q) ||
+            (t.allowedIp ?? '').toLowerCase().includes(q);
+    }, []);
 
     // One set of actions for both views, so the table and the list cannot drift apart.
     const renderActions = (t: Token) => (
@@ -175,7 +173,7 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
             // colIndex 2 is "Expires / Used"; the Client column sits before it.
             sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'tokenViewMode', scope: 'local' } }}
-            data={filteredTokens}
+            data={tokens}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="tokenHash"
@@ -184,6 +182,8 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
             searchable
             searchPlaceholder="Search tokens…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No tokens match “${searchQuery}”.`}
             emptyMessage="No tokens generated"
             pagination={pagination(PAGE_SIZE.page)}
         />

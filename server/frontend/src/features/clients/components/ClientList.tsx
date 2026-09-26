@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTableDef, StatusDot } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
-import { DataMultiView } from '@stefgo/react-ui-components';
+import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
 import { Button } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
@@ -79,15 +79,14 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
         [clients],
     );
 
-    const filteredClients = useMemo(() => {
-        if (!searchQuery) return sortedClients;
-        const q = searchQuery.toLowerCase();
-        return sortedClients.filter(c =>
-            (c.displayName ?? '').toLowerCase().includes(q) ||
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((c: Client, query: string) => {
+        const q = query.toLowerCase();
+        return (c.displayName ?? '').toLowerCase().includes(q) ||
             c.hostname.toLowerCase().includes(q) ||
-            c.id.toLowerCase().includes(q),
-        );
-    }, [sortedClients, searchQuery]);
+            c.id.toLowerCase().includes(q);
+    }, []);
 
     const buildTableDefinitions = (): DataTableDef<Client>[] => {
         const cols: DataTableDef<Client>[] = [];
@@ -203,14 +202,23 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'clientViewMode', scope: 'local' } }}
-            data={filteredClients}
+            data={sortedClients}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No clients connected."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No clients match “${searchQuery}”.`}
+            emptyMessage={
+                <EmptyState
+                    icon={Monitor}
+                    title="No clients registered yet"
+                    description="Add a client, then start its agent with the registration token it is given."
+                    action={<Button size="sm" icon={Plus} onClick={addClient}>Add Client</Button>}
+                />
+            }
             rowClassName="align-top"
             onRowClick={setSelectedClient}
             pagination={pagination(PAGE_SIZE.page)}

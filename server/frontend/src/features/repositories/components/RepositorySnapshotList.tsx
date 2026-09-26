@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView, StatusDot } from '@stefgo/react-ui-components';
@@ -51,16 +51,15 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         [snapshots, showClientColumn, getClientName],
     );
 
-    const filteredSnapshots = useMemo(() => {
-        if (!searchQuery) return sortedSnapshots;
-        const q = searchQuery.toLowerCase();
-        return sortedSnapshots.filter(s => {
-            if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
-            if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
-            if (s.backupType.toLowerCase().includes(q)) return true;
-            return false;
-        });
-    }, [sortedSnapshots, searchQuery, getClientName]);
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((s: Snapshot, query: string) => {
+        const q = query.toLowerCase();
+        if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
+        if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
+        if (s.backupType.toLowerCase().includes(q)) return true;
+        return false;
+    }, [getClientName]);
 
     const getStatus = (snap: Snapshot): ClientStatus => {
         if (!showClientColumn || !getClientStatus || !snap.backupId)
@@ -208,7 +207,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     return (
         <DataMultiView
             title={<><FileBox size={18} className="text-text-muted" /> Snapshots</>}
-            data={filteredSnapshots}
+            data={sortedSnapshots}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField={snapshotKey}
@@ -217,6 +216,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             searchable
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No snapshots match “${searchQuery}”.`}
             emptyMessage="No snapshots found in this repository."
             pagination={pagination(PAGE_SIZE.embedded)}
         />

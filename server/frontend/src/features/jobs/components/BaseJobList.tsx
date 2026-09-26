@@ -6,13 +6,13 @@ import {
     KeyRound,
     Plus,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
-import { DataMultiView } from '@stefgo/react-ui-components';
+import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
@@ -86,15 +86,14 @@ export const BaseJobList = <T extends BaseJobItem>({
         [jobs, showClientColumn, getClientName],
     );
 
-    const filteredJobs = useMemo(() => {
-        if (!searchQuery) return sortedJobs;
-        const q = searchQuery.toLowerCase();
-        return sortedJobs.filter(j =>
-            j.name.toLowerCase().includes(q) ||
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((j: T, query: string) => {
+        const q = query.toLowerCase();
+        return j.name.toLowerCase().includes(q) ||
             (j.id ?? '').toLowerCase().includes(q) ||
-            (j.clientId && getClientName ? getClientName(j.clientId).toLowerCase().includes(q) : false),
-        );
-    }, [sortedJobs, searchQuery, getClientName]);
+            (j.clientId && getClientName ? getClientName(j.clientId).toLowerCase().includes(q) : false);
+    }, [getClientName]);
 
     const formatNextRun = (nextRunAt: string | undefined, isOnline: boolean) => {
         if (!nextRunAt) return <span className="text-text-muted">not defined</span>;
@@ -427,7 +426,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             extraActions={newJobButton || undefined}
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: viewModePersistKey, scope: 'local' } }}
-            data={filteredJobs}
+            data={sortedJobs}
             tableDef={tableItems}
             listColumns={listItems}
             keyField={(job) =>
@@ -436,7 +435,14 @@ export const BaseJobList = <T extends BaseJobItem>({
             searchable
             searchPlaceholder="Search Jobs ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No jobs configured."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No jobs match “${searchQuery}”.`}
+            emptyMessage={
+                <EmptyState
+                    title="No jobs configured yet"
+                    action={newJobButton || undefined}
+                />
+            }
             rowClassName={(job) =>
                 getStatus(job) === CLIENT_STATUS.ONLINE
                     ? 'align-top'

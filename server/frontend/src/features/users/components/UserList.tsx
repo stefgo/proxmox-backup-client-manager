@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback } from 'react';
 import { Plus, Trash2, Edit2, User, Key, Globe } from 'lucide-react';
 import {
     Badge,
@@ -54,11 +54,12 @@ const AuthBadges = ({ methods: methodsStr }: { methods?: string }) => {
 export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateUser }: UserListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
-    const filteredUsers = useMemo(() => {
-        if (!searchQuery) return users;
-        const q = searchQuery.toLowerCase();
-        return users.filter((u) => u.username.toLowerCase().includes(q));
-    }, [users, searchQuery]);
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((u: UserData, query: string) => {
+        const q = query.toLowerCase();
+        return u.username.toLowerCase().includes(q);
+    }, []);
 
     // One set of actions for both views, so the table and the list cannot drift apart.
     const renderActions = (user: UserData) => (
@@ -161,7 +162,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'userViewMode', scope: 'local' } }}
-            data={filteredUsers}
+            data={users}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField="id"
@@ -170,6 +171,8 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
             searchable
             searchPlaceholder="Search users…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No users match “${searchQuery}”.`}
             emptyMessage="No users found"
             pagination={pagination(PAGE_SIZE.page)}
         />
