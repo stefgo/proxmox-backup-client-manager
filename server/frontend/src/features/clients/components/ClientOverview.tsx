@@ -3,10 +3,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, cn, TabList, TabPanel, useTabs } from '@stefgo/react-ui-components';
-import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS } from '@pbcm/shared';
+import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { describeFailure, formatDate } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
+import { StatusDot } from './StatusDot';
+import { STATUS_TONE } from './statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
 import { useRepositoryStore } from '../../../stores/useRepositoryStore';
@@ -15,7 +17,7 @@ import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRes
 
 import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { ActionMenu, Card, DescriptionList, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
+import { ActionMenu, Badge, EntityHeader, type EntityDetail, useActionMenu, useConfirm, FOCUS_RING_NONE } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
 
@@ -120,7 +122,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
 
-    const { menuState, openMenu, closeMenu } = useActionMenu<string>();
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
     const { confirm, alert } = useConfirm();
 
@@ -168,90 +170,101 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [requestClose]);
 
+    const isOnline = client.status === CLIENT_STATUS.ONLINE;
+    const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
+
+    /**
+     * What the header row has no room for. All of it opens on request, so a closed header
+     * is just the row -- the same split DIM's client page uses.
+     */
+    const details: EntityDetail[] = [
+        { label: 'ID', value: client.id, copyable: client.id },
+        { label: 'Agent', value: client.version || 'Unknown' },
+        // The clock the agent keeps every repetition of a job on.
+        { label: 'Time Zone', value: client.timezone || 'Unknown' },
+        isInbound
+            ? { label: 'Allowed IP', value: client.inboundAllowedIp || 'Any' }
+            : { label: 'Target Address', value: client.outboundTargetAddress || '–' },
+        ...(isInbound && client.ipAddress
+            ? [{ label: 'Last IP', value: client.ipAddress }]
+            : []),
+        ...(isOnline ? [] : [{ label: 'Last Seen', value: formatDate(client.lastSeen) }]),
+    ];
+
     return (
         <div className="space-y-6">
-            {/* Detail View */}
-            <Card
-                title={
-                    <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-2xl font-bold">
-                                    {client.displayName || client.hostname}
-                                </h2>
-                                {/*
-                                  * The same badge the list shows. `client` comes from the store
-                                  * via the route, so the tunnel state here follows the socket
-                                  * rather than freezing at the moment the page opened.
-                                  */}
-                                <ConnectionBadge client={client} />
-                            </div>
-                        </div>
-                    </div>
+            <EntityHeader
+                leading={
+                    <StatusDot
+                        tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE}
+                        label={client.status}
+                    />
                 }
-                action={
-                    <div className="flex items-center gap-4">
-                        {client.status !== CLIENT_STATUS.ONLINE && (
-                            <div className="text-right mr-2">
-                                <div className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Last Seen</div>
-                                <div className="text-sm text-text-primary font-mono">{formatDate(client.lastSeen)}</div>
-                            </div>
-                        )}
-                        <div className="relative">
-                            <ActionButton
-                                icon={MoreVertical}
-                                aria-label="Client actions"
-                                onClick={(e) => openMenu(e, client.id)}
-                            />
-                            <ActionMenu
-                                isOpen={menuState?.id === client.id}
-                                onClose={closeMenu}
-                                anchor={menuState?.anchor ?? null}
+                title={client.displayName || client.hostname}
+                meta={
+                    <>
+                        <Badge variant="info">{isInbound ? 'Inbound' : 'Outbound'}</Badge>
+                        {!isOnline && <Badge variant="warning">Offline</Badge>}
+                        {/*
+                          * The same badge the list shows. `client` comes from the store
+                          * via the route, so the tunnel state here follows the socket
+                          * rather than freezing at the moment the page opened.
+                          */}
+                        <ConnectionBadge client={client} />
+                    </>
+                }
+                details={details}
+                // Names the view, not the client: one entry for every client page.
+                persist={{ key: 'pbcm.client.details', scope: 'local' }}
+                actions={
+                    <div className="relative">
+                        <ActionButton
+                            icon={MoreVertical}
+                            aria-label="Client actions"
+                            onClick={(e) => openMenu(e, client.id)}
+                        />
+                        <ActionMenu
+                            isOpen={menuState?.id === client.id}
+                            onClose={closeMenu}
+                            anchor={menuState?.anchor ?? null}
+                            triggerRef={triggerRef}
+                        >
+                            <button
+                                onClick={() => {
+                                    // `from` is how the editor knows that back is this
+                                    // page and not the client list.
+                                    navigate(`/client/${client.id}/edit`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
                             >
-                                <button
-                                    onClick={() => {
-                                        // `from` is how the editor knows that back is this
-                                        // page and not the client list.
-                                        navigate(`/client/${client.id}/edit`, {
-                                            state: { from: pathname },
-                                        });
-                                        closeMenu();
-                                    }}
-                                    className={MENU_ENTRY}
-                                >
-                                    <Edit size={16} /> Edit Client
-                                </button>
-                                {/*
-                                  * Same entry as in the client list: setting a tunnel up and
-                                  * changing one are the same form on the same endpoint, so only
-                                  * the label turns on whether credentials are stored. Offered for
-                                  * either connection mode, because both can have a tunnel.
-                                  */}
-                                <button
-                                    onClick={() => {
-                                        navigate(`/client/${client.id}/tunnel`, {
-                                            state: { from: pathname },
-                                        });
-                                        closeMenu();
-                                    }}
-                                    className={MENU_ENTRY}
-                                >
-                                    <Network size={16} /> {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
-                                </button>
-                            </ActionMenu>
-                        </div>
+                                <Edit size={16} /> Edit Client
+                            </button>
+                            {/*
+                              * Same entry as in the client list: setting a tunnel up and
+                              * changing one are the same form on the same endpoint, so only
+                              * the label turns on whether credentials are stored. Offered for
+                              * either connection mode, because both can have a tunnel.
+                              */}
+                            <button
+                                onClick={() => {
+                                    navigate(`/client/${client.id}/tunnel`, {
+                                        state: { from: pathname },
+                                    });
+                                    closeMenu();
+                                }}
+                                className={MENU_ENTRY}
+                            >
+                                <Network size={16} /> {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
+                            </button>
+                        </ActionMenu>
                     </div>
                 }
-                padding="md"
-            >
-                <DescriptionList
-                    columns={1}
-                    items={[{ label: 'ID', value: client.id, copyable: client.id }]}
-                />
-            </Card>
+            />
 
-            {client.status === CLIENT_STATUS.ONLINE && (
+            {isOnline && (
                 <>
                     {/* The stat cards are the tab list: `tabProps` is what makes them announce
                         themselves as tabs and puts the arrow keys on the row. */}
