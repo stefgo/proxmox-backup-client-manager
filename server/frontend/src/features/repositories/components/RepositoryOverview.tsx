@@ -12,8 +12,9 @@ import { RepositorySnapshotList } from './RepositorySnapshotList';
 import {
     ActionButton,
     ActionMenu,
-    Card,
-    DescriptionList,
+    Badge,
+    EntityHeader,
+    type EntityDetail,
     StatCard,
     cn,
     useActionMenu,
@@ -23,6 +24,8 @@ import {
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
+import { StatusDot } from '../../clients/components/StatusDot';
+import { STATUS_TONE } from '../../clients/components/statusTone';
 
 
 /**
@@ -43,7 +46,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const navigate = useNavigate();
     const { pathname } = useLocation();
     const { isAuthenticated } = useAuth();
-    const { menuState, openMenu, closeMenu } = useActionMenu<string>();
+    const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
 
     // Global Store Data
@@ -66,12 +69,12 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         }
     }, [clients.length, isAuthenticated, fetchClients]);
 
-    const getStatusColor = () => {
-        if (isLoading) return 'bg-warning animate-pulse shadow-glow-accent';
-        if (repo?.status === REPOSITORY_STATUS.ONLINE)
-            return 'bg-success shadow-glow-success';
-        return 'bg-border';
-    };
+    // A fetch in flight reads as "connecting" -- the same amber the list uses for `loading`.
+    const statusTone = isLoading
+        ? STATUS_TONE.CONNECTING
+        : repo?.status === REPOSITORY_STATUS.ONLINE
+          ? STATUS_TONE.ONLINE
+          : STATUS_TONE.OFFLINE;
 
     if (!repo) {
         return (
@@ -83,24 +86,35 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         );
     }
 
+    /**
+     * What the header row has no room for, opened on request like the client page's. The
+     * secret stays out: the page shows where the repository is and who logs in, not how.
+     */
+    const details: EntityDetail[] = [
+        { label: 'ID', value: String(repo.id), copyable: String(repo.id) },
+        { label: 'Server', value: repo.baseUrl },
+        { label: 'Datastore', value: repo.datastore },
+        { label: 'User', value: repo.username },
+        { label: 'Token', value: repo.tokenname || '–' },
+    ];
+
     const showDetails =
         !isLoading && !error && repo.status === REPOSITORY_STATUS.ONLINE;
 
     return (
         <div className="space-y-6 h-full flex flex-col">
-            {/* Header */}
-            <Card
-                title={
-                    <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
-                        <div>
-                            <h2 className="text-2xl font-bold">
-                                {repo.baseUrl}:{repo.datastore}
-                            </h2>
-                        </div>
-                    </div>
+            <EntityHeader
+                leading={<StatusDot tone={statusTone} label={isLoading ? REPOSITORY_STATUS.LOADING : repo.status} />}
+                title={`${repo.baseUrl}:${repo.datastore}`}
+                meta={
+                    repo.status === REPOSITORY_STATUS.OFFLINE
+                        ? <Badge variant="warning">Offline</Badge>
+                        : undefined
                 }
-                action={
+                details={details}
+                // Names the view, not the repository: one entry for every repository page.
+                persist={{ key: 'pbcm.repository.details', scope: 'local' }}
+                actions={
                     <div className="relative">
                         <ActionButton
                             icon={MoreVertical}
@@ -111,6 +125,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             isOpen={menuState?.id === String(repo.id)}
                             onClose={closeMenu}
                             anchor={menuState?.anchor ?? null}
+                            triggerRef={triggerRef}
                         >
                             <button
                                 onClick={() => {
@@ -128,13 +143,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         </ActionMenu>
                     </div>
                 }
-                padding="md"
-            >
-                <DescriptionList
-                    columns={1}
-                    items={[{ label: 'ID', value: repo.id, copyable: String(repo.id) }]}
-                />
-            </Card>
+            />
 
             {/* Without this the snapshot fetch could fail and leave nothing but the
                 header card on screen, with no hint as to why. */}
