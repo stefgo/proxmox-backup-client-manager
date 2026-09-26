@@ -32,6 +32,13 @@ export type SessionHistoryItem =
           displayName: string | null;
       });
 
+/**
+ * How far back lastHistory reaches, and how many rows it keeps. The list's title
+ * states the window, so both read it from here rather than repeating the number.
+ */
+export const LAST_HISTORY_HOURS = 24;
+const LAST_HISTORY_LIMIT = 10;
+
 interface GlobalJobsState {
     globalJobs: GlobalJob[];
     lastHistory: SessionHistoryItem[];
@@ -95,15 +102,15 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 }
             }
 
-            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const windowStart = Date.now() - LAST_HISTORY_HOURS * 60 * 60 * 1000;
             const initLastHistory = allHistory
                 .filter((j) => {
                     const timeToCheck = j.endTime
                         ? new Date(j.endTime).getTime()
                         : new Date(j.startTime).getTime();
-                    return timeToCheck > twentyFourHoursAgo;
+                    return timeToCheck > windowStart;
                 })
-                .slice(0, 10);
+                .slice(0, LAST_HISTORY_LIMIT);
 
             set({
                 globalJobs: flattenedJobs,
@@ -143,12 +150,12 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
                 displayName: client?.displayName ?? null,
             };
 
-            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-            const isWithin24Hours = (j: SessionHistoryItem) => {
+            const windowStart = Date.now() - LAST_HISTORY_HOURS * 60 * 60 * 1000;
+            const isWithinWindow = (j: SessionHistoryItem) => {
                 const timeToCheck = j.endTime
                     ? new Date(j.endTime).getTime()
                     : new Date(j.startTime).getTime();
-                return timeToCheck > twentyFourHoursAgo;
+                return timeToCheck > windowStart;
             };
 
             // An existing row may already carry the client columns from the REST
@@ -172,8 +179,8 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             }
 
             updatedHistory = updatedHistory
-                .filter(isWithin24Hours)
-                .slice(0, 10);
+                .filter(isWithinWindow)
+                .slice(0, LAST_HISTORY_LIMIT);
             return { lastHistory: updatedHistory };
         }),
     updateJobNextRunAt: (clientId, jobId, nextRunAt) =>

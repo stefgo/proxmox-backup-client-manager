@@ -8,7 +8,7 @@ import { useClientStore } from "../../../stores/useClientStore";
 import { JobList } from "./JobList";
 import { ClientHistoryList } from "../../clients/components/ClientHistoryList";
 import { useRepositoryStore } from "../../../stores/useRepositoryStore";
-import { GlobalJob } from "../../../stores/useGlobalJobsStore";
+import { GlobalJob, LAST_HISTORY_HOURS } from "../../../stores/useGlobalJobsStore";
 import { useGlobalSubscription } from "../../../hooks/useGlobalSubscription";
 import { describeFailure } from "../../../utils";
 import { describeDeleteJob } from "../confirmations";
@@ -127,10 +127,10 @@ export const ManagedJobs = () => {
 
             <div className="mt-6">
                 <ClientHistoryList
-                    title="Last History"
+                    title={`Last History (${LAST_HISTORY_HOURS}h)`}
                     history={lastHistory}
                     showClientName={true}
-                    emptyMessage="No data available in the observation period."
+                    emptyMessage={`No runs in the last ${LAST_HISTORY_HOURS} hours.`}
                 />
             </div>
         </div>
