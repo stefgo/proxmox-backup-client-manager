@@ -1509,7 +1509,8 @@ beyond it.
 - `result`: `{ removed }` for both schedulers, `null` unless the run succeeded.
 
 The first run after a restart comes one interval after the last run started — at once if
-that is already past — or one interval after startup when the scheduler has never run.
+that is already past. A scheduler that has never run keeps the run it had planned, so
+restarts do not keep pushing it away; with none planned, it comes one interval after startup.
 Every change is pushed as [`SCHEDULER_STATUS_UPDATE`](#dashboard-connection).
 
 ---
