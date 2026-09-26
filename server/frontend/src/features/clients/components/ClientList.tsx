@@ -95,18 +95,13 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             sortable: true,
             sortValue: (client) => client.displayName || client.hostname,
             tableItemRender: (client) => (
-                <>
-                    <div className="flex items-center gap-3 mb-1">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
-                        <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
-                            {client.displayName || client.hostname}
-                        </div>
-                        <ConnectionBadge client={client} />
+                <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === CLIENT_STATUS.ONLINE ? 'bg-success shadow-glow-success animate-pulse-glow' : 'bg-border'}`} />
+                    <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
+                        {client.displayName || client.hostname}
                     </div>
-                    <div className="text-xs font-mono text-text-muted pl-5 truncate opacity-70">
-                        {client.id}
-                    </div>
-                </>
+                    <ConnectionBadge client={client} />
+                </div>
             )
         });
 
