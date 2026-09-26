@@ -63,22 +63,12 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         clientSnapshots,
         snapshotsError,
         fetchClientData,
-        deleteBackupJob: storeDeleteJob,
-        triggerBackupJob: storeTriggerJob,
+        deleteBackupJob: deleteJob,
+        triggerBackupJob: triggerJob,
         fetchClientSnapshots
     } = useClientDetailStore();
 
     const { repositories, fetchRepositories } = useRepositoryStore();
-
-    const deleteJob = (clientId: string, jobId: string) => {
-        if (isAuthenticated) return storeDeleteJob(clientId, jobId);
-        return Promise.reject('Not authenticated');
-    };
-
-    const triggerJob = (clientId: string, jobId: string) => {
-        if (isAuthenticated) return storeTriggerJob(clientId, jobId);
-        return Promise.reject('Not authenticated');
-    };
 
     // Init Data & Subscriptions
     useEffect(() => {
@@ -106,7 +96,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     }, [client.id, isAuthenticated, repositoryIds, fetchClientSnapshots]);
 
     useClientSubscription(client.id, (job) => {
-        if (job.status === JOB_STATUS.SUCCESS && isAuthenticated) {
+        if (job.status === JOB_STATUS.SUCCESS) {
             fetchClientSnapshots(client.id, repositories);
         }
     });

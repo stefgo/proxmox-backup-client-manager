@@ -42,11 +42,10 @@ export const ManagedJobs = () => {
     useGlobalSubscription();
 
     const handleRefresh = () => {
-        if (isAuthenticated) fetchAllJobs();
+        fetchAllJobs();
     };
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
-        if (!isAuthenticated) return;
         // Before the request: a run that is skipped at once can report before it returns.
         markJobRunAsked(clientId, jobId);
         try {
@@ -76,7 +75,6 @@ export const ManagedJobs = () => {
 
     // The dialog stays open on failure, so the retry is one click away.
     const requestDeleteJob = (job: GlobalJob) => {
-        if (!isAuthenticated) return;
         confirm({
             ...describeDeleteJob(job.name, getClientName(job.clientId)),
             onConfirm: async () => {

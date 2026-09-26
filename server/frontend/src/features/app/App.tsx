@@ -70,7 +70,6 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 function ClientsRoute() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { isAuthenticated } = useAuth();
     const { clients, fetchClients, deleteClient } = useClientStore();
 
     // Every editor route knows where back is because the surface that opened it says so.
@@ -80,12 +79,8 @@ function ClientsRoute() {
         <ManagedClients
             clients={clients}
             onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate('/'))}
-            onRefresh={() => {
-                if (isAuthenticated) fetchClients();
-            }}
-            onDelete={(id) =>
-                isAuthenticated ? deleteClient(id) : Promise.resolve()
-            }
+            onRefresh={fetchClients}
+            onDelete={deleteClient}
             onAdd={() => open('/clients/new')}
             onEdit={(c) => open(`/client/${c.id}/edit`)}
             onEditTunnel={(c) => open(`/client/${c.id}/tunnel`)}
@@ -210,16 +205,15 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
 function RepositoriesRoute() {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
     const { repositories, addRepository, updateRepository, deleteRepository } = useRepositoryStore();
 
     return (
         <ManagedRepositories
             repositories={repositories}
             onSelect={(r) => (r ? navigate(`/repository/${r.id}`) : navigate('/'))}
-            onAdd={(r) => (isAuthenticated ? addRepository(r) : Promise.reject())}
-            onUpdate={(id, r) => (isAuthenticated ? updateRepository(id, r) : Promise.reject())}
-            onDelete={(id) => (isAuthenticated ? deleteRepository(id) : Promise.reject())}
+            onAdd={addRepository}
+            onUpdate={updateRepository}
+            onDelete={deleteRepository}
         />
     );
 }
