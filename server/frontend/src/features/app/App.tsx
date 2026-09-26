@@ -11,11 +11,12 @@ import {
 } from 'lucide-react';
 
 // Library Components
-import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, Card, cn, FOCUS_RING, ToastProvider } from '@stefgo/react-ui-components';
+import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, ToastProvider } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
 import { LoadingIndicator } from '../../components/LoadingIndicator';
+import { NotFoundCard } from '../../components/NotFoundCard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { useTheme } from './context/ThemeContext';
 import { AuthProvider } from '../auth/AuthProvider';
@@ -240,22 +241,12 @@ function RepositoryEditRoute() {
 }
 
 function NotFound() {
-    const navigate = useNavigate();
     const { pathname } = useLocation();
 
     return (
-        <Card title="Page not found" padding="md" classNames={{ content: 'space-y-4' }}>
-            <p className="text-text-secondary">
-                There is nothing at <code className="font-mono text-sm">{pathname}</code>.
-            </p>
-            <button
-                type="button"
-                onClick={() => navigate('/clients')}
-                className={cn('text-primary hover:text-primary-hover font-medium rounded-sm', FOCUS_RING)}
-            >
-                Back to clients
-            </button>
-        </Card>
+        <NotFoundCard title="Page not found" backTo="/clients" backLabel="Back to clients">
+            There is nothing at <code className="font-mono text-sm">{pathname}</code>.
+        </NotFoundCard>
     );
 }
 
