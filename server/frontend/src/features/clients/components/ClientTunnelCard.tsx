@@ -1,13 +1,11 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { TunnelState, TunnelStatus, TUNNEL_STATUS } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, Input, useConfirm } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
-import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { apiFetch } from '../../../lib/apiFetch';
 import { formatDate } from '../../../utils';
 import { describeRemoveTunnel } from '../confirmations';
@@ -398,7 +396,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         <span className="flex items-center gap-4">
             {/* Only once there is a tunnel: a dot on a card that is a setup form
                 would report the state of something that does not exist. */}
-            {info && <StatusDot tone={TUNNEL_STATUS_TONE[state?.status ?? 'idle']} label={state?.status ?? 'idle'} />}
+            {info && <StatusDot size="md" {...STATUS_DOT[TUNNEL_STATUS_TONE[state?.status ?? 'idle']]} label={state?.status ?? 'idle'} />}
             <span>
                 <span className="block text-xl font-bold">SSH Reverse Tunnel</span>
                 <span className="block text-sm font-normal text-text-muted">

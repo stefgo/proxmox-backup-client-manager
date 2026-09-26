@@ -10,10 +10,10 @@ import {
     useConfirm,
     useTabs,
     useToast,
+    LoadingIndicator,
 } from '@stefgo/react-ui-components';
 import { useAuth } from '../features/auth/AuthContext';
 import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
-import { LoadingIndicator } from '../components/LoadingIndicator';
 import { describeFailure } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
 import {
@@ -27,6 +27,7 @@ import {
 } from '../features/settings/sections';
 import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
 import { useSchedulerStore } from '../stores/useSchedulerStore';
+import { useResyncKey } from '../features/app/context/WebSocketContext';
 import type { SchedulerStatuses } from '@pbcm/shared';
 
 interface SchedulerStatusResponse {
@@ -122,6 +123,20 @@ export default function Settings() {
             cancelled = true;
         };
     }, [isAuthenticated, applySchedulerStatus]);
+
+    // After a reconnect only the scheduler status is loaded again. The settings are left
+    // alone: loading them would overwrite what is typed and not yet saved.
+    const resyncKey = useResyncKey();
+    useEffect(() => {
+        if (resyncKey === 0) return;
+        let cancelled = false;
+        requestSchedulerStatus().then((data) => {
+            if (!cancelled && data) applySchedulerStatus(data);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [resyncKey, applySchedulerStatus]);
 
     const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 

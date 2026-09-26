@@ -1,12 +1,11 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView } from '@stefgo/react-ui-components';
+import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView, StatusDot } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
@@ -52,16 +51,15 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         [snapshots, showClientColumn, getClientName],
     );
 
-    const filteredSnapshots = useMemo(() => {
-        if (!searchQuery) return sortedSnapshots;
-        const q = searchQuery.toLowerCase();
-        return sortedSnapshots.filter(s => {
-            if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
-            if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
-            if (s.backupType.toLowerCase().includes(q)) return true;
-            return false;
-        });
-    }, [sortedSnapshots, searchQuery, getClientName]);
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((s: Snapshot, query: string) => {
+        const q = query.toLowerCase();
+        if ((s.backupId ?? '').toLowerCase().includes(q)) return true;
+        if (getClientName && s.backupId && (getClientName(s.backupId) ?? '').toLowerCase().includes(q)) return true;
+        if (s.backupType.toLowerCase().includes(q)) return true;
+        return false;
+    }, [getClientName]);
 
     const getStatus = (snap: Snapshot): ClientStatus => {
         if (!showClientColumn || !getClientStatus || !snap.backupId)
@@ -83,7 +81,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-3">
-                        <StatusDot size="sm" tone={online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
+                        <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />
                         <div
                             className={`text-sm ${online ? 'text-text-primary' : ''
                                 } max-w-[150px] truncate`}
@@ -150,7 +148,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 const isOnline = getStatus(snap) === CLIENT_STATUS.ONLINE;
                 return (
                     <div className="flex items-center gap-2 py-1">
-                        <StatusDot size="sm" tone={isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE} label={getStatus(snap)} />
+                        <StatusDot size="sm" {...STATUS_DOT[isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />
                         <span
                             className={`${isOnline
                                 ? 'text-text-primary'
@@ -209,7 +207,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     return (
         <DataMultiView
             title={<><FileBox size={18} className="text-text-muted" /> Snapshots</>}
-            data={filteredSnapshots}
+            data={sortedSnapshots}
             tableDef={tableDef}
             listColumns={listColumns}
             keyField={snapshotKey}
@@ -218,6 +216,8 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             searchable
             searchPlaceholder="Search Snapshots ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No snapshots match “${searchQuery}”.`}
             emptyMessage="No snapshots found in this repository."
             pagination={pagination(PAGE_SIZE.embedded)}
         />

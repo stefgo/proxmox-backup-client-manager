@@ -1,14 +1,13 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
-import { DataTableDef, Button } from '@stefgo/react-ui-components';
+import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
 import { DataAction } from '@stefgo/react-ui-components';
 import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
-import { DataMultiView } from '@stefgo/react-ui-components';
+import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 
 /** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
 const repositoryTone = (repo: Repository): StatusTone =>
@@ -34,15 +33,14 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         [repositories],
     );
 
-    const filteredRepositories = useMemo(() => {
-        if (!searchQuery) return sortedRepositories;
-        const q = searchQuery.toLowerCase();
-        return sortedRepositories.filter(r =>
-            r.baseUrl.toLowerCase().includes(q) ||
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((r: Repository, query: string) => {
+        const q = query.toLowerCase();
+        return r.baseUrl.toLowerCase().includes(q) ||
             r.datastore.toLowerCase().includes(q) ||
-            (r.username ?? '').toLowerCase().includes(q),
-        );
-    }, [sortedRepositories, searchQuery]);
+            (r.username ?? '').toLowerCase().includes(q);
+    }, []);
 
     const buildTableDefinitions = (): DataTableDef<Repository>[] => {
         const cols: DataTableDef<Repository>[] = [];
@@ -53,7 +51,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
             tableItemRender: (repo) => (
                 <div className="flex items-center gap-3">
-                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
                     <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -100,7 +98,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
         contentFields.push({
             listItemRender: (repo) => (
                 <div className="flex items-center gap-2 py-1">
-                    <StatusDot size="sm" tone={repositoryTone(repo)} label={repo.status} />
+                    <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
                     <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
@@ -180,14 +178,23 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'repositoryViewMode', scope: 'local' } }}
-            data={filteredRepositories}
+            data={sortedRepositories}
             tableDef={tableColumns}
             listColumns={listColumns}
             keyField="id"
             searchable
             searchPlaceholder="Search Repositories ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
-            emptyMessage="No repositories added."
+            searchFilter={matchesSearch}
+            noResultsMessage={`No repositories match “${searchQuery}”.`}
+            emptyMessage={
+                <EmptyState
+                    icon={Server}
+                    title="No repositories added yet"
+                    description="A repository is a Proxmox Backup Server datastore that jobs back up into."
+                    action={<Button size="sm" icon={Plus} onClick={onAdd}>Add Repository</Button>}
+                />
+            }
             rowClassName="align-top"
             onRowClick={onSelect}
             pagination={pagination(PAGE_SIZE.page)}

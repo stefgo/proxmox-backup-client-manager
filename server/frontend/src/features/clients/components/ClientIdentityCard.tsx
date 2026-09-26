@@ -9,9 +9,8 @@ import {
     normaliseTargetAddress,
 } from '@pbcm/shared';
 import { Save } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, DescriptionList, Input } from '@stefgo/react-ui-components';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from '@stefgo/react-ui-components';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { formatDate } from '../../../utils';
 
 interface ClientIdentityCardProps {
@@ -136,11 +135,10 @@ export const ClientIdentityCard = ({ client, onSave, onDirtyChange, action }: Cl
             title={
                 <div className="flex items-center gap-4">
                     <StatusDot
-                        tone={
-                            client.status === CLIENT_STATUS.ONLINE
+                        size="md"
+                        {...STATUS_DOT[client.status === CLIENT_STATUS.ONLINE
                                 ? STATUS_TONE.ONLINE
-                                : STATUS_TONE.OFFLINE
-                        }
+                                : STATUS_TONE.OFFLINE]}
                         label={client.status}
                     />
                     <div>

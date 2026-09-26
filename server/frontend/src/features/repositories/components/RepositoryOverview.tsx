@@ -14,28 +14,18 @@ import {
     ActionMenu,
     Badge,
     EntityHeader,
+    MenuItem,
     type EntityDetail,
     StatCard,
-    cn,
+    StatusDot,
     useActionMenu,
-    FOCUS_RING,
-    FOCUS_RING_NONE,
 } from '@stefgo/react-ui-components';
 import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
-import { StatusDot } from '../../../components/StatusDot';
-import { STATUS_TONE } from '../../../components/statusTone';
+import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
+import { NotFoundCard } from '../../../components/NotFoundCard';
 
-
-/**
- * A menu entry marks focus with its background, the way the menu's own entries do -- a ring
- * inside the popover would be clipped by it. Same rule as the client detail page.
- */
-const MENU_ENTRY = cn(
-    'w-full text-left px-4 py-2 text-sm text-text-primary hover:bg-hover focus-visible:bg-hover flex items-center gap-2',
-    FOCUS_RING_NONE,
-);
 
 interface RepositoryOverviewProps {
     repo: Repository;
@@ -78,11 +68,9 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     if (!repo) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-error gap-4">
-                <AlertCircle size={48} />
-                <p>Repository not found</p>
-                <button onClick={() => navigate('/')} className={cn('text-info hover:underline rounded-sm', FOCUS_RING)}>Go Back</button>
-            </div>
+            <NotFoundCard title="Repository not found" backTo="/repositories" backLabel="Back to repositories">
+                There is no repository with this ID. It may have been deleted.
+            </NotFoundCard>
         );
     }
 
@@ -104,7 +92,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     return (
         <div className="space-y-6 h-full flex flex-col">
             <EntityHeader
-                leading={<StatusDot tone={statusTone} label={isLoading ? REPOSITORY_STATUS.LOADING : repo.status} />}
+                leading={<StatusDot size="md" {...STATUS_DOT[statusTone]} label={isLoading ? REPOSITORY_STATUS.LOADING : repo.status} />}
                 title={`${repo.baseUrl}:${repo.datastore}`}
                 meta={
                     repo.status === REPOSITORY_STATUS.OFFLINE
@@ -127,19 +115,18 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                             anchor={menuState?.anchor ?? null}
                             triggerRef={triggerRef}
                         >
-                            <button
+                            <MenuItem
+                                icon={Edit}
                                 onClick={() => {
                                     // `from` is how the editor knows that Cancel returns to
                                     // this page and not to the repository list.
                                     navigate(`/repository/${repo.id}/edit`, {
                                         state: { from: pathname },
                                     });
-                                    closeMenu();
                                 }}
-                                className={MENU_ENTRY}
                             >
-                                <Edit size={16} /> Edit Repository
-                            </button>
+                                Edit Repository
+                            </MenuItem>
                         </ActionMenu>
                     </div>
                 }

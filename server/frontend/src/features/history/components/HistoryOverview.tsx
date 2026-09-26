@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { JOB_STATUS } from '@pbcm/shared';
-import { Switch } from '@stefgo/react-ui-components';
+import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
+import { useResyncKey } from '../../app/context/WebSocketContext';
 import { BaseHistoryList, BaseHistoryItem } from './BaseHistoryList';
 import { apiFetch } from '../../../lib/apiFetch';
-import { LoadingIndicator } from '../../../components/LoadingIndicator';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE } from '../../../components/listDefaults';
 
 export const HistoryOverview = () => {
     const { isAuthenticated } = useAuth();
+    const resyncKey = useResyncKey();
     const [history, setHistory] = useState<BaseHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,8 @@ export const HistoryOverview = () => {
         };
 
         fetchHistory();
-    }, [isAuthenticated]);
+        // Again after a reconnect: runs that ended while the socket was down never arrived.
+    }, [isAuthenticated, resyncKey]);
 
     if (loading) {
         return <LoadingIndicator label="Loading history…" />;
