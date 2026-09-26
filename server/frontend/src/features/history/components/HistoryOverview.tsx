@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { JOB_STATUS } from "@pbcm/shared";
+import { Switch } from "@stefgo/react-ui-components";
 import { useAuth } from "../../auth/AuthContext";
 import { BaseHistoryList, BaseHistoryItem } from "./BaseHistoryList";
 import { apiFetch } from "../../../lib/apiFetch";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import { useHistorySeenStore } from "../../../stores/useHistorySeenStore";
+import { useSearchQueryParam } from "../../../hooks/useSearchQueryParam";
 
 export const HistoryOverview = () => {
     const { isAuthenticated } = useAuth();
@@ -11,6 +14,13 @@ export const HistoryOverview = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const markSeen = useHistorySeenStore((s) => s.markSeen);
+    // In the URL, so a link from the failure dot or a colleague lands on the same view.
+    const [status, setStatus] = useSearchQueryParam("status");
+    const failedOnly = status === JOB_STATUS.FAILED;
+    const visible = useMemo(
+        () => (failedOnly ? history.filter((h) => h.status === JOB_STATUS.FAILED) : history),
+        [history, failedOnly],
+    );
 
     // Seen on the way in and again on the way out: a failure that arrives while the page
     // is open appears in it, so it has been seen as well.
@@ -59,5 +69,18 @@ export const HistoryOverview = () => {
         );
     }
 
-    return <BaseHistoryList items={history} showClientName={true} />;
+    return (
+        <BaseHistoryList
+            items={visible}
+            showClientName={true}
+            emptyMessage={failedOnly ? "No failed runs" : undefined}
+            action={
+                <Switch
+                    label="Failures only"
+                    value={failedOnly}
+                    onChange={(on) => setStatus(on ? JOB_STATUS.FAILED : "")}
+                />
+            }
+        />
+    );
 };

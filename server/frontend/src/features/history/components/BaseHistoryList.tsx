@@ -1,5 +1,5 @@
 import { Activity, ChevronRight } from 'lucide-react';
-import { useState, useEffect, type ComponentProps } from 'react';
+import { useState, useEffect, type ComponentProps, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_STATUS } from '@pbcm/shared';
@@ -43,6 +43,8 @@ export interface BaseHistoryListProps {
     title?: string;
     showClientName?: boolean;
     emptyMessage?: string;
+    /** Controls in the card header, e.g. a filter. */
+    action?: ReactNode;
 }
 
 export const BaseHistoryList = ({
@@ -50,6 +52,7 @@ export const BaseHistoryList = ({
     title = 'Recent Activity',
     showClientName = false,
     emptyMessage = 'No history available',
+    action,
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -154,6 +157,7 @@ export const BaseHistoryList = ({
                     {title}
                 </div>
             }
+            action={action}
         >
             <DataList
                 data={items}
