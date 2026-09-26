@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 // Library Components
-import { ConfirmProvider, Dashboard, DashboardNavGroup, DashboardPage, ToastProvider, LoadingIndicator } from '@stefgo/react-ui-components';
+import { ConfirmProvider, ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider, ToastProvider } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
@@ -21,6 +21,7 @@ import { useTheme } from './context/ThemeContext';
 import { AuthProvider } from '../auth/AuthProvider';
 import { useAuth } from '../auth/AuthContext';
 import { WebSocketProvider } from './context/WebSocketProvider';
+import { useWebSocket } from './context/WebSocketContext';
 
 // Hooks & Stores
 import { useClientStore } from '../../stores/useClientStore';
@@ -281,6 +282,9 @@ function NotFound() {
 
 function AppLayout() {
     const { isAuthenticated, username, logout } = useAuth();
+    const connection = useWebSocket();
+    const isLost = connection?.isLost ?? false;
+    const resyncKey = connection?.resyncKey ?? 0;
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -299,7 +303,8 @@ function AppLayout() {
     // In the shell rather than a page: a run outlives the page it was started from.
     useJobResultToasts();
 
-    // Initial Fetch
+    // Initial fetch, and again after a reconnect: what the server pushed while the socket
+    // was down is lost, and only CLIENTS_UPDATE is sent again on connect.
     useEffect(() => {
         if (isAuthenticated) {
             fetchClients();
@@ -307,7 +312,7 @@ function AppLayout() {
             fetchAllJobs();
             fetchSeen();
         }
-    }, [isAuthenticated, fetchClients, refreshRepos, fetchAllJobs, fetchSeen]);
+    }, [isAuthenticated, resyncKey, fetchClients, refreshRepos, fetchAllJobs, fetchSeen]);
 
     // Stats
     const stats = useMemo(
@@ -451,46 +456,50 @@ function AppLayout() {
     ], [stats, navigate, unseenFailures]);
 
     return (
-        <Dashboard
-            logo={logo}
-            title={title}
-            username={displayName}
-            onLogout={logout}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onToggleSidebar={toggleSidebarCollapsed}
-            pages={pages}
-            navGroups={navGroups}
-            currentPath={path}
-        >
-            <Suspense fallback={<LoadingIndicator />}>
-                <Routes>
-                    <Route path="/" element={<ClientsRoute />} />
-                    <Route path="/clients" element={<ClientsRoute />} />
-                    <Route path="/clients/new" element={<AddClientRoute />} />
-                    <Route path="/client/:clientId" element={<ClientDetailRoute />} />
-                    <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
-                    <Route path="/client/:clientId/tunnel" element={<ClientTunnelRoute />} />
-                    <Route path="/client/:clientId/jobs/new" element={<NewClientJobRoute />} />
-                    <Route
-                        path="/client/:clientId/jobs/:jobId"
-                        element={<EditJobRoute fallback={(clientId) => `/client/${clientId}`} />}
-                    />
-                    <Route path="/jobs" element={<ManagedJobs />} />
-                    <Route path="/jobs/new" element={<NewJobRoute />} />
-                    <Route path="/jobs/:clientId/:jobId" element={<EditJobRoute fallback={() => '/jobs'} />} />
-                    <Route path="/repositories" element={<RepositoriesRoute />} />
-                    <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />
-                    <Route path="/repository/:repoId/edit" element={<RepositoryEditRoute />} />
-                    <Route path="/history" element={<HistoryOverview />} />
-                    <Route path="/users" element={<UserOverview />} />
-                    <Route path="/tokens" element={<TokenOverview />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
-            </Suspense>
-        </Dashboard>
+        // While the socket is lost, no status dot pulses: nothing is watching those states.
+        <StatusDotProvider live={!isLost}>
+            <Dashboard
+                banner={<ConnectionBanner connected={!isLost} />}
+                logo={logo}
+                title={title}
+                username={displayName}
+                onLogout={logout}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                isSidebarCollapsed={isSidebarCollapsed}
+                onToggleSidebar={toggleSidebarCollapsed}
+                pages={pages}
+                navGroups={navGroups}
+                currentPath={path}
+            >
+                <Suspense fallback={<LoadingIndicator />}>
+                    <Routes>
+                        <Route path="/" element={<ClientsRoute />} />
+                        <Route path="/clients" element={<ClientsRoute />} />
+                        <Route path="/clients/new" element={<AddClientRoute />} />
+                        <Route path="/client/:clientId" element={<ClientDetailRoute />} />
+                        <Route path="/client/:clientId/edit" element={<ClientEditRoute />} />
+                        <Route path="/client/:clientId/tunnel" element={<ClientTunnelRoute />} />
+                        <Route path="/client/:clientId/jobs/new" element={<NewClientJobRoute />} />
+                        <Route
+                            path="/client/:clientId/jobs/:jobId"
+                            element={<EditJobRoute fallback={(clientId) => `/client/${clientId}`} />}
+                        />
+                        <Route path="/jobs" element={<ManagedJobs />} />
+                        <Route path="/jobs/new" element={<NewJobRoute />} />
+                        <Route path="/jobs/:clientId/:jobId" element={<EditJobRoute fallback={() => '/jobs'} />} />
+                        <Route path="/repositories" element={<RepositoriesRoute />} />
+                        <Route path="/repository/:repoId" element={<RepositoryDetailRoute />} />
+                        <Route path="/repository/:repoId/edit" element={<RepositoryEditRoute />} />
+                        <Route path="/history" element={<HistoryOverview />} />
+                        <Route path="/users" element={<UserOverview />} />
+                        <Route path="/tokens" element={<TokenOverview />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
+                </Suspense>
+            </Dashboard>
+        </StatusDotProvider>
     );
 }
 

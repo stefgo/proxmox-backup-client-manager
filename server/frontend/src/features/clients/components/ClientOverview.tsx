@@ -19,6 +19,7 @@ import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
+import { useResyncKey } from '../../app/context/WebSocketContext';
 
 
 /** The tabs, in the order the arrow keys walk them. */
@@ -60,13 +61,14 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { repositories, fetchRepositories } = useRepositoryStore();
 
-    // Init Data & Subscriptions
+    // Init Data & Subscriptions, and again after a reconnect.
+    const resyncKey = useResyncKey();
     useEffect(() => {
         if (client.id && isAuthenticated) {
             fetchClientData(client.id);
             fetchRepositories();
         }
-    }, [client.id, isAuthenticated, fetchClientData, fetchRepositories]);
+    }, [client.id, isAuthenticated, resyncKey, fetchClientData, fetchRepositories]);
 
     // Which repositories exist, not the array holding them: fetchRepositories kicks
     // off a checkRepositoryStatus per repository, and each of those replaces the
