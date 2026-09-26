@@ -62,7 +62,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     const [message, setMessage] = useState<string | null>(null);
 
     // Use Global Store for File Browser
-    const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
+    const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
 
     // The client can still be swapped in the form, so the offer follows the selection and
     // not the client this editor was opened for.
@@ -279,6 +279,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                             }}
                             className="flex-1 min-h-[250px] max-h-[300px]"
                         />
+                        {fileListError && <div className="text-xs text-error mt-1">{fileListError}</div>}
                     </div>
                 )}
             </div>

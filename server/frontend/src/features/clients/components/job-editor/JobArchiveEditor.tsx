@@ -12,6 +12,7 @@ export const JobArchiveEditor = () => {
         setFileBrowserPath,
         fileList,
         isLoadingFiles,
+        fileListError,
         newItemPath,
         selectPath,
         addArchiveItem
@@ -51,6 +52,7 @@ export const JobArchiveEditor = () => {
                         className="flex-1 min-h-[250px] max-h-[300px]"
                     />
                 </div>
+                {fileListError && <div className="text-xs text-error">{fileListError}</div>}
             </div>
 
             <div className="space-y-2">

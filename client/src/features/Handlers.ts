@@ -33,15 +33,26 @@ export class Handlers {
         logger.info(`Listing directory: ${reqPath}`);
 
         try {
+            // Children are named from the resolved path, not the requested one: a relative
+            // request would otherwise hand back relative paths, and the browser would go on
+            // navigating against this process's working directory.
             const safePath = path.resolve(reqPath);
             const entries = fs.readdirSync(safePath, { withFileTypes: true });
 
-            const files = entries.map((entry) => ({
-                name: entry.name,
-                isDirectory: entry.isDirectory(),
-                path: path.join(reqPath, entry.name),
-                size: entry.isDirectory() ? 0 : 0,
-            }));
+            const files = entries.map((entry) => {
+                const fullPath = path.join(safePath, entry.name);
+                // A Dirent describes the link, not its target, so a linked directory would
+                // show up as a file nobody can open. A dangling link stays a file.
+                let isDirectory = entry.isDirectory();
+                if (entry.isSymbolicLink()) {
+                    try {
+                        isDirectory = fs.statSync(fullPath).isDirectory();
+                    } catch {
+                        isDirectory = false;
+                    }
+                }
+                return { name: entry.name, isDirectory, path: fullPath, size: 0 };
+            });
 
             Connection.respond(WS_EVENTS.FS_LIST, { requestId, files });
         } catch (err: unknown) {

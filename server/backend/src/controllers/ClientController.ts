@@ -235,7 +235,14 @@ export class ClientController {
                 WS_EVENTS.FS_LIST,
                 { requestId: request.id, path: fsPath || "/" },
             );
-            // Payload: { requestId, files: [...], error? }
+            // Payload: { requestId, files: [...], error? }. An unreadable directory comes
+            // back as `error` without `files`; answering that with an empty 200 left the
+            // browser showing the previous directory under the new path.
+            if (payload.error || !payload.files) {
+                return reply
+                    .code(400)
+                    .send({ error: payload.error || "Directory could not be listed" });
+            }
             return payload.files;
         } catch (e: unknown) {
             return reply

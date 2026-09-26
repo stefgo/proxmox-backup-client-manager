@@ -46,7 +46,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     const { isAuthenticated } = useAuth();
     const { clients } = useClientStore();
     const { repositories, fetchRepositories } = useRepositoryStore();
-    const { fileList, isLoadingFiles, fetchFileList } = useClientFileSystemStore();
+    const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
     const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);
     const fetchClientData = useClientDetailStore((s) => s.fetchClientData);
 
@@ -171,6 +171,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
             repositories={repositories}
             fileList={fileList}
             isLoadingFiles={isLoadingFiles}
+            fileListError={fileListError}
         />
     );
 };

@@ -61,8 +61,9 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);
     const [encryptionKeyContent, setEncryptionKeyContent] = useState<string | null>(null);
 
-    // File Browser State
-    const [fileBrowserPath, setFileBrowserPath] = useState('.');
+    // File Browser State -- always absolute. The agent resolves a relative path against
+    // its own working directory, and `.` used to be where an edited job's browser opened.
+    const [fileBrowserPath, setFileBrowserPath] = useState('/');
 
     // Save State -- reported in the editor's footer rather than through a browser dialog,
     // the same arrangement the client and repository editors use.
