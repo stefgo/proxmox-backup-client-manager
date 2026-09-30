@@ -128,9 +128,11 @@ export class ProcessRunner {
     }
 
     /**
-     * Ends a run that failed before the backup process could even be started — currently
-     * the tunnel paths. The history row already exists at this point, so it is closed out
-     * rather than created.
+     * Ends a run that failed before the backup process could even be started: the tunnel
+     * paths, a config that does not resolve, a failed pre-script. Some of them have a history
+     * row by then and some do not; the row is closed out or created, so every failure is in
+     * the agent's own history -- and reaches the server with the history sync -- whether or
+     * not the server is connected at that moment.
      */
     static finishFailedRun(
         runId: string,
@@ -141,12 +143,12 @@ export class ProcessRunner {
         message: string,
     ) {
         try {
-            JobHistoryRepository.finishJob(
+            JobHistoryRepository.recordFailedRun(
                 runId,
-                JOB_STATUS.FAILED,
-                new Date().toISOString(),
-                null,
-                null,
+                jobId ?? null,
+                name,
+                jobType,
+                startTime,
                 message,
             );
         } catch (e) {

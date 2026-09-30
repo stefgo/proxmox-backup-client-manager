@@ -4,7 +4,6 @@ import { config } from "../core/Config.js";
 import { isRegistered } from "../core/Identity.js";
 import {
     WS_EVENTS,
-    ProtocolMap,
     JOB_STATUS,
     RestoreSnapshotPayload,
     BackupJob,
@@ -161,19 +160,15 @@ export class Executor {
             }
         } catch (e: unknown) {
             logger.error({ err: e }, "Job Config Resolution Error:");
-            const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                jobId: jobId,
-                name: jobName || "Unknown Backup",
-                startTime: new Date().toISOString(),
-                status: JOB_STATUS.FAILED,
-                error:
-                    "Config resolution failed: " +
+            ProcessRunner.finishFailedRun(
+                runId,
+                jobId,
+                jobName || "Unknown Backup",
+                new Date().toISOString(),
+                "backup",
+                "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
-                stderr: e instanceof Error ? e.message : String(e),
-                type: "backup",
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            );
             return;
         }
 
@@ -297,19 +292,15 @@ export class Executor {
             });
         } catch (e: unknown) {
             logger.error({ err: e }, "Job Config Resolution Error:");
-            const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                jobId: jobId,
-                name: displayName,
-                startTime: startTime,
-                status: JOB_STATUS.FAILED,
-                error:
-                    "Config resolution failed: " +
+            ProcessRunner.finishFailedRun(
+                runId,
+                jobId,
+                displayName,
+                startTime,
+                jobType,
+                "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
-                stderr: e instanceof Error ? e.message : String(e),
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            );
             removeTempKeyfile(tempKeyfilePath);
             this.releaseJobSlot(jobId);
             return;
@@ -325,17 +316,14 @@ export class Executor {
             );
             if (!success) {
                 logger.error("Aborting backup due to pre-script failure.");
-                const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                    id: runId,
-                    jobId: jobId,
-                    name: displayName,
-                    startTime: startTime,
-                    status: JOB_STATUS.FAILED,
-                    error: "Pre-execution script failed. Operation aborted.",
-                    stderr: "Pre-execution script failed. Operation aborted.",
-                    type: jobType,
-                };
-                Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+                ProcessRunner.finishFailedRun(
+                    runId,
+                    jobId,
+                    displayName,
+                    startTime,
+                    jobType,
+                    "Pre-execution script failed. Operation aborted.",
+                );
                 removeTempKeyfile(tempKeyfilePath);
                 this.releaseJobSlot(jobId);
                 return;
@@ -441,18 +429,15 @@ export class Executor {
             args = buildRestoreArgs(payload, { keyfilePath: tempKeyfilePath });
         } catch (e: unknown) {
             logger.error({ err: e }, "Restore Config Error:");
-            const statusPayload: ProtocolMap["STATUS_UPDATE"]["req"] = {
-                id: runId,
-                name: jobName,
-                startTime: startTime,
-                status: JOB_STATUS.FAILED,
-                error:
-                    "Config resolution failed: " +
+            ProcessRunner.finishFailedRun(
+                runId,
+                undefined,
+                jobName,
+                startTime,
+                jobType,
+                "Config resolution failed: " +
                     (e instanceof Error ? e.message : String(e)),
-                stderr: e instanceof Error ? e.message : String(e),
-                type: jobType,
-            };
-            Connection.send(WS_EVENTS.STATUS_UPDATE, statusPayload);
+            );
             removeTempKeyfile(tempKeyfilePath);
             return;
         }

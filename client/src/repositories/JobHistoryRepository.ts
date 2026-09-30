@@ -410,6 +410,40 @@ export class JobHistoryRepository {
         this.changed();
     }
 
+    /**
+     * A run that failed before it started: its config did not resolve, a pre-script failed.
+     * Most of those never had a row -- the row is written when the process starts -- and so
+     * were known to the server only, and only if it was connected at that moment. Recorded
+     * here, they sync like any other run, including after the agent was offline.
+     */
+    static recordFailedRun(
+        id: string,
+        jobId: string | null,
+        name: string,
+        type: string,
+        startTime: string,
+        message: string,
+    ): void {
+        const endTime = new Date().toISOString();
+        if (this.load().has(id)) {
+            this.update(id, { status: "failed", endTime, exitCode: null, stderr: message });
+            this.changed();
+            return;
+        }
+        this.insert({
+            id,
+            jobId,
+            name,
+            type,
+            status: "failed",
+            startTime,
+            endTime,
+            exitCode: null,
+            stdout: null,
+            stderr: message,
+        });
+    }
+
     static failJob(id: string, stderr: string): void {
         this.update(id, { status: "failed", stderr });
         this.changed();
