@@ -6,7 +6,7 @@ import { JOB_PHASE, JOB_STATUS, type RunSnapshotDetails } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { RunSnapshotSection } from './RunSnapshotSection';
+import { runSnapshotLog } from '../lib/runSnapshotLog';
 
 // The status maps to a role, not to a colour -- Badge owns what each role
 // looks like, in both themes. "neutral" covers idle, queued, skipped and
@@ -104,6 +104,18 @@ export const BaseHistoryList = ({
         {
             listItemRender: (item) => {
                 const isExpanded = expandedIds.has(item.id);
+                const snapshotLog =
+                    item.type === 'backup' && item.status === JOB_STATUS.SUCCESS
+                        ? runSnapshotLog({
+                            snapshot: item.snapshot,
+                            details: item.snapshotDetails,
+                            error: item.snapshotError,
+                        })
+                        : null;
+                // The snapshot goes below the CLI's own output, as its last step.
+                const log = [(item.error || item.stderr || item.stdout)?.trimEnd(), snapshotLog]
+                    .filter(Boolean)
+                    .join('\n');
                 return (
                     <div className="w-full">
                         <div className="group">
@@ -142,13 +154,6 @@ export const BaseHistoryList = ({
                         </div>
                         {isExpanded && (
                             <div onClick={(e) => e.stopPropagation()}>
-                                {item.type === 'backup' && item.status === JOB_STATUS.SUCCESS && (
-                                    <RunSnapshotSection
-                                        snapshot={item.snapshot}
-                                        details={item.snapshotDetails}
-                                        error={item.snapshotError}
-                                    />
-                                )}
                                 {item.status === JOB_STATUS.RUNNING &&
                                     liveLogs[item.id] &&
                                     liveLogs[item.id].length > 0 ? (
@@ -157,20 +162,14 @@ export const BaseHistoryList = ({
                                     >
                                         {liveLogs[item.id].join('')}
                                     </div>
-                                ) : item.error || item.stderr ? (
+                                ) : log ? (
                                     <div
-                                        className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED
+                                        className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED && (item.error || item.stderr)
                                             ? 'bg-error-bg text-error'
                                             : 'bg-hover text-text-muted'
                                             }`}
                                     >
-                                        {item.error || item.stderr}
-                                    </div>
-                                ) : item.stdout ? (
-                                    <div
-                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-hover text-text-muted"
-                                    >
-                                        {item.stdout}
+                                        {log}
                                     </div>
                                 ) : (
                                     <div className="mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default">
