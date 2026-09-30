@@ -13,9 +13,18 @@ const HISTORY_DIR = "history";
 /**
  * How many runs the agent keeps once the server has them. The server holds the history;
  * what stays here is what the agent's own HISTORY answer shows (`getRecentHistory(50)`), plus
- * everything the server has not acknowledged yet -- that is kept however old it is.
+ * everything the server has not acknowledged yet, up to MAX_UNSYNCED.
  */
 const HISTORY_KEEP = 50;
+
+/**
+ * How many runs the agent holds while the server has not acknowledged them. An agent that
+ * has been cut off for weeks must not fill its disk: a run carries up to twice `logCapBytes`
+ * of output, so this bounds the history at about 256 MB with the defaults. The oldest go
+ * first -- they are the ones the server would have been sent next, and the least worth
+ * keeping. The same number as the activity queue in the Docker Instance Manager agent.
+ */
+const MAX_UNSYNCED = 500;
 
 /** One run as `history/<id>.json` holds it. */
 const HistoryRecordSchema = z.object({
@@ -101,6 +110,15 @@ function metaOf(run: HistoryRecord): HistoryMeta {
 
 function isUnsynced(run: HistoryMeta): boolean {
     return run.syncedRevision === null || run.syncedRevision < run.revision;
+}
+
+function isActive(run: HistoryMeta): boolean {
+    return run.status === "queued" || run.status === "running";
+}
+
+/** The order runs are synced in -- and, past MAX_UNSYNCED, dropped in. */
+function oldestFirst(a: HistoryMeta, b: HistoryMeta): number {
+    return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
 function toRow(run: HistoryRecord): HistoryRow & UnsyncedHistoryRow {
@@ -191,6 +209,9 @@ export class JobHistoryRepository {
             revision: 1,
             syncedRevision: null,
         });
+        // Here and not only on acknowledgement: an agent without a server acknowledges
+        // nothing, and that is exactly when the unacknowledged runs pile up.
+        this.prune();
         this.changed();
     }
 
@@ -224,9 +245,9 @@ export class JobHistoryRepository {
     }
 
     /**
-     * Deletes the runs nobody needs any more. Kept are every run the server has not
-     * acknowledged, every run still queued or running -- the restart logic acts on those --
-     * and the newest HISTORY_KEEP.
+     * Deletes the runs nobody needs any more. Kept are every run still queued or running --
+     * the restart logic acts on those -- the newest HISTORY_KEEP, and every run the server
+     * has not acknowledged, up to the newest MAX_UNSYNCED of them.
      */
     private static prune(): void {
         const index = this.index;
@@ -241,13 +262,28 @@ export class JobHistoryRepository {
         let removed = 0;
         for (const run of [...index.values()]) {
             if (keep.has(run.id) || isUnsynced(run)) continue;
-            if (run.status === "queued" || run.status === "running") continue;
+            if (isActive(run)) continue;
             if (removeJsonFile(fileOf(run.id))) {
                 index.delete(run.id);
                 removed++;
             }
         }
         if (removed > 0) logger.debug({ removed }, "Pruned acknowledged history entries");
+
+        // Active runs are not counted: they cannot be dropped, and they are few.
+        const unsynced = [...index.values()]
+            .filter((run) => isUnsynced(run) && !isActive(run))
+            .sort(oldestFirst);
+        let dropped = 0;
+        for (const run of unsynced.slice(0, Math.max(0, unsynced.length - MAX_UNSYNCED))) {
+            if (removeJsonFile(fileOf(run.id))) {
+                index.delete(run.id);
+                dropped++;
+            }
+        }
+        if (dropped > 0) {
+            logger.warn({ dropped }, "History full, dropped the oldest unacknowledged runs");
+        }
     }
 
     /**
@@ -256,17 +292,11 @@ export class JobHistoryRepository {
     static findUnsynced(limit: number): UnsyncedHistoryRow[] {
         const due = [...this.load().values()]
             .filter(isUnsynced)
-            .sort(
-                (a, b) =>
-                    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-            )
+            .sort(oldestFirst)
             .slice(0, limit);
         const ids = new Set(due.map((run) => run.id));
         return this.readAll((run) => ids.has(run.id))
-            .sort(
-                (a, b) =>
-                    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-            )
+            .sort(oldestFirst)
             .map(toRow);
     }
 

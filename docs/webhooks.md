@@ -16,7 +16,9 @@ arrives.
 
 - An agent keeps every run until the server has acknowledged it. A run that ends while the
   server is down or unreachable is reported **once the agent is connected again** — late, but
-  not lost. `event.occurredAt` is when the run ended, not when the webhook was sent.
+  not lost. `event.occurredAt` is when the run ended, not when the webhook was sent. The
+  exception is a long outage: an agent holds at most 500 undelivered runs and drops the
+  oldest beyond that, and a dropped run sends no webhook.
 - The requests leave from **the server's network**. A target has to be reachable from the
   server, not from the clients.
 

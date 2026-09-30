@@ -261,7 +261,12 @@ the agent run its scheduled backups with no server in reach.
 - **Retention**: a run stays until the server has acknowledged it. Of the acknowledged
   ones, the newest 50 are kept — as many as the agent's own `HISTORY` answer returns — and
   the rest are deleted after each acknowledgement. Queued and running runs are always kept.
-  An agent cut off from its server therefore keeps everything until it is back.
+  An agent cut off from its server keeps what it has not delivered until it is back — **up
+  to 500 runs**. Past that, each new run drops the oldest undelivered one, with a warning
+  in the log (`History full, dropped the oldest unacknowledged runs`); those never reach
+  the server. A run holds at most twice `logCapBytes` of output, so the limit bounds the
+  history at about 256 MB with the defaults. At one run an hour that is about three weeks
+  of outage, at one a day well over a year.
 - **Import from SQLite**: an agent that still has the `client.db` of an older version
   imports its jobs and their schedule state on the first start and renames the database to
   `client.db.migrated`. The **history is not imported**; runs the server had not received

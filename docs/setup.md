@@ -154,7 +154,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | `logCapBytes` | Bytes of `stdout` and `stderr` kept per run, each channel separately (default: `262144`, i.e. 256 KB). Head and tail are kept with the middle dropped and marked. Values below 1024 are ignored. |
 
 There is no setting for how long the history is kept. The agent keeps every run until the
-server has acknowledged it, and of those the newest 50; see [Data Files](client.md) in
+server has acknowledged it (at most 500 of them), and of those the newest 50; see [Data Files](client.md) in
 the client architecture. A `retentionTime` left over in an older `config.yaml` is ignored
 with a warning.
 
