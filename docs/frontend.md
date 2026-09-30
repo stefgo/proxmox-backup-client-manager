@@ -157,10 +157,12 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
   The final update sends `phase: null` explicitly: the stores merge updates with a spread,
   and a phase left out would stay. `useJobResultToasts` needs nothing for this — it reacts
   to final statuses only.
-- **Snapshot details.** The expanded row of a successful backup shows `RunSnapshotSection`
-  above the log: the snapshot, its size, the key fingerprint and each archive with size and
-  crypt mode (a `Badge`). The details are part of the history row, so nothing is loaded on
-  expand. A run of an older agent is marked as not linked.
+- **Snapshot details.** The expanded row of a successful backup appends the snapshot to the
+  log, below the CLI's own output (`features/history/lib/runSnapshotLog.ts`): a line
+  `Reading Snapshot <snapshot>`, then one line per archive with its size and, if encrypted
+  or signed, the crypt mode — `docker.pxar.didx 1.99MiB (encrypted)`. The manifest is left
+  out. The details are part of the history row, so nothing is loaded on expand. A run of an
+  older agent has no snapshot and shows its log alone.
 - **No details.** A successful backup whose snapshot could not be read gets a warning
   badge *no snapshot details* next to its status, and the reason in the expanded row. It
   does not count towards the dot on "History", which stays for failed runs.
