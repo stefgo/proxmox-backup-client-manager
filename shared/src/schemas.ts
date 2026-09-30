@@ -3,6 +3,7 @@ import {
     CLIENT_STATUS,
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
+    JOB_PHASE,
     WEBHOOK_LEVELS,
     WEBHOOK_METHODS,
 } from "./constants.js";
@@ -385,6 +386,46 @@ export const SnapshotSchema = z.object({
     fingerprint: z.string().optional(),
 });
 
+/**
+ * What a backup run left on the PBS, as the agent read it back with `snapshot list` right
+ * after the run. Stored with the run, so it outlives a prune of the snapshot itself.
+ *
+ * Deliberately without `verification`: that is set by a verify job hours later, and a copy
+ * taken when the run ended would say nothing about it.
+ */
+export const RunSnapshotDetailsSchema = z.object({
+    backupType: z.string(),
+    backupId: z.string(),
+    backupTime: z.number(),
+    files: z.array(
+        z.object({
+            filename: z.string(),
+            cryptMode: z.string().optional(),
+            size: z.number().optional(),
+        }),
+    ),
+    size: z.number().optional(),
+    owner: z.string().optional(),
+    comment: z.string().optional(),
+    fingerprint: z.string().optional(),
+    protected: z.boolean().optional(),
+});
+
+/**
+ * The snapshot fields a run carries -- on the wire from the agent, in its history and in
+ * the server's. All optional: an agent of an older build sends none of them, and a
+ * required field would make the server drop its whole SYNC_HISTORY payload.
+ *
+ * - `snapshot`: `host/<clientId>/<time>`, fixed by the agent before the run starts.
+ * - `snapshotDetails`: what the PBS reported for it once the run had ended.
+ * - `snapshotError`: why there are no details, although the backup itself succeeded.
+ */
+const runSnapshotFields = {
+    snapshot: z.string().nullable().optional(),
+    snapshotDetails: RunSnapshotDetailsSchema.nullable().optional(),
+    snapshotError: z.string().nullable().optional(),
+};
+
 // WS Payloads schemas
 
 export const AuthPayloadSchema = z.object({
@@ -415,6 +456,13 @@ export const StatusUpdatePayloadSchema = z.object({
     stdout: z.string().optional(),
     stderr: z.string().optional(),
     error: z.string().optional(),
+    /**
+     * A step of a run that is still `running` but no longer in the CLI -- today only
+     * `snapshot`, the query for the snapshot details after a backup. The final update
+     * sends it as null, so a receiver that merges updates does not keep the old value.
+     */
+    phase: z.enum([JOB_PHASE.SNAPSHOT]).nullable().optional(),
+    ...runSnapshotFields,
 });
 
 export const LogUpdatePayloadSchema = z.object({
@@ -531,6 +579,7 @@ export const HistoryEntrySchema = z.object({
      * agent of an older build sends none and is synced the old way.
      */
     revision: z.number().int().optional(),
+    ...runSnapshotFields,
 });
 
 export const HistoryResponseSchema = z.object({
@@ -559,6 +608,7 @@ export const GlobalHistoryEntrySchema = z.object({
     stderr: z.string().nullable(),
     hostname: z.string().nullable(),
     displayName: z.string().nullable(),
+    ...runSnapshotFields,
 });
 
 export const GlobalHistoryResponseSchema = z.object({
@@ -753,6 +803,7 @@ export const PbsSnapshotSchema = z.looseObject({
     owner: z.string().optional(),
     comment: z.string().optional(),
     fingerprint: z.string().optional(),
+    protected: z.boolean().optional(),
 });
 
 /** The envelope PBS wraps every list response in. */

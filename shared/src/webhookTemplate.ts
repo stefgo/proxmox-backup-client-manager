@@ -574,12 +574,32 @@ const SAMPLE_RUN: WebhookRun = {
     endTime: SAMPLE_END,
     exitCode: 255,
     stderr: "Error: unable to open chunk store 'backup' - permission denied",
+    snapshot: null,
+    snapshotDetails: null,
+    snapshotError: null,
+};
+
+const SAMPLE_BACKUP_TIME = Date.parse(SAMPLE_START) / 1000;
+
+/** What a successful sample backup left on the PBS. */
+const SAMPLE_SNAPSHOT: Pick<WebhookRun, "snapshot" | "snapshotDetails"> = {
+    snapshot: "host/sample-client/2026-09-28T02:00:00Z",
+    snapshotDetails: {
+        backupType: "host",
+        backupId: "sample-client",
+        backupTime: SAMPLE_BACKUP_TIME,
+        size: 53687091200,
+        files: [
+            { filename: "home.pxar.didx", size: 53687091200, cryptMode: "encrypt" },
+            { filename: "index.json.blob", size: 612, cryptMode: "sign-only" },
+        ],
+    },
 };
 
 /** One per kind, in the order a preview looks for them. */
 const SAMPLES: WebhookRun[] = [
     SAMPLE_RUN,
-    { ...SAMPLE_RUN, status: "success", exitCode: 0, stderr: null },
+    { ...SAMPLE_RUN, status: "success", exitCode: 0, stderr: null, ...SAMPLE_SNAPSHOT },
     { ...SAMPLE_RUN, status: "abort", exitCode: null, stderr: "Aborted on daemon startup (leftover state)" },
     {
         ...SAMPLE_RUN,

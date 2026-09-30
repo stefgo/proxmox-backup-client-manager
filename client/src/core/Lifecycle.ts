@@ -57,6 +57,9 @@ export async function startAgentActivity(): Promise<boolean> {
     // cut short by a restart does not stay 'running' forever.
     await Executor.cleanupRunningJobs();
     await Executor.resumeQueuedJobs();
+    // Interrupted tunnel backups: their lease needs the server, so they are checked once
+    // it is connected. Registered before the first connection can come about.
+    Connection.onAuthenticated(() => void Executor.checkDeferredBackups());
 
     Scheduler.start();
 

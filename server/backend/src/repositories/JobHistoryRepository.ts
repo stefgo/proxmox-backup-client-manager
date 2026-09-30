@@ -5,6 +5,8 @@ import {
     HistoryEntry,
     GlobalHistoryEntry,
     isFinalJobStatus,
+    RunSnapshotDetailsSchema,
+    type RunSnapshotDetails,
     type WebhookRun,
 } from "@pbcm/shared";
 
@@ -12,6 +14,65 @@ import {
 // their Zod schemas, so they can be typed instead of taking `any`.
 
 const selectStatus = () => db.prepare("SELECT status FROM job_history WHERE id = ?");
+const selectSnapshot = () =>
+    db.prepare(
+        "SELECT snapshot, snapshot_details, snapshot_error FROM job_history WHERE id = ?",
+    );
+
+/** The snapshot columns as a query returns them, before `withSnapshot` reads them. */
+interface SnapshotColumns {
+    snapshot: string | null;
+    snapshotDetails: string | null;
+    snapshotError: string | null;
+}
+
+/**
+ * `snapshot_details` is JSON the agent sent; read back through its schema, so a row that
+ * does not parse shows no details instead of breaking the list it is in.
+ */
+function parseSnapshotDetails(json: string | null): RunSnapshotDetails | null {
+    if (!json) return null;
+    try {
+        const parsed = RunSnapshotDetailsSchema.safeParse(JSON.parse(json));
+        return parsed.success ? parsed.data : null;
+    } catch {
+        return null;
+    }
+}
+
+function withSnapshot<T extends SnapshotColumns>(
+    row: T,
+): Omit<T, "snapshotDetails"> & { snapshotDetails: RunSnapshotDetails | null } {
+    return { ...row, snapshotDetails: parseSnapshotDetails(row.snapshotDetails) };
+}
+
+/** The snapshot fields of a run as it is stored now, for the webhook built from it. */
+function storedSnapshot(id: string): Pick<WebhookRun, "snapshot" | "snapshotDetails" | "snapshotError"> {
+    const row = selectSnapshot().get(id) as
+        | { snapshot: string | null; snapshot_details: string | null; snapshot_error: string | null }
+        | undefined;
+    return {
+        snapshot: row?.snapshot ?? null,
+        snapshotDetails: parseSnapshotDetails(row?.snapshot_details ?? null),
+        snapshotError: row?.snapshot_error ?? null,
+    };
+}
+
+/** Details as a column value: JSON, or null when there are none. */
+function detailsColumn(details: RunSnapshotDetails | null | undefined): string | null {
+    return details ? JSON.stringify(details) : null;
+}
+
+/**
+ * The snapshot columns of the two upserts. Kept when a write does not carry them: a
+ * post-script that turns a success into a failure sends its update without them, and an
+ * agent of an older build never sends any. Details that arrive clear an earlier error.
+ */
+const SNAPSHOT_UPDATE = `
+                snapshot=COALESCE(excluded.snapshot, job_history.snapshot),
+                snapshot_details=COALESCE(excluded.snapshot_details, job_history.snapshot_details),
+                snapshot_error=CASE WHEN excluded.snapshot_details IS NOT NULL THEN NULL
+                    ELSE COALESCE(excluded.snapshot_error, job_history.snapshot_error) END,`;
 
 /**
  * The run as it has to be reported, when a write just gave it a final state it did not have
@@ -39,6 +100,8 @@ export class JobHistoryRepository {
                 h.id, h.client_id as clientId, h.job_id as jobId, h.name,
                 h.type, h.status, h.start_time as startTime, h.end_time as endTime,
                 h.exit_code as exitCode, h.stdout, h.stderr,
+                h.snapshot, h.snapshot_details as snapshotDetails,
+                h.snapshot_error as snapshotError,
                 c.hostname, c.display_name as displayName
             FROM job_history h
             LEFT JOIN clients c ON h.client_id = c.id
@@ -46,7 +109,8 @@ export class JobHistoryRepository {
             LIMIT ? OFFSET ?
         `,
             )
-            .all(limit, offset) as GlobalHistoryEntry[];
+            .all(limit, offset)
+            .map((row) => withSnapshot(row as SnapshotColumns)) as GlobalHistoryEntry[];
     }
 
     /**
@@ -63,6 +127,8 @@ export class JobHistoryRepository {
                 h.id, h.client_id as clientId, h.job_id as jobId, h.name,
                 h.type, h.status, h.start_time as startTime, h.end_time as endTime,
                 h.exit_code as exitCode, h.stdout, h.stderr,
+                h.snapshot, h.snapshot_details as snapshotDetails,
+                h.snapshot_error as snapshotError,
                 c.hostname, c.display_name as displayName
             FROM (
                 SELECT *, ROW_NUMBER() OVER (
@@ -76,7 +142,8 @@ export class JobHistoryRepository {
             ORDER BY h.start_time DESC
         `,
             )
-            .all() as GlobalHistoryEntry[];
+            .all()
+            .map((row) => withSnapshot(row as SnapshotColumns)) as GlobalHistoryEntry[];
     }
 
     /**
@@ -142,14 +209,14 @@ export class JobHistoryRepository {
     ): WebhookRun | null {
         const upsert = db.prepare(
             `
-            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr, snapshot, snapshot_details, snapshot_error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET 
                 status=excluded.status, 
                 end_time=excluded.end_time, 
                 exit_code=excluded.exit_code, 
                 stdout=excluded.stdout, 
-                stderr=excluded.stderr,
+                stderr=excluded.stderr,${SNAPSHOT_UPDATE}
                 updated_at=CURRENT_TIMESTAMP
         `,
         );
@@ -163,6 +230,9 @@ export class JobHistoryRepository {
             endTime: payload.endTime || null,
             exitCode: payload.exitCode ?? null,
             stderr: payload.stderr || null,
+            snapshot: null,
+            snapshotDetails: null,
+            snapshotError: null,
         };
         return db.transaction(() => {
             const before = selectStatus().get(payload.id) as { status: string } | undefined;
@@ -178,8 +248,12 @@ export class JobHistoryRepository {
                 payload.exitCode ?? null,
                 payload.stdout || null,
                 payload.stderr || null,
+                payload.snapshot ?? null,
+                detailsColumn(payload.snapshotDetails),
+                payload.snapshotError ?? null,
             );
-            return finishedRun(before?.status, changes > 0, run);
+            const finished = finishedRun(before?.status, changes > 0, run);
+            return finished && { ...finished, ...storedSnapshot(payload.id) };
         })();
     }
 
@@ -192,15 +266,15 @@ export class JobHistoryRepository {
         // older state back. Without a revision on either side -- an agent of an older
         // build -- the row is overwritten as it always was.
         const insertStmt = db.prepare(`
-            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr, revision)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr, revision, snapshot, snapshot_details, snapshot_error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET 
                 status=excluded.status, 
                 end_time=excluded.end_time, 
                 exit_code=excluded.exit_code, 
                 stdout=excluded.stdout, 
                 stderr=excluded.stderr,
-                revision=excluded.revision,
+                revision=excluded.revision,${SNAPSHOT_UPDATE}
                 updated_at=CURRENT_TIMESTAMP
             WHERE excluded.revision IS NULL
                 OR job_history.revision IS NULL
@@ -225,6 +299,9 @@ export class JobHistoryRepository {
                     entry.stdout || null,
                     entry.stderr || null,
                     entry.revision ?? null,
+                    entry.snapshot ?? null,
+                    detailsColumn(entry.snapshotDetails),
+                    entry.snapshotError ?? null,
                 );
                 const run = finishedRun(before?.status, changes > 0, {
                     id: entry.id,
@@ -236,8 +313,11 @@ export class JobHistoryRepository {
                     endTime: entry.endTime,
                     exitCode: entry.exitCode,
                     stderr: entry.stderr || null,
+                    snapshot: null,
+                    snapshotDetails: null,
+                    snapshotError: null,
                 });
-                if (run) finished.push(run);
+                if (run) finished.push({ ...run, ...storedSnapshot(entry.id) });
             }
             return finished;
         });

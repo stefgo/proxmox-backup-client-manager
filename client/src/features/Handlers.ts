@@ -293,6 +293,8 @@ export class Handlers {
                 startTime: h.start_time,
                 endTime: h.end_time,
                 exitCode: h.exit_code,
+                snapshotDetails: h.snapshot_details,
+                snapshotError: h.snapshot_error,
             }));
             Connection.respond(WS_EVENTS.HISTORY, {
                 requestId: payload.requestId,

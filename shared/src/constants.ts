@@ -67,6 +67,15 @@ export const JOB_STATUS = {
     QUEUED: "queued",
 } as const;
 
+/**
+ * A step of a run that is still `running` but whose CLI has already exited. Not a status of
+ * its own: filters, webhooks and toasts keep reading the status alone.
+ */
+export const JOB_PHASE = {
+    /** The agent reads the details of the snapshot the backup just created. */
+    SNAPSHOT: "snapshot",
+} as const;
+
 export const CONNECTION_MODE = {
     INBOUND: "inbound",
     OUTBOUND: "outbound",

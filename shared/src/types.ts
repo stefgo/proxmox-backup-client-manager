@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
     JOB_STATUS,
+    JOB_PHASE,
     CLIENT_STATUS,
     CONNECTION_MODE,
     TUNNEL_STATUS,
@@ -27,6 +28,7 @@ import {
     CreateRegistrationTokenSchema,
     CreatedTokenSchema,
     SnapshotSchema,
+    RunSnapshotDetailsSchema,
     AuthPayloadSchema,
     RunJobPayloadSchema,
     StatusUpdatePayloadSchema,
@@ -82,6 +84,7 @@ import {
  * not know yet.
  */
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
+export type JobPhase = (typeof JOB_PHASE)[keyof typeof JOB_PHASE];
 export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
 export type ConnectionMode =
     (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MODE];
@@ -125,6 +128,7 @@ export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
+export type RunSnapshotDetails = z.infer<typeof RunSnapshotDetailsSchema>;
 
 // REST request bodies
 

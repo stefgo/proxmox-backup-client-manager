@@ -37,12 +37,13 @@ export type RealtimeEvents = {
      * "Unknown Client" in the history list.
      *
      * On the wire `job` is a `StatusUpdatePayload`: it names the job config `jobId` rather
-     * than `jobConfigId`, and may carry an `error`. Those two are declared here so the
-     * result toasts can read them; the rest stays typed as the history row it becomes.
+     * than `jobConfigId`, and may carry an `error` and a `phase` (a run still `running`
+     * after its CLI exited). Those are declared here so the toasts and the history list can
+     * read them; the rest stays typed as the history row it becomes.
      */
     jobUpdate: {
         clientId: string;
-        job: HistoryEntry & Pick<StatusUpdatePayload, 'jobId' | 'error'>;
+        job: HistoryEntry & Pick<StatusUpdatePayload, 'jobId' | 'error' | 'phase'>;
     };
 
     /** One chunk of a running job's output. `jobId` is the run id, not the job config id. */

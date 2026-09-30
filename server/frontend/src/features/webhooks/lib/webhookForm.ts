@@ -132,6 +132,8 @@ export const PLACEHOLDERS: { path: string; description: string }[] = [
     { path: 'event.data.type', description: 'backup or restore' },
     { path: 'event.data.durationSeconds', description: 'How long the run took, or the client was gone' },
     { path: 'event.data.exitCode', description: 'Exit code of proxmox-backup-client' },
+    { path: 'event.data.snapshot', description: 'Backups: id, size (bytes), archives [name, size, cryptMode] of the snapshot created, else null' },
+    { path: 'event.data.snapshotError', description: 'Why a successful backup has no snapshot details, else null' },
     { path: 'client.name', description: 'Display name, else hostname' },
     { path: 'client.hostname', description: 'Hostname the agent reported' },
     { path: 'client.id', description: 'Client id' },

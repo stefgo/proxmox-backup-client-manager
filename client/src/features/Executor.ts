@@ -5,8 +5,10 @@ import { isRegistered } from "../core/Identity.js";
 import {
     WS_EVENTS,
     JOB_STATUS,
+    JOB_PHASE,
     RestoreSnapshotPayload,
     BackupJob,
+    type RunSnapshotDetails,
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
@@ -21,6 +23,9 @@ import {
     buildBackupArgs,
     buildRestoreArgs,
 } from "./execution/CommandBuilder.js";
+import { querySnapshot } from "./execution/SnapshotQuery.js";
+import { TunnelClient, TunnelLease } from "./TunnelClient.js";
+import type { HistoryRow } from "../repositories/JobHistoryRepository.js";
 
 export interface JobHistoryRow {
     id: string;
@@ -46,23 +51,180 @@ export interface JobRow {
 export class Executor {
     private static runningJobs = new Set<string>();
     private static pendingJobs = new Map<string, string>();
+    /**
+     * Interrupted tunnel backups waiting for the server: their lease can only be requested
+     * once it is connected. They stay `running` until then -- never a provisional `abort`,
+     * which would be a second final status and a second webhook.
+     */
+    private static deferredChecks = new Map<string, HistoryRow>();
 
     /**
-     * Cleans up stale jobs from the history table that are still marked as 'running'
-     * by setting their status to 'abort'. This usually runs on client agent startup
-     * to ensure no ghost jobs remain.
+     * Settles the runs a previous agent process left `running`, on startup and before the
+     * server is connected.
+     *
+     * A backup that knows its snapshot is looked up on the PBS first: it may well have
+     * finished -- the process ended during the snapshot query, or after the backup and
+     * before its status was written. Found and finished, it becomes `success`; otherwise
+     * `abort`, as every other leftover run. A tunnel backup cannot be looked up yet (the
+     * lease needs the server) and is checked once the connection is there.
      */
     static async cleanupRunningJobs() {
         logger.info("Checking for stale 'running' jobs in history...");
         try {
-            const changes = JobHistoryRepository.cleanUpRunningJobs();
+            for (const run of JobHistoryRepository.findInterruptedBackups()) {
+                const job = run.job_id ? Executor.loadJobConfig(run.job_id) : null;
+                if (job?.tunnel?.required) {
+                    Executor.deferredChecks.set(run.id, run);
+                    continue;
+                }
+                await Executor.checkInterruptedBackup(run, job);
+            }
 
+            const changes = JobHistoryRepository.cleanUpRunningJobs(
+                new Set(Executor.deferredChecks.keys()),
+            );
             if (changes > 0) {
                 logger.info(`Updated ${changes} stale jobs to 'abort' status.`);
+            }
+            if (Executor.deferredChecks.size > 0) {
+                logger.info(
+                    { runs: [...Executor.deferredChecks.keys()] },
+                    "Interrupted tunnel backups are checked once the server is connected",
+                );
             }
         } catch (e) {
             logger.error({ err: e }, "Failed to cleanup stale running jobs");
         }
+    }
+
+    /**
+     * Checks the tunnel backups `cleanupRunningJobs` held back. Called on every
+     * authenticated connection; each run is taken out of the list before it is checked,
+     * so a reconnect does not check it twice.
+     */
+    static async checkDeferredBackups() {
+        const runs = [...Executor.deferredChecks.values()];
+        Executor.deferredChecks.clear();
+        for (const run of runs) {
+            Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                id: run.id,
+                jobId: run.job_id ?? undefined,
+                name: run.name || "Unknown Backup",
+                startTime: run.start_time,
+                status: JOB_STATUS.RUNNING,
+                type: run.type,
+                phase: JOB_PHASE.SNAPSHOT,
+                snapshot: run.snapshot,
+            });
+            const job = run.job_id ? Executor.loadJobConfig(run.job_id) : null;
+            await Executor.checkInterruptedBackup(run, job);
+        }
+    }
+
+    /** The stored configuration of a job, or null if there is none any more. */
+    private static loadJobConfig(jobId: string): Partial<BackupJob> | null {
+        try {
+            const row = JobRepository.findById(jobId);
+            return row?.config ? JSON.parse(row.config as string) : null;
+        } catch (e) {
+            logger.warn({ err: e, jobId }, "Could not read the job config");
+            return null;
+        }
+    }
+
+    /**
+     * Looks up the snapshot of an interrupted backup on the PBS and gives the run its final
+     * status. Never throws: a question that cannot be asked ends in `abort`, with the reason
+     * as `snapshotError`, so the history shows that the status was not verified.
+     */
+    private static async checkInterruptedBackup(
+        run: HistoryRow,
+        job: Partial<BackupJob> | null,
+    ): Promise<void> {
+        const snapshot = run.snapshot as string;
+        const abort = (note: string, error: string | null) => {
+            JobHistoryRepository.settleInterruptedBackup(run.id, JOB_STATUS.ABORTED, note, {
+                details: null,
+                error,
+            });
+            Executor.reportSettled(run, JOB_STATUS.ABORTED, null, error);
+        };
+
+        if (!job?.repository) {
+            abort(
+                "Aborted on agent restart; the snapshot could not be checked.",
+                "The job or its repository no longer exists",
+            );
+            return;
+        }
+
+        const env: NodeJS.ProcessEnv = { ...process.env };
+        let lease: TunnelLease | undefined;
+        try {
+            const password = await applyRepositoryEnv(env, job.repository, {
+                tunnelRequired: !!job.tunnel?.required,
+                jobId: run.job_id ?? undefined,
+            });
+            if (job.tunnel?.required) {
+                lease = await TunnelClient.acquire(run.id, run.job_id ?? undefined);
+                env.PBS_REPOSITORY = TunnelClient.buildRepositoryValue(job.repository, lease);
+                if (lease.fingerprint) env.PBS_FINGERPRINT = lease.fingerprint;
+            }
+
+            const result = await querySnapshot({
+                snapshot,
+                command: config.executable || "proxmox-backup-client",
+                env,
+                password,
+            });
+
+            if (result.details) {
+                logger.info({ runId: run.id, snapshot }, "Interrupted backup had finished; marked as success");
+                JobHistoryRepository.settleInterruptedBackup(
+                    run.id,
+                    JOB_STATUS.SUCCESS,
+                    "Status after agent restart: the snapshot was found on the PBS.",
+                    { details: result.details, error: null },
+                );
+                Executor.reportSettled(run, JOB_STATUS.SUCCESS, result.details, null);
+            } else if (result.notFinished) {
+                abort("Aborted on agent restart; the backup did not finish.", null);
+            } else {
+                abort("Aborted on agent restart; the snapshot could not be checked.", result.error);
+            }
+        } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            logger.warn({ err: e, runId: run.id }, "Could not check an interrupted backup");
+            abort("Aborted on agent restart; the snapshot could not be checked.", message);
+        } finally {
+            TunnelClient.release(lease);
+        }
+    }
+
+    /**
+     * Tells a connected server about a run settled after a restart. Before the connection
+     * this goes nowhere, and the history sync carries the run instead.
+     */
+    private static reportSettled(
+        run: HistoryRow,
+        status: string,
+        details: RunSnapshotDetails | null,
+        error: string | null,
+    ) {
+        if (!Connection.isConnected()) return;
+        Connection.send(WS_EVENTS.STATUS_UPDATE, {
+            id: run.id,
+            jobId: run.job_id ?? undefined,
+            name: run.name || "Unknown Backup",
+            startTime: run.start_time,
+            endTime: new Date().toISOString(),
+            status,
+            type: run.type,
+            phase: null,
+            snapshot: run.snapshot,
+            snapshotDetails: details,
+            snapshotError: error,
+        });
     }
 
     /**

@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { z } from "zod";
+import { RunSnapshotDetailsSchema, type RunSnapshotDetails } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import {
     listJsonFiles,
@@ -38,14 +39,21 @@ const HistoryRecordSchema = z.object({
     exitCode: z.number().nullable(),
     stdout: z.string().nullable(),
     stderr: z.string().nullable(),
+    // Defaulted: files written before the snapshot fields existed carry none of them.
+    snapshot: z.string().nullable().default(null),
+    snapshotDetails: RunSnapshotDetailsSchema.nullable().default(null),
+    snapshotError: z.string().nullable().default(null),
     createdAt: z.string(),
     revision: z.number().int(),
     syncedRevision: z.number().int().nullable(),
 });
 type HistoryRecord = z.infer<typeof HistoryRecordSchema>;
 
-/** What the index holds of a run: everything but its output, which is read when needed. */
-type HistoryMeta = Omit<HistoryRecord, "stdout" | "stderr">;
+/**
+ * What the index holds of a run: everything but its output and the snapshot details, which
+ * are read when needed.
+ */
+type HistoryMeta = Omit<HistoryRecord, "stdout" | "stderr" | "snapshotDetails">;
 
 /**
  * The fields the server stores. A change to any of them raises the revision, so the run is
@@ -59,6 +67,9 @@ const SYNCED_FIELDS = [
     "exitCode",
     "stdout",
     "stderr",
+    "snapshot",
+    "snapshotDetails",
+    "snapshotError",
 ] as const;
 
 export interface HistoryRow {
@@ -72,6 +83,9 @@ export interface HistoryRow {
     exit_code: number | null;
     stdout: string | null;
     stderr: string | null;
+    snapshot: string | null;
+    snapshot_details: RunSnapshotDetails | null;
+    snapshot_error: string | null;
 }
 
 /** A run as the history sync reads it: the stored fields plus the revision to confirm. */
@@ -86,6 +100,9 @@ export interface UnsyncedHistoryRow {
     exit_code: number | null;
     stdout: string | null;
     stderr: string | null;
+    snapshot: string | null;
+    snapshot_details: RunSnapshotDetails | null;
+    snapshot_error: string | null;
     revision: number;
 }
 
@@ -105,6 +122,7 @@ function metaOf(run: HistoryRecord): HistoryMeta {
     const meta: Partial<HistoryRecord> = { ...run };
     delete meta.stdout;
     delete meta.stderr;
+    delete meta.snapshotDetails;
     return meta as HistoryMeta;
 }
 
@@ -133,6 +151,9 @@ function toRow(run: HistoryRecord): HistoryRow & UnsyncedHistoryRow {
         exit_code: run.exitCode,
         stdout: run.stdout,
         stderr: run.stderr,
+        snapshot: run.snapshot,
+        snapshot_details: run.snapshotDetails,
+        snapshot_error: run.snapshotError,
         revision: run.revision,
     };
 }
@@ -201,10 +222,21 @@ export class JobHistoryRepository {
     }
 
     private static insert(
-        run: Omit<HistoryRecord, "createdAt" | "revision" | "syncedRevision">,
+        run: Omit<
+            HistoryRecord,
+            | "createdAt"
+            | "revision"
+            | "syncedRevision"
+            | "snapshot"
+            | "snapshotDetails"
+            | "snapshotError"
+        >,
     ): void {
         this.write({
             ...run,
+            snapshot: null,
+            snapshotDetails: null,
+            snapshotError: null,
             createdAt: new Date().toISOString(),
             revision: 1,
             syncedRevision: null,
@@ -359,11 +391,16 @@ export class JobHistoryRepository {
         return this.readAll((run) => run.status === "queued").map(toRow);
     }
 
-    static cleanUpRunningJobs(): number {
+    /**
+     * Sets every run still `running` to `abort`, except those in `keep` -- the interrupted
+     * backups whose snapshot is checked only once the server is there (tunnel jobs).
+     */
+    static cleanUpRunningJobs(keep: ReadonlySet<string> = new Set()): number {
         const endTime = new Date().toISOString();
         let changes = 0;
         for (const run of [...this.load().values()]) {
             if (run.status !== "running") continue;
+            if (keep.has(run.id)) continue;
             if (this.update(run.id, { status: "abort", endTime })) changes++;
         }
         if (changes > 0) this.changed();
@@ -435,8 +472,60 @@ export class JobHistoryRepository {
         exitCode: number | null,
         stdout: string | null,
         stderr: string | null,
+        snapshot?: { details: RunSnapshotDetails | null; error: string | null },
     ): void {
-        this.update(id, { status, endTime, exitCode, stdout, stderr });
+        this.update(id, {
+            status,
+            endTime,
+            exitCode,
+            stdout,
+            stderr,
+            ...(snapshot && {
+                snapshotDetails: snapshot.details,
+                snapshotError: snapshot.error,
+            }),
+        });
+        this.changed();
+    }
+
+    /**
+     * Records the snapshot a backup is about to create, before its process starts: the one
+     * thing a restart needs to find out afterwards whether the backup got through.
+     */
+    static setSnapshot(id: string, snapshot: string): void {
+        this.update(id, { snapshot });
+        this.changed();
+    }
+
+    /**
+     * Backups a previous agent process left `running` that know which snapshot they were
+     * creating -- the ones a restart can check against the PBS.
+     */
+    static findInterruptedBackups(): HistoryRow[] {
+        return this.readAll(
+            (run) => run.status === "running" && run.type === "backup" && !!run.snapshot,
+        ).map(toRow);
+    }
+
+    /**
+     * Ends a run a restart found `running`, once the PBS has been asked about its snapshot.
+     * The note is appended to its stderr, so the log says how the status came about.
+     */
+    static settleInterruptedBackup(
+        id: string,
+        status: string,
+        note: string,
+        snapshot: { details: RunSnapshotDetails | null; error: string | null },
+    ): void {
+        const current = this.read(id);
+        if (!current) return;
+        this.update(id, {
+            status,
+            endTime: new Date().toISOString(),
+            stderr: current.stderr ? `${current.stderr}\n${note}` : note,
+            snapshotDetails: snapshot.details,
+            snapshotError: snapshot.error,
+        });
         this.changed();
     }
 

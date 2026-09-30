@@ -79,6 +79,17 @@ export class Connection {
         string,
         { resolve: (value: unknown) => void; reject: (err: Error) => void }
     >();
+    /** Told about every authenticated connection, in either connection mode. */
+    private static authListeners: (() => void)[] = [];
+
+    /**
+     * Registers a callback for every time the server has authenticated this agent -- the
+     * point from which requests to it (a tunnel lease, above all) can be answered. A
+     * callback rather than an import, so this module does not depend on the features.
+     */
+    static onAuthenticated(listener: () => void): void {
+        this.authListeners.push(listener);
+    }
 
     /**
      * Checks if the WebSocket connection to the server is currently open.
@@ -340,6 +351,7 @@ export class Connection {
                         // payload is for agents of an older build and ignored here.
                         HistorySync.start();
                         opts.onAuthSuccess?.();
+                        for (const listener of Connection.authListeners) listener();
                         break;
                     case WS_EVENTS.RUN_BACKUP:
                         Handlers.handleRunJob(message.payload);
