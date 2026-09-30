@@ -127,6 +127,25 @@ history.
 A row that still carries `running_since` at startup belongs to a run the previous process
 did not finish: `markInterrupted()` turns it into the last run with status `interrupted`.
 
+#### `job_history` — snapshot columns
+
+A backup run carries the snapshot it created (migration 16), as the agent reported it — the
+server never asks the PBS for it. Columns of the run rather than a table of their own, so
+`JobHistoryCleanupService` takes them with the run.
+
+| Column | Meaning |
+| :----- | :------ |
+| `snapshot` | `host/<clientId>/<time>`, fixed by the agent with `--backup-time` before the run started. |
+| `snapshot_details` | JSON: what `snapshot list` reported for it right after the run — size, files with crypt mode, key fingerprint, owner. Survives a prune on the PBS. |
+| `snapshot_error` | Why a successful backup has no details (query timed out, PBS unreachable, …). |
+
+Both upserts write them with `COALESCE`, so a write that does not carry them — a post-script
+that turns a success into a failure, an agent of an older build — keeps what is there.
+Details that arrive clear an earlier error. The webhook for a run reads them back from the
+row after the write, so it has them whichever write ended the run. A `STATUS_UPDATE` with
+`phase: "snapshot"` (the run is still `running`) is only broadcast, like every running
+update.
+
 #### `history_seen`
 
 When each user last opened the job history (`HistorySeenRepository`, migration 14). One

@@ -465,6 +465,21 @@ clients — the address the server dials.
 | `exitCode`    | number | Process exit code (null if still running).                |
 | `stdout`      | string | Standard output of the backup process.                    |
 | `stderr`      | string | Standard error output (null if none).                     |
+| `snapshot`    | string | Backups: the snapshot the run created, `host/<clientId>/<time>`. Null for restores and for runs of agents that predate the field. |
+| `snapshotDetails` | object | Backups: what the PBS listed for that snapshot right after the run (see below); null if it could not be read. |
+| `snapshotError` | string | Why a successful backup has no `snapshotDetails`; else null. |
+
+`snapshotDetails` is a stored copy, so it stays after the snapshot is pruned on the PBS:
+
+| Field         | Type    | Description                                               |
+| :------------ | :------ | :-------------------------------------------------------- |
+| `backupType`, `backupId`, `backupTime` | string, string, number | The snapshot's name; `backupTime` in epoch seconds. |
+| `size`        | number  | Logical size in bytes — what a restore yields, not what was transferred. |
+| `files`       | array   | `{ filename, size, cryptMode }` per file; `index.json.blob` is the manifest. |
+| `fingerprint` | string  | Fingerprint of the encryption key, for an encrypted backup. |
+| `owner`, `comment`, `protected` | | As the PBS reports them. |
+
+The PBS's verify state is deliberately not part of it: a verify job sets it later.
 
 **Example Response:**
 
@@ -480,7 +495,20 @@ clients — the address the server dials.
         "endTime": "2023-10-26T02:15:30.000Z",
         "exitCode": 0,
         "stdout": "Backup finished successfully...",
-        "stderr": null
+        "stderr": null,
+        "snapshot": "host/client-uuid/2023-10-26T02:00:00Z",
+        "snapshotDetails": {
+            "backupType": "host",
+            "backupId": "client-uuid",
+            "backupTime": 1698285600,
+            "size": 53687091200,
+            "files": [
+                { "filename": "root.pxar.didx", "size": 53687091200, "cryptMode": "none" },
+                { "filename": "index.json.blob", "size": 612, "cryptMode": "none" }
+            ],
+            "owner": "backup@pbs!pbcm"
+        },
+        "snapshotError": null
     }
 ]
 ```
@@ -1889,6 +1917,9 @@ receive no ack.
             "exitCode": 0,
             "stdout": "...",
             "stderr": "...",
+            "snapshot": "host/client-uuid/2026-09-30T02:00:00Z",
+            "snapshotDetails": { "...": "see Get Client History" },
+            "snapshotError": null,
             "revision": 3
         }
     ]
@@ -1910,9 +1941,19 @@ receive no ack.
     "endTime": "ISO-TIMESTAMP",
     "exitCode": 0,
     "stdout": "output...",
-    "stderr": "errors..."
+    "stderr": "errors...",
+    "phase": null,
+    "snapshot": "host/client-uuid/2026-09-30T02:00:00Z",
+    "snapshotDetails": { "...": "see Get Client History" },
+    "snapshotError": null
 }
 ```
+
+After a successful backup the agent reads back its snapshot before the run ends. For that
+step it sends an update with `"status": "running"` and `"phase": "snapshot"`; the final
+update carries `"phase": null` and the snapshot fields. The server stores only final
+updates and passes every update on as `JOB_UPDATE`. All four fields are optional — agents
+of an older build send none of them.
 
 **`LOG_UPDATE`**
 **Description:** Real-time log streaming from agent.

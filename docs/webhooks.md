@@ -31,9 +31,9 @@ event passes. There are two kinds of event.
 
 | Kind | The run… | Level |
 | :--- | :------- | :---- |
-| `job.succeeded` | finished successfully | `info` |
+| `job.succeeded` | finished successfully — for a backup, once the agent has read back the snapshot it created, so the event carries it | `info` |
 | `job.failed` | failed — the backup itself, or before it started: a job whose configuration does not resolve, a failed pre-script, a tunnel that could not be opened | `error` |
-| `job.aborted` | was cut short, e.g. because the agent restarted while it ran; reported when the agent comes back | `warning` |
+| `job.aborted` | was cut short, e.g. because the agent restarted while it ran; reported when the agent comes back. A backup whose snapshot the agent then finds finished on the PBS is reported as `job.succeeded` instead | `warning` |
 | `job.skipped` | did not start because the same job was already running and another run already queued | `warning` |
 
 **A client lost its connection:**
@@ -110,11 +110,13 @@ follows the webhook's event kinds: the first of `job.failed`, `job.succeeded`, `
 | `event.level` | `info`, `warning` or `error` |
 | `event.occurredAt` | Runs: when the run ended, on the client's clock. Clients: when the connection closed (`client.disconnected`) or was back (`client.reconnected`), on the server's clock. ISO 8601 |
 | `event.id` | The id of the run, or of the client event |
-| `event.data` | Runs: `{ runId, jobId, jobName, type, status, startTime, endTime, durationSeconds, exitCode }`. Clients: `{ clientId, disconnectedAt, reconnectedAt, durationSeconds }`. Single fields as `event.data.jobName` |
+| `event.data` | Runs: `{ runId, jobId, jobName, type, status, startTime, endTime, durationSeconds, exitCode, snapshot, snapshotError }`. Clients: `{ clientId, disconnectedAt, reconnectedAt, durationSeconds }`. Single fields as `event.data.jobName` |
 | `event.data.type` | `backup` or `restore` |
 | `event.data.status` | The run's status as the history shows it: `success`, `failed`, `abort`, `skipped` |
 | `event.data.exitCode` | Exit code of proxmox-backup-client; `null` when it never ran |
 | `event.data.durationSeconds` | How long the run took, or how long the client was gone |
+| `event.data.snapshot` | A backup's snapshot: `{ id, size, archives: [{ name, size, cryptMode }] }`, sizes in bytes (`size` is the logical size, what a restore yields). `null` for a restore, a failed backup, or one whose snapshot could not be read |
+| `event.data.snapshotError` | Why a successful backup has no `snapshot`; else `null`. The event stays `job.succeeded` |
 | `client.name` | Display name, else hostname |
 | `client.hostname` | Hostname reported by the agent |
 | `client.id` | Client id |

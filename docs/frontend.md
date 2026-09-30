@@ -146,6 +146,27 @@ dismissed. A **success** or an **abort** only for a job started from this browse
 one. A run is reported once (an agent re-sends finished runs after a reconnect), and not at
 all if it ended before the page was loaded.
 
+### Job history rows (`features/history/components/BaseHistoryList.tsx`)
+
+Every history list — "Recent Activity" of a client, the History page, "Last Activity" under
+Jobs — renders through `BaseHistoryList`, so the following holds in all of them:
+
+- **Reading the snapshot.** After a successful backup the agent reads back its snapshot,
+  and the run stays `running` meanwhile. The `jobUpdate` for that step carries
+  `phase: "snapshot"`, and the status badge reads *reading snapshot* instead of *running*.
+  The final update sends `phase: null` explicitly: the stores merge updates with a spread,
+  and a phase left out would stay. `useJobResultToasts` needs nothing for this — it reacts
+  to final statuses only.
+- **Snapshot details.** The expanded row of a successful backup shows `RunSnapshotSection`
+  above the log: the snapshot, its size, the key fingerprint and each archive with size and
+  crypt mode (a `Badge`). The details are part of the history row, so nothing is loaded on
+  expand. A run of an older agent is marked as not linked.
+- **No details.** A successful backup whose snapshot could not be read gets a warning
+  badge *no snapshot details* next to its status, and the reason in the expanded row. It
+  does not count towards the dot on "History", which stays for failed runs.
+
+Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows them).
+
 ### Two realtime channels, and why
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
@@ -424,7 +445,7 @@ The detail view of a client. It consists of multiple tabs/sections:
 1. **Stats**: Tiles for jobs, snapshots, and history (also act as a tab switcher).
 2. **Configured**: List of configured backup jobs (`ClientJobList`) and editor.
 3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`SnapshotRestoreEditor`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
-4. **History**: Execution logs (`ClientHistoryList`).
+4. **History**: Execution logs and, for a backup, the snapshot it created (`ClientHistoryList`, see *Job history rows*).
 
 ### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
 
