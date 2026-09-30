@@ -1,6 +1,14 @@
 import { z } from "zod";
-import { CLIENT_STATUS, CONNECTION_MODE, DEFAULT_AGENT_PORT } from "./constants.js";
+import {
+    CLIENT_STATUS,
+    CONNECTION_MODE,
+    DEFAULT_AGENT_PORT,
+    JOB_PHASE,
+    WEBHOOK_LEVELS,
+    WEBHOOK_METHODS,
+} from "./constants.js";
 import { normaliseTargetAddress } from "./targetAddress.js";
+import { placeholderError, webhookTemplateError } from "./webhookTemplate.js";
 
 export const RepositorySchema = z.object({
     /**
@@ -378,6 +386,46 @@ export const SnapshotSchema = z.object({
     fingerprint: z.string().optional(),
 });
 
+/**
+ * What a backup run left on the PBS, as the agent read it back with `snapshot list` right
+ * after the run. Stored with the run, so it outlives a prune of the snapshot itself.
+ *
+ * Deliberately without `verification`: that is set by a verify job hours later, and a copy
+ * taken when the run ended would say nothing about it.
+ */
+export const RunSnapshotDetailsSchema = z.object({
+    backupType: z.string(),
+    backupId: z.string(),
+    backupTime: z.number(),
+    files: z.array(
+        z.object({
+            filename: z.string(),
+            cryptMode: z.string().optional(),
+            size: z.number().optional(),
+        }),
+    ),
+    size: z.number().optional(),
+    owner: z.string().optional(),
+    comment: z.string().optional(),
+    fingerprint: z.string().optional(),
+    protected: z.boolean().optional(),
+});
+
+/**
+ * The snapshot fields a run carries -- on the wire from the agent, in its history and in
+ * the server's. All optional: an agent of an older build sends none of them, and a
+ * required field would make the server drop its whole SYNC_HISTORY payload.
+ *
+ * - `snapshot`: `host/<clientId>/<time>`, fixed by the agent before the run starts.
+ * - `snapshotDetails`: what the PBS reported for it once the run had ended.
+ * - `snapshotError`: why there are no details, although the backup itself succeeded.
+ */
+const runSnapshotFields = {
+    snapshot: z.string().nullable().optional(),
+    snapshotDetails: RunSnapshotDetailsSchema.nullable().optional(),
+    snapshotError: z.string().nullable().optional(),
+};
+
 // WS Payloads schemas
 
 export const AuthPayloadSchema = z.object({
@@ -408,6 +456,13 @@ export const StatusUpdatePayloadSchema = z.object({
     stdout: z.string().optional(),
     stderr: z.string().optional(),
     error: z.string().optional(),
+    /**
+     * A step of a run that is still `running` but no longer in the CLI -- today only
+     * `snapshot`, the query for the snapshot details after a backup. The final update
+     * sends it as null, so a receiver that merges updates does not keep the old value.
+     */
+    phase: z.enum([JOB_PHASE.SNAPSHOT]).nullable().optional(),
+    ...runSnapshotFields,
 });
 
 export const LogUpdatePayloadSchema = z.object({
@@ -524,6 +579,7 @@ export const HistoryEntrySchema = z.object({
      * agent of an older build sends none and is synced the old way.
      */
     revision: z.number().int().optional(),
+    ...runSnapshotFields,
 });
 
 export const HistoryResponseSchema = z.object({
@@ -552,6 +608,7 @@ export const GlobalHistoryEntrySchema = z.object({
     stderr: z.string().nullable(),
     hostname: z.string().nullable(),
     displayName: z.string().nullable(),
+    ...runSnapshotFields,
 });
 
 export const GlobalHistoryResponseSchema = z.object({
@@ -746,6 +803,7 @@ export const PbsSnapshotSchema = z.looseObject({
     owner: z.string().optional(),
     comment: z.string().optional(),
     fingerprint: z.string().optional(),
+    protected: z.boolean().optional(),
 });
 
 /** The envelope PBS wraps every list response in. */
@@ -887,3 +945,56 @@ export const AppConfigSchema = z.looseObject({
 
 export type AppConfigInput = z.input<typeof AppConfigSchema>;
 export type AppConfigParsed = z.output<typeof AppConfigSchema>;
+
+// ── Webhooks, REST ───────────────────────────────────────────────────────────
+
+/** RFC 9110 token characters: what a header name may consist of. */
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
+/**
+ * `POST /api/v1/webhooks` and `PUT /api/v1/webhooks/:id`. The body template stays a string:
+ * it is stored as the operator wrote it, indentation included, and only checked here -- see
+ * webhookTemplate.ts for what it may contain.
+ */
+export const WebhookInputSchema = z.object({
+    name: z.string().trim().min(1, "A name is required").max(100),
+    enabled: z.boolean().default(true),
+    url: z
+        .string()
+        .trim()
+        .regex(/^https?:\/\/\S+$/i, "Must be an http:// or https:// URL")
+        .refine((url) => placeholderError(url) === null, {
+            error: (issue) => placeholderError(issue.input) ?? "Invalid placeholder",
+        }),
+    method: z.enum(WEBHOOK_METHODS).default("POST"),
+    headers: z
+        .record(z.string().regex(HEADER_NAME, "Not a valid header name"), z.string())
+        .default({})
+        .refine((headers) => placeholderError(Object.values(headers)) === null, {
+            error: (issue) => placeholderError(Object.values(issue.input as object)) ?? "Invalid placeholder",
+        }),
+    bodyTemplate: z
+        .string()
+        .min(1, "A body template is required")
+        .max(65536, "A body template may be at most 64 KiB")
+        .refine((source) => webhookTemplateError(source) === null, {
+            error: (issue) => webhookTemplateError(issue.input as string) ?? "Invalid template",
+        }),
+    minLevel: z.enum(WEBHOOK_LEVELS).default("warning"),
+    /** Kind patterns such as `job.*`; empty means every kind. */
+    kinds: z.array(z.string().trim().min(1)).default([]),
+    /** The clients whose events this webhook reports; empty means all of them, new ones included. */
+    clientIds: z.array(z.string().min(1)).default([]),
+    timeoutMs: z.number().int().min(1000).max(60000).default(10000),
+});
+
+/** A webhook as the API returns it: what was configured, and how its last delivery went. */
+export const WebhookSchema = WebhookInputSchema.extend({
+    id: z.string(),
+    /** The HTTP status of the last attempt; null when it never got an answer. */
+    lastStatus: z.number().nullable(),
+    lastError: z.string().nullable(),
+    lastAttemptAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string().nullable(),
+});

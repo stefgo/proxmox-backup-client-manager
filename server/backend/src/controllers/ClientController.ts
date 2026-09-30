@@ -9,6 +9,7 @@ import {
     normaliseTargetAddress,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
+import { ClientConnectionWatch } from "../services/ClientConnectionWatch.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { logger } from "@pbcm/shared/node";
@@ -111,6 +112,9 @@ export class ClientController {
         // pending reconnect would try to reach a client that no longer exists.
         ClientConnector.cancelReconnect(clientId);
         TunnelService.closeClient(clientId);
+        // Its id stays in the webhooks' client lists: removed, a list naming only this client
+        // would become empty, and empty means every client.
+        ClientConnectionWatch.forget(clientId);
 
         const info = ClientRepository.delete(clientId);
 

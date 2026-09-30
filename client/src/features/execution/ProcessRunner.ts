@@ -5,6 +5,8 @@ import {
     WS_EVENTS,
     ProtocolMap,
     JOB_STATUS,
+    JOB_PHASE,
+    runSnapshotPath,
 } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { JobHistoryRepository } from "../../repositories/JobHistoryRepository.js";
@@ -14,6 +16,9 @@ import { CappedLog } from "../../core/CappedLog.js";
 import { LogStream } from "../../core/LogStream.js";
 import { TunnelClient, TunnelLease } from "../TunnelClient.js";
 import { removeTempKeyfile } from "./RunPreparation.js";
+import { backupTimeArgs } from "./CommandBuilder.js";
+import { querySnapshot, type SnapshotQueryResult } from "./SnapshotQuery.js";
+import { requireClientId } from "../../core/Identity.js";
 
 /**
  * Everything that starts a child process and reports what became of it.
@@ -128,9 +133,11 @@ export class ProcessRunner {
     }
 
     /**
-     * Ends a run that failed before the backup process could even be started — currently
-     * the tunnel paths. The history row already exists at this point, so it is closed out
-     * rather than created.
+     * Ends a run that failed before the backup process could even be started: the tunnel
+     * paths, a config that does not resolve, a failed pre-script. Some of them have a history
+     * row by then and some do not; the row is closed out or created, so every failure is in
+     * the agent's own history -- and reaches the server with the history sync -- whether or
+     * not the server is connected at that moment.
      */
     static finishFailedRun(
         runId: string,
@@ -141,12 +148,12 @@ export class ProcessRunner {
         message: string,
     ) {
         try {
-            JobHistoryRepository.finishJob(
+            JobHistoryRepository.recordFailedRun(
                 runId,
-                JOB_STATUS.FAILED,
-                new Date().toISOString(),
-                null,
-                null,
+                jobId ?? null,
+                name,
+                jobType,
+                startTime,
                 message,
             );
         } catch (e) {
@@ -202,7 +209,6 @@ export class ProcessRunner {
             jobName,
             startTime,
             command,
-            args,
             env,
             password,
             keyfilePath,
@@ -210,6 +216,8 @@ export class ProcessRunner {
             tunnelRequired,
             onSlotRelease,
         } = spec;
+        // Extended with `--backup-time` right before the spawn, see below.
+        let args = spec.args;
 
         const releaseSlotIfHeld = () => onSlotRelease?.();
 
@@ -278,6 +286,22 @@ export class ProcessRunner {
             return;
         }
 
+        // A backup names its snapshot itself: `--backup-time` is fixed here, after the
+        // queue and the tunnel lease, because the PBS refuses a time that is not after the
+        // newest snapshot of the group. Recorded before the spawn, so a restart of the agent
+        // can still find out afterwards whether the backup got through.
+        let snapshot: string | undefined;
+        if (jobType === "backup") {
+            const backupTime = Math.floor(Date.now() / 1000);
+            snapshot = runSnapshotPath(requireClientId(), backupTime);
+            args = [...args, ...backupTimeArgs(backupTime)];
+            try {
+                JobHistoryRepository.setSnapshot(runId, snapshot);
+            } catch (e) {
+                logger.error({ err: e }, "DB Log Error (snapshot)");
+            }
+        }
+
         const child = spawn(command, args, {
             shell: false,
             env: env,
@@ -316,17 +340,40 @@ export class ProcessRunner {
         pipeOutput(child.stdout, process.stdout, "stdout");
         pipeOutput(child.stderr, process.stderr, "stderr");
 
-        child.on("close", (code: number | null) => {
-            TunnelClient.release(lease);
-            lease = undefined;
+        child.on("close", async (code: number | null) => {
             removeTempKeyfile(keyfilePath);
             // Before the status update below: the batched log frames are display-only,
             // but they must not arrive after the message that says the run is over.
             logStream.close();
 
             const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
-            const endTime = new Date().toISOString();
             logger.info(`${jobType} ${runId} finished with code ${code}`);
+
+            // The last step of a successful backup: read back what it created. The run is
+            // still `running` until this is done, and says so. The lease is held until
+            // then -- a tunnel job reaches the PBS for the query the same way it did for
+            // the backup. A failed query leaves the run a success, with the reason.
+            let snapshotResult: SnapshotQueryResult | undefined;
+            if (status === JOB_STATUS.SUCCESS && snapshot) {
+                Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                    ...runningPayload,
+                    phase: JOB_PHASE.SNAPSHOT,
+                    snapshot,
+                    stdout: stdoutLog.toString(),
+                    stderr: stderrLog.toString(),
+                });
+                snapshotResult = await querySnapshot({ snapshot, command, env, password });
+                if (snapshotResult.error) {
+                    logger.warn(
+                        { runId, snapshot, error: snapshotResult.error },
+                        "Backup succeeded, but its snapshot details could not be read",
+                    );
+                }
+            }
+            TunnelClient.release(lease);
+            lease = undefined;
+
+            const endTime = new Date().toISOString();
 
             if (stdoutLog.truncated || stderrLog.truncated) {
                 logger.warn(
@@ -343,6 +390,7 @@ export class ProcessRunner {
                     code,
                     stdoutLog.toDbValue(),
                     stderrLog.toDbValue(),
+                    snapshotResult,
                 );
             } catch (e) {
                 logger.error({ err: e }, "DB Update Error");
@@ -359,6 +407,12 @@ export class ProcessRunner {
                 stdout: stdoutLog.toString(),
                 stderr: stderrLog.toString(),
                 type: jobType,
+                // Explicitly null: a receiver that merges updates would keep the phase
+                // of the previous one otherwise.
+                phase: null,
+                snapshot,
+                snapshotDetails: snapshotResult?.details,
+                snapshotError: snapshotResult?.error,
             };
             Connection.send(WS_EVENTS.STATUS_UPDATE, finalPayload);
 

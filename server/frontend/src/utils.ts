@@ -32,6 +32,22 @@ export const formatDate = (
 };
 
 /**
+ * A byte count in binary units, as the PBS shows sizes: `1.2 GiB`. `EMPTY_VALUE` for a size
+ * that is not known.
+ */
+export const formatBytes = (bytes: number | null | undefined): string => {
+    if (bytes == null || !Number.isFinite(bytes)) return EMPTY_VALUE;
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit++;
+    }
+    return `${unit === 0 ? value : value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`;
+};
+
+/**
  * Value for an <input type="date">, in the viewer's own timezone.
  *
  * Not toISOString().split("T")[0] — that is the UTC date, which east of Greenwich

@@ -1,4 +1,8 @@
-import { BackupJob, RestoreSnapshotPayload } from "@pbcm/shared";
+import {
+    BackupJob,
+    RestoreSnapshotPayload,
+    RUN_SNAPSHOT_BACKUP_TYPE,
+} from "@pbcm/shared";
 import { config } from "../../core/Config.js";
 import { requireClientId } from "../../core/Identity.js";
 
@@ -62,10 +66,42 @@ export function buildBackupArgs(
     }
 
     if (Array.isArray(config.backupParams)) {
+        // The agent sets the snapshot time itself (`backupTimeArgs`), right before the
+        // process starts; it is how the run knows its snapshot. A second value would make
+        // one of the two silently win.
+        if (config.backupParams.some((p) => p === "--backup-time" || p.startsWith("--backup-time="))) {
+            throw new Error(
+                "backupParams must not contain --backup-time: the agent sets the snapshot time itself.",
+            );
+        }
         args.push(...config.backupParams);
     }
 
     return args;
+}
+
+/**
+ * `--backup-time <epoch>`, appended to a backup's arguments immediately before the spawn.
+ * Not part of `buildBackupArgs`: that runs before the tunnel lease and the queue delay, and
+ * the PBS refuses a snapshot time that is not after the newest one in the group.
+ */
+export function backupTimeArgs(backupTime: number): string[] {
+    return ["--backup-time", String(backupTime)];
+}
+
+/**
+ * `proxmox-backup-client snapshot list host/<clientId> --output-format json` -- the
+ * snapshots of this client's group, as the PBS API returns them. `backup` itself has no
+ * JSON output, so this is how a run reads back what it created.
+ */
+export function buildSnapshotListArgs(): string[] {
+    return [
+        "snapshot",
+        "list",
+        `${RUN_SNAPSHOT_BACKUP_TYPE}/${requireClientId()}`,
+        "--output-format",
+        "json",
+    ];
 }
 
 /**

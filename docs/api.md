@@ -49,6 +49,12 @@
     - [Create Token](#create-token)
     - [Delete Token](#delete-token)
     - [Register Client (Public)](#register-client-public)
+- [Webhooks](#-webhooks)
+    - [List Webhooks](#list-webhooks)
+    - [Create Webhook](#create-webhook)
+    - [Update Webhook](#update-webhook)
+    - [Delete Webhook](#delete-webhook)
+    - [Test Webhook](#test-webhook)
 - [Settings & Maintenance](#-settings--maintenance)
     - [Get Cleanup Settings](#get-cleanup-settings)
     - [Update Cleanup Settings](#update-cleanup-settings)
@@ -459,6 +465,21 @@ clients — the address the server dials.
 | `exitCode`    | number | Process exit code (null if still running).                |
 | `stdout`      | string | Standard output of the backup process.                    |
 | `stderr`      | string | Standard error output (null if none).                     |
+| `snapshot`    | string | Backups: the snapshot the run created, `host/<clientId>/<time>`. Null for restores and for runs of agents that predate the field. |
+| `snapshotDetails` | object | Backups: what the PBS listed for that snapshot right after the run (see below); null if it could not be read. |
+| `snapshotError` | string | Why a successful backup has no `snapshotDetails`; else null. |
+
+`snapshotDetails` is a stored copy, so it stays after the snapshot is pruned on the PBS:
+
+| Field         | Type    | Description                                               |
+| :------------ | :------ | :-------------------------------------------------------- |
+| `backupType`, `backupId`, `backupTime` | string, string, number | The snapshot's name; `backupTime` in epoch seconds. |
+| `size`        | number  | Logical size in bytes — what a restore yields, not what was transferred. |
+| `files`       | array   | `{ filename, size, cryptMode }` per file; `index.json.blob` is the manifest. |
+| `fingerprint` | string  | Fingerprint of the encryption key, for an encrypted backup. |
+| `owner`, `comment`, `protected` | | As the PBS reports them. |
+
+The PBS's verify state is deliberately not part of it: a verify job sets it later.
 
 **Example Response:**
 
@@ -474,7 +495,20 @@ clients — the address the server dials.
         "endTime": "2023-10-26T02:15:30.000Z",
         "exitCode": 0,
         "stdout": "Backup finished successfully...",
-        "stderr": null
+        "stderr": null,
+        "snapshot": "host/client-uuid/2023-10-26T02:00:00Z",
+        "snapshotDetails": {
+            "backupType": "host",
+            "backupId": "client-uuid",
+            "backupTime": 1698285600,
+            "size": 53687091200,
+            "files": [
+                { "filename": "root.pxar.didx", "size": 53687091200, "cryptMode": "none" },
+                { "filename": "index.json.blob", "size": 612, "cryptMode": "none" }
+            ],
+            "owner": "backup@pbs!pbcm"
+        },
+        "snapshotError": null
     }
 ]
 ```
@@ -1437,6 +1471,135 @@ that stores only one of them cannot connect.
 
 ---
 
+## 🪝 Webhooks
+
+The server keeps the webhooks and sends them: when a run reaches a final state it did not have
+before, and when a client stays disconnected past its grace period and comes back. The agents
+take no part. What a template may contain, and when each event fires, is described in
+[Webhooks](webhooks.md).
+
+### List Webhooks
+
+`GET /v1/webhooks`
+
+**Description:** Every webhook, sorted by name, with its last delivery.
+
+#### Response (Array of Webhook objects)
+
+| Field          | Type     | Description |
+| :------------- | :------- | :---------- |
+| `id`           | string   | UUID. |
+| `name`         | string   | Display name, also `{{webhook.name}}` in a template. |
+| `enabled`      | boolean  | A disabled webhook is not sent. |
+| `url`          | string   | `http://` or `https://`; may hold placeholders. |
+| `method`       | string   | `POST` or `PUT`. |
+| `headers`      | object   | Header name → value; values may hold placeholders. Returned in the clear. |
+| `bodyTemplate` | string   | The JSON template as written. |
+| `minLevel`     | string   | `info`, `warning` or `error`. |
+| `kinds`        | string[] | Kind patterns such as `job.*`, `client.*`; empty means every kind. |
+| `clientIds`    | string[] | The clients whose events it reports; empty means every client, new ones included. |
+| `timeoutMs`    | number   | Per attempt, 1000–60000. |
+| `lastStatus`   | number   | HTTP status of the last attempt; `null` when nothing answered or nothing was sent yet. |
+| `lastError`    | string   | Why the last attempt failed, or `null`. |
+| `lastAttemptAt` | string  | ISO 8601, or `null` when nothing was sent yet. |
+| `createdAt`    | string   | ISO 8601. |
+| `updatedAt`    | string   | ISO 8601, or `null`. |
+
+**Example Response:**
+
+```json
+[
+    {
+        "id": "fb97b74b-bce6-48d2-8962-fea17aae8db2",
+        "name": "Ops channel",
+        "enabled": true,
+        "url": "https://hooks.example.com/pbcm",
+        "method": "POST",
+        "headers": { "Authorization": "Bearer …" },
+        "bodyTemplate": "{ \"text\": \"{{client.name}}: {{event.message}}\" }",
+        "minLevel": "warning",
+        "kinds": [],
+        "clientIds": [],
+        "timeoutMs": 10000,
+        "lastStatus": 200,
+        "lastError": null,
+        "lastAttemptAt": "2026-09-29T20:40:43.146Z",
+        "createdAt": "2026-09-29T20:39:45.200Z",
+        "updatedAt": null
+    }
+]
+```
+
+### Create Webhook
+
+`POST /v1/webhooks`
+
+**Description:** Creates a webhook.
+
+#### Request Body
+
+The fields of the list above without `id`, `lastStatus`, `lastError`, `lastAttemptAt`, `createdAt` and `updatedAt`. Required
+are `name`, `url` and `bodyTemplate`; the rest default to `enabled: true`, `method: "POST"`,
+`headers: {}`, `minLevel: "warning"`, `kinds: []`, `clientIds: []` and `timeoutMs: 10000`.
+
+A body template that is not valid JSON, longer than 64 KiB or uses a placeholder that does not
+start with `event`, `client` or `webhook` is refused with **400** and names the reason:
+
+```json
+{ "error": "bodyTemplate: a: \"{{foo}}\": a path starts with event, client, webhook" }
+```
+
+#### Response
+
+**201** with the webhook, as the list returns it.
+
+### Update Webhook
+
+`PUT /v1/webhooks/:webhookId`
+
+**Description:** Replaces the whole configuration — the same body as [Create Webhook](#create-webhook).
+**404** for an id that does not exist.
+
+### Delete Webhook
+
+`DELETE /v1/webhooks/:webhookId`
+
+**Description:** Deletes the webhook. **404** for an id that does not exist.
+
+```json
+{ "success": true }
+```
+
+### Test Webhook
+
+`POST /v1/webhooks/test`
+
+**Description:** Sends the sample event for the webhook's kinds once, with the webhook as the
+request describes it — saved or not. The server sends it, as it would a real delivery. No
+retries, no stored result.
+
+#### Request Body
+
+The body of [Create Webhook](#create-webhook).
+
+#### Response
+
+A target that refuses is still a **200**: the test ran, and the result says how it went.
+
+| Field      | Type    | Description |
+| :--------- | :------ | :---------- |
+| `ok`       | boolean | Whether the target answered 2xx. |
+| `status`   | number  | The target's HTTP status, or `null` when nothing answered. |
+| `error`    | string  | Why it failed, or `null`. |
+| `body`     | any     | The body as rendered and sent. |
+| `response` | string  | The first 500 characters the target answered, or `null`. |
+
+```json
+{ "ok": false, "status": 403, "error": "HTTP 403 Forbidden", "body": { "k": 1 }, "response": "forbidden token" }
+```
+
+---
+
 ## 🛠 Settings & Maintenance
 
 ### Get Cleanup Settings
@@ -1630,6 +1793,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler: SchedulerId, status: SchedulerStatus }`            | One server scheduler, whenever a run starts or ends or its timer moves. Same shape as one entry of [Scheduler Status](#scheduler-status). |
 | `HISTORY_SEEN`       | `{ username: string, seenAt: string \| null, unseenFailed: number }`  | A user opened the history ([Mark History Seen](#mark-history-seen)). Sent to every dashboard; each keeps only its own user's. |
+| `WEBHOOKS_UPDATE`    | —                                                                     | A webhook changed, or a delivery went out. The dashboard fetches [List Webhooks](#list-webhooks) again. |
 
 ### Agent Connection
 
@@ -1753,6 +1917,9 @@ receive no ack.
             "exitCode": 0,
             "stdout": "...",
             "stderr": "...",
+            "snapshot": "host/client-uuid/2026-09-30T02:00:00Z",
+            "snapshotDetails": { "...": "see Get Client History" },
+            "snapshotError": null,
             "revision": 3
         }
     ]
@@ -1774,9 +1941,19 @@ receive no ack.
     "endTime": "ISO-TIMESTAMP",
     "exitCode": 0,
     "stdout": "output...",
-    "stderr": "errors..."
+    "stderr": "errors...",
+    "phase": null,
+    "snapshot": "host/client-uuid/2026-09-30T02:00:00Z",
+    "snapshotDetails": { "...": "see Get Client History" },
+    "snapshotError": null
 }
 ```
+
+After a successful backup the agent reads back its snapshot before the run ends. For that
+step it sends an update with `"status": "running"` and `"phase": "snapshot"`; the final
+update carries `"phase": null` and the snapshot fields. The server stores only final
+updates and passes every update on as `JOB_UPDATE`. All four fields are optional — agents
+of an older build send none of them.
 
 **`LOG_UPDATE`**
 **Description:** Real-time log streaming from agent.

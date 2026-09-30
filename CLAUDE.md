@@ -72,7 +72,7 @@ Agent ────WS /ws/agent────────────────�
 
 - The **`ProxyService`** in the backend is the central hub: it manages active agent WebSocket connections, caches job states, and broadcasts updates to dashboard clients.
 - The **client agent** runs completely offline-capable: it keeps its job configs in its own data files and runs backups independently of the server connection.
-- The **server** uses **SQLite** (`better-sqlite3`) with **umzug** migrations (`server/backend/data/server.db`). The **client** keeps JSON files in `client/data` (`PBCM_CLIENT_DATA_DIR`) through `client/src/core/DataStore.ts`: `jobs.json` (the only copy of the job configuration), `schedule.json`, and one file per run under `history/`. Writes are atomic (temp file, fsync, rename); a damaged `jobs.json` is set aside, never overwritten. A `client.db` of an older version is imported once with `node:sqlite` (`core/LegacyImport.ts`) — jobs and schedule state only.
+- The **server** uses **SQLite** (`better-sqlite3`) with **umzug** migrations (`server/backend/data/server.db`). The **client** keeps JSON files in `client/data` (`PBCM_CLIENT_DATA_DIR`) through `client/src/core/DataStore.ts`: `jobs.json` (the only copy of the job configuration), `schedule.json`, and one file per run under `history/` -- a run stays there until the server has acknowledged it, which is what lets the server send the webhooks: a run that ends while the server is away is reported late, not lost -- up to 500 unacknowledged runs (`MAX_UNSYNCED` in `repositories/JobHistoryRepository.ts`), beyond which the oldest are dropped so an agent cut off for weeks does not fill its disk. Writes are atomic (temp file, fsync, rename); a damaged `jobs.json` is set aside, never overwritten. A `client.db` of an older version is imported once with `node:sqlite` (`core/LegacyImport.ts`) — jobs and schedule state only.
 
 ### Frontend State Management
 
@@ -84,6 +84,7 @@ State is split across Zustand stores in `server/frontend/src/stores/`:
 - `useRepositoryStore` / `useRepositorySnapshotStore` – PBS repository data
 - `useSchedulerStore` – status of the server's cleanup schedulers (settings page)
 - `useHistorySeenStore` – unseen failed runs behind the dot on "History" (server-side seen state)
+- `useWebhookStore` – webhooks and their last delivery (refetched on `WEBHOOKS_UPDATE`)
 
 WebSocket updates from `/ws/dashboard` flow into these stores; the frontend does not poll.
 
@@ -207,6 +208,7 @@ Detailed documentation lives in `/docs/`:
 - `client.md` – Agent lifecycle, scheduler, executor
 - `api.md` – Full REST and WebSocket API spec
 - `tunnel.md` – Outbound clients and the SSH reverse tunnel (setup, protocol, test protocol)
+- `webhooks.md` – Webhooks: who sends them (the server), events, delivery, template language
 - `install-server.md` – Server installation, Docker Compose only
 - `install-client.md` – Client agent installation, Docker Compose only
 - `setup.md` – Configuration reference: `config.yaml` (server and client), env vars,

@@ -140,7 +140,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | Key | Description |
 | :-- | :---------- |
 | `executable` | Path to the `proxmox-backup-client` executable (default: `proxmox-backup-client`). In the container image the CLI is already on `PATH`. |
-| `backupParams` | Static arguments appended to every backup job, as a flat list of alternating flag and value (e.g. `["--all-file-systems", "true"]`). |
+| `backupParams` | Static arguments appended to every backup job, as a flat list of alternating flag and value (e.g. `["--all-file-systems", "true"]`). Must not contain `--backup-time`: the agent sets the snapshot time itself, and a run with it is refused. |
 | `restoreParams` | The same for restore jobs. |
 | `preScript` / `postScript` | Optional scripts run before and after a job. Arguments: `$1` = operation (`backup`/`restore`), `$2` = job name. **A non-zero exit from `preScript` aborts the operation.** The path is inside the container, so the script has to be mounted in. |
 | `queueDelaySeconds` | Seconds to wait before restarting a queued job (default: `5`). |
@@ -154,7 +154,7 @@ parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settin
 | `logCapBytes` | Bytes of `stdout` and `stderr` kept per run, each channel separately (default: `262144`, i.e. 256 KB). Head and tail are kept with the middle dropped and marked. Values below 1024 are ignored. |
 
 There is no setting for how long the history is kept. The agent keeps every run until the
-server has acknowledged it, and of those the newest 50; see [Data Files](client.md) in
+server has acknowledged it (at most 500 of them), and of those the newest 50; see [Data Files](client.md) in
 the client architecture. A `retentionTime` left over in an older `config.yaml` is ignored
 with a warning.
 

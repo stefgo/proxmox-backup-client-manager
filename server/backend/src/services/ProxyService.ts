@@ -57,7 +57,11 @@ export class ProxyService {
         });
     }
 
-    static unregisterClient(clientId: string, socket: WebSocket) {
+    /**
+     * Drops the agent's connection if `socket` is still it. Answers whether it was: a socket
+     * closed because a newer connection replaced it is not the agent going away.
+     */
+    static unregisterClient(clientId: string, socket: WebSocket): boolean {
         if (this.connectedClients.get(clientId) === socket) {
             this.connectedClients.delete(clientId);
             this.jobCache.delete(clientId);
@@ -71,7 +75,9 @@ export class ProxyService {
             // A client that is gone cannot release its leases any more — drop them here,
             // otherwise the tunnel would stay open until maxLeaseMs.
             TunnelService.dropClientLeases(clientId);
+            return true;
         }
+        return false;
     }
 
     static addDashboardClient(socket: WebSocket) {

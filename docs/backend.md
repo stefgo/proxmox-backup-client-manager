@@ -54,6 +54,8 @@ Services contain the heavy business logic of the application. They are designed 
   Both are started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. `SettingsService.updateSettings` restarts the one whose keys changed.
 - **`ClientConnector.ts`**: Dials outbound clients — registration through the agent's `/ws/register`, then a session over `/ws/agent`. Its `RECONNECT_DELAYS` ladder is the same one the agent uses in the other direction, because the two ends of one link should not behave differently.
 - **`TunnelService.ts`**: Establishes and tears down the SSH reverse tunnel on a client's request. See [tunnel.md](tunnel.md).
+- **`WebhookService.ts`**: Sends the webhooks — the server is the only sender. `dispatch(clientId, events)` hands events to every enabled webhook that applies to the client and whose filters they pass; one queue per webhook keeps a target's events in order, with retries after 1 s and 5 s on no answer, 5xx and 429, and at most 100 waiting. The outcome goes into the webhook's `last_*` columns (migration 15) and `WEBHOOKS_UPDATE` to the dashboards. Runs come from `AgentMessageRouter`: `JobHistoryRepository.upsertStatus` and `upsertHistoryBatch` answer the runs a write gave a final state they did not have before, so a run is reported once whether it arrives live, with the history sync, or both. See [webhooks.md](webhooks.md).
+- **`ClientConnectionWatch.ts`**: `client.disconnected` once an agent's connection has stayed closed for 120 s, `client.reconnected` when it is back after that was reported. Fed by `AgentSession` — a close counts only when `ProxyService.unregisterClient` removed the current socket, not one a newer connection replaced. In memory only: a server restart forgets who was away.
 - **`SecretCrypto.ts`**: Encrypts the stored SSH private keys at rest (AES-256-GCM). The key is derived via HKDF from `tunnel.keySecret` and deliberately **not** from `jwtSecret` — rotating the secret that signs sessions must not make every stored SSH key unreadable. Configuring a tunnel therefore requires `tunnel.keySecret`; without it the service refuses rather than storing a key in the clear.
 
 **Certificate probing lives in `shared/`, not here.** `probeCertificate` in `shared/src/node/certProbe.ts` measures the TLS certificate of a PBS
@@ -124,6 +126,25 @@ history.
 
 A row that still carries `running_since` at startup belongs to a run the previous process
 did not finish: `markInterrupted()` turns it into the last run with status `interrupted`.
+
+#### `job_history` — snapshot columns
+
+A backup run carries the snapshot it created (migration 16), as the agent reported it — the
+server never asks the PBS for it. Columns of the run rather than a table of their own, so
+`JobHistoryCleanupService` takes them with the run.
+
+| Column | Meaning |
+| :----- | :------ |
+| `snapshot` | `host/<clientId>/<time>`, fixed by the agent with `--backup-time` before the run started. |
+| `snapshot_details` | JSON: what `snapshot list` reported for it right after the run — size, files with crypt mode, key fingerprint, owner. Survives a prune on the PBS. |
+| `snapshot_error` | Why a successful backup has no details (query timed out, PBS unreachable, …). |
+
+Both upserts write them with `COALESCE`, so a write that does not carry them — a post-script
+that turns a success into a failure, an agent of an older build — keeps what is there.
+Details that arrive clear an earlier error. The webhook for a run reads them back from the
+row after the write, so it has them whichever write ended the run. A `STATUS_UPDATE` with
+`phase: "snapshot"` (the run is still `running`) is only broadcast, like every running
+update.
 
 #### `history_seen`
 

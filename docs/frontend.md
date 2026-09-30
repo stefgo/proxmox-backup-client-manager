@@ -68,6 +68,8 @@ shell.
 | `/history`                      | `HistoryOverview`     | Global execution history.                       |
 | `/users`                        | `UserOverview`        | User management.                                |
 | `/tokens`                       | `TokenOverview`       | Registration tokens.                            |
+| `/webhooks`                     | `WebhookOverview`     | Webhooks, with their last delivery. |
+| `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | Webhook editor with live preview and a test sent by the server. |
 | `/settings`                     | `Settings`            | Cleanup settings and scheduler status, one tab per cleanup. |
 | `*`                             | `NotFound`            | —                                               |
 
@@ -132,6 +134,7 @@ We use **Zustand** split into specialized stores to maintain a clean, reactive s
 - **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
 - **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
 - **`useSchedulerStore`**: The status of the server's own schedulers (`token-cleanup`, `job-history-cleanup`). Filled by `GET /api/v1/settings/scheduler-status` when the settings page loads and after each save, kept current by `SCHEDULER_STATUS_UPDATE`, which carries one scheduler at a time.
+- **`useWebhookStore`**: The webhooks with their last delivery. `WEBHOOKS_UPDATE` carries no payload and makes a store that has loaded once fetch the list again — after a webhook was saved, or a delivery went out. The editor's preview renders with `renderTemplate` from `@pbcm/shared`, the code the server sends with.
 - **`useHistorySeenStore`**: Whether failed runs happened that this user has not looked at yet -- the red dot on "History" in the sidebar. Filled by `GET /api/v1/history/seen` when the shell loads, raised by every failed `jobUpdate`, reset by `PUT /api/v1/history/seen` when the history page opens and closes, and by `HISTORY_SEEN` from the user's other tabs. The record is the server's, so it survives a reload and follows the user to another browser.
 
 ### Job result toasts
@@ -142,6 +145,27 @@ dismissed. A **success** or an **abort** only for a job started from this browse
 (`markJobRunAsked` at "Run now"): with many clients, every scheduled run would otherwise raise
 one. A run is reported once (an agent re-sends finished runs after a reconnect), and not at
 all if it ended before the page was loaded.
+
+### Job history rows (`features/history/components/BaseHistoryList.tsx`)
+
+Every history list — "Recent Activity" of a client, the History page, "Last Activity" under
+Jobs — renders through `BaseHistoryList`, so the following holds in all of them:
+
+- **Reading the snapshot.** After a successful backup the agent reads back its snapshot,
+  and the run stays `running` meanwhile. The `jobUpdate` for that step carries
+  `phase: "snapshot"`, and the status badge reads *reading snapshot* instead of *running*.
+  The final update sends `phase: null` explicitly: the stores merge updates with a spread,
+  and a phase left out would stay. `useJobResultToasts` needs nothing for this — it reacts
+  to final statuses only.
+- **Snapshot details.** The expanded row of a successful backup shows `RunSnapshotSection`
+  above the log: the snapshot, its size, the key fingerprint and each archive with size and
+  crypt mode (a `Badge`). The details are part of the history row, so nothing is loaded on
+  expand. A run of an older agent is marked as not linked.
+- **No details.** A successful backup whose snapshot could not be read gets a warning
+  badge *no snapshot details* next to its status, and the reason in the expanded row. It
+  does not count towards the dot on "History", which stays for failed runs.
+
+Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows them).
 
 ### Two realtime channels, and why
 
@@ -421,7 +445,7 @@ The detail view of a client. It consists of multiple tabs/sections:
 1. **Stats**: Tiles for jobs, snapshots, and history (also act as a tab switcher).
 2. **Configured**: List of configured backup jobs (`ClientJobList`) and editor.
 3. **Snapshots**: List of available snapshots (`RepositorySnapshotList`). A restore can also be started here (`SnapshotRestoreEditor`). This component is also reused in the **Repository Overview** for a global view of all snapshots in a repository.
-4. **History**: Execution logs (`ClientHistoryList`).
+4. **History**: Execution logs and, for a backup, the snapshot it created (`ClientHistoryList`, see *Job history rows*).
 
 ### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
 

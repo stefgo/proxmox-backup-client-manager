@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
     JOB_STATUS,
+    JOB_PHASE,
     CLIENT_STATUS,
     CONNECTION_MODE,
     TUNNEL_STATUS,
@@ -8,6 +9,9 @@ import {
     SCHEDULER_IDS,
     SCHEDULER_RUN_STATUSES,
     SCHEDULER_TRIGGERS,
+    WEBHOOK_EVENT_KINDS,
+    WEBHOOK_LEVELS,
+    WEBHOOK_METHODS,
 } from "./constants.js";
 import {
     ClientSchema,
@@ -24,6 +28,7 @@ import {
     CreateRegistrationTokenSchema,
     CreatedTokenSchema,
     SnapshotSchema,
+    RunSnapshotDetailsSchema,
     AuthPayloadSchema,
     RunJobPayloadSchema,
     StatusUpdatePayloadSchema,
@@ -65,6 +70,8 @@ import {
     HistoryQuerySchema,
     HistorySeenSchema,
     PbsSnapshotSchema,
+    WebhookInputSchema,
+    WebhookSchema,
 } from "./schemas.js";
 
 /**
@@ -77,6 +84,7 @@ import {
  * not know yet.
  */
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
+export type JobPhase = (typeof JOB_PHASE)[keyof typeof JOB_PHASE];
 export type ClientStatus = (typeof CLIENT_STATUS)[keyof typeof CLIENT_STATUS];
 export type ConnectionMode =
     (typeof CONNECTION_MODE)[keyof typeof CONNECTION_MODE];
@@ -120,6 +128,7 @@ export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
+export type RunSnapshotDetails = z.infer<typeof RunSnapshotDetailsSchema>;
 
 // REST request bodies
 
@@ -191,6 +200,29 @@ export interface TunnelState {
 export interface WsMessage<T = any> {
     type: string;
     payload: T;
+}
+
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+
+export type WebhookLevel = (typeof WEBHOOK_LEVELS)[number];
+export type WebhookEventKind = (typeof WEBHOOK_EVENT_KINDS)[number];
+export type WebhookMethod = (typeof WEBHOOK_METHODS)[number];
+
+export type WebhookInput = z.input<typeof WebhookInputSchema>;
+/** A webhook's configuration once `WebhookInputSchema` has checked it and filled in the defaults. */
+export type WebhookFields = z.infer<typeof WebhookInputSchema>;
+export type Webhook = z.infer<typeof WebhookSchema>;
+
+/** One test delivery: what was sent, and what came back. */
+export interface WebhookTestResult {
+    ok: boolean;
+    /** The target's HTTP status; null when nothing answered. */
+    status: number | null;
+    error: string | null;
+    /** The body as rendered and sent. */
+    body: unknown;
+    /** The start of what the target answered. */
+    response: string | null;
 }
 
 export interface ProtocolMap {

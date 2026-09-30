@@ -126,6 +126,9 @@ function toEntry(row: UnsyncedHistoryRow): HistoryEntry {
         exitCode: row.exit_code,
         stdout: row.stdout,
         stderr: row.stderr,
+        snapshot: row.snapshot,
+        snapshotDetails: row.snapshot_details,
+        snapshotError: row.snapshot_error,
         revision: row.revision,
     };
 }

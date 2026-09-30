@@ -37,7 +37,8 @@ client/src/
 │   └── execution/          # The steps of a single run
 │       ├── CommandBuilder.ts
 │       ├── ProcessRunner.ts
-│       └── RunPreparation.ts
+│       ├── RunPreparation.ts
+│       └── SnapshotQuery.ts    # Reads back the snapshot a backup created
 ├── repositories/           # Data access layer
 │   ├── JobRepository.ts
 │   ├── JobHistoryRepository.ts
@@ -99,8 +100,9 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
 | Module               | Responsibility                                                                    |
 | :------------------- | :-------------------------------------------------------------------------------- |
 | `RunPreparation.ts`  | Everything both kinds of run need before the spawn: the temporary keyfile, the repository environment (`PBS_REPOSITORY`, `PBS_PASSWORD_FD`, `PBS_FINGERPRINT`), and the fingerprint resolution. Backup and restore each kept their own copy of this — the arrangement in which the keyfile cleanup already went missing once. The keyfile is created exclusively (`0600`), and keyfiles a killed process left in the temp directory are removed at startup. |
-| `CommandBuilder.ts`  | `buildBackupArgs` / `buildRestoreArgs`. Pure functions with no I/O, and therefore the first part of the agent that can be checked without a running process. A job's `excludes` become one `--exclude` each, applied by the CLI to every archive of the run. |
+| `CommandBuilder.ts`  | `buildBackupArgs` / `buildRestoreArgs` / `buildSnapshotListArgs`. Pure functions with no I/O, and therefore the first part of the agent that can be checked without a running process. A job's `excludes` become one `--exclude` each, applied by the CLI to every archive of the run. `backupParams` must not contain `--backup-time` — the agent sets it itself (below) — and a run with it is refused. |
 | `ProcessRunner.ts`   | `runProxmoxClient`, `runScript`, `finishFailedRun` — everything that starts a child process and reports what became of it. Takes an `onSlotRelease` callback rather than knowing about the queue. |
+| `SnapshotQuery.ts`   | `querySnapshot`: `proxmox-backup-client snapshot list host/<clientId> --output-format json`, with the environment of the backup it follows. Never throws; every failure ends in an error text. |
 
 The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI binaries.
 
@@ -108,6 +110,11 @@ The Executor acts as a wrapper around the actual `proxmox-backup-client` CLI bin
 - It spawns a child process and captures real-time `stdout`/`stderr` streams, forwarding them as `LOG_UPDATE` events over the WebSocket.
 - **Bounded output** (`core/CappedLog.ts`): each channel keeps at most `logCapBytes` (default 256 KB), holding the **head and the tail** with an explicit marker where the middle was dropped. Not a ring buffer: the invocation and the first errors are at the top and the reason a run failed is at the bottom, and a ring buffer keeps only the second half. The cap matters because the captured output is paid for three times — held in memory for the whole run, written to the run's history file, and synced to the server from there.
 - **Batched log frames** (`core/LogStream.ts`): `LOG_UPDATE` events are collected and sent every 250 ms or once 8 KB accumulate, rather than one frame per chunk from the pipe. Safe because these frames are display-only; what must not slip is their order against the run's final `STATUS_UPDATE`, so the stream is flushed before that and in the spawn-error path.
+- **The snapshot of a backup**: `backup` has no JSON output — it reports only text on stderr — so a run learns what it created in two steps:
+  1. **The agent names the snapshot.** Right before the spawn, after the queue and the tunnel lease, it appends `--backup-time <epoch>` and records `host/<clientId>/<time>` in the run's history file. Not earlier: the PBS refuses a time that is not after the newest snapshot of the group. The same principle as `--backup-id`: the side that holds the identity sets it.
+  2. **It reads the snapshot back** once the CLI has exited with 0: `snapshot list` with `--output-format json` asks the same PBS endpoint the server's snapshot view does. The run stays `running` meanwhile and says so with `phase: "snapshot"` in a `STATUS_UPDATE`; the tunnel lease is released only afterwards, since a tunnel job reaches the PBS for the query the same way. A snapshot counts only when it has its manifest (`index.json.blob`), which the CLI uploads last. The size, the files with their crypt mode, the key fingerprint and the owner are stored with the run as `snapshotDetails` and sent with the final `STATUS_UPDATE` (`phase: null`) and the history sync. If the query fails — timeout after 30 s, PBS unreachable, snapshot missing — the run stays a `success`, and the reason is stored as `snapshotError`.
+  Restores and failed backups skip the query. The PBS's verify state is not read: a verify job sets it hours later.
+- **Runs interrupted by a restart** (`Executor.cleanupRunningJobs`): on startup, before the server is connected, every run still `running` is settled. A backup that recorded its snapshot is looked up on the PBS first — it may well have finished, if the process ended during the query or before the status was written. Found and finished, it becomes `success` with its details and a note in stderr; not finished, `abort`; not answerable (job deleted, PBS unreachable), `abort` with the reason as `snapshotError`. A **tunnel** backup cannot be looked up then, since the lease needs the server: it stays `running` and is checked once the server has authenticated the agent (`Connection.onAuthenticated`). Never a provisional `abort` — that would be a second final status, and a second webhook. Every other run still `running` becomes `abort`, as before.
 - **History Synchronization** (`features/HistorySync.ts`): Every run is a file in the agent's `history/` directory, and every change to it is sent to the server via `SYNC_HISTORY` — within a second, and in batches of 50 runs. Delivery is at-least-once: each run carries a `revision` that `JobHistoryRepository` raises whenever a field the server stores changes, and it stays due until the server has acknowledged that revision with `HISTORY_ACK`. A batch without an ack is offered again after a minute, and everything still due goes out on every reconnect. This replaced a watermark (`lastSyncTime`, which the server still sends for agents of an older build) that compared the server's clock with the agent's: a run the server failed to store, one written in the same second, or one from an agent whose clock lagged fell below it and was never sent again. The agent no longer syncs with a server that does not acknowledge; server and agent are released together.
 - **Certificate pinning**: `PBS_FINGERPRINT` is taken from the job's repository copy, which ages — nothing updates it when the PBS renews its certificate. Before a **direct** run the Executor therefore measures the certificate itself (`probeCertificate` from `@pbcm/shared/node`, called in `features/execution/RunPreparation.ts` — the same function the server uses) and adopts the measured value **only** if regular CA validation against the real hostname succeeded; that check is the independent evidence that makes adoption safe. Against a self-signed PBS no such evidence exists, so the stored value stands and a genuine mismatch is left to fail the run — which is the entire purpose of a pin. An adopted value is written back to the job config so the next offline run has it, and reported to the server via `FINGERPRINT_OBSERVED` (informational; the server does not adopt it). **Tunneled** runs skip all of this: they reach the PBS as `127.0.0.1`, where CA validation can never succeed, so the server measures and delivers the fingerprint with the tunnel lease instead (see `docs/tunnel.md`). Which of the two paths a run takes follows from the job's own `tunnel.required`.
 
@@ -248,7 +255,7 @@ the agent run its scheduled backups with no server in reach.
 | `identity.json`       | `clientId` and `authToken`, issued by the server at registration. Without it the agent is unregistered. An older agent's pair is moved here out of `config.yaml` on the first start. |
 | `jobs.json`           | The job configurations. The **only copy** there is: the server lists, saves and deletes jobs through the agent and keeps none of them. |
 | `schedule.json`       | Last and next run time per job, plus the entered start (`anchor`) the time of day is taken from. Written on every scheduled run, so it is kept apart from `jobs.json`. |
-| `history/<run>.json`  | One file per run: status, timing, exit code, output, and the sync revisions. |
+| `history/<run>.json`  | One file per run: status, timing, exit code, output, the snapshot of a backup (`snapshot`, `snapshotDetails`, `snapshotError`), and the sync revisions. |
 
 - **Atomic writes**: every file is written to a temporary file, synced, and renamed over the
   old one, so a power cut leaves either the old or the new version, never half of one.
@@ -261,7 +268,12 @@ the agent run its scheduled backups with no server in reach.
 - **Retention**: a run stays until the server has acknowledged it. Of the acknowledged
   ones, the newest 50 are kept — as many as the agent's own `HISTORY` answer returns — and
   the rest are deleted after each acknowledgement. Queued and running runs are always kept.
-  An agent cut off from its server therefore keeps everything until it is back.
+  An agent cut off from its server keeps what it has not delivered until it is back — **up
+  to 500 runs**. Past that, each new run drops the oldest undelivered one, with a warning
+  in the log (`History full, dropped the oldest unacknowledged runs`); those never reach
+  the server. A run holds at most twice `logCapBytes` of output, so the limit bounds the
+  history at about 256 MB with the defaults. At one run an hour that is about three weeks
+  of outage, at one a day well over a year.
 - **Import from SQLite**: an agent that still has the `client.db` of an older version
   imports its jobs and their schedule state on the first start and renames the database to
   `client.db.migrated`. The **history is not imported**; runs the server had not received

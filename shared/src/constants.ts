@@ -67,6 +67,15 @@ export const JOB_STATUS = {
     QUEUED: "queued",
 } as const;
 
+/**
+ * A step of a run that is still `running` but whose CLI has already exited. Not a status of
+ * its own: filters, webhooks and toasts keep reading the status alone.
+ */
+export const JOB_PHASE = {
+    /** The agent reads the details of the snapshot the backup just created. */
+    SNAPSHOT: "snapshot",
+} as const;
+
 export const CONNECTION_MODE = {
     INBOUND: "inbound",
     OUTBOUND: "outbound",
@@ -129,3 +138,25 @@ export const SCHEDULER_TRIGGERS = ["schedule", "manual"] as const;
  * finished, because the server stopped while it ran.
  */
 export const SCHEDULER_RUN_STATUSES = ["success", "partial", "failed", "interrupted"] as const;
+
+/**
+ * How much a webhook event matters, lowest first -- `WEBHOOK_LEVELS.indexOf` compares two
+ * levels. There is no `trace`: every event is something an operator may want to be woken for.
+ */
+export const WEBHOOK_LEVELS = ["info", "warning", "error"] as const;
+
+/**
+ * The events a webhook can be sent for: one per way a run can end, reported when the run
+ * reaches the server, and an agent that stayed away past its grace period and came back.
+ */
+export const WEBHOOK_EVENT_KINDS = [
+    "job.succeeded",
+    "job.failed",
+    "job.aborted",
+    "job.skipped",
+    "client.disconnected",
+    "client.reconnected",
+] as const;
+
+/** The HTTP methods a webhook may send with. Both carry a body; GET does not. */
+export const WEBHOOK_METHODS = ["POST", "PUT"] as const;

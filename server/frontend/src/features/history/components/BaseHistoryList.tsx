@@ -2,10 +2,11 @@ import { Activity, ChevronRight } from 'lucide-react';
 import { useState, useEffect, type ComponentProps, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
-import { JOB_STATUS } from '@pbcm/shared';
+import { JOB_PHASE, JOB_STATUS, type RunSnapshotDetails } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { RunSnapshotSection } from './RunSnapshotSection';
 
 // The status maps to a role, not to a colour -- Badge owns what each role
 // looks like, in both themes. "neutral" covers idle, queued, skipped and
@@ -37,7 +38,25 @@ export interface BaseHistoryItem {
     error?: string;
     hostname?: string | null;
     displayName?: string | null;
+    /** Set on a live update while the run is still `running` after its CLI exited. */
+    phase?: string | null;
+    snapshot?: string | null;
+    snapshotDetails?: RunSnapshotDetails | null;
+    snapshotError?: string | null;
 }
+
+/** The status as the badge names it: a run reading back its snapshot says so. */
+const statusLabel = (item: BaseHistoryItem): string =>
+    item.status === JOB_STATUS.RUNNING && item.phase === JOB_PHASE.SNAPSHOT
+        ? 'reading snapshot'
+        : item.status;
+
+/** A successful backup whose snapshot details could not be read. */
+const lacksSnapshotDetails = (item: BaseHistoryItem): boolean =>
+    item.type === 'backup' &&
+    item.status === JOB_STATUS.SUCCESS &&
+    !!item.snapshotError &&
+    !item.snapshotDetails;
 
 export interface BaseHistoryListProps {
     items: BaseHistoryItem[];
@@ -101,13 +120,20 @@ export const BaseHistoryList = ({
                                         {item.name || item.jobId || 'Unknown Job'}
                                     </span>
                                 </div>
-                                <Badge
-                                    variant={STATUS_BADGE_VARIANT[item.status] ?? 'neutral'}
-                                    size="sm"
-                                    className="uppercase font-bold"
-                                >
-                                    {item.status}
-                                </Badge>
+                                <div className="flex items-center gap-1.5">
+                                    {lacksSnapshotDetails(item) && (
+                                        <Badge variant="warning" size="sm" className="uppercase font-bold">
+                                            no snapshot details
+                                        </Badge>
+                                    )}
+                                    <Badge
+                                        variant={STATUS_BADGE_VARIANT[item.status] ?? 'neutral'}
+                                        size="sm"
+                                        className="uppercase font-bold"
+                                    >
+                                        {statusLabel(item)}
+                                    </Badge>
+                                </div>
                             </div>
                             <div className="flex justify-between text-xs text-text-muted font-mono mt-0.5 pl-6">
                                 <span>{item.id}</span>
@@ -116,6 +142,13 @@ export const BaseHistoryList = ({
                         </div>
                         {isExpanded && (
                             <div onClick={(e) => e.stopPropagation()}>
+                                {item.type === 'backup' && item.status === JOB_STATUS.SUCCESS && (
+                                    <RunSnapshotSection
+                                        snapshot={item.snapshot}
+                                        details={item.snapshotDetails}
+                                        error={item.snapshotError}
+                                    />
+                                )}
                                 {item.status === JOB_STATUS.RUNNING &&
                                     liveLogs[item.id] &&
                                     liveLogs[item.id].length > 0 ? (

@@ -114,6 +114,7 @@ nav:
           - Installing a Client Agent: install-client.md
           - Configuration: setup.md
           - SSH Reverse Tunnel: tunnel.md
+          - Webhooks: webhooks.md
     - Architecture:
           - Backend: backend.md
           - Frontend: frontend.md

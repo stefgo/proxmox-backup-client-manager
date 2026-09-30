@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { z } from "zod";
+import { RunSnapshotDetailsSchema, type RunSnapshotDetails } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import {
     listJsonFiles,
@@ -13,9 +14,18 @@ const HISTORY_DIR = "history";
 /**
  * How many runs the agent keeps once the server has them. The server holds the history;
  * what stays here is what the agent's own HISTORY answer shows (`getRecentHistory(50)`), plus
- * everything the server has not acknowledged yet -- that is kept however old it is.
+ * everything the server has not acknowledged yet, up to MAX_UNSYNCED.
  */
 const HISTORY_KEEP = 50;
+
+/**
+ * How many runs the agent holds while the server has not acknowledged them. An agent that
+ * has been cut off for weeks must not fill its disk: a run carries up to twice `logCapBytes`
+ * of output, so this bounds the history at about 256 MB with the defaults. The oldest go
+ * first -- they are the ones the server would have been sent next, and the least worth
+ * keeping. The same number as the activity queue in the Docker Instance Manager agent.
+ */
+const MAX_UNSYNCED = 500;
 
 /** One run as `history/<id>.json` holds it. */
 const HistoryRecordSchema = z.object({
@@ -29,14 +39,21 @@ const HistoryRecordSchema = z.object({
     exitCode: z.number().nullable(),
     stdout: z.string().nullable(),
     stderr: z.string().nullable(),
+    // Defaulted: files written before the snapshot fields existed carry none of them.
+    snapshot: z.string().nullable().default(null),
+    snapshotDetails: RunSnapshotDetailsSchema.nullable().default(null),
+    snapshotError: z.string().nullable().default(null),
     createdAt: z.string(),
     revision: z.number().int(),
     syncedRevision: z.number().int().nullable(),
 });
 type HistoryRecord = z.infer<typeof HistoryRecordSchema>;
 
-/** What the index holds of a run: everything but its output, which is read when needed. */
-type HistoryMeta = Omit<HistoryRecord, "stdout" | "stderr">;
+/**
+ * What the index holds of a run: everything but its output and the snapshot details, which
+ * are read when needed.
+ */
+type HistoryMeta = Omit<HistoryRecord, "stdout" | "stderr" | "snapshotDetails">;
 
 /**
  * The fields the server stores. A change to any of them raises the revision, so the run is
@@ -50,6 +67,9 @@ const SYNCED_FIELDS = [
     "exitCode",
     "stdout",
     "stderr",
+    "snapshot",
+    "snapshotDetails",
+    "snapshotError",
 ] as const;
 
 export interface HistoryRow {
@@ -63,6 +83,9 @@ export interface HistoryRow {
     exit_code: number | null;
     stdout: string | null;
     stderr: string | null;
+    snapshot: string | null;
+    snapshot_details: RunSnapshotDetails | null;
+    snapshot_error: string | null;
 }
 
 /** A run as the history sync reads it: the stored fields plus the revision to confirm. */
@@ -77,6 +100,9 @@ export interface UnsyncedHistoryRow {
     exit_code: number | null;
     stdout: string | null;
     stderr: string | null;
+    snapshot: string | null;
+    snapshot_details: RunSnapshotDetails | null;
+    snapshot_error: string | null;
     revision: number;
 }
 
@@ -96,11 +122,21 @@ function metaOf(run: HistoryRecord): HistoryMeta {
     const meta: Partial<HistoryRecord> = { ...run };
     delete meta.stdout;
     delete meta.stderr;
+    delete meta.snapshotDetails;
     return meta as HistoryMeta;
 }
 
 function isUnsynced(run: HistoryMeta): boolean {
     return run.syncedRevision === null || run.syncedRevision < run.revision;
+}
+
+function isActive(run: HistoryMeta): boolean {
+    return run.status === "queued" || run.status === "running";
+}
+
+/** The order runs are synced in -- and, past MAX_UNSYNCED, dropped in. */
+function oldestFirst(a: HistoryMeta, b: HistoryMeta): number {
+    return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 }
 
 function toRow(run: HistoryRecord): HistoryRow & UnsyncedHistoryRow {
@@ -115,6 +151,9 @@ function toRow(run: HistoryRecord): HistoryRow & UnsyncedHistoryRow {
         exit_code: run.exitCode,
         stdout: run.stdout,
         stderr: run.stderr,
+        snapshot: run.snapshot,
+        snapshot_details: run.snapshotDetails,
+        snapshot_error: run.snapshotError,
         revision: run.revision,
     };
 }
@@ -183,14 +222,28 @@ export class JobHistoryRepository {
     }
 
     private static insert(
-        run: Omit<HistoryRecord, "createdAt" | "revision" | "syncedRevision">,
+        run: Omit<
+            HistoryRecord,
+            | "createdAt"
+            | "revision"
+            | "syncedRevision"
+            | "snapshot"
+            | "snapshotDetails"
+            | "snapshotError"
+        >,
     ): void {
         this.write({
             ...run,
+            snapshot: null,
+            snapshotDetails: null,
+            snapshotError: null,
             createdAt: new Date().toISOString(),
             revision: 1,
             syncedRevision: null,
         });
+        // Here and not only on acknowledgement: an agent without a server acknowledges
+        // nothing, and that is exactly when the unacknowledged runs pile up.
+        this.prune();
         this.changed();
     }
 
@@ -224,9 +277,9 @@ export class JobHistoryRepository {
     }
 
     /**
-     * Deletes the runs nobody needs any more. Kept are every run the server has not
-     * acknowledged, every run still queued or running -- the restart logic acts on those --
-     * and the newest HISTORY_KEEP.
+     * Deletes the runs nobody needs any more. Kept are every run still queued or running --
+     * the restart logic acts on those -- the newest HISTORY_KEEP, and every run the server
+     * has not acknowledged, up to the newest MAX_UNSYNCED of them.
      */
     private static prune(): void {
         const index = this.index;
@@ -241,13 +294,28 @@ export class JobHistoryRepository {
         let removed = 0;
         for (const run of [...index.values()]) {
             if (keep.has(run.id) || isUnsynced(run)) continue;
-            if (run.status === "queued" || run.status === "running") continue;
+            if (isActive(run)) continue;
             if (removeJsonFile(fileOf(run.id))) {
                 index.delete(run.id);
                 removed++;
             }
         }
         if (removed > 0) logger.debug({ removed }, "Pruned acknowledged history entries");
+
+        // Active runs are not counted: they cannot be dropped, and they are few.
+        const unsynced = [...index.values()]
+            .filter((run) => isUnsynced(run) && !isActive(run))
+            .sort(oldestFirst);
+        let dropped = 0;
+        for (const run of unsynced.slice(0, Math.max(0, unsynced.length - MAX_UNSYNCED))) {
+            if (removeJsonFile(fileOf(run.id))) {
+                index.delete(run.id);
+                dropped++;
+            }
+        }
+        if (dropped > 0) {
+            logger.warn({ dropped }, "History full, dropped the oldest unacknowledged runs");
+        }
     }
 
     /**
@@ -256,17 +324,11 @@ export class JobHistoryRepository {
     static findUnsynced(limit: number): UnsyncedHistoryRow[] {
         const due = [...this.load().values()]
             .filter(isUnsynced)
-            .sort(
-                (a, b) =>
-                    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-            )
+            .sort(oldestFirst)
             .slice(0, limit);
         const ids = new Set(due.map((run) => run.id));
         return this.readAll((run) => ids.has(run.id))
-            .sort(
-                (a, b) =>
-                    a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-            )
+            .sort(oldestFirst)
             .map(toRow);
     }
 
@@ -329,11 +391,16 @@ export class JobHistoryRepository {
         return this.readAll((run) => run.status === "queued").map(toRow);
     }
 
-    static cleanUpRunningJobs(): number {
+    /**
+     * Sets every run still `running` to `abort`, except those in `keep` -- the interrupted
+     * backups whose snapshot is checked only once the server is there (tunnel jobs).
+     */
+    static cleanUpRunningJobs(keep: ReadonlySet<string> = new Set()): number {
         const endTime = new Date().toISOString();
         let changes = 0;
         for (const run of [...this.load().values()]) {
             if (run.status !== "running") continue;
+            if (keep.has(run.id)) continue;
             if (this.update(run.id, { status: "abort", endTime })) changes++;
         }
         if (changes > 0) this.changed();
@@ -405,9 +472,95 @@ export class JobHistoryRepository {
         exitCode: number | null,
         stdout: string | null,
         stderr: string | null,
+        snapshot?: { details: RunSnapshotDetails | null; error: string | null },
     ): void {
-        this.update(id, { status, endTime, exitCode, stdout, stderr });
+        this.update(id, {
+            status,
+            endTime,
+            exitCode,
+            stdout,
+            stderr,
+            ...(snapshot && {
+                snapshotDetails: snapshot.details,
+                snapshotError: snapshot.error,
+            }),
+        });
         this.changed();
+    }
+
+    /**
+     * Records the snapshot a backup is about to create, before its process starts: the one
+     * thing a restart needs to find out afterwards whether the backup got through.
+     */
+    static setSnapshot(id: string, snapshot: string): void {
+        this.update(id, { snapshot });
+        this.changed();
+    }
+
+    /**
+     * Backups a previous agent process left `running` that know which snapshot they were
+     * creating -- the ones a restart can check against the PBS.
+     */
+    static findInterruptedBackups(): HistoryRow[] {
+        return this.readAll(
+            (run) => run.status === "running" && run.type === "backup" && !!run.snapshot,
+        ).map(toRow);
+    }
+
+    /**
+     * Ends a run a restart found `running`, once the PBS has been asked about its snapshot.
+     * The note is appended to its stderr, so the log says how the status came about.
+     */
+    static settleInterruptedBackup(
+        id: string,
+        status: string,
+        note: string,
+        snapshot: { details: RunSnapshotDetails | null; error: string | null },
+    ): void {
+        const current = this.read(id);
+        if (!current) return;
+        this.update(id, {
+            status,
+            endTime: new Date().toISOString(),
+            stderr: current.stderr ? `${current.stderr}\n${note}` : note,
+            snapshotDetails: snapshot.details,
+            snapshotError: snapshot.error,
+        });
+        this.changed();
+    }
+
+    /**
+     * A run that failed before it started: its config did not resolve, a pre-script failed.
+     * Most of those never had a row -- the row is written when the process starts -- and so
+     * were known to the server only, and only if it was connected at that moment. Recorded
+     * here, they sync like any other run, including after the agent was offline.
+     */
+    static recordFailedRun(
+        id: string,
+        jobId: string | null,
+        name: string,
+        type: string,
+        startTime: string,
+        message: string,
+    ): void {
+        const endTime = new Date().toISOString();
+        if (this.load().has(id)) {
+            this.update(id, { status: "failed", endTime, exitCode: null, stderr: message });
+            this.changed();
+            return;
+        }
+        this.insert({
+            id,
+            jobId,
+            name,
+            type,
+            status: "failed",
+            startTime,
+            endTime,
+            exitCode: null,
+            stdout: null,
+            stderr: message,
+        });
     }
 
     static failJob(id: string, stderr: string): void {
