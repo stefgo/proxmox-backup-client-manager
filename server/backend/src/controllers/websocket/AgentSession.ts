@@ -4,6 +4,7 @@ import {
     AuthPayloadSchema,
     ConnectionMode,
 } from "@pbcm/shared";
+import { ClientConnectionWatch } from "../../services/ClientConnectionWatch.js";
 import { ProxyService } from "../../services/ProxyService.js";
 import { ClientRepository } from "../../repositories/ClientRepository.js";
 import { JobHistoryRepository } from "../../repositories/JobHistoryRepository.js";
@@ -136,6 +137,7 @@ export function attachAgentSession(options: AgentSessionOptions): void {
 
             log.info({ msg: "Agent authenticated", clientId, connectionMode });
             ProxyService.registerClient(clientId, socket);
+            ClientConnectionWatch.connected(clientId);
 
             // The agent resumes its history from here, so the handshake has to carry the
             // last run the server already holds.
@@ -150,7 +152,9 @@ export function attachAgentSession(options: AgentSessionOptions): void {
 
             socket.on("close", () => {
                 ClientRepository.updateLastSeen(clientId);
-                ProxyService.unregisterClient(clientId, socket);
+                if (ProxyService.unregisterClient(clientId, socket)) {
+                    ClientConnectionWatch.disconnected(clientId);
+                }
                 log.info({ msg: "Agent disconnected", clientId, connectionMode });
                 ProxyService.broadcastClientUpdate();
                 onClose?.();

@@ -8,6 +8,9 @@ import {
     SCHEDULER_IDS,
     SCHEDULER_RUN_STATUSES,
     SCHEDULER_TRIGGERS,
+    WEBHOOK_EVENT_KINDS,
+    WEBHOOK_LEVELS,
+    WEBHOOK_METHODS,
 } from "./constants.js";
 import {
     ClientSchema,
@@ -65,6 +68,8 @@ import {
     HistoryQuerySchema,
     HistorySeenSchema,
     PbsSnapshotSchema,
+    WebhookInputSchema,
+    WebhookSchema,
 } from "./schemas.js";
 
 /**
@@ -191,6 +196,29 @@ export interface TunnelState {
 export interface WsMessage<T = any> {
     type: string;
     payload: T;
+}
+
+// ── Webhooks ─────────────────────────────────────────────────────────────────
+
+export type WebhookLevel = (typeof WEBHOOK_LEVELS)[number];
+export type WebhookEventKind = (typeof WEBHOOK_EVENT_KINDS)[number];
+export type WebhookMethod = (typeof WEBHOOK_METHODS)[number];
+
+export type WebhookInput = z.input<typeof WebhookInputSchema>;
+/** A webhook's configuration once `WebhookInputSchema` has checked it and filled in the defaults. */
+export type WebhookFields = z.infer<typeof WebhookInputSchema>;
+export type Webhook = z.infer<typeof WebhookSchema>;
+
+/** One test delivery: what was sent, and what came back. */
+export interface WebhookTestResult {
+    ok: boolean;
+    /** The target's HTTP status; null when nothing answered. */
+    status: number | null;
+    error: string | null;
+    /** The body as rendered and sent. */
+    body: unknown;
+    /** The start of what the target answered. */
+    response: string | null;
 }
 
 export interface ProtocolMap {

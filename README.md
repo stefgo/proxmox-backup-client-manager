@@ -14,6 +14,7 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 - **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
 - **Secure Communication:** Use secure WebSocket connections between clients and the server, authenticated via short-lived registration tokens.
 - **Offline-capable Agents:** Each agent keeps its jobs in its own data files and runs them on schedule while the server is unreachable; its run history is kept until the server has received it.
+- **Webhooks:** Report failed, aborted or successful runs, and clients that lost their connection, to chat, push or incident services with a JSON body you write yourself. Runs that end while the server is unreachable are reported once the agent is back.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
 
 ## 📚 Documentation
@@ -24,6 +25,7 @@ The full documentation is published at
 - [Installing the Server](https://stefgo.github.io/proxmox-backup-client-manager/install-server/) - Running the control plane with Docker Compose.
 - [Installing a Client Agent](https://stefgo.github.io/proxmox-backup-client-manager/install-client/) - Running an agent on a machine you back up.
 - [Configuration](https://stefgo.github.io/proxmox-backup-client-manager/setup/) - Every `config.yaml` key and environment variable.
+- [Webhooks](https://stefgo.github.io/proxmox-backup-client-manager/webhooks/) - Reporting runs and lost clients to external services, and the template language.
 - [API Documentation](https://stefgo.github.io/proxmox-backup-client-manager/api/) - Full specification of the REST and WebSocket APIs.
 - [Frontend Architecture](https://stefgo.github.io/proxmox-backup-client-manager/frontend/) - Overview of the React application structure, state management, and design system.
 - [Backend Architecture](https://stefgo.github.io/proxmox-backup-client-manager/backend/) - Controllers, services, WebSocket protocol, and database schema.

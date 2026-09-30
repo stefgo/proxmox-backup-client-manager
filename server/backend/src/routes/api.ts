@@ -8,6 +8,7 @@ import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { HistoryController } from "../controllers/HistoryController.js";
 import { TunnelController } from "../controllers/TunnelController.js";
+import { WebhookController } from "../controllers/WebhookController.js";
 import { HealthRepository } from "../repositories/HealthRepository.js";
 
 export default async function apiRoutes(fastify: FastifyInstance) {
@@ -233,6 +234,20 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 protectedRoutes.delete(
                     "/tokens/:tokenHash",
                     TokenController.delete,
+                );
+
+                // Webhooks -- kept and sent here.
+                protectedRoutes.get("/webhooks", WebhookController.list);
+                protectedRoutes.post("/webhooks", WebhookController.create);
+                // Registered before /webhooks/:webhookId, which it would otherwise look like.
+                protectedRoutes.post("/webhooks/test", WebhookController.test);
+                protectedRoutes.put(
+                    "/webhooks/:webhookId",
+                    WebhookController.update,
+                );
+                protectedRoutes.delete(
+                    "/webhooks/:webhookId",
+                    WebhookController.delete,
                 );
 
                 // Settings

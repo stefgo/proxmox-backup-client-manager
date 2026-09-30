@@ -4,6 +4,7 @@ import { useClientStore } from '../../../stores/useClientStore';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
 import { useSchedulerStore } from '../../../stores/useSchedulerStore';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
+import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
 
@@ -117,6 +118,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     if (data.type === 'HISTORY_SEEN') {
                         if (data.payload?.username === usernameRef.current) {
                             useHistorySeenStore.getState().applySeen(data.payload);
+                        }
+                    }
+
+                    // No payload: the list changed, and only a page that has loaded it re-reads it.
+                    if (data.type === 'WEBHOOKS_UPDATE') {
+                        if (useWebhookStore.getState().loaded) {
+                            useWebhookStore.getState().fetchWebhooks();
                         }
                     }
 

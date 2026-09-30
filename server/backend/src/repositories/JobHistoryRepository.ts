@@ -4,10 +4,26 @@ import {
     StatusUpdatePayload,
     HistoryEntry,
     GlobalHistoryEntry,
+    isFinalJobStatus,
+    type WebhookRun,
 } from "@pbcm/shared";
 
 // The two writers below take payloads the WebSocketController has already run through
 // their Zod schemas, so they can be typed instead of taking `any`.
+
+const selectStatus = () => db.prepare("SELECT status FROM job_history WHERE id = ?");
+
+/**
+ * The run as it has to be reported, when a write just gave it a final state it did not have
+ * before; else null. This is the one moment a run ends as far as the server can tell, and it
+ * comes once whichever of the two writers brings it -- the live STATUS_UPDATE, the history
+ * sync after it, or the sync alone after an outage. A post-script that turns a success into
+ * a failure is a second, different final state, and is reported too.
+ */
+function finishedRun(before: string | undefined, applied: boolean, run: WebhookRun): WebhookRun | null {
+    if (!applied || run.status === before || !isFinalJobStatus(run.status)) return null;
+    return run;
+}
 
 export class JobHistoryRepository {
     /**
@@ -119,11 +135,12 @@ export class JobHistoryRepository {
         return lastSyncRecord?.updated_at || null;
     }
 
+    /** Answers the run when this write ended it -- see `finishedRun`. */
     static upsertStatus(
         clientId: string,
         payload: StatusUpdatePayload,
-    ): void {
-        db.prepare(
+    ): WebhookRun | null {
+        const upsert = db.prepare(
             `
             INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -135,25 +152,42 @@ export class JobHistoryRepository {
                 stderr=excluded.stderr,
                 updated_at=CURRENT_TIMESTAMP
         `,
-        ).run(
-            payload.id,
-            clientId,
-            payload.jobId,
-            payload.name,
-            payload.type,
-            payload.status,
-            payload.startTime || null,
-            payload.endTime || null,
-            payload.exitCode ?? null,
-            payload.stdout || null,
-            payload.stderr || null,
         );
+        const run: WebhookRun = {
+            id: payload.id,
+            jobId: payload.jobId ?? null,
+            name: payload.name ?? null,
+            type: payload.type,
+            status: payload.status,
+            startTime: payload.startTime || "",
+            endTime: payload.endTime || null,
+            exitCode: payload.exitCode ?? null,
+            stderr: payload.stderr || null,
+        };
+        return db.transaction(() => {
+            const before = selectStatus().get(payload.id) as { status: string } | undefined;
+            const { changes } = upsert.run(
+                payload.id,
+                clientId,
+                payload.jobId,
+                payload.name,
+                payload.type,
+                payload.status,
+                payload.startTime || null,
+                payload.endTime || null,
+                payload.exitCode ?? null,
+                payload.stdout || null,
+                payload.stderr || null,
+            );
+            return finishedRun(before?.status, changes > 0, run);
+        })();
     }
 
+    /** Answers the runs this batch ended -- see `finishedRun`. */
     static upsertHistoryBatch(
         clientId: string,
         historyEntries: HistoryEntry[],
-    ): void {
+    ): WebhookRun[] {
         // A retried batch can arrive after a newer one; the WHERE keeps it from putting the
         // older state back. Without a revision on either side -- an agent of an older
         // build -- the row is overwritten as it always was.
@@ -173,9 +207,12 @@ export class JobHistoryRepository {
                 OR excluded.revision >= job_history.revision
         `);
 
+        const status = selectStatus();
         const transaction = db.transaction((entries: HistoryEntry[]) => {
+            const finished: WebhookRun[] = [];
             for (const entry of entries) {
-                insertStmt.run(
+                const before = status.get(entry.id) as { status: string } | undefined;
+                const { changes } = insertStmt.run(
                     entry.id,
                     clientId,
                     entry.jobConfigId || null,
@@ -189,9 +226,22 @@ export class JobHistoryRepository {
                     entry.stderr || null,
                     entry.revision ?? null,
                 );
+                const run = finishedRun(before?.status, changes > 0, {
+                    id: entry.id,
+                    jobId: entry.jobConfigId || null,
+                    name: entry.name || null,
+                    type: entry.type,
+                    status: entry.status,
+                    startTime: entry.startTime,
+                    endTime: entry.endTime,
+                    exitCode: entry.exitCode,
+                    stderr: entry.stderr || null,
+                });
+                if (run) finished.push(run);
             }
+            return finished;
         });
 
-        transaction(historyEntries);
+        return transaction(historyEntries);
     }
 }

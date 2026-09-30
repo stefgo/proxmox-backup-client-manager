@@ -8,6 +8,7 @@ import {
     Settings as SettingsIcon,
     Server as ServerIcon,
     Activity,
+    Webhook,
 } from 'lucide-react';
 
 // Library Components
@@ -46,6 +47,8 @@ const RepositoryOverview = lazy(() => import('../repositories/components/Reposit
 const RepositoryEditor = lazy(() => import('../repositories/components/RepositoryEditor').then(m => ({ default: m.RepositoryEditor })));
 const UserOverview = lazy(() => import('../users/components/UserOverview').then(m => ({ default: m.UserOverview })));
 const Settings = lazy(() => import('../../pages/Settings'));
+const WebhookOverview = lazy(() => import('../webhooks/components/WebhookOverview').then(m => ({ default: m.WebhookOverview })));
+const WebhookEditorRoute = lazy(() => import('../webhooks/components/WebhookEditor').then(m => ({ default: m.WebhookEditorRoute })));
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -443,6 +446,17 @@ function AppLayout() {
             },
         },
         {
+            id: 'webhooks',
+            path: ['/webhooks', '/webhooks/new', '/webhooks/:webhookId'],
+            nav: {
+                groupId: 'administration',
+                placement: 'mobile-more',
+                label: 'Webhooks',
+                icon: Webhook,
+                onClick: () => navigate('/webhooks'),
+            },
+        },
+        {
             id: 'settings',
             path: '/settings',
             nav: {
@@ -494,6 +508,9 @@ function AppLayout() {
                         <Route path="/history" element={<HistoryOverview />} />
                         <Route path="/users" element={<UserOverview />} />
                         <Route path="/tokens" element={<TokenOverview />} />
+                        <Route path="/webhooks" element={<WebhookOverview />} />
+                        <Route path="/webhooks/new" element={<WebhookEditorRoute />} />
+                        <Route path="/webhooks/:webhookId" element={<WebhookEditorRoute />} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="*" element={<NotFound />} />
                     </Routes>

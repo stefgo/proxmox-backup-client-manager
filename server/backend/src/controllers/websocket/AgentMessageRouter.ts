@@ -10,9 +10,13 @@ import {
     JobNextRunUpdatePayloadSchema,
     TunnelReleaseSchema,
     FingerprintObservedSchema,
+    jobRunEvent,
+    type JobRunEvent,
+    type WebhookRun,
 } from "@pbcm/shared";
 import { ProxyService } from "../../services/ProxyService.js";
 import { TunnelService } from "../../services/TunnelService.js";
+import { WebhookService } from "../../services/WebhookService.js";
 import { JobHistoryRepository } from "../../repositories/JobHistoryRepository.js";
 import { TunnelLease } from "./TunnelLease.js";
 import type { HeartbeatSocket } from "./Heartbeat.js";
@@ -38,6 +42,12 @@ const TERMINAL_JOB_STATUSES: string[] = [
     JOB_STATUS.FAILED,
     JOB_STATUS.ABORTED,
 ];
+
+/** Hands the runs a write just ended to the webhooks. */
+function reportFinished(clientId: string, runs: WebhookRun[]): void {
+    const events = runs.map(jobRunEvent).filter((event): event is JobRunEvent => event !== null);
+    WebhookService.dispatch(clientId, events);
+}
 
 /** Everything a handler is given. Grouped so the table's signature stays one line. */
 interface AgentMessageContext {
@@ -75,7 +85,8 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
 
         if (TERMINAL_JOB_STATUSES.includes(statusPayload.status)) {
             try {
-                JobHistoryRepository.upsertStatus(clientId, statusPayload);
+                const finished = JobHistoryRepository.upsertStatus(clientId, statusPayload);
+                if (finished) reportFinished(clientId, [finished]);
             } catch (err) {
                 log.error({ msg: "Failed to save job history", err });
             }
@@ -134,7 +145,8 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
         let stored: { id: string; revision: number }[] = [];
         if (valid.length > 0) {
             try {
-                JobHistoryRepository.upsertHistoryBatch(clientId, valid);
+                const finished = JobHistoryRepository.upsertHistoryBatch(clientId, valid);
+                reportFinished(clientId, finished);
                 stored = valid.flatMap((entry) =>
                     entry.revision === undefined
                         ? []
