@@ -1,3 +1,105 @@
+# [1.5.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0...v1.5.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* Acknowledge synced job history so no run is lost ([fe6d009](https://github.com/stefgo/proxmox-backup-client-manager/commit/fe6d0098ecbe2bd94f003bdfc53a07d5125a439a))
+* Answer 404 when deleting a token that does not exist ([0e31c05](https://github.com/stefgo/proxmox-backup-client-manager/commit/0e31c05457f077be4f6a6854b43e144c28ac7da8))
+* **client:** Close the register page once the agent is registered ([bf9ba43](https://github.com/stefgo/proxmox-backup-client-manager/commit/bf9ba43604e2a5c8cd3197af585b3b2ee66788de))
+* **client:** Create the temporary keyfile exclusively and sweep leftovers at startup ([057296f](https://github.com/stefgo/proxmox-backup-client-manager/commit/057296fc4ecf9f37bf2b7a4a632e62a33a070506))
+* **client:** Keep the data files readable by the agent only ([f6eacab](https://github.com/stefgo/proxmox-backup-client-manager/commit/f6eacabf78f8d3fb8a3192fadc2352f0dd8ec6f3))
+* **client:** Name the connection modes from the server's side ([eb7a6e6](https://github.com/stefgo/proxmox-backup-client-manager/commit/eb7a6e64ea6fbd7b0fb66e95d5a0d475a0dc0f4e))
+* **client:** Pass the encryption options after the backup and restore subcommands ([059b4cd](https://github.com/stefgo/proxmox-backup-client-manager/commit/059b4cd6d2415767e6c54e2faec134f7e41c3b78))
+* **client:** Record runs that fail before they start in the agent's history ([20f080c](https://github.com/stefgo/proxmox-backup-client-manager/commit/20f080c87c9edd00c7dde6d12fc9d0afd812bbd7))
+* **clients:** Build the client header from EntityHeader ([7e64632](https://github.com/stefgo/proxmox-backup-client-manager/commit/7e646321e7504cdcca9c01ee81d4e198c7c1231a))
+* **clients:** Drop the client ID from the client list ([c5c3bf0](https://github.com/stefgo/proxmox-backup-client-manager/commit/c5c3bf0a723c0335f65b0b15db9ba947492b6f58))
+* **clients:** Keep the file browser on the directory it names ([a1d8bd8](https://github.com/stefgo/proxmox-backup-client-manager/commit/a1d8bd8812339dcf22a25edf516db95e09a20cc8))
+* **clients:** Move the client ID out of the headers into the content ([e6db439](https://github.com/stefgo/proxmox-backup-client-manager/commit/e6db439317d776e7fc5edbf160c24296db31967d))
+* **client:** Tolerate a self-signed server certificate only when configured ([f07ff5e](https://github.com/stefgo/proxmox-backup-client-manager/commit/f07ff5e9f48887837936a2ff9de558fc9a668175))
+* Compare the agent's secrets in constant time ([12d6afb](https://github.com/stefgo/proxmox-backup-client-manager/commit/12d6afbb2c655971aacc14b64b24ec11b03c162d))
+* **deps:** Update @stefgo/react-ui-components to 4.1.1 ([2895fa6](https://github.com/stefgo/proxmox-backup-client-manager/commit/2895fa6f9c5c35aa5205ef559cc2b131b5ceaf54))
+* **deps:** update @stefgo/react-ui-components to version 4.2.0 ([83af6c1](https://github.com/stefgo/proxmox-backup-client-manager/commit/83af6c1f9751f03106e5ee3020ed10c74f0a3e25))
+* **deps:** update @stefgo/react-ui-components to version 4.2.1 ([7bc05bb](https://github.com/stefgo/proxmox-backup-client-manager/commit/7bc05bba145e1f59983856bdc0f26e1cbc53916f))
+* **docker:** Let the health checks follow the port and scheme actually served ([2dcd678](https://github.com/stefgo/proxmox-backup-client-manager/commit/2dcd678f8b77bacc2389c9e28760d85fbce9c799))
+* **frontend:** Keep deep links to clients and repositories on reload ([1bac03b](https://github.com/stefgo/proxmox-backup-client-manager/commit/1bac03b5f109217baa8027fbd2ada4ca9f915bfc))
+* **frontend:** Report action results as toasts and pass server errors through ([250ffa6](https://github.com/stefgo/proxmox-backup-client-manager/commit/250ffa67e9bc5d867ac5d9ce0ec25fc5f390e9bc))
+* **frontend:** Say that the shown address is the last successful connect ([fb96bc2](https://github.com/stefgo/proxmox-backup-client-manager/commit/fb96bc21b2e421df86200c198b1e15bb44f1f08b))
+* **frontend:** Spell the Resources nav group correctly ([09b9fee](https://github.com/stefgo/proxmox-backup-client-manager/commit/09b9feee136dbf316887162b4488de2e2b2d5030))
+* **frontend:** Tell an empty list from an empty search ([ef85efe](https://github.com/stefgo/proxmox-backup-client-manager/commit/ef85efeda6261fa0c63545b8b4b05237f2dd44ee))
+* **jobs:** Drop the job ID from the job tables ([13edde2](https://github.com/stefgo/proxmox-backup-client-manager/commit/13edde20b678ff5b01c88be8d8d75812d5306fe6))
+* **jobs:** State the time window in the Last History title ([7956f50](https://github.com/stefgo/proxmox-backup-client-manager/commit/7956f5031ca12477cf20fd8eb7eeb67e375e4e89))
+* Record the disconnect time in last_seen ([1a6fa4e](https://github.com/stefgo/proxmox-backup-client-manager/commit/1a6fa4ecdad503e767ad88796b45c79acedf307f))
+* Refuse an encrypted job that has no key instead of backing up in plain text ([63d0de9](https://github.com/stefgo/proxmox-backup-client-manager/commit/63d0de968ba413d7ca6dcef4121a5a870a1873c0))
+* Refuse the same things on both agent routes ([902c5a5](https://github.com/stefgo/proxmox-backup-client-manager/commit/902c5a54a5e74571999c54f55b587c7905abeb22))
+* **repositories:** Build the repository header from EntityHeader ([48d0473](https://github.com/stefgo/proxmox-backup-client-manager/commit/48d04739a0d8ca4c852b93b20b806889fd8dd570))
+* **repositories:** Drop the repository ID from the repository table ([f315de2](https://github.com/stefgo/proxmox-backup-client-manager/commit/f315de2b0fa1f17aa9cc7171f3345d6ac0e7456c))
+* **repositories:** Move the repository ID out of the header into the content ([67f5fd2](https://github.com/stefgo/proxmox-backup-client-manager/commit/67f5fd27235cf5aed442122aa608a246189fbc24))
+* **restore:** Show the snapshot time in the interface's date format ([8d1f549](https://github.com/stefgo/proxmox-backup-client-manager/commit/8d1f5490de7c04a97b73257c1e0f992550e06497))
+* **scheduler:** Keep daily and weekly jobs on their time of day across DST ([926f793](https://github.com/stefgo/proxmox-backup-client-manager/commit/926f793159e0a3dfa8d88bb400f703efed48a64e))
+* **scheduler:** Keep the first planned run of a scheduler across restarts ([33afa22](https://github.com/stefgo/proxmox-backup-client-manager/commit/33afa22543c623eb9eb352eccb6b4bfb1aa770e2))
+* **server:** Reload the SPA when a chunk from a previous deploy is gone ([8e932b0](https://github.com/stefgo/proxmox-backup-client-manager/commit/8e932b0ff34ac5261c196448977a74d9429968da))
+* **tokens:** Compare token expiry as a timestamp, not as text ([6616122](https://github.com/stefgo/proxmox-backup-client-manager/commit/66161224a47de5439833607dd1b3c6984fa18644))
+
+
+### Features
+
+* Add a health endpoint, container healthchecks and a CI smoke test ([ce58b4e](https://github.com/stefgo/proxmox-backup-client-manager/commit/ce58b4e42563d21516bd67b8ef2c331fd9eece61))
+* Ask for the setup PIN in the outbound Add Client wizard ([aaeb187](https://github.com/stefgo/proxmox-backup-client-manager/commit/aaeb187b519dc53d24c628a19abee37c699d3321))
+* **client:** Register outbound agents with the setup PIN instead of a config secret ([9b11399](https://github.com/stefgo/proxmox-backup-client-manager/commit/9b11399225577ef36c363fbe20731ceacf5df68b))
+* **client:** Serve only the web routes the configuration calls for ([529830e](https://github.com/stefgo/proxmox-backup-client-manager/commit/529830e125daf20f80169fa3b6bbd75b40c546b0))
+* **clients:** Show the time zone each agent runs its schedules in ([bd37188](https://github.com/stefgo/proxmox-backup-client-manager/commit/bd37188500d1aac6f7e8a8ee2e4ea08c83b92fb0))
+* **data:** ensure data directory is created at startup ([e9d4e51](https://github.com/stefgo/proxmox-backup-client-manager/commit/e9d4e51d52bfc04712818a7582856b0b590f0067))
+* Dial outbound agents over TLS ([e9c8137](https://github.com/stefgo/proxmox-backup-client-manager/commit/e9c8137c29a5f0d54c6d263ec22a05a613e3c598))
+* **frontend:** Filter the history to failed runs ([0c11170](https://github.com/stefgo/proxmox-backup-client-manager/commit/0c111707b0b6ff5eb30490515605b7409d628048))
+* **frontend:** Give the Add Client steps a line on what each one does ([5638001](https://github.com/stefgo/proxmox-backup-client-manager/commit/5638001cc16a98863cb5243039b0633e9fc8f879))
+* **frontend:** Give the loading indicator a label and status role ([b7445c0](https://github.com/stefgo/proxmox-backup-client-manager/commit/b7445c02ec9a92ec1fd7dc23f28bbca6eb0b738a))
+* **frontend:** Keep every list search in the URL ([2bd1301](https://github.com/stefgo/proxmox-backup-client-manager/commit/2bd130107db639bb257fbda1361975dc9a9437fa))
+* **frontend:** Move the tabs onto the library's tab list ([66c930a](https://github.com/stefgo/proxmox-backup-client-manager/commit/66c930ac9c5628c8ec3197e57c8966878cf07496))
+* **frontend:** Move the user and token lists to DataMultiView ([9b33353](https://github.com/stefgo/proxmox-backup-client-manager/commit/9b33353565b8b416e3456c889063459f34313753))
+* **frontend:** Show a banner and resync when the dashboard socket drops ([1c15681](https://github.com/stefgo/proxmox-backup-client-manager/commit/1c15681de58d90d4e405f8b70409e2bd8116781d))
+* **frontend:** Toast job results and flag unseen failures on History ([34e1687](https://github.com/stefgo/proxmox-backup-client-manager/commit/34e1687eae3cf4139ebbbbe84e834d33aeedc410))
+* **history:** Store per user when the history was last seen ([9917bb5](https://github.com/stefgo/proxmox-backup-client-manager/commit/9917bb56676511be690570c398426b2f9dde6919))
+* **jobs:** Exclude paths from a backup job ([426a293](https://github.com/stefgo/proxmox-backup-client-manager/commit/426a293a12ca35e09e84da11f73407024e55b66f))
+* Make the backend port configurable ([a2c514d](https://github.com/stefgo/proxmox-backup-client-manager/commit/a2c514da66c6644d03c5dc2d3a93a43f2ea76ceb))
+* Record the snapshot and its details with each backup run ([819b885](https://github.com/stefgo/proxmox-backup-client-manager/commit/819b885ad64ff036b79fc448b25b6cb46b95b217))
+* Report a registration the agent could not store ([5fdf11a](https://github.com/stefgo/proxmox-backup-client-manager/commit/5fdf11a2a96ab9c614e95c74dabdcd06b3044d16))
+* Report finished runs and lost clients to webhooks ([74e1b3d](https://github.com/stefgo/proxmox-backup-client-manager/commit/74e1b3dff0ed7b77b4abf654568ea37af5dd2600))
+* **settings:** add cleanup endpoints for invalid tokens and job history ([0706b2d](https://github.com/stefgo/proxmox-backup-client-manager/commit/0706b2d7a75074de047d6212c86641ee4c418776))
+* **settings:** enhance layout and add save button in settings panel ([b5f22e0](https://github.com/stefgo/proxmox-backup-client-manager/commit/b5f22e06f0c18da3d9fca2184680f1fbaafe1fa3))
+* **settings:** Persist the state of every server scheduler ([132bdcf](https://github.com/stefgo/proxmox-backup-client-manager/commit/132bdcf26f8c030f7b73952dd28f748bb5942173))
+* Show only the client name in the client list ([ad582e3](https://github.com/stefgo/proxmox-backup-client-manager/commit/ad582e31be119c462d337f348432431d89425ab3))
+* Show the last activity of each job on the jobs page ([55bfae6](https://github.com/stefgo/proxmox-backup-client-manager/commit/55bfae650b3d548bc5d000fd4d1ecbf2b08a9427))
+* Show the snapshot of a backup run in its log ([624db13](https://github.com/stefgo/proxmox-backup-client-manager/commit/624db135bd648a230190e85122bbb7bf1d5b9874))
+* **tokens:** Store registration tokens as SHA-256 hashes only ([60f0d93](https://github.com/stefgo/proxmox-backup-client-manager/commit/60f0d93273082fa2f14efe78fb7548fcb96ee547))
+* **vscode:** add npm task for starting the backend server ([509eb86](https://github.com/stefgo/proxmox-backup-client-manager/commit/509eb869cb8049c68e1602e13d12132eeb483f5c))
+
+
+### BREAKING CHANGES
+
+* **tokens:** GET /api/v1/tokens returns tokenHash instead of token, and
+DELETE /api/v1/tokens/:tokenHash takes the hash instead of the token.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **settings:** retention_invalid_tokens_days is renamed to
+token_retention_days without carrying the value over, and
+retention_invalid_tokens_count is dropped. The server removes both keys
+from config.yaml at startup. New keys token_cleanup_interval_hours and
+job_history_cleanup_interval_hours default to 24; the nightly run at
+midnight is gone.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **client:** registrationSecret in the agent's config.yaml is no longer
+read; an agent that still has it logs a warning and waits for the setup PIN or
+PBCM_REGISTRATION_SECRET instead. Agents that are already registered are not
+affected.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+* **client:** An agent that registers with or connects to a PBCM server
+with a self-signed certificate needs allowSelfSignedCertificates: true in its
+config.yaml. Registration against such a server used to succeed without it.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 # [1.4.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.3.2...v1.4.0) (2026-09-09)
 
 
