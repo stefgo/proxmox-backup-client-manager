@@ -342,7 +342,7 @@ export class ClientConnector {
             authToken = ClientRepository.outboundAuthToken(client);
         } catch (err) {
             // Not retried: a token that cannot be decrypted now will not decrypt in a
-            // minute either. Usually a changed tunnel.keySecret.
+            // minute either. Usually a changed secretKey.
             logger.error(
                 { err, clientId: client.id },
                 "ClientConnector: cannot decrypt the stored auth token, not connecting",

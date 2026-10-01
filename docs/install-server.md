@@ -56,7 +56,7 @@ curl -fsSLo server-config.yaml \
 ```
 
 An empty file works too (`touch server-config.yaml`); the example is only more readable
-afterwards. `jwtSecret` and `tunnel.keySecret` are generated on first start and written
+afterwards. `jwtSecret` and `secretKey` are generated on first start and written
 back into it. Every key is documented in [Configuration](setup.md#server).
 
 ## 2. Write the Compose file
@@ -84,7 +84,7 @@ volumes:
 Two things are worth persisting and both are in there. `server-data` holds the SQLite
 database — the client list, the job definitions, the run history and the stored PBS
 credentials, encrypted. `server-config.yaml` holds the secrets that sign your sessions and
-the key that encrypts the stored credentials (`tunnel.keySecret`). Keeping the two apart is
+the key that encrypts the stored credentials (`secretKey`). Keeping the two apart is
 what makes the encryption worth having: a copy of the volume alone reveals no secret. **Losing
 the config file invalidates every session, every stored repository secret, every outbound
 client's token and every stored tunnel key**; losing the volume loses the installation.

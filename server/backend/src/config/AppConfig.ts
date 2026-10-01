@@ -7,7 +7,6 @@ import { logger } from "@pbcm/shared/node";
 import {
     AppConfigSchema,
     DEFAULT_SERVER_PORT,
-    TunnelSettingsSchema,
     TrustedProxySchema,
     type AppConfigParsed,
     firstIssue,
@@ -27,9 +26,7 @@ const CONFIG_PATH = path.resolve(__dirname, "../../../config.yaml");
  * an operator's own additions, and saveConfig() writes this object back into the file.
  */
 export type AppConfig = AppConfigParsed;
-export type TunnelSettings = AppConfigParsed["tunnel"];
 
-const DEFAULT_TUNNEL: TunnelSettings = TunnelSettingsSchema.parse({});
 
 /** Setting keys that were renamed or dropped; removed from the file on startup. */
 const OBSOLETE_SETTINGS_KEYS = [
@@ -43,11 +40,11 @@ let configDoc: YAML.Document = new YAML.Document({});
 let config: Partial<AppConfig> = {};
 
 /**
- * True while a tunnel.keySecret generated on this start exists only in memory. Every stored
- * secret is encrypted with it, so anything encrypted now would be unreadable after the next
- * restart -- see keySecretPersisted(). Cleared by the next successful save.
+ * True while a secretKey generated on this start exists only in memory. Every stored secret
+ * is encrypted with it, so anything encrypted now would be unreadable after the next
+ * restart -- see secretKeyPersisted(). Cleared by the next successful save.
  */
-let keySecretUnsaved = false;
+let secretKeyUnsaved = false;
 
 /**
  * Reads config.yaml as it stands, without filling anything in.
@@ -114,7 +111,7 @@ export function saveConfig() {
         syncDoc();
         const yamlOutput = configDoc.toString();
         fs.writeFileSync(CONFIG_PATH, yamlOutput);
-        keySecretUnsaved = false;
+        secretKeyUnsaved = false;
     } catch (e) {
         logger.error({ err: e, path: CONFIG_PATH }, "Failed to save config.yaml");
         throw e;
@@ -132,16 +129,15 @@ if (!config.jwtSecret) {
     }
 }
 
-if (!config.tunnel?.keySecret) {
-    logger.info("No tunnel key secret found in config.yaml, generating a new one...");
-    config.tunnel = { ...DEFAULT_TUNNEL, ...(config.tunnel ?? {}) };
-    config.tunnel.keySecret = crypto.randomBytes(32).toString("hex");
-    keySecretUnsaved = true;
+if (!config.secretKey) {
+    logger.info("No secret key found in config.yaml, generating a new one...");
+    config.secretKey = crypto.randomBytes(32).toString("hex");
+    secretKeyUnsaved = true;
     try {
         saveConfig();
-        logger.info("Generated new tunnel key secret and saved to config.yaml");
+        logger.info("Generated new secret key and saved to config.yaml");
     } catch (e) {
-        logger.error({ err: e }, "Failed to save generated tunnel key secret to config.yaml");
+        logger.error({ err: e }, "Failed to save generated secret key to config.yaml");
     }
 }
 
@@ -181,13 +177,13 @@ function validateConfig(): AppConfig {
 export const appConfig: AppConfig = validateConfig();
 
 /**
- * Whether tunnel.keySecret is on disk. A start that generated the key and could not write
+ * Whether secretKey is on disk. A start that generated the key and could not write
  * it (read-only file, missing bind mount) runs on a key that is gone after the restart,
  * and with it every secret encrypted in between: repository secrets, outbound tokens,
  * SSH keys. SecretCrypto refuses to encrypt in that state instead.
  */
-export function keySecretPersisted(): boolean {
-    return !keySecretUnsaved;
+export function secretKeyPersisted(): boolean {
+    return !secretKeyUnsaved;
 }
 
 /**

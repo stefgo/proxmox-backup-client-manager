@@ -1153,7 +1153,7 @@ user's other tabs clear the mark too. Stored per username, so it works for OIDC 
 
 **Description:** Retrieves all configured Proxmox Backup Server repositories. Without the
 `secret`: it is written, never read back. The server stores it encrypted with
-`tunnel.keySecret` and uses it for its own PBS calls, for job saves, restores and
+`secretKey` and uses it for its own PBS calls, for job saves, restores and
 [distribution](#distribute-to-clients).
 
 #### Response

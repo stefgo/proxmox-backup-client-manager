@@ -16,7 +16,7 @@ function sha256(value: string): string {
  *   when it dials the agent, so it has to get the value back.
  * - A repository's PBS token secret is encrypted, for the same reason.
  *
- * Both encryptions use tunnel.keySecret from config.yaml, which lives outside the data
+ * Both encryptions use secretKey from config.yaml, which lives outside the data
  * volume. encryptSecret() refuses while that key exists only in memory, so a server that
  * cannot write its config fails here, with the database untouched, instead of encrypting
  * with a key that is gone after the restart.

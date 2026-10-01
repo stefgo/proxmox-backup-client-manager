@@ -855,8 +855,6 @@ export const TunnelSettingsSchema = z.object({
     maxConcurrentTunnels: z.number().int().min(1).default(20),
     retryDelaysMs: z.array(z.number().int().nonnegative()).default([2000, 5000, 10000]),
     minRequestIntervalMs: z.number().int().nonnegative().default(3000),
-    /** Generated on first start when absent, so it is optional here. */
-    keySecret: z.string().min(1).optional(),
 });
 
 /**
@@ -898,13 +896,20 @@ export const OidcConfigSchema = z.object({
  * back into the YAML document, so a strict schema would not merely ignore a key an
  * operator added by hand — it would delete it from their file on the next save.
  *
- * `jwtSecret` is required even though a fresh installation has none: the server generates
- * one and writes it back *before* this schema is applied, so by the time anything is
- * validated the value always exists. Requiring it here turns a secret that somehow went
- * missing into a startup error rather than a server signing tokens with `undefined`.
+ * `jwtSecret` and `secretKey` are required even though a fresh installation has neither: the
+ * server generates both and writes them back *before* this schema is applied, so by the time
+ * anything is validated the values always exist. Requiring them here turns a secret that
+ * somehow went missing into a startup error rather than a server signing tokens with
+ * `undefined`.
  */
 export const AppConfigSchema = z.looseObject({
     jwtSecret: z.string().min(1),
+    /**
+     * Encrypts every secret the server stores and has to read back: SSH keys of the tunnels,
+     * PBS token secrets of the repositories, auth tokens of outbound clients. Separate from
+     * `jwtSecret`, so that rotating the session key does not make them unreadable.
+     */
+    secretKey: z.string().min(1),
     /**
      * Any span @fastify/jwt accepts. Defaulted rather than optional: without a value the
      * server signed tokens that never expired, so a leaked one stayed valid forever.

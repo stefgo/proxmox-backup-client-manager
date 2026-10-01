@@ -70,7 +70,7 @@ export class RepositoryConfigRepository {
     /**
      * The repository's PBS token secret, decrypted. Undefined when the repository does not
      * exist or has none; throws if it cannot be decrypted (usually a changed
-     * tunnel.keySecret).
+     * secretKey).
      */
     static findSecret(id: string): string | undefined {
         const row = db

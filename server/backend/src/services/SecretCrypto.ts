@@ -1,24 +1,22 @@
 import crypto from "crypto";
-import { appConfig, keySecretPersisted } from "../config/AppConfig.js";
+import { appConfig, secretKeyPersisted } from "../config/AppConfig.js";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
-const KEY_INFO = "pbcm-tunnel-secret";
+const KEY_INFO = "pbcm-stored-secret";
 
 /**
- * Derives the encryption key from tunnel.keySecret. Deliberately NOT derived from
- * jwtSecret: rotating the JWT secret must not make stored secrets unreadable.
+ * Derives the encryption key from secretKey. Deliberately NOT derived from jwtSecret:
+ * rotating the JWT secret must not make stored secrets unreadable.
  *
- * Despite its name, the key protects every secret the server stores, not only the SSH
- * keys of the tunnels: repository token secrets and the auth tokens of outbound clients
- * too. The name stayed because existing config.yaml files carry it. The HKDF info stays
- * as well -- changing it would make every stored value unreadable.
+ * The key protects every secret the server stores and has to read back: the SSH keys of
+ * the tunnels, the repository token secrets and the auth tokens of outbound clients.
  */
 function derivedKey(): Buffer {
-    const secret = appConfig.tunnel?.keySecret;
+    const secret = appConfig.secretKey;
     if (!secret) {
         throw new Error(
-            "tunnel.keySecret is not configured — cannot handle stored secrets",
+            "secretKey is not configured — cannot handle stored secrets",
         );
     }
     return Buffer.from(
@@ -29,13 +27,13 @@ function derivedKey(): Buffer {
 /**
  * Returns iv:tag:ciphertext, all hex encoded.
  *
- * Refuses while tunnel.keySecret exists only in memory: a value encrypted with it would be
+ * Refuses while secretKey exists only in memory: a value encrypted with it would be
  * lost on the next restart, and that loss would not show until then.
  */
 export function encryptSecret(plain: string): string {
-    if (!keySecretPersisted()) {
+    if (!secretKeyPersisted()) {
         throw new Error(
-            "tunnel.keySecret was generated but could not be written to config.yaml — refusing to encrypt with a key that is lost on restart. Make config.yaml writable and restart the server.",
+            "secretKey was generated but could not be written to config.yaml — refusing to encrypt with a key that is lost on restart. Make config.yaml writable and restart the server.",
         );
     }
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -67,7 +65,7 @@ export function decryptSecret(stored: string): string {
         ]).toString("utf8");
     } catch {
         throw new Error(
-            "Cannot decrypt a stored secret — was tunnel.keySecret changed? Store it again",
+            "Cannot decrypt a stored secret — was secretKey changed? Store it again",
         );
     }
 }

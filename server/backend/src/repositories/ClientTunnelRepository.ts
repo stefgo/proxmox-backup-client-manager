@@ -34,7 +34,7 @@ export class ClientTunnelRepository {
 
     /**
      * Returns the tunnel parameters with private key and passphrase decrypted.
-     * Throws if the secrets cannot be decrypted (usually a changed tunnel.keySecret).
+     * Throws if the secrets cannot be decrypted (usually a changed secretKey).
      */
     /**
      * Whether a tunnel is available to this client's jobs. The one question the rest of

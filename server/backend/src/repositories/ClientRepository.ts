@@ -124,7 +124,7 @@ export class ClientRepository {
 
     /**
      * The auth token the server presents to an outbound client, decrypted. Throws if it
-     * cannot be decrypted (usually a changed tunnel.keySecret).
+     * cannot be decrypted (usually a changed secretKey).
      */
     static outboundAuthToken(client: ClientRow): string | null {
         return client.auth_token ? decryptSecret(client.auth_token) : null;

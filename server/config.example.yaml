@@ -22,6 +22,13 @@ oidc:
 # This should be a long, random string
 jwtSecret:
 
+# Encrypts the secrets the server stores: SSH keys of the tunnels, PBS token secrets of
+# the repositories, auth tokens of outbound clients. Generated on first start when empty.
+# Generated per installation -- do not copy a filled-in value between installations.
+# Losing or changing it means entering every repository secret and tunnel key again and
+# registering every outbound client again.
+secretKey:
+
 # JWT token expiration time (e.g. "24h", "7d", "30m"). If not set, tokens never expire.
 jwtExpiresIn: "24h"
 
@@ -75,8 +82,5 @@ security:
     # allow_self_signed_agent_certificates: false
 
 # Not listed here: the "tunnel:" section for the SSH reverse tunnel. The server writes it
-# with its defaults on first start, so a copy of this file does not need it — and it must
-# not carry tunnel.keySecret, which is generated per installation and encrypts the stored
-# SSH keys: sharing that value would share one key across every installation that copied
-# the file.
+# with its defaults on first start, so a copy of this file does not need it.
 # The parameters and what each of them does are documented in docs/tunnel.md.

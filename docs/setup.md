@@ -9,7 +9,7 @@ environment variables. This page is the reference for both; the installation its
 start with a message naming the field — a configuration error is not something to discover
 on the first tunnel lease hours later. Keys the schema does not know are preserved, so
 anything you add by hand survives the next save. The file is created with defaults on
-first start; `jwtSecret` and `tunnel.keySecret` are generated before the check runs.
+first start; `jwtSecret` and `secretKey` are generated before the check runs.
 
 ## Environment variables
 
@@ -70,6 +70,7 @@ environment:
 | | `client_secret` | OIDC client secret. |
 | | `redirect_uri` | OIDC redirect URI. |
 | `jwtSecret` | (root) | Signs the session tokens. Generated automatically if absent. **Losing it invalidates every session.** |
+| `secretKey` | (root) | Encrypts every secret the server stores and has to read back: the SSH keys of the tunnels, the PBS token secrets of the repositories and the auth tokens of outbound clients. Generated automatically if absent; do **not** copy it between installations. **Losing or changing it** means entering every repository secret and tunnel key again and registering every outbound client again. See [below](#stored-secrets). |
 | `jwtExpiresIn` | (root) | How long a login stays valid, in any span `@fastify/jwt` accepts (default: `12h`). Before this had a default, a token signed without one never expired. |
 
 ### Retention
@@ -112,20 +113,23 @@ last run, not at startup.
 | `security.trusted_proxies` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty (default) believes no one. **Behind a proxy, list it** — see [TLS and reverse proxies](install-server.md#tls-and-reverse-proxies). Read at startup only; overridden by `PBCM_TRUSTED_PROXIES`. |
 | `security.hsts` | Send `Strict-Transport-Security` (default: `false`). **Only switch this on behind TLS.** The header tells browsers to refuse `http://` for this host from then on, they remember it for months, and turning the header off again does not undo it — on a plain-HTTP installation it locks your users out. |
 
-### Tunnel
+### Stored secrets
 
-The `tunnel:` section is written with its defaults on first start, which is why
-`config.example.yaml` does not carry it. It must **not** be copied between installations:
-`tunnel.keySecret` is generated per installation and encrypts every secret the server
-stores -- the SSH keys of the tunnels, the PBS token secrets of the repositories and the auth
-tokens of outbound clients -- so sharing the file would share one key across every
-installation that copied it. The name is historical; it covers all of them. The parameters
-are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settings-optional).
+`secretKey` is generated per installation; sharing the file would share one key across every
+installation that copied it. It replaces `tunnel.keySecret`, which encrypted only the SSH keys
+of the tunnels. A `tunnel.keySecret` left in an older file is no longer read and can be
+removed — tunnel keys stored with it have to be entered again.
 
 The file has to be **writable** on first start. A key that is generated and cannot be written
 back would be gone after the next restart, and everything encrypted with it in between. The
 server therefore refuses to encrypt with such a key: the upgrade that encrypts the existing
 secrets stops the start, and storing a new secret fails, until `config.yaml` can be written.
+
+### Tunnel
+
+The `tunnel:` section is written with its defaults on first start, which is why
+`config.example.yaml` does not carry it. The parameters are documented in
+[SSH Reverse Tunnel](tunnel.md#5-server-side-settings-optional).
 
 ## Client
 
