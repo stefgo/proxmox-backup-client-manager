@@ -159,7 +159,8 @@ tunnel:
 Client (executor)                        Server (TunnelService)
       │  (jitter 0–n s)
       │  TUNNEL_ACQUIRE {jobId,runId} ───────►  check the job → client mapping
-      │                                         resolve the job's repository = target
+      │                                         match the job's repository against the
+      │                                         configured repositories = target
       │                                         ssh2.connect + forwardIn(host, 0) if needed
       │                                         measure the PBS certificate → fingerprint
       │  ◄──── TUNNEL_ACQUIRE_RESULT {leaseId, bindPort, fingerprint}
@@ -170,8 +171,13 @@ Client (executor)                        Server (TunnelService)
 ```
 
 The client **never names a target** — only the `jobId`. The server verifies that the job belongs
-to this client and derives host and port from its repository. For restores, which have no
-`jobId`, the server authorises the target up front when the restore is triggered.
+to this client and takes host and port from the **repository configured on the server** that
+the job points at: by its `repositoryId`, or, for a job without one, by matching host and port
+against the stored `base_url`s. The URL in the job itself decides nothing — the agent reports
+its jobs itself, so a compromised agent could otherwise turn the server into a TCP relay to any
+host it reaches. A job whose repository is not configured on the server gets no lease. For
+restores, which have no `jobId`, the server authorises the target up front when the restore is
+triggered, after the same check.
 
 The job configuration on the client still holds the **real PBS URL** plus the marker
 `tunnel: { required: true }`. Only at start-up does the agent replace host and port with the
@@ -200,14 +206,16 @@ accidentally back up past the tunnel.
   the route they know until the save succeeds.
 - **The server authorises the route, not the client.** A lease is granted only if the cached
   job the agent names is itself configured for the tunnel, so a tampered `TUNNEL_ACQUIRE`
-  cannot obtain a forward for a job that was never meant to have one.
+  cannot obtain a forward for a job that was never meant to have one. Where that forward leads
+  is decided by the repositories configured under **Repositories**, not by the job: deleting a
+  repository there also ends the tunnel for every job still pointing at it.
 - **Removing the credentials does not rewrite the jobs.** Any job still set to use the tunnel
   then fails at the lease — deliberately loud, because quietly sending a backup out over a
   path the operator never chose is the worse outcome.
 - **Restores have no job to read**, so the server cannot resolve the target from a `jobId` the
   way it does for a backup. It authorises the target up front instead, when the restore is
-  triggered and only if that request asked for the tunnel; the client still never names a
-  host itself.
+  triggered and only if that request asked for the tunnel and names a configured repository;
+  the client still never names a host itself.
 - **A changed host key can be re-pinned.** The stored fingerprint is compared on every
   connection, so a reinstalled client host fails until its new key is accepted. `Test
   Connection` in the editor reports the fingerprint the host actually presented and offers
@@ -243,8 +251,10 @@ leave no trace, items 9-14 the interplay of client credentials and per-run route
    succeed, the tunnel closes only after the second release.
 5. **Multiple repositories** — two jobs of one client against two PBS instances.
    Expected: two forwards on different ports, both backups in the right datastore.
-6. **Foreign `jobId`** — a tampered `TUNNEL_ACQUIRE` carrying another client's `jobId`.
-   Expected: rejected, with a log entry.
+6. **Foreign `jobId` or foreign target** — a tampered `TUNNEL_ACQUIRE` carrying another client's
+   `jobId`; and a job the agent reports with a repository that is not configured on the server
+   (e.g. `baseUrl: https://127.0.0.1:22`, `tunnel.required: true`).
+   Expected: both rejected, with a log entry naming the reason.
 7. **Upper limit** — set `maxConcurrentTunnels` to 1, start two clients at once.
    Expected: the second waits and then runs through, rather than failing.
 8. **Inbound untouched** — an existing inbound client backs up directly to the PBS after the

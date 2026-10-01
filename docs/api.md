@@ -1857,7 +1857,9 @@ tunnel, in either connection mode. The server grants it only if the named job is
 configured for the tunnel — the client's word is never the basis. The request carries **no
 target**: the server resolves the PBS endpoint from the job (or, for
 restores, from the run it authorised when triggering it) and verifies that the job belongs to
-the requesting client.
+the requesting client. The endpoint is taken from the repository configured on the server
+that the job points at (`repositoryId`, else host and port of `baseUrl`); a job whose
+repository is not configured there is denied.
 **Payload:**
 
 ```json

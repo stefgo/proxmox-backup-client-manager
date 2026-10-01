@@ -7,7 +7,7 @@ import {
 } from "@pbcm/shared";
 import { probeCertificate } from "@pbcm/shared/node";
 import { ProxyService } from "../../services/ProxyService.js";
-import { TunnelService } from "../../services/TunnelService.js";
+import { TunnelService, type TunnelTarget } from "../../services/TunnelService.js";
 import { ClientRepository } from "../../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../../repositories/ClientTunnelRepository.js";
 import { RepositoryConfigRepository } from "../../repositories/RepositoryConfigRepository.js";
@@ -20,15 +20,15 @@ import type { HeartbeatSocket } from "./Heartbeat.js";
  *
  * These four functions used to sit among the connection handshakes in
  * `WebSocketController`. They belong together and apart from those: this is where the
- * security property of the tunnel lives — the requesting client never names a host, and
- * the server derives the target from the job it pushed out itself. Keeping that reasoning
+ * security property of the tunnel lives — the tunnel only ever leads to a repository
+ * configured on this server, whatever URL the client's job carries. Keeping that reasoning
  * in one file is the point of the split, not the line count.
  */
 export class TunnelLease {
     /**
      * Grants or denies a tunnel lease. Everything security relevant happens here:
-     * the requested job must belong to the requesting client, and the target is derived
-     * from the job's repository — never from the request.
+     * the requested job must belong to the requesting client, and the target is the
+     * configured repository the job points at — never a host the client names.
      */
     static async handleAcquire(
         clientId: string,
@@ -72,13 +72,12 @@ export class TunnelLease {
                 return;
             }
 
-            const target = await this.resolveTarget(clientId, runId, jobId);
-            if (!target) {
-                deny(
-                    "No permitted tunnel target for this request — job unknown or belongs to another client",
-                );
+            const resolved = await this.resolveTarget(clientId, runId, jobId);
+            if ("error" in resolved) {
+                deny(resolved.error);
                 return;
             }
+            const { target } = resolved;
 
             // Measured here rather than taken from the job snapshot: the client will
             // reach the PBS as 127.0.0.1 and can never validate the certificate itself.
@@ -113,17 +112,24 @@ export class TunnelLease {
      * looked up in the server-side job cache; restores carry only a runId, which the
      * server pre-authorised when it triggered the restore.
      *
-     * The cached job is also what authorises the request: a job not configured for the
-     * tunnel gets no target and therefore no lease, however the agent asks. The server
-     * never takes the client's word for the route — it reads back the job it pushed out.
+     * The cached job decides whether the request is entitled at all: a job not configured
+     * for the tunnel gets no lease, however the agent asks. It does not decide where the
+     * tunnel leads. The job cache is filled by the agent itself (JOB_LIST_CONFIG), so its
+     * repository URL is the client's word — a compromised agent could point it at any
+     * host the server reaches. The URL is therefore only a key into the repositories
+     * configured on this server, and the target is what that configuration says.
      */
     private static async resolveTarget(
         clientId: string,
         runId: string,
         jobId?: string,
-    ): Promise<{ host: string; port: number } | undefined> {
+    ): Promise<{ target: TunnelTarget } | { error: string }> {
         if (!jobId) {
-            return TunnelService.resolveRunTarget(clientId, runId);
+            // Checked against the configured repositories when the restore was triggered.
+            const target = TunnelService.resolveRunTarget(clientId, runId);
+            return target
+                ? { target }
+                : { error: "No tunnel target was authorised for this run" };
         }
 
         let job = ProxyService.getCachedJob(clientId, jobId);
@@ -132,10 +138,57 @@ export class TunnelLease {
             await ProxyService.refreshJobCache(clientId);
             job = ProxyService.getCachedJob(clientId, jobId);
         }
-        if (!job?.repository?.baseUrl) return undefined;
-        if (!job.tunnel?.required) return undefined;
+        if (!job?.repository?.baseUrl) {
+            return { error: "Job unknown or belongs to another client" };
+        }
+        if (!job.tunnel?.required) {
+            return { error: "Job is not configured for the tunnel" };
+        }
 
-        return this.repositoryTarget(job.repository.baseUrl);
+        const target = this.configuredTarget(
+            job.repository.baseUrl,
+            job.repository.repositoryId,
+        );
+        return target
+            ? { target }
+            : {
+                  error: `Repository ${job.repository.baseUrl} is not configured on this server`,
+              };
+    }
+
+    /**
+     * The tunnel target for a repository URL an agent or a request named — but only if it
+     * belongs to a repository configured on this server, and taken from that configuration.
+     *
+     * With a repositoryId the stored entry is authoritative: an id that no longer exists
+     * matches nothing, rather than falling back to the URL, or the id would be worthless.
+     * Without one (jobs from before the id, restore requests) the URL's host and port have
+     * to match a stored base_url.
+     */
+    static configuredTarget(
+        baseUrl: string,
+        repositoryId?: string,
+    ): TunnelTarget | undefined {
+        if (repositoryId) {
+            const repo = RepositoryConfigRepository.findById(repositoryId);
+            return repo?.base_url
+                ? this.repositoryTarget(repo.base_url)
+                : undefined;
+        }
+
+        const requested = this.repositoryTarget(baseUrl);
+        if (!requested) return undefined;
+        const repo = this.findRepositoryByTarget(requested);
+        return repo?.base_url ? this.repositoryTarget(repo.base_url) : undefined;
+    }
+
+    /** The configured repository whose base_url points at this host and port. */
+    private static findRepositoryByTarget(target: TunnelTarget) {
+        return RepositoryConfigRepository.findAll().find((r) => {
+            // base_url is nullable on the row; a repository without one matches nothing.
+            const t = r.base_url ? this.repositoryTarget(r.base_url) : undefined;
+            return t?.host === target.host && t?.port === target.port;
+        });
     }
 
     /**
@@ -185,11 +238,7 @@ export class TunnelLease {
         target: { host: string; port: number },
         log: AgentLogger,
     ): Promise<string | undefined> {
-        const repo = RepositoryConfigRepository.findAll().find((r) => {
-            // base_url is nullable on the row; a repository without one matches nothing.
-            const t = r.base_url ? this.repositoryTarget(r.base_url) : undefined;
-            return t?.host === target.host && t?.port === target.port;
-        });
+        const repo = this.findRepositoryByTarget(target);
 
         const baseUrl =
             repo?.base_url ?? `https://${target.host}:${target.port}`;

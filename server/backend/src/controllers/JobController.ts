@@ -180,14 +180,17 @@ export class JobController {
             if (tunneled) {
                 // A restore carries no jobId, so the client cannot reference a stored job
                 // when asking for its tunnel. Pre-authorise the target for this runId —
-                // the client still never names a host itself.
-                const target = TunnelLease.repositoryTarget(
+                // the client still never names a host itself. The URL comes from the
+                // request body, so it only selects one of the configured repositories,
+                // the same check a backup job's tunnel request goes through.
+                const target = TunnelLease.configuredTarget(
                     repository.baseUrl,
+                    repository.repositoryId,
                 );
                 if (!target) {
-                    return reply
-                        .code(400)
-                        .send({ error: "Repository URL is invalid" });
+                    return reply.code(400).send({
+                        error: "This repository is not configured on this server",
+                    });
                 }
                 TunnelService.registerRunTarget(clientId, runId, target);
             }
