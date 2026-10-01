@@ -121,8 +121,6 @@ security:
 #     # Most SSH connections open at the same time, across all clients. One client counts
 #     # once, however many of its jobs use the tunnel.
 #     maxConcurrentTunnels: 20
-#     # Currently not read: accepted for compatibility, it changes nothing.
-#     retryDelaysMs: [2000, 5000, 10000]
 #     # Shortest time between two tunnel requests of the same client, in ms. A request
 #     # sooner than that is refused (rate limit).
 #     minRequestIntervalMs: 3000
