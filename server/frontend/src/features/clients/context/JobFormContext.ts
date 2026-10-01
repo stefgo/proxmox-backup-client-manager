@@ -87,6 +87,9 @@ export interface JobFormContextType {
     setEncryptionEnabled: (val: boolean) => void;
     encryptionKeyContent: string | null;
     setEncryptionKeyContent: (val: string | null) => void;
+    /** The agent holds a key for this job; the browser never gets it back. */
+    hasStoredKey: boolean;
+    setHasStoredKey: (val: boolean) => void;
     generateKey: () => Promise<boolean>;
 
     // Tunnel

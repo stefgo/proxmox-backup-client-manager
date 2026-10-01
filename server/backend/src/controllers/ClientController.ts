@@ -13,6 +13,7 @@ import { ClientConnectionWatch } from "../services/ClientConnectionWatch.js";
 import { ClientConnector } from "../services/ClientConnector.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { logger } from "@pbcm/shared/node";
+import { keySecretPersisted } from "../config/AppConfig.js";
 
 export class ClientController {
     /**
@@ -37,6 +38,15 @@ export class ClientController {
         }
         const { hostname, outboundTargetAddress, registrationSecret } =
             parsed.data;
+
+        // The token is stored encrypted, and that happens only after the agent has accepted
+        // the registration. Failing there would leave an agent that counts itself as
+        // registered and a server that has no row for it -- so refuse before the handshake.
+        if (!keySecretPersisted()) {
+            return reply.code(500).send({
+                error: "tunnel.keySecret could not be written to config.yaml — make the file writable and restart the server.",
+            });
+        }
 
         // Registration and AUTH. Nothing is written before this succeeds.
         const id = randomUUID();

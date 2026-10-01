@@ -125,7 +125,9 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 body: JSON.stringify({
                     snapshot: snapshotId,
                     targetPath: selectedTarget,
-                    repository: repo,
+                    // Named, not described: the server builds the repository, secret
+                    // included, from the configured one.
+                    repositoryId: String(repo.id),
                     archives: sanitizedArchives,
                     // Only when it is actually on offer: a client without credentials
                     // would have the request refused for a box it was never shown.

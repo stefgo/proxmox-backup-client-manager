@@ -13,7 +13,7 @@ import {
 
 // Library Components
 import { ConfirmProvider, ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider, ToastProvider } from '@stefgo/react-ui-components';
-import { CLIENT_STATUS, REPOSITORY_STATUS, ManagedRepository as Repository } from '@pbcm/shared';
+import { CLIENT_STATUS, REPOSITORY_STATUS, RepositoryInput } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
 import { NotFoundCard } from '../../components/NotFoundCard';
@@ -267,7 +267,7 @@ function RepositoryEditRoute() {
             // Errors are not caught here: like the client editor, the form stays open and
             // reports in its own footer. Saving does not navigate away either -- the page
             // says "Repository saved" and the operator decides when to leave.
-            onSave={(data: Partial<Repository>) => updateRepository(repo.id, data)}
+            onSave={(data: RepositoryInput) => updateRepository(repo.id, data)}
             onCancel={() => navigate(back)}
         />
     );

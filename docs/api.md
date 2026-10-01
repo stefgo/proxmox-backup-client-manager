@@ -850,7 +850,13 @@ repository and is covered by `GET /v1/repositories/:repositoryId/status`.
 | `lastRunAt`       | string          | ISO 8601 timestamp of the last run (optional).           |
 | `archives`        | Archive[]       | Array of archive objects (see below).                    |
 | `excludes`        | string[]        | Exclusion patterns, one `--exclude` each (see below). `[]` if none. |
-| `repository`      | Repository      | The PBS repository configuration.                        |
+| `repository`      | Repository      | The PBS repository configuration. `secret` is always `""`. |
+| `encryption`      | object          | `{ "enabled": true }` when the job encrypts (optional). Never carries the key. |
+
+**No secrets in responses.** A job's PBS token secret and its encryption key are needed by
+the agent, which runs its jobs from its own `jobs.json`, and by nobody else. Every response
+that carries jobs -- this one, `GET /v1/jobs` and the `JOBS_UPDATE` dashboard event --
+returns `repository.secret` as an empty string and `encryption` without `keyContent`.
 
 **ScheduleConfig object:**
 
@@ -890,11 +896,13 @@ without one matches at any depth (`node_modules`), and `*` / `**` are globs.
         "archives": [{ "path": "/etc", "name": "etc.pxar" }],
         "excludes": ["/ssl/private"],
         "repository": {
+            "repositoryId": "repo-abc",
             "baseUrl": "https://pbs.local:8007",
             "datastore": "backups",
             "username": "client@pbs",
-            "secret": "***"
-        }
+            "secret": ""
+        },
+        "encryption": { "enabled": true }
     }
 ]
 ```
@@ -921,7 +929,21 @@ without one matches at any depth (`node_modules`), and `*` / `**` are globs.
 | `excludes`        | string[]       | No       | Exclusion patterns (see above). Send `[]` to clear them on an update.      |
 | `schedule`        | ScheduleConfig | No       | Schedule configuration object (nullable).                                  |
 | `scheduleEnabled` | boolean        | **Yes**  | Enable/disable the schedule.                                               |
-| `repository`      | string         | **Yes**  | The ID of the repository to use.                                           |
+| `repository`      | Repository     | **Yes**  | Copy of the repository to use; `repositoryId` names the managed one. `secret` may be `""`. |
+| `encryption`      | object         | No       | `{ "enabled": true, "keyContent"?: string }`. Without `keyContent` the stored key is kept. |
+
+**Secrets are filled in by the server.** The browser never has them, so it does not send
+them:
+
+- `repository.secret` is taken from the managed repository named by `repositoryId`. Saving a
+  job therefore also brings its secret up to date with the repository. Without a
+  `repositoryId` the job keeps the secret it already has, as long as base URL, datastore,
+  username and token name are unchanged.
+- `encryption.keyContent` is only sent for a key generated right before
+  (`POST /v1/clients/:clientId/key`). Left out with `enabled: true`, the agent's stored key
+  is kept.
+
+`400` when neither source has a secret or a key.
 
 **Example Request:**
 
@@ -936,7 +958,14 @@ without one matches at any depth (`node_modules`), and `*` / `**` are globs.
         "weekdays": []
     },
     "scheduleEnabled": true,
-    "repository": "repo-abc"
+    "repository": {
+        "repositoryId": "repo-abc",
+        "baseUrl": "https://pbs.local:8007",
+        "datastore": "backups",
+        "username": "client@pbs",
+        "secret": ""
+    },
+    "encryption": { "enabled": true }
 }
 ```
 
@@ -1020,7 +1049,7 @@ needs it. `tunnel.required` for a client with no credentials is rejected with `4
 | :----------- | :------- | :------- | :--------------------------------------------------------------------------------- |
 | `snapshot`   | string   | **Yes**  | The name/ID of the snapshot to restore from.                                       |
 | `targetPath` | string   | **Yes**  | The absolute path where files should be restored.                                  |
-| `repository` | string   | **Yes**  | The ID of the repository containing the snapshot.                                  |
+| `repositoryId` | string | **Yes**  | The ID of the repository containing the snapshot. The server builds the repository, secret included, from the configured one; `400` if it names none. |
 | `archives`   | string[] | **Yes**  | Array of archive filenames within the snapshot to restore (e.g. `["root.pxar"]`). |
 | `tunnel`     | object   | No       | `{ "required": true }` to route this restore through the client's SSH reverse tunnel. |
 
@@ -1030,7 +1059,7 @@ needs it. `tunnel.required` for a client with no credentials is rejected with `4
 {
     "snapshot": "host/backup-client-01/2023-10-26T02:00:00Z",
     "targetPath": "/tmp/restore",
-    "repository": "repo-abc",
+    "repositoryId": "repo-abc",
     "archives": ["root.pxar"],
     "tunnel": { "required": true }
 }
@@ -1122,7 +1151,10 @@ user's other tabs clear the mark too. Stored per username, so it works for OIDC 
 
 `GET /v1/repositories`
 
-**Description:** Retrieves all configured Proxmox Backup Server repositories.
+**Description:** Retrieves all configured Proxmox Backup Server repositories. Without the
+`secret`: it is written, never read back. The server stores it encrypted with
+`tunnel.keySecret` and uses it for its own PBS calls, for job saves, restores and
+[distribution](#distribute-to-clients).
 
 #### Response
 
@@ -1216,7 +1248,8 @@ user's other tabs clear the mark too. Stored per username, so it works for OIDC 
 
 #### Request Body
 
-_Same fields as [Create Repository](#create-repository)._
+_Same fields as [Create Repository](#create-repository)_, except that `secret` is optional:
+an empty or missing `secret` keeps the stored one.
 
 #### Response
 
@@ -1276,13 +1309,18 @@ someone in the middle, and the operator has to verify it out of band.
 }
 ```
 
-### Distribute Fingerprint
+### Distribute to Clients
 
 `POST /v1/repositories/:repositoryId/distribute`
 
-**Description:** Pushes the **stored** fingerprint to every connected client that runs a job
-against this repository, via `JOB_SAVE_CONFIG`. Jobs are matched by `repository.repositoryId`,
-falling back to base URL plus datastore for jobs stored before that id existed.
+**Description:** Pushes the **stored** fingerprint and secret to every connected client that
+runs a job against this repository, via `JOB_SAVE_CONFIG`. Jobs are matched by
+`repository.repositoryId`, falling back to base URL plus datastore for jobs stored before that
+id existed. A job is only sent when its fingerprint or its secret differs from the stored one.
+
+The secret goes along because every job keeps its own copy of it -- the agent runs from its
+`jobs.json`, offline if need be. Without this, a rotated PBS token would reach a job only when
+someone saved it.
 
 An explicit operator action rather than an automatic fan-out on update: for a self-signed PBS
 the stored value is a human decision, and rolling it out should be one too. Offline clients are

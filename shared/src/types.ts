@@ -97,7 +97,17 @@ export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
 
 export type Repository = z.infer<typeof RepositorySchema>;
 
-export interface ManagedRepository extends Repository {
+/**
+ * What the repository editor sends. The secret is in it only to set or change it: an
+ * update without one keeps the stored secret.
+ */
+export type RepositoryInput = Partial<Repository>;
+
+/**
+ * A repository as `GET /repositories` returns it: without the secret, which is written
+ * but never read back (see RepositoryController.list).
+ */
+export interface ManagedRepository extends Omit<Repository, "secret"> {
     id: string | number;
     status: RepositoryStatus;
     /** Last fingerprint a client reported for this repository. Informational only. */

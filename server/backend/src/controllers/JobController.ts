@@ -1,10 +1,31 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
+import { WS_EVENTS, BackupJob, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { TunnelLease } from "./websocket/TunnelLease.js";
+import {
+    completeJobSecrets,
+    redactJob,
+    restoreRepository,
+} from "../services/JobSecrets.js";
+
+/**
+ * What the browser sends to start a restore. The repository is named, not described: the
+ * server builds it from the managed repository, secret included, which the browser never
+ * sees.
+ */
+const RestoreRequestSchema = RestoreJobSchema.pick({
+    snapshot: true,
+    targetPath: true,
+    archives: true,
+    encryption: true,
+    tunnel: true,
+}).extend({
+    repositoryId: z.string().min(1),
+});
 
 /**
  * Whether a tunnel is available to this client's jobs at all.
@@ -32,7 +53,7 @@ export class JobController {
                 WS_EVENTS.JOB_LIST_CONFIG,
                 { requestId: request.id },
             );
-            return payload.jobs;
+            return (payload.jobs as BackupJob[]).map(redactJob);
         } catch (e: unknown) {
             return reply
                 .code(500)
@@ -65,10 +86,17 @@ export class JobController {
         }
 
         try {
+            // The browser sends the job without its secrets; they are filled in here,
+            // from the managed repository and from the job as the agent stores it.
+            const completed = await completeJobSecrets(clientId, parsed.data);
+            if ("error" in completed) {
+                return reply.code(400).send({ error: completed.error });
+            }
+
             const result = await ProxyService.sendRequest(
                 clientId,
                 WS_EVENTS.JOB_SAVE_CONFIG,
-                { requestId: request.id, job: parsed.data },
+                { requestId: request.id, job: completed.job },
             );
 
             if (result.success) {
@@ -144,20 +172,13 @@ export class JobController {
 
     static async triggerRestore(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const parsed = RestoreJobSchema.pick({
-            snapshot: true,
-            targetPath: true,
-            repository: true,
-            archives: true,
-            encryption: true,
-            tunnel: true,
-        }).safeParse(request.body);
+        const parsed = RestoreRequestSchema.safeParse(request.body);
         if (!parsed.success) {
             return reply
                 .code(400)
                 .send({ error: parsed.error.issues[0].message });
         }
-        const { snapshot, targetPath, repository, archives, encryption, tunnel } =
+        const { snapshot, targetPath, repositoryId, archives, encryption, tunnel } =
             parsed.data;
         const runId = randomUUID();
         // The route is the operator's choice here, exactly as it is for a backup job — and
@@ -177,12 +198,19 @@ export class JobController {
         }
 
         try {
+            const repository = restoreRepository(repositoryId);
+            if (!repository) {
+                return reply.code(400).send({
+                    error: "This repository is not configured on this server",
+                });
+            }
+
             if (tunneled) {
                 // A restore carries no jobId, so the client cannot reference a stored job
                 // when asking for its tunnel. Pre-authorise the target for this runId —
-                // the client still never names a host itself. The URL comes from the
-                // request body, so it only selects one of the configured repositories,
-                // the same check a backup job's tunnel request goes through.
+                // the client still never names a host itself. The repository was built from
+                // the configured one above; this is the same check a backup job's tunnel
+                // request goes through.
                 const target = TunnelLease.configuredTarget(
                     repository.baseUrl,
                     repository.repositoryId,
@@ -241,6 +269,9 @@ export class JobController {
      * @param reply - Fastify reply
      */
     static async listAll(_request: FastifyRequest, _reply: FastifyReply) {
-        return ProxyService.getAllCachedJobs();
+        return ProxyService.getAllCachedJobs().map(({ clientId, jobs }) => ({
+            clientId,
+            jobs: jobs.map(redactJob),
+        }));
     }
 }

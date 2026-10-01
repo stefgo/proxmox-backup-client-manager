@@ -1,16 +1,16 @@
 import { useCallback, useState, useEffect } from 'react';
 import { X, Save, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
-import { ManagedRepository as Repository, normalizeFingerprint } from '@pbcm/shared';
+import { ManagedRepository as Repository, normalizeFingerprint, RepositoryInput } from '@pbcm/shared';
 import { Card, Button, Input, ActionButton, useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
-import { describeDistributeFingerprint } from '../confirmations';
+import { describeDistribute } from '../confirmations';
 import { useAuth } from '../../auth/AuthContext';
 import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
 
 interface RepositoryEditorProps {
     repository?: Repository | null;
     /** Must reject on failure — the footer below is where the error is shown. */
-    onSave: (repo: Partial<Repository>) => Promise<void>;
+    onSave: (repo: RepositoryInput) => Promise<void>;
     onCancel: () => void;
 }
 
@@ -26,11 +26,13 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     const [fingerprint, setFingerprint] = useState(repository?.fingerprint || '');
     const [username, setUsername] = useState(repository?.username || '');
     const [tokenName, setTokenName] = useState(repository?.tokenname || '');
-    const [secret, setSecret] = useState(repository?.secret || '');
+    // Always starts empty: the secret is never sent to the browser. Typed in, it replaces
+    // the stored one; left empty on an existing repository, it keeps it.
+    const [secret, setSecret] = useState('');
 
     const { isAuthenticated } = useAuth();
     const probeCertificate = useRepositoryStore((s) => s.probeCertificate);
-    const distributeFingerprint = useRepositoryStore((s) => s.distributeFingerprint);
+    const distribute = useRepositoryStore((s) => s.distribute);
 
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -42,17 +44,19 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     const [checkError, setCheckError] = useState<string | null>(null);
     const [distribution, setDistribution] = useState<DistributeResult | null>(null);
     const [isDistributing, setIsDistributing] = useState(false);
+    const [distributeError, setDistributeError] = useState<string | null>(null);
 
-    // Distribution always rolls out the *saved* value. Offering it while the field
-    // differs would push something other than what is on screen.
-    const fingerprintDiffersFromSaved =
-        normalizeFingerprint(fingerprint) !== normalizeFingerprint(repository?.fingerprint);
+    // Distribution always rolls out the *saved* values. Offering it while a field differs
+    // would push something other than what is on screen -- for the secret, anything typed
+    // in is unsaved by definition.
+    const credentialsDifferFromSaved =
+        normalizeFingerprint(fingerprint) !== normalizeFingerprint(repository?.fingerprint) ||
+        secret !== '';
 
     const handleCheckCertificate = async () => {
         if (!repository || !isAuthenticated) return;
         setIsChecking(true);
         setCheckError(null);
-        setDistribution(null);
         try {
             setCheck(await probeCertificate(repository.id));
         } catch (e) {
@@ -65,12 +69,14 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
 
     const handleDistribute = async () => {
         if (!repository || !isAuthenticated) return;
-        if (!(await confirm(describeDistributeFingerprint()))) return;
+        if (!(await confirm(describeDistribute()))) return;
         setIsDistributing(true);
+        setDistribution(null);
+        setDistributeError(null);
         try {
-            setDistribution(await distributeFingerprint(repository.id));
+            setDistribution(await distribute(repository.id));
         } catch (e) {
-            setCheckError(e instanceof Error ? e.message : String(e));
+            setDistributeError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsDistributing(false);
         }
@@ -88,10 +94,11 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         setFingerprint(repository?.fingerprint || '');
         setUsername(repository?.username || '');
         setTokenName(repository?.tokenname || '');
-        setSecret(repository?.secret || '');
+        setSecret('');
         setCheck(null);
         setCheckError(null);
         setDistribution(null);
+        setDistributeError(null);
         setError(null);
         setSaved(false);
     }
@@ -104,7 +111,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         fingerprint !== (repository?.fingerprint || '') ||
         username !== (repository?.username || '') ||
         tokenName !== (repository?.tokenname || '') ||
-        secret !== (repository?.secret || '');
+        secret !== '';
 
     // The required fields decide it here rather than an alert on submit: a button that
     // cannot do anything says so before it is pressed.
@@ -113,7 +120,8 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         !!baseUrl.trim() &&
         !!datastore.trim() &&
         !!username.trim() &&
-        !!secret.trim();
+        // Required only when creating: an existing repository keeps its stored secret.
+        (!!repository || !!secret.trim());
 
     /**
      * Leaving with unsaved fields asks first, the way the client editor does. The check
@@ -151,8 +159,11 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                 fingerprint,
                 username,
                 tokenname: tokenName,
-                secret
+                // Empty means "keep the stored one" -- see RepositoryController.update.
+                secret: secret.trim() || undefined
             });
+            // Saved, so nothing is pending any more; the field goes back to "unchanged".
+            setSecret('');
             setSaved(true);
         } catch (e) {
             console.error(e);
@@ -205,20 +216,6 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                                 <div className="flex flex-wrap gap-2">
                                     <Button type="button" variant="secondary" onClick={handleCheckCertificate} disabled={isChecking}>
                                         {isChecking ? 'Checking...' : 'Check certificate'}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={handleDistribute}
-                                        disabled={isDistributing || fingerprintDiffersFromSaved}
-                                        title={
-                                            fingerprintDiffersFromSaved
-                                                ? 'Save the repository first — distribution rolls out the stored value.'
-                                                : undefined
-                                        }
-                                    >
-                                        <Send size={14} className="mr-1 inline" />
-                                        {isDistributing ? 'Distributing...' : 'Distribute to clients'}
                                     </Button>
                                 </div>
                             )}
@@ -290,20 +287,6 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                                     )}
                                 </div>
                             )}
-
-                            {distribution && (
-                                <div className="rounded border border-border p-4 space-y-1 text-xs">
-                                    <div className="text-text-primary">
-                                        {distribution.updated.length} job(s) updated
-                                        {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
-                                    </div>
-                                    {distribution.skippedOffline.length > 0 && (
-                                        <div className="text-text-muted">
-                                            Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
                         <Input
                             label="Username"
@@ -324,13 +307,53 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                         />
                         <Input
                             label="Secret"
-                            required
+                            required={!repository}
                             type="password"
-                            placeholder="PBS Token Secret"
+                            placeholder={repository ? 'Unchanged — leave empty to keep it' : 'PBS Token Secret'}
+                            autoComplete="new-password"
                             value={secret}
                             onChange={(e) => { setSecret(e.target.value); setSaved(false); }}
                             disabled={isSaving}
                         />
+
+                        {/* Below the fields it rolls out: jobs keep their own copy of the
+                            fingerprint and the secret, and this pushes both. */}
+                        {repository && (
+                            <div className="space-y-2">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={handleDistribute}
+                                    disabled={isDistributing || credentialsDifferFromSaved}
+                                    title={
+                                        credentialsDifferFromSaved
+                                            ? 'Save the repository first — distribution rolls out the stored values.'
+                                            : 'Push the stored fingerprint and secret to the jobs on all connected clients'
+                                    }
+                                >
+                                    <Send size={14} className="mr-1 inline" />
+                                    {isDistributing ? 'Distributing...' : 'Distribute to clients'}
+                                </Button>
+
+                                {distributeError && (
+                                    <div className="text-sm text-error break-words">{distributeError}</div>
+                                )}
+
+                                {distribution && (
+                                    <div className="rounded border border-border p-4 space-y-1 text-xs">
+                                        <div className="text-text-primary">
+                                            {distribution.updated.length} job(s) updated
+                                            {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
+                                        </div>
+                                        {distribution.skippedOffline.length > 0 && (
+                                            <div className="text-text-muted">
+                                                Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 

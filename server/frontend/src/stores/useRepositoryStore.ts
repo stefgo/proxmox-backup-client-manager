@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
     ManagedRepository as Repository,
     REPOSITORY_STATUS,
+    RepositoryInput,
 } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
 import { apiFetch } from '../lib/apiFetch';
@@ -34,10 +35,10 @@ interface RepositoriesState {
     error: string | null;
 
     fetchRepositories: () => Promise<void>;
-    addRepository: (repo: Partial<Repository>) => Promise<void>; // Partial for creation
+    addRepository: (repo: RepositoryInput) => Promise<void>;
     updateRepository: (
         id: string | number,
-        repo: Partial<Repository>,
+        repo: RepositoryInput,
     ) => Promise<void>;
     deleteRepository: (id: string | number) => Promise<void>;
     checkRepositoryStatus: (
@@ -46,7 +47,8 @@ interface RepositoriesState {
     probeCertificate: (
         id: string | number,
     ) => Promise<CertificateCheck>;
-    distributeFingerprint: (
+    /** Pushes the stored fingerprint and secret to the jobs on connected clients. */
+    distribute: (
         id: string | number,
     ) => Promise<DistributeResult>;
 }
@@ -121,7 +123,7 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         return (await res.json()) as CertificateCheck;
     },
 
-    distributeFingerprint: async (id) => {
+    distribute: async (id) => {
         const res = await apiFetch(`/api/v1/repositories/${id}/distribute`, {
             method: 'POST',
         });

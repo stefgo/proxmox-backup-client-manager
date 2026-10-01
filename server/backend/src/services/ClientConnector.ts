@@ -337,10 +337,24 @@ export class ClientConnector {
             return false;
         }
 
+        let authToken: string | null;
+        try {
+            authToken = ClientRepository.outboundAuthToken(client);
+        } catch (err) {
+            // Not retried: a token that cannot be decrypted now will not decrypt in a
+            // minute either. Usually a changed tunnel.keySecret.
+            logger.error(
+                { err, clientId: client.id },
+                "ClientConnector: cannot decrypt the stored auth token, not connecting",
+            );
+            return false;
+        }
+        if (!authToken) return false;
+
         const connected = await this.connectWithToken(
             client.id,
             client.outbound_target_address,
-            client.auth_token,
+            authToken,
         );
         if (!connected) this.scheduleReconnect(client.id);
         return connected;

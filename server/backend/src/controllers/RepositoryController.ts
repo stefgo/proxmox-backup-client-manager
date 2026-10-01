@@ -32,10 +32,23 @@ function jobUsesRepository(job: BackupJob, repo: RepositoryRow): boolean {
     );
 }
 
+/**
+ * The Authorization header for the PBS API. The secret is decrypted here, for this one
+ * request, and nowhere else in this controller.
+ */
+function pbsAuthHeader(repo: RepositoryRow): string {
+    const secret = RepositoryConfigRepository.findSecret(repo.id) ?? "";
+    return `PBSAPIToken ${repo.username}!${repo.tokenname || "token"}:${secret}`;
+}
+
 export class RepositoryController {
+    /**
+     * Without the secret: it is written, never read back. Every repository has one -- it is
+     * required on create -- so the editor knows it is there without being told.
+     */
     static async list(_request: FastifyRequest, _reply: FastifyReply) {
         const repos = RepositoryConfigRepository.findAll();
-        return repos.map((repo) => ({
+        return repos.map(({ secret: _secret, ...repo }) => ({
             ...repo,
             baseUrl: repo.base_url,
             status: REPOSITORY_STATUS.UNKNOWN,
@@ -80,11 +93,15 @@ export class RepositoryController {
     }
 
     /**
-     * Pushes the stored fingerprint to every connected client that runs a job against
-     * this repository. An explicit operator action rather than an automatic fan-out on
-     * update: for a self-signed PBS the stored value is a human decision, and rolling it
-     * out should be one too. Offline clients are reported, not queued — they pick the
-     * value up on the next regular job save.
+     * Pushes the stored fingerprint and secret to every connected client that runs a job
+     * against this repository. An explicit operator action rather than an automatic
+     * fan-out on update: for a self-signed PBS the stored fingerprint is a human decision,
+     * and rolling it out should be one too. Offline clients are reported, not queued —
+     * they pick the values up on the next regular job save.
+     *
+     * The secret goes along because a job keeps its own copy of it: the agent runs from
+     * `jobs.json`. Without this, a rotated PBS token would only reach a job when someone
+     * happened to save it.
      */
     static async distribute(request: FastifyRequest, reply: FastifyReply) {
         const { repositoryId } = request.params as { repositoryId: string };
@@ -92,6 +109,15 @@ export class RepositoryController {
 
         if (!repo)
             return reply.code(404).send({ error: "Repository not found" });
+
+        let secret: string;
+        try {
+            secret = RepositoryConfigRepository.findSecret(repo.id) ?? "";
+        } catch (e) {
+            return reply
+                .code(500)
+                .send({ error: e instanceof Error ? e.message : String(e) });
+        }
 
         const updated: { clientId: string; jobId: string; jobName: string }[] =
             [];
@@ -105,17 +131,21 @@ export class RepositoryController {
                 if (!job.id) continue;
                 if (
                     normalizeFingerprint(job.repository.fingerprint) ===
-                    normalizeFingerprint(repo.fingerprint)
+                        normalizeFingerprint(repo.fingerprint) &&
+                    job.repository.secret === secret
                 ) {
                     continue;
                 }
 
+                // From the cache, which still holds the job's own secrets -- the
+                // encryption key travels back unchanged.
                 const patched = {
                     ...job,
                     repository: {
                         ...job.repository,
                         repositoryId: repo.id,
                         fingerprint: repo.fingerprint ?? undefined,
+                        secret,
                     },
                 };
 
@@ -167,7 +197,7 @@ export class RepositoryController {
 
         logger.info(
             { repositoryId, updated: updated.length, failed: failed.length },
-            "Fingerprint distributed to connected clients",
+            "Repository credentials distributed to connected clients",
         );
 
         return { updated, failed, skippedOffline };
@@ -191,7 +221,7 @@ export class RepositoryController {
             if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
 
             const url = `${baseUrl}/api2/json/admin/datastore/${repo.datastore}/status`;
-            const authHeader = `PBSAPIToken ${repo.username}!${repo.tokenname || "token"}:${repo.secret}`;
+            const authHeader = pbsAuthHeader(repo);
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -221,6 +251,10 @@ export class RepositoryController {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
         const { baseUrl, datastore, username, secret } = parsed.data;
+        // Required here only: on update an empty secret means "keep the stored one".
+        if (!secret) {
+            return reply.code(400).send({ error: "A secret is required" });
+        }
         // `?? null`: both columns are nullable, and better-sqlite3 refuses `undefined`.
         const fingerprint = parsed.data.fingerprint ?? null;
         const tokenname = parsed.data.tokenname ?? null;
@@ -257,7 +291,8 @@ export class RepositoryController {
             fingerprint,
             username,
             tokenname,
-            secret,
+            // The editor never has the stored secret, so it sends one only to change it.
+            secret || null,
         );
 
         if (res.changes === 0)
@@ -289,7 +324,7 @@ export class RepositoryController {
             if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
 
             const url = `${baseUrl}/api2/json/admin/datastore/${repo.datastore}/snapshots`;
-            const authHeader = `PBSAPIToken ${repo.username}!${repo.tokenname || "token"}:${repo.secret}`;
+            const authHeader = pbsAuthHeader(repo);
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);

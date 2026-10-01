@@ -1,5 +1,7 @@
 import db from "../core/Database.js";
 import { ConnectionMode } from "@pbcm/shared";
+import { hashToken } from "./TokenRepository.js";
+import { decryptSecret, encryptSecret } from "../services/SecretCrypto.js";
 
 /**
  * A row of the `clients` table as migration 04 leaves it. Deliberately not the shared
@@ -10,6 +12,12 @@ export interface ClientRow {
     id: string;
     hostname: string | null;
     display_name: string | null;
+    /**
+     * Never the token itself (migration 18). Inbound: its SHA-256 hash, because the server
+     * only has to recognise the token an agent presents. Outbound: encrypted with
+     * SecretCrypto, because the server presents it itself when it dials -- read it with
+     * outboundAuthToken().
+     */
     auth_token: string | null;
     connection_mode: ConnectionMode;
     /** Inbound clients only: the IP or network their connections must come from. */
@@ -42,6 +50,10 @@ export class ClientRepository {
      * and therefore readable from any snapshot name -- and the token alone would let a
      * client be whoever its token happens to belong to. Narrower than the other
      * finders, because this runs on every agent connect.
+     *
+     * The stored value is a hash, so the comparison runs on the hash of what was presented.
+     * An outbound client's encrypted token never matches -- it has no business connecting
+     * inbound.
      */
     static findByIdAndToken(
         id: string,
@@ -53,7 +65,7 @@ export class ClientRepository {
             .prepare(
                 "SELECT id, inbound_allowed_ip, connection_mode FROM clients WHERE id = ? AND auth_token = ?",
             )
-            .get(id, token) as
+            .get(id, hashToken(token)) as
             | Pick<ClientRow, "id" | "inbound_allowed_ip" | "connection_mode">
             | undefined;
     }
@@ -82,7 +94,7 @@ export class ClientRepository {
             INSERT INTO clients (id, hostname, auth_token, inbound_allowed_ip, connection_mode, last_seen)
             VALUES (?, ?, ?, ?, 'inbound', datetime('now'))
         `,
-        ).run(id, hostname, authToken, allowedIp);
+        ).run(id, hostname, hashToken(authToken), allowedIp);
     }
 
     /**
@@ -101,13 +113,21 @@ export class ClientRepository {
             INSERT INTO clients (id, hostname, outbound_target_address, auth_token, version, connection_mode, last_seen)
             VALUES (?, ?, ?, ?, ?, 'outbound', datetime('now'))
         `,
-        ).run(id, hostname, outboundTargetAddress, authToken, version);
+        ).run(
+            id,
+            hostname,
+            outboundTargetAddress,
+            encryptSecret(authToken),
+            version,
+        );
     }
 
-    static updateAuthToken(id: string, authToken: string): void {
-        db.prepare(
-            "UPDATE clients SET auth_token = ?, updated_at = datetime('now') WHERE id = ?",
-        ).run(authToken, id);
+    /**
+     * The auth token the server presents to an outbound client, decrypted. Throws if it
+     * cannot be decrypted (usually a changed tunnel.keySecret).
+     */
+    static outboundAuthToken(client: ClientRow): string | null {
+        return client.auth_token ? decryptSecret(client.auth_token) : null;
     }
 
     static updateDisplayName(

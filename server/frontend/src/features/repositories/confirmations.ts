@@ -16,15 +16,15 @@ export function describeDeleteRepository(repo: Repository): ConfirmOptions {
 }
 
 /**
- * Follows RepositoryController.distributeFingerprint: every job on a connected client that
- * points at this repository with a different fingerprint is saved again with the stored
- * one. Offline clients are skipped, not queued -- the part worth saying before, since the
+ * Follows RepositoryController.distribute: every job on a connected client that points at
+ * this repository with a different fingerprint or secret is saved again with the stored
+ * ones. Offline clients are skipped, not queued -- the part worth saying before, since the
  * result can only say it after.
  */
-export function describeDistributeFingerprint(): ConfirmOptions {
+export function describeDistribute(): ConfirmOptions {
     return {
-        title: 'Push the saved fingerprint to all connected clients?',
-        description: 'Every job on a connected client that uses this repository with a different fingerprint is updated to the saved one. Offline clients are skipped and keep their old fingerprint until you distribute again.',
+        title: 'Push the saved fingerprint and secret to all connected clients?',
+        description: 'Every job on a connected client that uses this repository with a different fingerprint or secret is updated to the saved values. Offline clients are skipped and keep their old values until you distribute again.',
         confirmLabel: 'Distribute'
     };
 }

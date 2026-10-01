@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ManagedRepository as Repository } from '@pbcm/shared';
+import { ManagedRepository as Repository, RepositoryInput } from '@pbcm/shared';
 import { RepositoryList } from './RepositoryList';
 import { RepositoryEditor } from './RepositoryEditor';
 import { useConfirm } from '@stefgo/react-ui-components';
@@ -8,8 +8,8 @@ import { describeDeleteRepository } from '../confirmations';
 interface ManagedRepositoriesProps {
     repositories: Repository[];
     onSelect: (repo: Repository) => void;
-    onAdd: (repo: Partial<Repository>) => Promise<void>;
-    onUpdate: (id: string | number, repo: Partial<Repository>) => Promise<void>;
+    onAdd: (repo: RepositoryInput) => Promise<void>;
+    onUpdate: (id: string | number, repo: RepositoryInput) => Promise<void>;
     onDelete: (id: string | number) => Promise<void>;
 }
 
@@ -20,7 +20,7 @@ export const ManagedRepositories = ({ repositories, onSelect, onAdd, onUpdate, o
 
     // A failure is deliberately not caught here: the editor shows it in its own footer,
     // beside the fields it belongs to, and keeps the form open with the values intact.
-    const handleSaveRepository = async (repoData: Partial<Repository>) => {
+    const handleSaveRepository = async (repoData: RepositoryInput) => {
         if (editingRepo) {
             await onUpdate(editingRepo.id, repoData);
         } else {

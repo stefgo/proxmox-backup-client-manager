@@ -7,6 +7,7 @@ export const JobEncryptionSettings: React.FC = () => {
     const {
         encryptionEnabled, setEncryptionEnabled,
         encryptionKeyContent, setEncryptionKeyContent,
+        hasStoredKey, setHasStoredKey,
         generateKey,
     } = useJobFormContext();
 
@@ -28,6 +29,7 @@ export const JobEncryptionSettings: React.FC = () => {
 
     const handleDropKey = () => {
         setEncryptionKeyContent(null);
+        setHasStoredKey(false);
         setEncryptionEnabled(false);
     };
 
@@ -40,7 +42,9 @@ export const JobEncryptionSettings: React.FC = () => {
             return;
         }
 
-        if (!encryptionKeyContent) {
+        // A key still held by the agent is taken up again; only without one is a new
+        // key generated.
+        if (!encryptionKeyContent && !hasStoredKey) {
             setIsGenerating(true);
             const success = await generateKey();
             setIsGenerating(false);
@@ -62,9 +66,17 @@ export const JobEncryptionSettings: React.FC = () => {
                     classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
                 />
 
-                {/* When a key exists and encryption is enabled: show download & drop buttons */}
-                {encryptionKeyContent && encryptionEnabled && (
+                {/* When a key exists and encryption is enabled: download (only for a key
+                    generated here -- a stored one never comes back to the browser) & drop */}
+                {(encryptionKeyContent || hasStoredKey) && encryptionEnabled && (
                     <div className="space-y-3 mt-2">
+                        {!encryptionKeyContent && (
+                            <p className="text-xs text-text-muted">
+                                The key is stored on the client. It can only be downloaded right
+                                after it was generated — drop it and enable encryption again for a
+                                new one.
+                            </p>
+                        )}
                         <div className="flex gap-2 text-sm">
                             {/*
                                 `outline` and `outline-danger` are library
@@ -73,14 +85,16 @@ export const JobEncryptionSettings: React.FC = () => {
                                 in the UI library's own consumers, which is what
                                 made it worth naming once.
                             */}
-                            <Button
-                                variant="outline"
-                                icon={Download}
-                                onClick={handleDownloadKey}
-                                className="flex-1"
-                            >
-                                Download Key (.json)
-                            </Button>
+                            {encryptionKeyContent && (
+                                <Button
+                                    variant="outline"
+                                    icon={Download}
+                                    onClick={handleDownloadKey}
+                                    className="flex-1"
+                                >
+                                    Download Key (.json)
+                                </Button>
+                            )}
                             <Button
                                 variant="outline-danger"
                                 icon={Trash2}

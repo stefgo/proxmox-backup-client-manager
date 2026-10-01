@@ -83,9 +83,12 @@ volumes:
 
 Two things are worth persisting and both are in there. `server-data` holds the SQLite
 database — the client list, the job definitions, the run history and the stored PBS
-credentials. `server-config.yaml` holds the secrets that sign your sessions and encrypt
-the stored SSH keys. **Losing the config file invalidates every session and every stored
-tunnel key**; losing the volume loses the installation.
+credentials, encrypted. `server-config.yaml` holds the secrets that sign your sessions and
+the key that encrypts the stored credentials (`tunnel.keySecret`). Keeping the two apart is
+what makes the encryption worth having: a copy of the volume alone reveals no secret. **Losing
+the config file invalidates every session, every stored repository secret, every outbound
+client's token and every stored tunnel key**; losing the volume loses the installation.
+Back them up separately, and keep the config file writable.
 
 ## 3. Start it
 
@@ -112,6 +115,14 @@ Under **Repositories**, add the PBS datastore the agents will write into: its ho
 datastore name, an API token (`user@realm!tokenid` plus the secret) and the TLS
 fingerprint. The fingerprint is not optional decoration — every job pins it, which is
 what makes an agent refuse a substituted server.
+
+**Give each client its own API token.** Every job keeps a copy of its repository's token on
+the agent, because the agent runs its backups without the server. Whoever takes over an agent
+therefore holds that token. With one token per client — a repository entry each, all pointing
+at the same datastore — that token can only reach the client's own backups: grant it
+`Datastore.Backup` on the client's own namespace and nothing more, in particular no
+`Datastore.Modify` or `Datastore.Prune`. A token shared by all clients lets one compromised
+host read or delete every other host's backups.
 
 With a repository in place, the server can hand out registration tokens and you can
 [install the first client](install-client.md).

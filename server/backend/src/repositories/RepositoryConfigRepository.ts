@@ -1,8 +1,12 @@
 import db from "../core/Database.js";
+import { decryptSecret, encryptSecret } from "../services/SecretCrypto.js";
 
 /**
- * A row of the `repositories` table. The secret is stored here as written by the
- * controller; mapping to the shared camelCase `Repository` happens there.
+ * A row of the `repositories` table; mapping to the shared camelCase `Repository` happens
+ * in the controller.
+ *
+ * `secret` is the PBS token secret encrypted with SecretCrypto (migration 18) -- never hand
+ * the row to a client as it is, and read the value through findSecret().
  */
 export interface RepositoryRow {
     id: string;
@@ -52,10 +56,34 @@ export class RepositoryConfigRepository {
             (id, base_url, datastore, fingerprint, username, tokenname, secret) 
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
-        ).run(id, baseUrl, datastore, fingerprint, username, tokenname, secret);
+        ).run(
+            id,
+            baseUrl,
+            datastore,
+            fingerprint,
+            username,
+            tokenname,
+            encryptSecret(secret),
+        );
     }
 
-    /** Same nullability rules as `create`. */
+    /**
+     * The repository's PBS token secret, decrypted. Undefined when the repository does not
+     * exist or has none; throws if it cannot be decrypted (usually a changed
+     * tunnel.keySecret).
+     */
+    static findSecret(id: string): string | undefined {
+        const row = db
+            .prepare("SELECT secret FROM repositories WHERE id = ?")
+            .get(id) as { secret: string | null } | undefined;
+        return row?.secret ? decryptSecret(row.secret) : undefined;
+    }
+
+    /**
+     * Same nullability rules as `create`. A `secret` of `null` keeps the stored one: the
+     * secret never leaves the server, so an editor that did not change it has nothing to
+     * send back.
+     */
     static update(
         id: string,
         baseUrl: string,
@@ -63,13 +91,13 @@ export class RepositoryConfigRepository {
         fingerprint: string | null,
         username: string,
         tokenname: string | null,
-        secret: string,
+        secret: string | null,
     ): { changes: number } {
         return db
             .prepare(
                 `
             UPDATE repositories 
-            SET base_url = ?, datastore = ?, fingerprint = ?, username = ?, tokenname = ?, secret = ?, updated_at = datetime('now')
+            SET base_url = ?, datastore = ?, fingerprint = ?, username = ?, tokenname = ?, secret = COALESCE(?, secret), updated_at = datetime('now')
             WHERE id = ?
         `,
             )
@@ -79,7 +107,7 @@ export class RepositoryConfigRepository {
                 fingerprint,
                 username,
                 tokenname,
-                secret,
+                secret === null ? null : encryptSecret(secret),
                 id,
             );
     }

@@ -3,7 +3,7 @@ import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
 import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
-const RepositoryInfo = ({ repo }: { repo: JobRepository }) => (
+const RepositoryInfo = ({ repo }: { repo: Omit<JobRepository, 'secret'> }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">
         <div className="grid grid-cols-[80px_1fr] gap-2">
             <span className="text-text-muted">Base URL:</span>
@@ -56,7 +56,8 @@ export const JobRepositorySelect = ({
             fingerprint: repo.fingerprint,
             username: repo.username,
             tokenname: repo.tokenname,
-            secret: repo.secret
+            // Not known here: the server fills it in from the repository on save.
+            secret: ''
         });
         onSetIsSelecting(false);
     };

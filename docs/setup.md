@@ -116,9 +116,16 @@ last run, not at startup.
 
 The `tunnel:` section is written with its defaults on first start, which is why
 `config.example.yaml` does not carry it. It must **not** be copied between installations:
-`tunnel.keySecret` is generated per installation and encrypts the stored SSH keys, so
-sharing the file would share one key across every installation that copied it. The
-parameters are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settings-optional).
+`tunnel.keySecret` is generated per installation and encrypts every secret the server
+stores -- the SSH keys of the tunnels, the PBS token secrets of the repositories and the auth
+tokens of outbound clients -- so sharing the file would share one key across every
+installation that copied it. The name is historical; it covers all of them. The parameters
+are documented in [SSH Reverse Tunnel](tunnel.md#5-server-side-settings-optional).
+
+The file has to be **writable** on first start. A key that is generated and cannot be written
+back would be gone after the next restart, and everything encrypted with it in between. The
+server therefore refuses to encrypt with such a key: the upgrade that encrypts the existing
+secrets stops the start, and storing a new secret fails, until `config.yaml` can be written.
 
 ## Client
 

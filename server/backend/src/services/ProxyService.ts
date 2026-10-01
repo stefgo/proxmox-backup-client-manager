@@ -15,6 +15,7 @@ import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { RepositoryConfigRepository } from "../repositories/RepositoryConfigRepository.js";
 import { TunnelService } from "./TunnelService.js";
+import { redactJob } from "./JobSecrets.js";
 
 /** One outstanding request to an agent, keyed by its requestId. */
 interface PendingRequest {
@@ -129,11 +130,14 @@ export class ProxyService {
         }
     }
 
-    /** One client's cached job list, in the shape a `GET /api/v1/jobs` entry has. */
+    /**
+     * One client's cached job list, in the shape a `GET /api/v1/jobs` entry has -- without
+     * secrets, like every other way a job reaches a browser (see JobSecrets).
+     */
     private static broadcastJobs(clientId: string, jobs: BackupJob[]) {
         this.broadcastToDashboard({
             type: "JOBS_UPDATE",
-            payload: { clientId, jobs },
+            payload: { clientId, jobs: jobs.map(redactJob) },
         });
     }
 

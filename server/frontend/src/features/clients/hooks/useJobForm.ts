@@ -59,7 +59,11 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
 
     // Encryption State
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);
+    // Only a key generated in this form: the server never sends a stored one back.
     const [encryptionKeyContent, setEncryptionKeyContent] = useState<string | null>(null);
+    // The job was loaded with encryption on, so the agent holds its key. Saving without
+    // keyContent keeps that key -- the server fills it in (see JobSecrets on the backend).
+    const [hasStoredKey, setHasStoredKey] = useState(false);
 
     // File Browser State -- always absolute. The agent resolves a relative path against
     // its own working directory, and `.` used to be where an edited job's browser opened.
@@ -109,6 +113,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setIsSelectingRepository(false);
         setEncryptionEnabled(false);
         setEncryptionKeyContent(null);
+        setHasStoredKey(false);
         setTunnelRequired(false);
 
         setSaveError(null);
@@ -156,10 +161,12 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
 
         if (job.encryption) {
             setEncryptionEnabled(job.encryption.enabled || false);
-            setEncryptionKeyContent(job.encryption.keyContent || null);
+            setEncryptionKeyContent(null);
+            setHasStoredKey(!!job.encryption.enabled);
         } else {
             setEncryptionEnabled(false);
             setEncryptionKeyContent(null);
+            setHasStoredKey(false);
         }
 
         setIsSelectingRepository(false);
@@ -310,6 +317,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         scheduleStartTime,
         encryptionEnabled,
         encryptionKeyContent,
+        hasStoredKey,
         tunnelRequired,
     });
 
@@ -340,7 +348,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         jobArchives.length > 0 &&
         !!jobRepository &&
         !(scheduleEnabled && (!scheduleStartDate || !scheduleStartTime)) &&
-        !(encryptionEnabled && !encryptionKeyContent);
+        !(encryptionEnabled && !encryptionKeyContent && !hasStoredKey);
 
     const saveBackupJob = async () => {
         // `canSaveJob` already covers this, but saveBackupJob is exported through
@@ -460,6 +468,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         // Encryption
         encryptionEnabled, setEncryptionEnabled,
         encryptionKeyContent, setEncryptionKeyContent,
+        hasStoredKey, setHasStoredKey,
         generateKey,
         isSelectingRepository, setIsSelectingRepository,
 
