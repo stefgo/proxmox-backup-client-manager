@@ -204,6 +204,34 @@ Traefik) for anything that leaves the host, and make sure the proxy forwards Web
 upgrades — the dashboard has no polling fallback, so a proxy that drops `Upgrade`
 produces a UI that loads and then never updates.
 
+**List the proxy in `security.trusted_proxies`** (or `PBCM_TRUSTED_PROXIES`). The server
+believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the addresses listed there.
+Without the entry two things go wrong quietly:
+
+- Every request appears to come from the proxy. The login rate limit then counts all users
+  together, and `security.allowed_networks` and a client's allowed IP are checked against
+  the proxy's address instead of the agent's.
+- The session cookie loses its `Secure` flag, because the server sees the plain-HTTP
+  connection from the proxy rather than the browser's HTTPS one.
+
+```yaml title="server-config.yaml"
+security:
+    # A proxy on the same host:
+    trusted_proxies: ["loopback"]
+    # A proxy container on a Docker network (its address is assigned by Docker):
+    # trusted_proxies: ["uniquelocal"]
+```
+
+!!! warning "Updating an existing installation"
+
+    Earlier versions believed these headers from anyone, which let a caller who reached
+    the port directly choose the address every check ran against. An installation behind a
+    proxy that is updated without adding the entry keeps working, but with the two effects
+    above. Check the startup log: it says which proxies are trusted, or that none are.
+
+Port 3000 can stay published directly — agents connect to it — because without an entry
+the forwarding headers are ignored rather than trusted.
+
 Once TLS is in front of it you can switch on `security.hsts` in the config.
 
 !!! warning "`hsts` is hard to take back"

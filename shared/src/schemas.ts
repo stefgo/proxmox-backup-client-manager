@@ -36,6 +36,26 @@ export const Ipv4OrCidrSchema = z.union([z.ipv4(), z.cidrv4()], {
     error: "Must be an IPv4 address or an IPv4 network in CIDR notation",
 });
 
+/**
+ * One entry of `security.trusted_proxies`: what Fastify's `trustProxy` (proxy-addr) accepts
+ * as a list item. Unlike the pin above this may be v6 — proxy-addr evaluates it, not
+ * `isIpInCidr`. The three names are proxy-addr's presets: `loopback` (127.0.0.1/8, ::1),
+ * `linklocal` and `uniquelocal` (the RFC 1918 ranges and fc00::/7, which covers a proxy
+ * on a Docker bridge network whose address is not fixed).
+ */
+export const TrustedProxySchema = z.union(
+    [
+        z.ipv4(),
+        z.cidrv4(),
+        z.ipv6(),
+        z.cidrv6(),
+        z.enum(["loopback", "linklocal", "uniquelocal"]),
+    ],
+    {
+        error: "Must be an IP address, a network in CIDR notation, or one of loopback, linklocal, uniquelocal",
+    },
+);
+
 /** YAML turns an empty block (`tls:` with nothing below it) into null. */
 const blockOrMissing = <T extends z.ZodType>(schema: T) =>
     z.preprocess((value) => value ?? undefined, schema);
@@ -913,6 +933,17 @@ export const AppConfigSchema = z.looseObject({
              */
             allowed_networks: z.array(Ipv4OrCidrSchema).default([]),
             /**
+             * The reverse proxies whose X-Forwarded-For/-Proto/-Host this server believes.
+             *
+             * Empty by default, which means no one's: the client address is the socket's
+             * peer and the scheme is the connection's own. Trusting every peer, as this
+             * server used to, let anyone who reaches the port directly choose the address
+             * that the login rate limit, `allowed_networks` and a client's
+             * `inbound_allowed_ip` are checked against. Behind a proxy, its address has to
+             * be listed here — otherwise every request appears to come from the proxy.
+             */
+            trusted_proxies: z.array(TrustedProxySchema).default([]),
+            /**
              * Whether to send Strict-Transport-Security.
              *
              * Off by default, unlike helmet's own setting. A large share of installations
@@ -937,6 +968,7 @@ export const AppConfigSchema = z.looseObject({
         // object back as it stands, so a key missing here is missing at runtime.
         .default({
             allowed_networks: [],
+            trusted_proxies: [],
             hsts: false,
             allow_self_signed_agent_certificates: false,
         }),

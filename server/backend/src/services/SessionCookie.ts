@@ -55,8 +55,10 @@ function maxAgeSeconds(): number {
  * Read from the request rather than hardcoded: `Secure` tells the browser to withhold the
  * cookie over plain HTTP, and plenty of installations run on http:// inside a home
  * network. Set unconditionally, those would log in successfully and then be rejected on
- * the very next request, with nothing in the UI to explain it. `trustProxy` is on, so this
- * sees the scheme the *browser* used, not the one behind a TLS-terminating proxy.
+ * the very next request, with nothing in the UI to explain it. Behind a TLS-terminating
+ * proxy this sees the scheme the *browser* used only if that proxy is listed in
+ * `security.trusted_proxies` — X-Forwarded-Proto from anyone else is ignored, and the
+ * cookie then goes out without `Secure`.
  */
 function isSecureRequest(request: FastifyRequest): boolean {
     return request.protocol === "https";

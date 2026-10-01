@@ -22,6 +22,10 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # Behind a reverse proxy: its address, so X-Forwarded-For/-Proto are believed. Without
+      # it every request appears to come from the proxy. Comma separated; IPs, CIDRs or
+      # loopback / linklocal / uniquelocal. Overrides security.trusted_proxies.
+      # - PBCM_TRUSTED_PROXIES=172.16.0.0/12
     # The image already carries this HEALTHCHECK, so this block is a repetition on
     # purpose: it keeps the behaviour visible in the file operators actually read and
     # edit. Node is in the image and Node 22 has fetch as a global, so no curl.

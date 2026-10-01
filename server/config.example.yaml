@@ -54,6 +54,15 @@ security:
     # means no perimeter was configured, while a client without an allowed address is
     # refused outright.
     allowed_networks: []
+    # Reverse proxies whose X-Forwarded-For/-Proto headers this server believes: IP
+    # addresses, CIDR networks, or loopback / linklocal / uniquelocal. Empty (default)
+    # believes no one, so the client address is the connection's own.
+    # Behind a proxy, list it here (or in PBCM_TRUSTED_PROXIES) -- otherwise every request
+    # appears to come from the proxy, and the session cookie loses its Secure flag behind
+    # a TLS-terminating one. Read at startup only.
+    # Example for a proxy in a Docker network next to this container:
+    # trusted_proxies: ["uniquelocal"]
+    trusted_proxies: []
     # Accept a certificate this server cannot verify when dialling an outbound agent over
     # wss:// (default: false). Applies to every outbound agent alike.
     # Only relevant for clients whose target address is written as wss://host:port; a plain

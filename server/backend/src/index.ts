@@ -11,7 +11,7 @@ import jwt from "@fastify/jwt";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { initOIDC, appConfig, serverPort } from "./config/AppConfig.js";
+import { initOIDC, appConfig, serverPort, trustedProxies } from "./config/AppConfig.js";
 import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
@@ -39,8 +39,11 @@ JobHistoryCleanupService.startScheduler();
 import { loggerOptions } from "@pbcm/shared/node";
 
 const server = Fastify({
-    // Trust Proxy is required for correct IP detection behind Traefik
-    trustProxy: true,
+    // Forwarding headers count only from the proxies the operator listed. `true` believed
+    // them from anyone who reached the port, so the client address -- which the login rate
+    // limit and every network check rely on -- was whatever the caller wrote into
+    // X-Forwarded-For. See security.trusted_proxies in the config schema.
+    trustProxy: trustedProxies.length ? trustedProxies : false,
     disableRequestLogging: true,
     logger: loggerOptions,
 });
@@ -193,6 +196,16 @@ try {
         host: "0.0.0.0",
     });
     writeHealthFile(serverPort);
+    // Said once at startup, because the wrong value fails silently: an unlisted proxy
+    // makes every request look like it came from the proxy itself.
+    server.log.info(
+        trustedProxies.length
+            ? { trustedProxies }
+            : {},
+        trustedProxies.length
+            ? "Trusting X-Forwarded-* headers from the listed proxies"
+            : "No trusted proxies configured -- X-Forwarded-* headers are ignored",
+    );
 } catch (err) {
     server.log.error(err);
     process.exit(1);
