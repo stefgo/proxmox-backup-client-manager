@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import * as client from "openid-client";
-import { appConfig, getOidcConfig } from "../config/AppConfig.js";
+import { appConfig, getEnabledOidcSettings, getOidcConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
 import {
     UserRepository,
@@ -92,7 +92,7 @@ export class AuthService {
 
         return client
             .buildAuthorizationUrl(oidcConfig, {
-                redirect_uri: appConfig.oidc!.redirect_uri,
+                redirect_uri: getEnabledOidcSettings()!.redirect_uri,
                 scope: "openid profile groups email",
                 state,
                 code_challenge,
@@ -121,7 +121,7 @@ export class AuthService {
                 expectedState: state,
             },
             {
-                redirect_uri: appConfig.oidc!.redirect_uri,
+                redirect_uri: getEnabledOidcSettings()!.redirect_uri,
             },
         );
 

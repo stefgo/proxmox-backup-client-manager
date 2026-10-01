@@ -251,15 +251,36 @@ export function updateConfig(updates: Partial<AppConfig>) {
     saveConfig();
 }
 
+/**
+ * The OIDC block, if it is switched on. The schema has checked the fields at startup, but
+ * TypeScript cannot follow that from `enabled` to the fields, so callers get them narrowed.
+ */
+export function getEnabledOidcSettings(): {
+    issuer: string;
+    client_id: string;
+    client_secret: string;
+    redirect_uri: string;
+} | null {
+    const oidc = appConfig.oidc;
+    if (!oidc?.enabled) return null;
+    return {
+        issuer: oidc.issuer as string,
+        client_id: oidc.client_id as string,
+        client_secret: oidc.client_secret as string,
+        redirect_uri: oidc.redirect_uri as string,
+    };
+}
+
 let oidcConfig: client.Configuration | null = null;
 
 export async function initOIDC() {
-    if (appConfig.oidc && appConfig.oidc.enabled) {
+    const oidc = getEnabledOidcSettings();
+    if (oidc) {
         try {
             oidcConfig = await client.discovery(
-                new URL(appConfig.oidc.issuer),
-                appConfig.oidc.client_id,
-                appConfig.oidc.client_secret
+                new URL(oidc.issuer),
+                oidc.client_id,
+                oidc.client_secret
             );
             logger.info("OIDC Client initialized");
         } catch (e) {

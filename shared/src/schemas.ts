@@ -881,13 +881,38 @@ export const AppSettingsSchema = z.looseObject({
     job_history_cleanup_interval_hours: StoredSettingValueSchema.default("24"),
 });
 
-export const OidcConfigSchema = z.object({
-    enabled: z.boolean().optional(),
-    issuer: z.url(),
-    client_id: z.string().min(1),
-    client_secret: z.string().min(1),
-    redirect_uri: z.url(),
-});
+export const OidcConfigSchema = z
+    .looseObject({
+        enabled: z.boolean().default(false),
+        issuer: z.string().nullish(),
+        client_id: z.string().nullish(),
+        client_secret: z.string().nullish(),
+        redirect_uri: z.string().nullish(),
+    })
+    // The example config ships the block with empty fields and `enabled: false`, so the
+    // fields are only required -- and checked -- once the block is switched on. Requiring
+    // them always made a server started from that example refuse to start.
+    .superRefine((oidc, ctx) => {
+        if (!oidc.enabled) return;
+        for (const key of ["issuer", "redirect_uri"] as const) {
+            if (!z.url().safeParse(oidc[key]).success) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: "Required as a URL while oidc.enabled is true",
+                });
+            }
+        }
+        for (const key of ["client_id", "client_secret"] as const) {
+            if (!oidc[key]) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: "Required while oidc.enabled is true",
+                });
+            }
+        }
+    });
 
 /**
  * The whole of `config.yaml`.
@@ -921,7 +946,7 @@ export const AppConfigSchema = z.looseObject({
      * and nothing writes the number into a file the operator never put it in.
      */
     port: z.number().int().min(1).max(65535).optional(),
-    oidc: OidcConfigSchema.optional(),
+    oidc: blockOrMissing(OidcConfigSchema.optional()),
     settings: AppSettingsSchema.default({
         token_retention_days: "30",
         token_cleanup_interval_hours: "24",
