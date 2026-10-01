@@ -103,9 +103,8 @@ reporting success even if the route were gone. Under `/api`, an unknown path ret
 `404` as JSON.
 
 **Not to be confused with [`/v1/ping`](#-reachability).** That one answers "is there a
-PBCM server at this URL" for an operator typing an address during registration, and
-touches nothing. This one answers "can this instance serve requests" and checks the
-database. Keeping them apart matters: if `ping` reported the database, a server with a
+PBCM server at this URL" for the agent's status page, and touches nothing. This one
+answers "can this instance serve requests" and checks the database. Keeping them apart matters: if `ping` reported the database, a server with a
 broken one would tell the operator that the address is wrong.
 
 ---
@@ -1749,9 +1748,10 @@ Every change is pushed as [`SCHEDULER_STATUS_UPDATE`](#dashboard-connection).
 `GET /v1/ping`
 
 **Description:** Answers the question *"is there a PBCM server at this URL?"* — no
-authentication required. The agent calls it against a URL an operator has just typed, to
-tell them before registration whether the address is right (`GET /api/status/server` on
-the agent's web UI).
+authentication required. The agent's status and register pages call it against the
+agent's configured server, to show whether it answers (`GET /api/status/server` on the
+agent's web UI). The agent no longer checks an address an operator has just typed: the
+registration itself reports a server that does not answer.
 
 It deliberately checks **nothing** beyond the process answering. In particular it does
 not touch the database: a server whose database is broken is still *reachable*, and

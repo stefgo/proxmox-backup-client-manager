@@ -288,8 +288,8 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             // Register Client (Public but API)
             v1.post("/register", TokenController.register);
 
-            // "Is there a PBCM server at this URL?" -- the agent calls this against an
-            // address an operator has just typed, before registration
+            // "Is there a PBCM server at this URL?" -- the agent's status and register
+            // pages call this against its configured server
             // (client/src/web/server.ts, /api/status/server).
             //
             // Not the same thing as /api/health, and the two must not be merged. This

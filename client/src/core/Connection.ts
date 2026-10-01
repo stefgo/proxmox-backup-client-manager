@@ -73,6 +73,14 @@ export class Connection {
     private static wsInstance: WebSocket | null = null;
     /** One timer for the whole module: two of these would mean two reconnect loops. */
     private static reconnectTimer: NodeJS.Timeout | null = null;
+    /**
+     * The handshake under way, if any. Every caller while it runs gets this same attempt:
+     * a second connect() used to close the socket still shaking hands and start over, so
+     * calling it in a loop -- POST /api/connect needs no login -- kept a disconnected agent
+     * from ever finishing a handshake. Settles within the 5s attempt timeout at the latest.
+     */
+    private static connecting: Promise<{ connected: boolean; error?: string }> | null =
+        null;
     private static reconnectAttempts = 0;
     /** Correlation table for requests this agent sends to the server. */
     private static pending = new Map<
@@ -168,6 +176,8 @@ export class Connection {
      * @returns A promise resolving to an object indicating connection success or failure.
      */
     static connect(): Promise<{ connected: boolean; error?: string }> {
+        if (this.connecting) return this.connecting;
+
         // A manual connect supersedes a queued one; without this the pending timer would
         // fire on top of the connection this call is about to establish.
         if (this.reconnectTimer) {
@@ -228,7 +238,7 @@ export class Connection {
         // Nothing goes out before this socket has authenticated; AUTH_SUCCESS restarts it.
         HistorySync.stop();
 
-        return new Promise((resolve) => {
+        const attempt = new Promise<{ connected: boolean; error?: string }>((resolve) => {
             let pingTimeout: NodeJS.Timeout;
 
             function heartbeat() {
@@ -302,6 +312,11 @@ export class Connection {
                 ws.close();
             });
         });
+        this.connecting = attempt;
+        void attempt.finally(() => {
+            if (this.connecting === attempt) this.connecting = null;
+        });
+        return attempt;
     }
 
     /**

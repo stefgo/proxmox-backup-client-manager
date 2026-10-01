@@ -16,7 +16,7 @@ import {
 } from "../core/RegistrationState.js";
 import { Connection } from "../core/Connection.js";
 import { startAgentActivity } from "../core/Lifecycle.js";
-import { isCertificateError, serverRequest } from "../core/ServerHttp.js";
+import { isCertificateError, serverRequest, type SimpleResponse } from "../core/ServerHttp.js";
 import { verifySetupPin, clearSetupPin } from "../core/SetupPin.js";
 import { secretEquals } from "../core/secrets.js";
 import { DATA_DIR } from "../core/DataStore.js";
@@ -43,9 +43,6 @@ const WebRegisterSchema = z.object({
 
 /** The identity the server presents on the agent session it opens. */
 type AgentQuery = { token?: string; clientId?: string };
-
-/** The optional server URL the status endpoint may be asked to check instead of the configured one. */
-type StatusQuery = { url?: string };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -323,12 +320,14 @@ async function registerPages(fastify: FastifyInstance, routes: WebRoutes) {
         );
     }
 
-    // Check server reachability
+    // Check server reachability -- of the configured server, and of no other. This endpoint
+    // needs no login, and it used to take any address as ?url=: anyone who could reach the
+    // port could have the agent probe its own network with it. The register page needed it
+    // for one pre-check, which /api/register now answers itself (`stage: "server"`).
     fastify.get(
         "/api/status/server",
-        async (request: FastifyRequest, _reply: FastifyReply) => {
-            const query = request.query as StatusQuery;
-            const checkUrl = query.url || getServerUrl();
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            const checkUrl = getServerUrl();
             let serverReachable = false;
 
             if (checkUrl) {
@@ -434,7 +433,10 @@ function registerHealth(fastify: FastifyInstance) {
  * Open exactly as long as the page is -- see isRegisterPageOpen().
  */
 function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
-    // API to perform registration
+    // API to perform registration. Every error names the step it failed at as `stage`, for
+    // the page's two-step display: "input" (form or PIN, nothing was sent), "server" (no
+    // server answered at the URL) or "register" (a server answered and the registration
+    // failed). A status code cannot say this: a bad form and a refusal are both 400.
     fastify.post(
         "/api/register",
         async (request: FastifyRequest, reply: FastifyReply) => {
@@ -454,6 +456,7 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
                 const path = issue.path.join(".");
                 return reply.status(400).send({
                     error: path ? `${path}: ${issue.message}` : issue.message,
+                    stage: "input",
                 });
             }
             const { token, url, pin } = parsed.data;
@@ -465,6 +468,7 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
                 );
                 return reply.status(403).send({
                     error: "Wrong setup PIN. It is printed in this agent's log on startup.",
+                    stage: "input",
                 });
             }
 
@@ -473,15 +477,28 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
             try {
                 // The registration token goes out and the auth token comes back, so the
                 // certificate is checked unless the operator decided otherwise.
-                const response = await serverRequest(`${url}/api/v1/register`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        token,
-                        hostname: os.hostname(),
-                    }),
-                    allowSelfSigned: config.allowSelfSignedCertificates,
-                });
+                let response: SimpleResponse;
+                try {
+                    response = await serverRequest(`${url}/api/v1/register`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            token,
+                            hostname: os.hostname(),
+                        }),
+                        allowSelfSigned: config.allowSelfSignedCertificates,
+                    });
+                } catch (e: unknown) {
+                    // Reached nothing at all. Marked as the server step, so the page shows
+                    // "wrong address" where the separate pre-check used to show it. A
+                    // certificate error did reach a server and goes on to the catch below.
+                    if (isCertificateError(e)) throw e;
+                    logger.warn({ err: e, url }, "Web registration: server not reachable");
+                    return reply.status(502).send({
+                        error: `Server not reachable at ${url} (${e instanceof Error ? e.message : String(e)})`,
+                        stage: "server",
+                    });
+                }
 
                 if (!response.ok) {
                     const errorText = response.text;
@@ -492,7 +509,7 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
                     } catch {
                         // Response is not JSON, use raw text
                     }
-                    return reply.status(400).send({ error: errorMsg });
+                    return reply.status(400).send({ error: errorMsg, stage: "register" });
                 }
 
                 const data = JSON.parse(response.text);
@@ -527,6 +544,7 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
                 } else {
                     return reply.status(500).send({
                         error: "Registration failed: The server did not return a complete identity.",
+                        stage: "register",
                     });
                 }
             } catch (e: unknown) {
@@ -536,12 +554,14 @@ function registerRegisterApi(fastify: FastifyInstance, routes: WebRoutes) {
                         error:
                             `The server's certificate could not be verified (${(e as Error).message}). ` +
                             "If it is self-signed on purpose, set allowSelfSignedCertificates: true in this agent's config.yaml and restart it.",
+                        stage: "register",
                     });
                 }
                 return reply.status(500).send({
                     error:
                         (e instanceof Error ? e.message : String(e)) ||
                         "Unknown error occurred during registration",
+                    stage: "register",
                 });
             }
         },

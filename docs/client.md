@@ -152,6 +152,16 @@ way around `enableStatusPage: false`. With neither page nor outbound mode the se
 all, and says so in the log. This replaces `DISABLE_WEB_UI`, which switched off the
 outbound routes and the health route along with the pages.
 
+None of the page endpoints asks for a login, so none of them takes a target from the
+caller. `/api/status/server` checks the configured server and no other — it used to accept
+any address as `?url=`, which let anyone who could reach the port have the agent probe its
+own network. The register page needed that for one pre-check; `POST /api/register`, behind
+the setup PIN, now reports it itself: every error carries `stage` — `input` (form or PIN,
+nothing was sent), `server` (nothing answered at the URL) or `register` (a server answered
+and refused). `POST /api/connect` dials the configured server as well; while a handshake is
+under way, further calls wait for that one instead of starting over, so calling it in a loop
+cannot keep a disconnected agent offline.
+
 Plain HTTP unless `config.yaml` carries a `tls` block:
 
 ```yaml
