@@ -1,6 +1,6 @@
 # Proxmox Backup Client Manager - Server Configuration
 
-# Log level for the server (trace, debug, info, warn, error, fatal)
+# Log level for the server (trace, debug, info, warn, error, fatal, silent)
 # Can be overridden by the LOG_LEVEL environment variable
 logLevel: info
 
@@ -10,12 +10,19 @@ logLevel: info
 # so moving it here means moving it there too.
 #port: 3000
 
-# OpenID Connect (OIDC) authentication settings
+# OpenID Connect (OIDC) authentication settings. Local login keeps working alongside it.
+# While enabled is true, the four values below are required; leave the block as it is
+# to log in with local accounts only.
 oidc:
+    # Offer login through the OIDC provider on the login page (default: false).
     enabled: false
+    # The provider's issuer URL; its /.well-known/openid-configuration is read on start.
     issuer:
+    # Client id and secret of this application, as registered at the provider.
     client_id:
     client_secret:
+    # The URL the provider sends the browser back to after login. Register exactly this
+    # URL at the provider: https://<this server>/api/auth/callback
     redirect_uri:
 
 # Secret key used to sign and verify JSON Web Tokens (JWT) for user sessions
@@ -29,8 +36,10 @@ jwtSecret:
 # registering every outbound client again.
 secretKey:
 
-# JWT token expiration time (e.g. "24h", "7d", "30m"). If not set, tokens never expire.
-jwtExpiresIn: "24h"
+# JWT token expiration time (e.g. "24h", "7d", "30m"). Defaults to "12h" if not set.
+# Tokens always expire; there is no setting that turns expiry off. The dashboard's
+# session cookies carry the same lifetime.
+jwtExpiresIn: "12h"
 
 # General server settings
 # The values below are the same ones the server falls back to when a key is missing, so
@@ -70,6 +79,10 @@ security:
     # Example for a proxy in a Docker network next to this container:
     # trusted_proxies: ["uniquelocal"]
     trusted_proxies: []
+    # Send the Strict-Transport-Security header (default: false). Only enable this when the
+    # dashboard is reached exclusively via HTTPS: browsers remember the header for months and
+    # refuse plain http:// for this host from then on, even after it is switched off again.
+    # hsts: false
     # Accept a certificate this server cannot verify when dialling an outbound agent over
     # wss:// (default: false). Applies to every outbound agent alike.
     # Only relevant for clients whose target address is written as wss://host:port; a plain
@@ -81,6 +94,35 @@ security:
     # fingerprint and unaffected.
     # allow_self_signed_agent_certificates: false
 
-# Not listed here: the "tunnel:" section for the SSH reverse tunnel. The server writes it
-# with its defaults on first start, so a copy of this file does not need it.
-# The parameters and what each of them does are documented in docs/tunnel.md.
+# SSH reverse tunnel (see docs/tunnel.md). The server writes this block with its defaults
+# on first start, so it can stay commented out; the values below are those defaults.
+# tunnel:
+#     # Kill switch: false refuses every tunnel request, so jobs that require the tunnel
+#     # fail instead of running (default: true).
+#     enabled: true
+#     # Address the forward is bound to on the client host when the connection test runs.
+#     # A real tunnel binds to the address stored with the client, which is 127.0.0.1.
+#     # Never 0.0.0.0: that would open the forward to the client's network and needs
+#     # GatewayPorts in its sshd.
+#     remoteBindHost: 127.0.0.1
+#     # How long the SSH connection to the client may take to become ready, in ms.
+#     connectTimeoutMs: 10000
+#     # Interval of the SSH keepalive packets, in ms. Detects a dead connection early.
+#     keepaliveIntervalMs: 15000
+#     # How long an SSH connection stays open after its last lease was released, in ms, so
+#     # that the next job of the same client does not have to connect again.
+#     idleGraceMs: 60000
+#     # Longest lifetime of one lease, in ms (default: 24 h). A lease still held after this
+#     # is released: a safety net against a client that never released it.
+#     maxLeaseMs: 86400000
+#     # How long a request waits for a free slot while maxConcurrentTunnels are in use, in ms.
+#     # After that it fails with "Too many concurrent tunnels".
+#     acquireTimeoutMs: 20000
+#     # Most SSH connections open at the same time, across all clients. One client counts
+#     # once, however many of its jobs use the tunnel.
+#     maxConcurrentTunnels: 20
+#     # Currently not read: accepted for compatibility, it changes nothing.
+#     retryDelaysMs: [2000, 5000, 10000]
+#     # Shortest time between two tunnel requests of the same client, in ms. A request
+#     # sooner than that is refused (rate limit).
+#     minRequestIntervalMs: 3000

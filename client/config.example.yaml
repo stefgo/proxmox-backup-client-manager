@@ -9,7 +9,9 @@
 # naming the field. The agent writes back to this file in one case only -- the serverUrl of a
 # registration made through the web UI.
 
-# Log level for the client (debug, info, warn, error)
+# Log level for the client (trace, debug, info, warn, error, fatal, silent). Not set, or not
+# one of these (ignored with a warning), the LOG_LEVEL environment variable applies, and
+# without it "info".
 logLevel: "info"
 
 # URL of the PBCM Server (e.g., http://your-server:3000). Set it here and the register page
@@ -83,17 +85,25 @@ allowedNetworks: []
 # Executable name/path for proxmox-backup-client
 executable: "proxmox-backup-client"
 
-# Optional: Static parameters to always append to backup jobs
-# For example, to include all file systems:
-backupParams:
-    - "--all-file-systems"
-    - "true"
+# Optional: Static parameters to always append to backup jobs, alternating flag and value
+# (default: none). For example, to include all file systems:
+# backupParams:
+#     - "--all-file-systems"
+#     - "true"
+backupParams: []
 
 # Optional: Static parameters to always append to restore jobs
 restoreParams: []
 
 # Delay in seconds to wait before restarting a queued job
 queueDelaySeconds: 5
+
+# Bytes of output kept per run, for stdout and stderr each (default: 262144 = 256 KB).
+# Longer output keeps its head and its tail, with the middle dropped and marked: the
+# invocation and the first errors are at the top, the reason a run failed at the bottom.
+# The output is held in memory during the run, stored with its history and synced to the
+# server, so the cap bounds all three. Values below 1024 are ignored with a warning.
+logCapBytes: 262144
 
 # Optional: Scripts to run before and after a job execution.
 # Arguments passed: $1 = operation (backup/restore), $2 = job name
