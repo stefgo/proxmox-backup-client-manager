@@ -26,6 +26,7 @@ import { migration13 } from "./migrations/13_scheduler_next_run.js";
 import { migration14 } from "./migrations/14_history_seen.js";
 import { migration15 } from "./migrations/15_webhooks.js";
 import { migration16 } from "./migrations/16_job_history_snapshot.js";
+import { migration17 } from "./migrations/17_user_token_version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -121,6 +122,11 @@ const migrator = new Umzug<Database.Database>({
             name: "16_job_history_snapshot",
             up: migration16.up,
             down: migration16.down,
+        },
+        {
+            name: "17_user_token_version",
+            up: migration17.up,
+            down: migration17.down,
         },
     ],
     context: db,

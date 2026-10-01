@@ -133,6 +133,15 @@ and agents are unaffected either way. Since the browser sends the session automa
 CSRF is kept out by `SameSite=Strict` together with the server's `origin: false` CORS
 setting — every request in this application is same-origin.
 
+**Revocation.** A valid signature is not enough. The JWT carries the user's
+`token_version` as `tv`, and every protected request and every dashboard handshake
+compares it with the user's row. Changing a user's password or auth methods raises that
+counter, and deleting the user removes the row, so all of that user's sessions end at
+once: the next request answers `401`, an open dashboard socket is closed with `4001`.
+A user who changes their own password gets a fresh cookie in the same response; their
+dashboard socket closes with `4002` and reconnects on it. Tokens issued before this
+existed carry no `tv` and are refused — one login after the update.
+
 ### Login
 
 `POST /login` (Note: No `/v1` prefix, maps to `/api/login`)

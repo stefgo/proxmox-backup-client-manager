@@ -27,7 +27,8 @@ interface PendingRequest {
 
 export class ProxyService {
     private static connectedClients = new Map<string, WebSocket>();
-    private static dashboardClients = new Set<WebSocket>();
+    /** Each open dashboard socket and the user it was opened for, so their sessions can be ended. */
+    private static dashboardClients = new Map<WebSocket, number>();
     private static jobCache = new Map<string, BackupJob[]>();
     /**
      * Correlation table for requests the server sent to agents.
@@ -80,12 +81,30 @@ export class ProxyService {
         return false;
     }
 
-    static addDashboardClient(socket: WebSocket) {
-        this.dashboardClients.add(socket);
+    static addDashboardClient(socket: WebSocket, userId: number) {
+        this.dashboardClients.set(socket, userId);
     }
 
     static removeDashboardClient(socket: WebSocket) {
         this.dashboardClients.delete(socket);
+    }
+
+    /**
+     * Closes every dashboard socket of a user whose sessions were just revoked.
+     *
+     * 4001 makes the dashboard give up instead of reconnecting (WebSocketProvider). A user
+     * who changed their own password passes `renewed`: the response that did it carries a
+     * fresh cookie, so their dashboard closes with 4002 and reconnects on that cookie.
+     */
+    static closeDashboardSessions(userId: number, renewed = false) {
+        for (const [socket, owner] of this.dashboardClients) {
+            if (owner !== userId) continue;
+            if (renewed) {
+                socket.close(4002, "Session renewed");
+            } else {
+                socket.close(4001, "Session is no longer valid");
+            }
+        }
     }
 
     static async refreshJobCache(clientId: string) {
@@ -346,7 +365,7 @@ export class ProxyService {
         const msgStr =
             typeof message === "string" ? message : JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
-        for (const client of this.dashboardClients) {
+        for (const client of this.dashboardClients.keys()) {
             if (client.readyState === client.OPEN) {
                 client.send(msgStr);
             }

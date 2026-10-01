@@ -28,7 +28,11 @@ export class AuthController {
             return reply.code(401).send({ error: "Invalid credentials" });
         }
 
-        const token = request.server.jwt.sign({ username, id: result.user.id });
+        const token = request.server.jwt.sign({
+            username,
+            id: result.user.id,
+            tv: result.user.token_version,
+        });
         setSessionCookies(request, reply, token);
         // The token is deliberately not in the body any more: handing it to the page
         // would put it back into JavaScript's reach, which is the whole point of the
@@ -88,6 +92,7 @@ export class AuthController {
             const token = request.server.jwt.sign({
                 username: user.username,
                 id: user.id,
+                tv: user.token_version,
             });
 
             // The token rides back in the cookie, not in the redirect target. As a query

@@ -10,6 +10,7 @@ import { appConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { SESSION_COOKIE } from "../services/SessionCookie.js";
+import { AuthService } from "../services/AuthService.js";
 import { attachHeartbeat, type HeartbeatSocket } from "./websocket/Heartbeat.js";
 import { attachAgentSession } from "./websocket/AgentSession.js";
 
@@ -47,14 +48,22 @@ export class WebSocketController {
             return;
         }
 
+        let userId: number;
         try {
-            fastify.jwt.verify(token);
+            const payload = fastify.jwt.verify<{ id?: unknown; tv?: unknown }>(token);
+            // Same rule as the REST hook: a deleted user or a changed password ends the
+            // session, not only the token's expiry.
+            if (!AuthService.isSessionCurrent(payload)) {
+                socket.close(4001, "Session is no longer valid");
+                return;
+            }
+            userId = payload.id as number;
         } catch {
             socket.close(4001, "Invalid Token");
             return;
         }
 
-        ProxyService.addDashboardClient(socket);
+        ProxyService.addDashboardClient(socket, userId);
 
         // Send initial state
         const clients = ProxyService.getClientsWithStatus();
