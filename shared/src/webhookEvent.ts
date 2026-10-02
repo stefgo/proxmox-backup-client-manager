@@ -104,6 +104,11 @@ export function isFinalJobStatus(status: string): boolean {
     return Object.prototype.hasOwnProperty.call(OUTCOMES, status);
 }
 
+/** The kind a run that ended in `status` is reported under; null while it has not ended. */
+export function jobRunEventKind(status: string): WebhookEventKind | null {
+    return isFinalJobStatus(status) ? OUTCOMES[status].kind : null;
+}
+
 /** How long a line of stderr may be in `event.detail`; the rest is in the history. */
 const DETAIL_MAX_CHARS = 300;
 

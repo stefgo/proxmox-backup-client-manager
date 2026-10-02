@@ -1,8 +1,8 @@
-import { Activity, ChevronRight } from 'lucide-react';
+import { Activity, ChevronRight, Tag } from 'lucide-react';
 import { useState, useEffect, type ComponentProps, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
-import { JOB_PHASE, JOB_STATUS, type RunSnapshotDetails } from '@pbcm/shared';
+import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
@@ -104,6 +104,8 @@ export const BaseHistoryList = ({
         {
             listItemRender: (item) => {
                 const isExpanded = expandedIds.has(item.id);
+                // The kind a webhook filter and `{{event.kind}}` know this run by, once it has ended.
+                const eventKind = jobRunEventKind(item.status);
                 const snapshotLog =
                     item.type === 'backup' && item.status === JOB_STATUS.SUCCESS
                         ? runSnapshotLog({
@@ -148,7 +150,14 @@ export const BaseHistoryList = ({
                                 </div>
                             </div>
                             <div className="flex justify-between text-xs text-text-muted font-mono mt-0.5 pl-6">
-                                <span>{item.id}</span>
+                                <span className="flex items-center gap-2 min-w-0">
+                                    {item.id}
+                                    {eventKind && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded font-sans">
+                                            <Tag size={10} /> {eventKind}
+                                        </span>
+                                    )}
+                                </span>
                                 <span>{formatDate(item.startTime)}</span>
                             </div>
                         </div>
