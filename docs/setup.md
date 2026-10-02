@@ -64,11 +64,11 @@ environment:
 
 | Key | Sub-key | Description |
 | :-- | :------ | :---------- |
-| `oidc` | `enabled` | Enables/disables OIDC single sign-on (`true`/`false`). |
-| | `issuer` | OIDC issuer URL. |
-| | `client_id` | OIDC client ID. |
-| | `client_secret` | OIDC client secret. |
-| | `redirect_uri` | OIDC redirect URI. |
+| `oidc` | `enabled` | Offers login through the OIDC provider next to the local login (default: `false`). While it is `false`, the four fields below may stay empty; once it is `true`, all four are required and a missing or malformed one stops the start. |
+| | `issuer` | The provider's issuer URL. Its `/.well-known/openid-configuration` is read on start. |
+| | `client_id` | Client id of this application, as registered at the provider. |
+| | `client_secret` | Client secret of this application, as registered at the provider. |
+| | `redirect_uri` | Where the provider sends the browser back after login: `https://<this server>/api/auth/callback`. Register exactly this URL at the provider. |
 | `jwtSecret` | (root) | Signs the session tokens. Generated automatically if absent. **Losing it invalidates every session.** |
 | `secretKey` | (root) | Encrypts every secret the server stores and has to read back: the SSH keys of the tunnels, the PBS token secrets of the repositories and the auth tokens of outbound clients. Generated automatically if absent; do **not** copy it between installations. **Losing or changing it** means entering every repository secret and tunnel key again and registering every outbound client again. See [below](#stored-secrets). |
 | `jwtExpiresIn` | (root) | How long a login stays valid, in any span `@fastify/jwt` accepts (default: `12h`). Before this had a default, a token signed without one never expired. |
@@ -111,6 +111,7 @@ last run, not at startup.
 | :-- | :---------- |
 | `security.allowed_networks` | CIDR networks an agent may connect to `/ws/agent` from. Empty (default) allows every address. See [Address checks](#address-checks-for-agent-connections). |
 | `security.trusted_proxies` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty (default) believes no one. **Behind a proxy, list it** — see [TLS and reverse proxies](install-server.md#tls-and-reverse-proxies). Read at startup only; overridden by `PBCM_TRUSTED_PROXIES`. |
+| `security.allow_self_signed_agent_certificates` | Accept an agent certificate this server cannot verify when dialling an outbound agent over `wss://` (default: `false`). Applies to every outbound agent alike, and only to target addresses written `wss://host:port`. Usual for a self-signed agent certificate on a home network; leave it off when the agent's certificate comes from a CA this host trusts. The PBS certificate is not affected — it is pinned by its fingerprint. See [TLS to an outbound agent](install-server.md#tls-to-an-outbound-agent). |
 | `security.hsts` | Send `Strict-Transport-Security` (default: `false`). **Only switch this on behind TLS.** The header tells browsers to refuse `http://` for this host from then on, they remember it for months, and turning the header off again does not undo it — on a plain-HTTP installation it locks your users out. |
 
 ### Stored secrets
@@ -141,8 +142,9 @@ The `tunnel:` section is written with its defaults on first start, which is why
 
 | Key | Description |
 | :-- | :---------- |
-| `serverUrl` | URL of the management server (e.g. `wss://backup-server:3000/ws`). **Leave unset for outbound mode** — its absence is what puts the agent into it. |
+| `serverUrl` | HTTP(S) URL of the management server (e.g. `https://backup-server:3000`). The agent derives the WebSocket address itself: `http`/`https` become `ws`/`wss` and `/ws/agent` is appended. **Leave unset for outbound mode** — its absence is what puts the agent into it. |
 | `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. The container's health check follows the port either way. |
+| `tls.cert` / `tls.key` | Serve the agent's web server over TLS: paths to the certificate and its private key (default: unset, plain HTTP). Relative paths resolve against the agent's directory. An unreadable file stops the start — there is no fallback to HTTP. In outbound mode the client's target address on the server must then be written `wss://host:port`. See [TLS to an outbound agent](install-server.md#tls-to-an-outbound-agent). |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 | `enableStatusPage` | Serve the status page at `/status` (default: `true`). |

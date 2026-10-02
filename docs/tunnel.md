@@ -138,19 +138,23 @@ triggers it.
 
 ### 5. Server-side settings (optional)
 
-```yaml
-tunnel:
-  enabled: true                # kill switch: false blocks EVERY tunnel
-  remoteBindHost: 127.0.0.1
-  connectTimeoutMs: 10000
-  keepaliveIntervalMs: 15000
-  idleGraceMs: 60000           # linger after the last release
-  maxLeaseMs: 86400000         # kill switch against stuck leases
-  acquireTimeoutMs: 20000
-  maxConcurrentTunnels: 20     # queued beyond this
-  retryDelaysMs: [2000, 5000, 10000]
-  minRequestIntervalMs: 3000   # rate limit per client
-```
+The `tunnel:` block of the server's `config.yaml`. The server writes it with these defaults on
+first start; change a value there and restart.
+
+| Key | Default | Description |
+| :-- | :------ | :---------- |
+| `enabled` | `true` | Kill switch. `false` refuses every tunnel request, so jobs that require the tunnel fail instead of running. |
+| `remoteBindHost` | `127.0.0.1` | Address the forward is bound to on the client host **during the connection test**. A real tunnel binds to the address stored with the client, which is `127.0.0.1`. Never `0.0.0.0`: that opens the forward to the client's network and needs `GatewayPorts` in its sshd. |
+| `connectTimeoutMs` | `10000` | How long the SSH connection to the client may take to become ready. |
+| `keepaliveIntervalMs` | `15000` | Interval of the SSH keepalive packets; detects a dead connection early. |
+| `idleGraceMs` | `60000` | How long an SSH connection stays open after its last lease was released, so the next job of the same client need not connect again. |
+| `maxLeaseMs` | `86400000` (24 h) | Longest lifetime of one lease. A lease still held after this is released — a safety net against a client that never releases it. |
+| `acquireTimeoutMs` | `20000` | How long a request waits for a free slot while `maxConcurrentTunnels` are in use; then it fails with "Too many concurrent tunnels". |
+| `maxConcurrentTunnels` | `20` | Most SSH connections open at once, across all clients. A client counts once, however many of its jobs use the tunnel. |
+| `retryDelaysMs` | `[2000, 5000, 10000]` | **Currently not read.** Accepted for compatibility; it changes nothing. |
+| `minRequestIntervalMs` | `3000` | Shortest time between two tunnel requests of the same client. A request sooner than that is refused (rate limit). |
+
+All durations are in milliseconds.
 
 The stored SSH keys are encrypted with `secretKey` at the top level of `config.yaml`, not with
 a key in this block — see [Stored secrets](setup.md#stored-secrets).
