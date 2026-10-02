@@ -1543,7 +1543,6 @@ take no part. What a template may contain, and when each event fires, is describ
 | `bodyTemplate` | string   | The JSON template as written. |
 | `minLevel`     | string   | `info`, `warning` or `error`. |
 | `kinds`        | string[] | Kind patterns such as `job.*`, `client.*`; empty means every kind. |
-| `clientIds`    | string[] | The clients whose events it reports; empty means every client, new ones included. |
 | `timeoutMs`    | number   | Per attempt, 1000–60000. |
 | `lastStatus`   | number   | HTTP status of the last attempt; `null` when nothing answered or nothing was sent yet. |
 | `lastError`    | string   | Why the last attempt failed, or `null`. |
@@ -1565,7 +1564,6 @@ take no part. What a template may contain, and when each event fires, is describ
         "bodyTemplate": "{ \"text\": \"{{client.name}}: {{event.message}}\" }",
         "minLevel": "warning",
         "kinds": [],
-        "clientIds": [],
         "timeoutMs": 10000,
         "lastStatus": 200,
         "lastError": null,
@@ -1586,7 +1584,7 @@ take no part. What a template may contain, and when each event fires, is describ
 
 The fields of the list above without `id`, `lastStatus`, `lastError`, `lastAttemptAt`, `createdAt` and `updatedAt`. Required
 are `name`, `url` and `bodyTemplate`; the rest default to `enabled: true`, `method: "POST"`,
-`headers: {}`, `minLevel: "warning"`, `kinds: []`, `clientIds: []` and `timeoutMs: 10000`.
+`headers: {}`, `minLevel: "warning"`, `kinds: []` and `timeoutMs: 10000`.
 
 A body template that is not valid JSON, longer than 64 KiB or uses a placeholder that does not
 start with `event`, `client` or `webhook` is refused with **400** and names the reason:

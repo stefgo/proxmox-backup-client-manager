@@ -18,8 +18,6 @@ import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 interface WebhookListProps {
     webhooks: Webhook[];
     isLoading: boolean;
-    /** The name a client id is shown by. */
-    clientName: (clientId: string) => string;
     onAdd: () => void;
     onEdit: (webhook: Webhook) => void;
     onDelete: (webhook: Webhook) => void;
@@ -47,12 +45,6 @@ const Target = ({ webhook }: { webhook: Webhook }) => (
 const Filter = ({ webhook }: { webhook: Webhook }) => (
     <span className="text-sm text-text-muted">
         {webhook.minLevel} and above · {webhook.kinds.length > 0 ? webhook.kinds.join(', ') : 'all kinds'}
-    </span>
-);
-
-const Clients = ({ webhook, clientName }: { webhook: Webhook; clientName: (id: string) => string }) => (
-    <span className="text-sm text-text-muted">
-        {webhook.clientIds.length === 0 ? 'All clients' : webhook.clientIds.map(clientName).join(', ')}
     </span>
 );
 
@@ -89,7 +81,6 @@ const LastDelivery = ({ webhook }: { webhook: Webhook }) => {
 export const WebhookList = ({
     webhooks,
     isLoading,
-    clientName,
     onAdd,
     onEdit,
     onDelete,
@@ -144,10 +135,6 @@ export const WebhookList = ({
             tableItemRender: (w) => <Name webhook={w} />,
         },
         {
-            tableHeader: 'Clients',
-            tableItemRender: (w) => <Clients webhook={w} clientName={clientName} />,
-        },
-        {
             tableHeader: 'Enabled',
             tableHeaderClassName: 'text-center',
             tableCellClassName: 'content-center',
@@ -182,10 +169,6 @@ export const WebhookList = ({
                 },
                 { listLabel: 'Target', listItemRender: (w) => <Target webhook={w} /> },
                 { listLabel: 'Filter', listItemRender: (w) => <Filter webhook={w} /> },
-                {
-                    listLabel: 'Clients',
-                    listItemRender: (w) => <Clients webhook={w} clientName={clientName} />,
-                },
                 { listLabel: 'Last Delivery', listItemRender: (w) => <LastDelivery webhook={w} /> },
             ] satisfies DataListDef<Webhook>[],
             columnClassName: 'flex-1 min-w-0',

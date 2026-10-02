@@ -1067,8 +1067,6 @@ export const WebhookInputSchema = z.object({
     minLevel: z.enum(WEBHOOK_LEVELS).default("warning"),
     /** Kind patterns such as `job.*`; empty means every kind. */
     kinds: z.array(z.string().trim().min(1)).default([]),
-    /** The clients whose events this webhook reports; empty means all of them, new ones included. */
-    clientIds: z.array(z.string().min(1)).default([]),
     timeoutMs: z.number().int().min(1000).max(60000).default(10000),
 });
 

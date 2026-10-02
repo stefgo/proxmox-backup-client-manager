@@ -7,7 +7,7 @@ import {
     type WebhookLevel,
 } from "@pbcm/shared";
 
-/** A row of the `webhooks` table (migration 15), in its raw snake_case columns. */
+/** A row of the `webhooks` table (migrations 15 and 19), in its raw snake_case columns. */
 interface WebhookRow {
     id: string;
     name: string;
@@ -18,7 +18,6 @@ interface WebhookRow {
     body_template: string;
     min_level: string;
     kinds: string;
-    client_ids: string;
     timeout_ms: number;
     last_status: number | null;
     last_error: string | null;
@@ -65,7 +64,6 @@ function rowToWebhook(row: WebhookRow): Webhook {
             ? (row.min_level as WebhookLevel)
             : "warning",
         kinds: stringsColumn(row.kinds),
-        clientIds: stringsColumn(row.client_ids),
         timeoutMs: row.timeout_ms,
         lastStatus: row.last_status,
         lastError: row.last_error,
@@ -94,9 +92,9 @@ export class WebhookRepository {
     static create(id: string, fields: WebhookFields): void {
         db.prepare(`
             INSERT INTO webhooks
-                (id, name, enabled, url, method, headers, body_template, min_level, kinds, client_ids,
+                (id, name, enabled, url, method, headers, body_template, min_level, kinds,
                  timeout_ms, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             id,
             fields.name,
@@ -107,7 +105,6 @@ export class WebhookRepository {
             fields.bodyTemplate,
             fields.minLevel,
             JSON.stringify(fields.kinds),
-            JSON.stringify(fields.clientIds),
             fields.timeoutMs,
             new Date().toISOString(),
         );
@@ -117,7 +114,7 @@ export class WebhookRepository {
         return db.prepare(`
             UPDATE webhooks
             SET name = ?, enabled = ?, url = ?, method = ?, headers = ?, body_template = ?,
-                min_level = ?, kinds = ?, client_ids = ?, timeout_ms = ?, updated_at = ?
+                min_level = ?, kinds = ?, timeout_ms = ?, updated_at = ?
             WHERE id = ?
         `).run(
             fields.name,
@@ -128,7 +125,6 @@ export class WebhookRepository {
             fields.bodyTemplate,
             fields.minLevel,
             JSON.stringify(fields.kinds),
-            JSON.stringify(fields.clientIds),
             fields.timeoutMs,
             new Date().toISOString(),
             id,

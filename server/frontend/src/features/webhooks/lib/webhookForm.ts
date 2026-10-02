@@ -22,9 +22,6 @@ export interface WebhookDraft {
     minLevel: WebhookLevel;
     /** Comma separated kind patterns. */
     kinds: string;
-    /** Every client, new ones included -- stored as an empty list. */
-    allClients: boolean;
-    clientIds: string[];
     timeoutSeconds: string;
 }
 
@@ -37,8 +34,6 @@ export const EMPTY_DRAFT: WebhookDraft = {
     bodyTemplate: DEFAULT_WEBHOOK_TEMPLATE,
     minLevel: 'warning',
     kinds: '',
-    allClients: true,
-    clientIds: [],
     timeoutSeconds: '10',
 };
 
@@ -54,16 +49,13 @@ export function draftFrom(webhook: Webhook): WebhookDraft {
         bodyTemplate: webhook.bodyTemplate,
         minLevel: webhook.minLevel,
         kinds: webhook.kinds.join(', '),
-        allClients: webhook.clientIds.length === 0,
-        clientIds: webhook.clientIds,
         timeoutSeconds: String(webhook.timeoutMs / 1000),
     };
 }
 
 /**
  * The draft as the API takes it. Throws on a header line without a colon -- the one mistake
- * the server could not name, because by then the line would already be gone -- and on a
- * client selection with nobody in it, which the server would read as "every client".
+ * the server could not name, because by then the line would already be gone.
  */
 export function inputFrom(draft: WebhookDraft): WebhookInput {
     const headers: Record<string, string> = {};
@@ -73,9 +65,6 @@ export function inputFrom(draft: WebhookDraft): WebhookInput {
         if (colon <= 0) throw new Error(`Header line ${index + 1} is not "Name: value"`);
         headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
     });
-    if (!draft.allClients && draft.clientIds.length === 0) {
-        throw new Error('Choose at least one client, or send from all clients');
-    }
     return {
         name: draft.name,
         enabled: draft.enabled,
@@ -85,7 +74,6 @@ export function inputFrom(draft: WebhookDraft): WebhookInput {
         bodyTemplate: draft.bodyTemplate,
         minLevel: draft.minLevel,
         kinds: parseKinds(draft.kinds),
-        clientIds: draft.allClients ? [] : draft.clientIds,
         timeoutMs: Math.round((parseFloat(draft.timeoutSeconds) || 10) * 1000),
     };
 }

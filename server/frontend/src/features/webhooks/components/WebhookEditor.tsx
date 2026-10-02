@@ -12,7 +12,6 @@ import {
     Badge,
     Button,
     Card,
-    Checkbox,
     Input,
     LoadingIndicator,
     Select,
@@ -23,11 +22,9 @@ import {
 import { apiFetch } from '../../../lib/apiFetch';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { NotFoundCard } from '../../../components/NotFoundCard';
-import { useClientStore } from '../../../stores/useClientStore';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { describeDiscardWebhookChanges } from '../confirmations';
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from '../lib/webhookForm';
-import { useClientName } from '../lib/useClientName';
 
 /** Sends a request and throws with the server's reason when it refuses. */
 async function send(url: string, method: string, body: unknown): Promise<Response> {
@@ -83,8 +80,6 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
     const location = useLocation();
     const { confirm } = useConfirm();
     const back = (location.state as { from?: string } | null)?.from ?? '/webhooks';
-    const clients = useClientStore((s) => s.clients);
-    const clientName = useClientName();
 
     const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
     const [draft, setDraft] = useState<WebhookDraft>(initial);
@@ -102,14 +97,6 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
 
     const set = <K extends keyof WebhookDraft>(key: K, value: WebhookDraft[K]) =>
         setDraft((prev) => ({ ...prev, [key]: value }));
-
-    const toggleClient = (clientId: string, checked: boolean) =>
-        setDraft((prev) => ({
-            ...prev,
-            clientIds: checked
-                ? [...prev.clientIds.filter((id) => id !== clientId), clientId]
-                : prev.clientIds.filter((id) => id !== clientId),
-        }));
 
     const requestClose = useCallback(async () => {
         if (dirty && !(await confirm(describeDiscardWebhookChanges()))) return;
@@ -156,14 +143,6 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
             setIsTesting(false);
         }
     };
-
-    // Clients that are gone stay selectable to be removed; they are listed after the others.
-    const selectable = [
-        ...clients.map((c) => ({ id: c.id, name: c.displayName || c.hostname })),
-        ...draft.clientIds
-            .filter((id) => !clients.some((c) => c.id === id))
-            .map((id) => ({ id, name: clientName(id) })),
-    ];
 
     return (
         <Card
@@ -246,43 +225,13 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     />
                 </div>
 
-                <div>
-                    <label className="field-label">Clients</label>
-                    <div className="mt-1 space-y-2 rounded-lg border border-border p-3">
-                        <Checkbox
-                            label="All clients, including ones registered later"
-                            checked={draft.allClients}
-                            onChange={(e) => set('allClients', e.target.checked)}
-                        />
-                        {!draft.allClients && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 border-t border-border pt-2">
-                                {selectable.length === 0 && (
-                                    <span className="text-sm text-text-muted">No clients registered yet.</span>
-                                )}
-                                {selectable.map((c) => (
-                                    <Checkbox
-                                        key={c.id}
-                                        label={c.name}
-                                        checked={draft.clientIds.includes(c.id)}
-                                        onChange={(e) => toggleClient(c.id, e.target.checked)}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <p className="mt-1 ml-1 text-xs text-text-muted">
-                        Each client sends the webhook itself, from its own network -- also while the server
-                        is unreachable.
-                    </p>
-                </div>
-
                 <Textarea
                     label="Headers"
                     rows={3}
                     value={draft.headers}
                     onChange={(e) => set('headers', e.target.value)}
                     placeholder="Authorization: Bearer …"
-                    hint="One Name: value per line. Content-Type: application/json is always sent. Stored on every client that sends the webhook."
+                    hint="One Name: value per line. Content-Type: application/json is always sent."
                     classNames={{ textarea: 'font-mono text-xs' }}
                 />
 

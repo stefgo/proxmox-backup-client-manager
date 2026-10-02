@@ -175,8 +175,7 @@ function enqueue(webhook: Webhook, event: WebhookEvent, clientId: string): void 
  */
 export class WebhookService {
     /**
-     * Hands events of one client to every enabled webhook that applies to that client and
-     * whose filters they pass. Returns at once: the deliveries run behind it, so a slow
+     * Hands events of one client to every enabled webhook whose filters they pass. Returns at once: the deliveries run behind it, so a slow
      * target never holds up an agent's acknowledgement.
      */
     static dispatch(clientId: string, events: WebhookEvent[]): void {
@@ -190,8 +189,7 @@ export class WebhookService {
         }
         for (const event of events) {
             for (const webhook of webhooks) {
-                const forClient = webhook.clientIds.length === 0 || webhook.clientIds.includes(clientId);
-                if (forClient && webhookAccepts(webhook, event)) enqueue(webhook, event, clientId);
+                if (webhookAccepts(webhook, event)) enqueue(webhook, event, clientId);
             }
         }
     }

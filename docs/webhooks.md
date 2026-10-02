@@ -24,8 +24,8 @@ arrives.
 
 ## When a webhook fires
 
-A webhook fires on every enabled webhook that applies to the client and whose filters the
-event passes. There are two kinds of event.
+An event is sent to every enabled webhook whose filters it passes; a webhook covers the
+events of all clients. There are two kinds of event.
 
 **A run of a backup or restore job ended:**
 
@@ -54,7 +54,6 @@ never reconnects is not reported, and one that reconnects gets no `client.reconn
 
 The filters:
 
-- **Clients** — all clients (including ones registered later), or a selection.
 - **Minimum level** — `info`, `warning` or `error`. The default, `warning`, covers failed,
   aborted and skipped runs and lost clients.
 - **Event kinds** — a comma-separated list of patterns, `*` as wildcard: `job.failed`,

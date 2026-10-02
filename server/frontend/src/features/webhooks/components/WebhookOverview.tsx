@@ -5,7 +5,6 @@ import { useConfirm } from '@stefgo/react-ui-components';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { describeDeleteWebhook } from '../confirmations';
-import { useClientName } from '../lib/useClientName';
 import { WebhookList } from './WebhookList';
 
 /** The page at `/webhooks`. Adding and editing happen on pages of their own. */
@@ -14,7 +13,6 @@ export const WebhookOverview = () => {
     const { pathname, search } = useLocation();
     const { confirm } = useConfirm();
     const { webhooks, loaded, fetchWebhooks } = useWebhookStore();
-    const clientName = useClientName();
     /** The switch moves at once, before the server has answered. */
     const [pendingEnabled, setPendingEnabled] = useState<Record<string, boolean>>({});
 
@@ -72,7 +70,6 @@ export const WebhookOverview = () => {
             <WebhookList
                 webhooks={shown}
                 isLoading={!loaded}
-                clientName={clientName}
                 onAdd={() => open('/webhooks/new')}
                 onEdit={(webhook) => open(`/webhooks/${webhook.id}`)}
                 onDelete={requestDelete}
