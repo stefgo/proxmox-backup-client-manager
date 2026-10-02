@@ -175,13 +175,16 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setJustSaved(false);
     };
 
-    const sanitizeArchiveName = (name: string) => name.replace(/[^a-zA-Z0-9\-_ ]/g, '');
+    // What ArchiveSchema accepts, minus the dot (`.pxar` is appended): no spaces, and no
+    // leading `-`, which the CLI would read as an option.
+    const sanitizeArchiveName = (name: string) =>
+        name.replace(/[^a-zA-Z0-9\-_]/g, '').replace(/^-+/, '');
 
     const getDefaultNameFromPath = (path: string) => {
         if (!path || path === '' || path === '.') return 'current';
         if (path === '/') return 'root';
         const basename = path.split('/').filter(Boolean).pop();
-        return basename ? sanitizeArchiveName(basename) : 'archive';
+        return (basename && sanitizeArchiveName(basename)) || 'archive';
     };
 
     const addArchiveItem = () => {

@@ -18,6 +18,18 @@ import { requireClientId } from "../../core/Identity.js";
  * path or archive name containing spaces or quotes is one argument, not an injection.
  */
 
+/**
+ * Refuses a positional value that the CLI would read as an option. The schemas already hold
+ * these values to a form that never starts with `-`; this is the second line, for a job
+ * stored before they did and for a restore from a server of an older build.
+ */
+function positional(value: string, what: string): string {
+    if (value.startsWith("-")) {
+        throw new Error(`Refusing ${what} "${value}": it would be read as an option`);
+    }
+    return value;
+}
+
 /** Where the encryption keyfile ends up, if the job has one. */
 export interface KeyfileArgs {
     keyfilePath?: string;
@@ -48,7 +60,7 @@ export function buildBackupArgs(
     const archives = jobConfigData.archives || [];
     if (Array.isArray(archives)) {
         for (const item of archives) {
-            args.push(`${item.name}.pxar:${item.path}`);
+            args.push(positional(`${item.name}.pxar:${item.path}`, "archive"));
         }
     }
 
@@ -122,9 +134,9 @@ export function buildRestoreArgs(
 
     const args: string[] = [
         "restore",
-        payload.snapshot,
-        archive,
-        payload.targetPath,
+        positional(payload.snapshot, "snapshot"),
+        positional(archive, "archive"),
+        positional(payload.targetPath, "target path"),
     ];
 
     if (keyfilePath) {

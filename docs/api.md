@@ -925,7 +925,7 @@ without one matches at any depth (`node_modules`), and `*` / `**` are globs.
 | :---------------- | :------------- | :------- | :------------------------------------------------------------------------- |
 | `id`              | string         | No       | UUID of the job. If provided, updates existing job; otherwise creates new. |
 | `name`            | string         | **Yes**  | Name of the job.                                                           |
-| `archives`        | Archive[]      | **Yes**  | Array of archive objects with `path` and `name`.                           |
+| `archives`        | Archive[]      | **Yes**  | Array of archive objects: `path` absolute, `name` matching `[A-Za-z0-9_][A-Za-z0-9_.-]*` (`.pxar` is appended). |
 | `excludes`        | string[]       | No       | Exclusion patterns (see above). Send `[]` to clear them on an update.      |
 | `schedule`        | ScheduleConfig | No       | Schedule configuration object (nullable).                                  |
 | `scheduleEnabled` | boolean        | **Yes**  | Enable/disable the schedule.                                               |
@@ -1047,10 +1047,10 @@ needs it. `tunnel.required` for a client with no credentials is rejected with `4
 
 | Field        | Type     | Required | Description                                                                        |
 | :----------- | :------- | :------- | :--------------------------------------------------------------------------------- |
-| `snapshot`   | string   | **Yes**  | The name/ID of the snapshot to restore from.                                       |
+| `snapshot`   | string   | **Yes**  | The snapshot to restore from, as `<type>/<id>/<YYYY-MM-DDTHH:MM:SSZ>`.             |
 | `targetPath` | string   | **Yes**  | The absolute path where files should be restored.                                  |
 | `repositoryId` | string | **Yes**  | The ID of the repository containing the snapshot. The server builds the repository, secret included, from the configured one; `400` if it names none. |
-| `archives`   | string[] | **Yes**  | Array of archive filenames within the snapshot to restore (e.g. `["root.pxar"]`). |
+| `archives`   | string[] | **Yes**  | Array of archive filenames within the snapshot to restore (e.g. `["root.pxar"]`); none may start with `.` or `-`. |
 | `tunnel`     | object   | No       | `{ "required": true }` to route this restore through the client's SSH reverse tunnel. |
 
 **Example Request:**
@@ -2071,7 +2071,7 @@ meanwhile is sent again. Not sent when storing failed — the agent retries afte
 ```json
 {
     "runId": "new-run-uuid",
-    "snapshot": "snapshot-name",
+    "snapshot": "host/client-uuid/2026-09-30T02:00:00Z",
     "targetPath": "/restore/path",
     "repository": { "baseUrl": "...", "datastore": "...", "username": "...", "secret": "..." },
     "archives": ["root.pxar"],

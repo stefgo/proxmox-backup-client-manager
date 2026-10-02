@@ -288,9 +288,31 @@ export const ScheduleConfigSchema = z.object({
     weekdays: z.array(z.string()).default([]),
 });
 
+/*
+ * The values below reach `proxmox-backup-client` as positional arguments. No shell is
+ * involved, but a value starting with `-` would be read as an option -- a snapshot of
+ * `--repository=...` sends the restore somewhere else. So each is held to the form the CLI
+ * expects, which never starts with one.
+ */
+
+/** An archive name as the PBS accepts it: `root`, `etc`, `catalog.pcat1`. */
+const ARCHIVE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+const ArchiveNameSchema = z.string().regex(ARCHIVE_NAME, {
+    error: "Archive names may contain letters, digits, _ . - and must not start with . or -",
+});
+
+/** A path on the client. Always absolute: the file browser only ever hands out those. */
+const AbsolutePathSchema = z.string().startsWith("/", { error: "Paths must be absolute" });
+
+/** `<type>/<backup-id>/<time>`, the form the PBS names a snapshot by (see runSnapshotPath). */
+const SNAPSHOT_PATH = /^(host|vm|ct)\/[A-Za-z0-9_][A-Za-z0-9_.-]*\/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const SnapshotPathSchema = z.string().regex(SNAPSHOT_PATH, {
+    error: "Snapshot must be <type>/<id>/<YYYY-MM-DDTHH:MM:SSZ>",
+});
+
 export const ArchiveSchema = z.object({
-    path: z.string().min(1),
-    name: z.string().min(1),
+    path: AbsolutePathSchema,
+    name: ArchiveNameSchema,
 });
 
 export const EncryptionConfigSchema = z.object({
@@ -321,9 +343,9 @@ export const BackupJobSchema = JobSchema.extend({
 });
 
 export const RestoreJobSchema = JobSchema.extend({
-    snapshot: z.string(),
-    targetPath: z.string(),
-    archives: z.array(z.string()),
+    snapshot: SnapshotPathSchema,
+    targetPath: AbsolutePathSchema,
+    archives: z.array(ArchiveNameSchema),
     repository: RepositorySchema,
     encryption: EncryptionConfigSchema.optional(),
     tunnel: TunnelModeSchema.optional(),
@@ -493,10 +515,10 @@ export const LogUpdatePayloadSchema = z.object({
 
 export const RestoreSnapshotPayloadSchema = z.object({
     runId: z.string(),
-    snapshot: z.string(),
-    targetPath: z.string(),
+    snapshot: SnapshotPathSchema,
+    targetPath: AbsolutePathSchema,
     repository: RepositorySchema,
-    archives: z.array(z.string()),
+    archives: z.array(ArchiveNameSchema),
     encryption: EncryptionConfigSchema.optional(),
     // Must be declared here even though it is optional: zod strips unknown keys, so a
     // missing entry would silently leave every tunnelled restore going direct. Absent
