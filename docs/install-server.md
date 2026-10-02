@@ -90,6 +90,17 @@ the config file invalidates every session, every stored repository secret, every
 client's token and every stored tunnel key**; losing the volume loses the installation.
 Back them up separately, and keep the config file writable.
 
+The server process runs as the unprivileged user `node` (UID 1000), not as root. The
+container starts as root only for a moment: its entrypoint hands the data volume and, when
+the server cannot write it, the mounted `server-config.yaml` to UID 1000, then drops to
+that user. So an installation from an older image keeps working after an update, but
+`server-config.yaml` on the host may afterwards belong to UID 1000. Check with
+`docker top pbcm-server`, not `docker exec … id`: `exec` starts its shell as root.
+
+To pick the UID yourself, set `user: "1234:1234"` on the service. The entrypoint then
+changes nothing, and the volume and the config file have to be writable by that UID —
+otherwise the server stops at start-up and names the directory it cannot write.
+
 ## 3. Start it
 
 ```bash

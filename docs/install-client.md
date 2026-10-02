@@ -124,6 +124,10 @@ Two consequences worth deciding on deliberately:
   `:ro` on the paths that need it — and understand that you have given the container write
   access to them.
 
+Unlike the server, the agent runs as **root** in its container, on purpose: a backup has
+to read files whatever their owner, and a restore sets owners and modes back. The mounts
+above are what limits it, not the user it runs as.
+
 ## 3. Register the agent
 
 Registration is what turns a running container into a client the dashboard knows. Which
