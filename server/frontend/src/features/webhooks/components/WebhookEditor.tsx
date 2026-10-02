@@ -299,9 +299,11 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                     <div>
                         <label className="field-label">Last Delivery</label>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                            <Badge variant={webhook.lastError ? 'error' : 'success'} size="sm">
-                                {webhook.lastError ? 'Failed' : `HTTP ${webhook.lastStatus}`} ·{' '}
+                            <span className="whitespace-nowrap text-text-primary">
                                 {formatDate(webhook.lastAttemptAt)}
+                            </span>
+                            <Badge variant={webhook.lastError ? 'error' : 'success'}>
+                                {webhook.lastStatus !== null ? `HTTP ${webhook.lastStatus}` : 'Failed'}
                             </Badge>
                             {webhook.lastError && (
                                 <span className="min-w-0 flex-1 truncate text-xs text-error" title={webhook.lastError}>
