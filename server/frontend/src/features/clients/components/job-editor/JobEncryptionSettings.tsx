@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useJobFormContext } from '../../context/JobFormContext';
 import { Download, Trash2 } from 'lucide-react';
-import { Switch, Button } from '@stefgo/react-ui-components';
+import { Switch, Button, ActionButton } from '@stefgo/react-ui-components';
 
 export const JobEncryptionSettings: React.FC = () => {
     const {
@@ -33,6 +33,8 @@ export const JobEncryptionSettings: React.FC = () => {
         setEncryptionEnabled(false);
     };
 
+    const showKeyActions = Boolean(encryptionKeyContent || hasStoredKey) && encryptionEnabled;
+
     // Encryption is switched on only once there is a key. Enabling it first let a save
     // during generation store `enabled` without a key, which ran as a plain-text backup.
     const handleToggle = async () => {
@@ -57,18 +59,30 @@ export const JobEncryptionSettings: React.FC = () => {
         <div className="space-y-1">
             <label className="block text-xs font-bold text-text-muted uppercase">Encryption</label>
             <div className="p-2 border rounded bg-app-bg">
-                {/* Toggle header */}
-                <Switch
-                    value={encryptionEnabled || isGenerating}
-                    onChange={handleToggle}
-                    disabled={isGenerating}
-                    label={isGenerating ? 'Generating Key...' : (encryptionEnabled ? 'Enabled' : 'Disabled')}
-                    classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
-                />
+                {/* Toggle header, with the drop action beside it once there is a key */}
+                <div className="flex items-center justify-between gap-2">
+                    <Switch
+                        value={encryptionEnabled || isGenerating}
+                        onChange={handleToggle}
+                        disabled={isGenerating}
+                        label={isGenerating ? 'Generating Key...' : (encryptionEnabled ? 'Enabled' : 'Disabled')}
+                        classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
+                    />
+                    {showKeyActions && (
+                        <ActionButton
+                            icon={Trash2}
+                            size="sm"
+                            color="error"
+                            tooltip="Drop key"
+                            aria-label="Drop key"
+                            onClick={handleDropKey}
+                        />
+                    )}
+                </div>
 
                 {/* When a key exists and encryption is enabled: download (only for a key
-                    generated here -- a stored one never comes back to the browser) & drop */}
-                {(encryptionKeyContent || hasStoredKey) && encryptionEnabled && (
+                    generated here -- a stored one never comes back to the browser) */}
+                {showKeyActions && (
                     <div className="space-y-3 mt-2">
                         {!encryptionKeyContent && (
                             <p className="text-xs text-text-muted">
@@ -77,15 +91,15 @@ export const JobEncryptionSettings: React.FC = () => {
                                 new one.
                             </p>
                         )}
-                        <div className="flex gap-2 text-sm">
-                            {/*
-                                `outline` and `outline-danger` are library
-                                variants, not classes bolted onto `ghost`: the
-                                bordered pair was being rebuilt by hand here and
-                                in the UI library's own consumers, which is what
-                                made it worth naming once.
-                            */}
-                            {encryptionKeyContent && (
+                        {encryptionKeyContent && (
+                            <div className="flex gap-2 text-sm">
+                                {/*
+                                    `outline` is a library variant, not classes
+                                    bolted onto `ghost`: the bordered button was
+                                    being rebuilt by hand here and in the UI
+                                    library's own consumers, which is what made it
+                                    worth naming once.
+                                */}
                                 <Button
                                     variant="outline"
                                     icon={Download}
@@ -94,15 +108,8 @@ export const JobEncryptionSettings: React.FC = () => {
                                 >
                                     Download Key (.json)
                                 </Button>
-                            )}
-                            <Button
-                                variant="outline-danger"
-                                icon={Trash2}
-                                onClick={handleDropKey}
-                            >
-                                Drop
-                            </Button>
-                        </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
