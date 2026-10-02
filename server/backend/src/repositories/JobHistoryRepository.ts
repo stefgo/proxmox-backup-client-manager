@@ -75,6 +75,14 @@ const SNAPSHOT_UPDATE = `
                     ELSE COALESCE(excluded.snapshot_error, job_history.snapshot_error) END,`;
 
 /**
+ * The condition both upserts update under: the row belongs to the client writing. The run
+ * id is chosen by the agent, so without it one agent could overwrite another's run by
+ * sending its id -- and the webhook that follows would report it. A refused write changes
+ * no row, which `finishedRun` reads as nothing to report.
+ */
+const OWN_RUN = "job_history.client_id = excluded.client_id";
+
+/**
  * The run as it has to be reported, when a write just gave it a final state it did not have
  * before; else null. This is the one moment a run ends as far as the server can tell, and it
  * comes once whichever of the two writers brings it -- the live STATUS_UPDATE, the history
@@ -218,6 +226,7 @@ export class JobHistoryRepository {
                 stdout=excluded.stdout, 
                 stderr=excluded.stderr,${SNAPSHOT_UPDATE}
                 updated_at=CURRENT_TIMESTAMP
+            WHERE ${OWN_RUN}
         `,
         );
         const run: WebhookRun = {
@@ -264,7 +273,7 @@ export class JobHistoryRepository {
     ): WebhookRun[] {
         // A retried batch can arrive after a newer one; the WHERE keeps it from putting the
         // older state back. Without a revision on either side -- an agent of an older
-        // build -- the row is overwritten as it always was.
+        // build -- the row is overwritten as it always was, but only by its own client.
         const insertStmt = db.prepare(`
             INSERT INTO job_history (id, client_id, job_id, name, type, status, start_time, end_time, exit_code, stdout, stderr, revision, snapshot, snapshot_details, snapshot_error)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -276,9 +285,11 @@ export class JobHistoryRepository {
                 stderr=excluded.stderr,
                 revision=excluded.revision,${SNAPSHOT_UPDATE}
                 updated_at=CURRENT_TIMESTAMP
-            WHERE excluded.revision IS NULL
+            WHERE ${OWN_RUN} AND (
+                excluded.revision IS NULL
                 OR job_history.revision IS NULL
                 OR excluded.revision >= job_history.revision
+            )
         `);
 
         const status = selectStatus();
