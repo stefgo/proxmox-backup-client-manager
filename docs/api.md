@@ -1670,7 +1670,8 @@ The response also carries `security` and any key an operator added to the `setti
 block by hand. An interval of `"0"` switches that cleanup's timer off; the manual endpoints
 below keep working. `retention_invalid_tokens_days` and `retention_invalid_tokens_count`
 are gone: the first is now `token_retention_days` (its value is not carried over), the
-second has no successor. The server removes both from `config.yaml` at startup.
+second has no successor. Left in `config.yaml`, both are ignored and logged as unknown at
+startup.
 
 ### Update Cleanup Settings
 

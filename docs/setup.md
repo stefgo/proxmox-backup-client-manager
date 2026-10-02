@@ -8,7 +8,9 @@ environment variables. This page is the reference for both; the installation its
 `config.yaml` is validated against a schema at startup, and an invalid value aborts the
 start with a message naming the field — a configuration error is not something to discover
 on the first tunnel lease hours later. Keys the schema does not know are preserved, so
-anything you add by hand survives the next save. The file is created with defaults on
+anything you add by hand survives the next save; the server logs a warning for each one at
+startup (`Unknown key in config.yaml -- ignored`), so a misspelled key does not leave its
+default in force unnoticed. The file is created with defaults on
 first start; `jwtSecret` and `secretKey` are generated before the check runs.
 
 ## Environment variables
@@ -100,10 +102,10 @@ last run, not at startup.
 !!! note "Renamed keys"
 
     `retention_invalid_tokens_days` became `token_retention_days` and
-    `retention_invalid_tokens_count` was dropped. The server removes both from
-    `config.yaml` at startup and does **not** carry the old value over: an installation
+    `retention_invalid_tokens_count` was dropped. The server ignores both, logs them as
+    unknown keys at startup, and does **not** carry the old value over: an installation
     that had `retention_invalid_tokens_days: "0"` gets `30` and has to set
-    `token_retention_days: "0"` again. Comments above the removed keys stay in the file.
+    `token_retention_days: "0"` again. Remove the old keys from `config.yaml` by hand.
 
 ### Security
 
