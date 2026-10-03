@@ -135,6 +135,19 @@ knows — the counts and the dot for unseen failures, by `id` — and marks the 
 area the innermost match belongs to (`useMatches()`). No list of the routes below an entry
 exists: a route added under `/clients` is marked as *Clients* by being there.
 
+### The document title
+
+The browser tab names what is open and the area it belongs to, most specific first, so a
+narrow tab cuts the application's name and not the subject: `web01 · Clients · PBCM`,
+`Edit · web01 · Clients · PBCM`. It is read off the handles along the open route
+(`lib/pageTitle.ts`): the area's `nav.label`, a `subject` (`client`, `repository`, `job`)
+that `AppLayout` resolves from the lists the shell holds anyway, and the `title` of a form.
+A subject that has no name yet falls back to the route's `title`, or is left out. **A new
+route gets its title in the tree** — no page sets `document.title`.
+
+The webhook editor is called *Webhook*, not by the webhook's name: the shell does not read
+the webhook list, and does not start to for a title.
+
 ### Not found
 
 Every route below `/clients/:clientId` gets its client from `ClientBoundary`, the layout
@@ -261,11 +274,43 @@ the rows on screen and no more.
 - **`BaseHistoryList` takes `paging`** for this: `mode: 'server'`, the page and the total. The
   embedded lists leave it out and page in the browser, as they hold their whole list.
 
+### The last run of a job (`features/jobs/lib/lastRun.ts`)
+
+Both job lists — the one across all clients and the one on the client page — have a
+"Last Run" column: status, start and duration. Both read `GET /api/v1/history/latest`
+through `useLatestPerJob()`, the cache entry "Last Activity" shows and `JOB_UPDATE` keeps
+current. `lastRunByJob` keys it by client *and* job, since two clients may hold the same job
+id. The badge is `statusBadgeVariant` from `features/history/lib/statusBadge.ts`, the same
+mapping the history uses.
+
+### An offline client (`features/clients/components/ClientOverview.tsx`)
+
+The client page keeps its three tabs while the client is away; what each shows depends on
+where its data lives:
+
+- **Jobs** live on the agent. The tab says so instead of "No jobs configured yet", and the
+  card shows `–`, not `0`.
+- **Snapshots** come from the repositories and are listed as always. Restore is disabled:
+  the form browses the client's file system for the target.
+- **History** is read from the server's own table — `useStoredClientHistory`, the paged
+  `GET /api/v1/history?clientId=…` — because `GET /clients/:id/history` asks the agent.
+  Online, the tab shows the agent's list, which `JOB_UPDATE` patches in place.
+
+The tab lists every run, restores included; `clientTab(clientId, 'history')` in
+`lib/paths.ts` is the link the notice of a started restore uses.
+
 ### Job history rows (`features/history/components/BaseHistoryList.tsx`)
 
 Every history list — "Recent Activity" of a client, the History page, "Last Activity" under
 Jobs — renders through `BaseHistoryList`, so the following holds in all of them:
 
+- **What a row says unopened.** Below the name: the event kind, then how long the run took
+  and, for a successful backup, the size of its snapshot (`features/history/lib/runSummary.ts`).
+  A run still going has no duration. The run id is in the expanded row, above the output —
+  it is looked up, not scanned.
+- **The client's name is a link** to its page (`components/EntityLink`), wherever the list
+  shows one. A run outlives its client; one whose client is gone reads *Unknown Client* and
+  links nowhere.
 - **Reading the snapshot.** After a successful backup the agent reads back its snapshot,
   and the run stays `running` meanwhile. The `jobUpdate` for that step carries
   `phase: "snapshot"`, and the status badge reads *reading snapshot* instead of *running*.
