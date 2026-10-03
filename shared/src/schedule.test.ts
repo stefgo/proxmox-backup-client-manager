@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextRunAfter, nextRunPast, upcomingRuns } from "./schedule.js";
+import { isMissedRun, missedRunReason, nextRunAfter, nextRunPast, upcomingRuns } from "./schedule.js";
 import type { ScheduleConfig } from "./types.js";
 
 // The schedule runs on the local clock, so the tests pin one -- with a clock change in it.
@@ -67,15 +67,18 @@ describe("nextRunPast", () => {
     it("catches up in one go after downtime", () => {
         const from = new Date(2026, 9, 1, 12, 0);
         const now = new Date(2026, 9, 3, 14, 30);
-        const { next, resynced } = nextRunPast(schedule({ unit: "hours" }), from, now, null);
+        const { next, resynced, due } = nextRunPast(schedule({ unit: "hours" }), from, now, null);
         expect(local(next)).toBe("2026-10-03 15:00");
         expect(resynced).toBe(false);
+        // 12:00 on the 1st up to 14:00 on the 3rd, both among them.
+        expect(due).toBe(51);
     });
 
     it("is one step when the run was on time", () => {
         const from = new Date(2026, 9, 3, 2, 0);
-        const { next } = nextRunPast(schedule(), from, new Date(2026, 9, 3, 2, 0, 30), from);
+        const { next, due } = nextRunPast(schedule(), from, new Date(2026, 9, 3, 2, 0, 30), from);
         expect(local(next)).toBe("2026-10-04 02:00");
+        expect(due).toBe(1);
     });
 
     it("anchors on now when the schedule is too far behind to catch up", () => {
@@ -84,6 +87,48 @@ describe("nextRunPast", () => {
         const { next, resynced } = nextRunPast(schedule({ unit: "seconds" }), from, now, null);
         expect(resynced).toBe(true);
         expect(next.getTime()).toBe(now.getTime() + 1000);
+    });
+});
+
+describe("isMissedRun", () => {
+    const scheduled = new Date("2026-10-03T02:00:00.000Z");
+    const at = (minutes: number) => new Date(scheduled.getTime() + minutes * 60_000);
+
+    it("is not missed while the delay is within the scheduler's own", () => {
+        expect(isMissedRun(scheduled, at(1), null)).toBe(false);
+        expect(isMissedRun(scheduled, at(5), null)).toBe(false);
+    });
+
+    it("is missed once the delay is past the grace", () => {
+        expect(isMissedRun(scheduled, at(6), null)).toBe(true);
+        expect(isMissedRun(scheduled, at(432), at(-600))).toBe(true);
+    });
+
+    it("is not missed when the time had already passed as the schedule was saved", () => {
+        // A start entered in the past, or a schedule switched back on.
+        expect(isMissedRun(scheduled, at(432), at(430))).toBe(false);
+        expect(isMissedRun(scheduled, at(432), scheduled)).toBe(false);
+    });
+});
+
+describe("missedRunReason", () => {
+    const scheduled = new Date("2026-10-03T02:00:00.000Z");
+    const at = (minutes: number) => new Date(scheduled.getTime() + minutes * 60_000);
+
+    it("names the time and the delay", () => {
+        expect(missedRunReason(scheduled, at(432), 1, false)).toBe(
+            "Scheduled for 2026-10-03T02:00:00.000Z, started 7 h 12 min late.",
+        );
+        expect(missedRunReason(scheduled, at(12), 1, false)).toContain("started 12 min late");
+        expect(missedRunReason(scheduled, at(120), 1, false)).toContain("started 2 h late");
+        expect(missedRunReason(scheduled, at(4 * 1440 + 185), 1, false)).toContain("started 4 d 3 h late");
+    });
+
+    it("says how many runs the catch-up stands for", () => {
+        expect(missedRunReason(scheduled, at(432), 3, false)).toContain(
+            "3 scheduled runs were due; they are caught up by one.",
+        );
+        expect(missedRunReason(scheduled, at(432), 1001, true)).toContain("More than 1001 scheduled runs were due");
     });
 });
 

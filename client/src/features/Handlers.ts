@@ -206,6 +206,11 @@ export class Handlers {
                     JobScheduleStateRepository.insert(jobId, nextRunAt, null, nextRunAt);
                 }
             }
+            // Also without a new start: a schedule switched back on finds the time it was
+            // switched off at, and running that late is not a missed run.
+            if (scheduleEnabled) {
+                JobScheduleStateRepository.markEntered(jobId, new Date().toISOString());
+            }
 
             Connection.respond(WS_EVENTS.JOB_SAVE_CONFIG, {
                 requestId: payload.requestId,

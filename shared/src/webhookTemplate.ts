@@ -608,6 +608,13 @@ const SAMPLES: WebhookRun[] = [
         exitCode: null,
         stderr: "Job already running and another one is already queued.",
     },
+    {
+        ...SAMPLE_RUN,
+        status: "missed",
+        endTime: SAMPLE_START,
+        exitCode: null,
+        stderr: "Scheduled for 2026-09-27T18:48:00.000Z, started 7 h 12 min late.",
+    },
 ];
 
 const SAMPLE_CLIENT_ID = "sample-client";

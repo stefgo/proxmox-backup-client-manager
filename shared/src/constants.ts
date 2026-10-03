@@ -65,6 +65,8 @@ export const JOB_STATUS = {
     FAILED: "failed",
     ABORTED: "abort",
     SKIPPED: "skipped",
+    /** A scheduled run that did not start in time. Written by the agent, before it catches up. */
+    MISSED: "missed",
     QUEUED: "queued",
 } as const;
 
@@ -155,6 +157,7 @@ export const WEBHOOK_EVENT_KINDS = [
     "job.failed",
     "job.aborted",
     "job.skipped",
+    "job.missed",
     "client.disconnected",
     "client.reconnected",
 ] as const;

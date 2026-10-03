@@ -97,6 +97,7 @@ const OUTCOMES: Record<string, { kind: WebhookEventKind; level: WebhookLevel; ve
     [JOB_STATUS.FAILED]: { kind: "job.failed", level: "error", verb: "failed" },
     [JOB_STATUS.ABORTED]: { kind: "job.aborted", level: "warning", verb: "was aborted" },
     [JOB_STATUS.SKIPPED]: { kind: "job.skipped", level: "warning", verb: "was skipped" },
+    [JOB_STATUS.MISSED]: { kind: "job.missed", level: "warning", verb: "missed its schedule" },
 };
 
 /** The statuses a run ends in, and that an event is sent for. */

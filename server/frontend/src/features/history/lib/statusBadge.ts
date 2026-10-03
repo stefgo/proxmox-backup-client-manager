@@ -11,6 +11,7 @@ const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
     [JOB_STATUS.SUCCESS]: 'success',
     [JOB_STATUS.FAILED]: 'error',
     [JOB_STATUS.ABORTED]: 'warning',
+    [JOB_STATUS.MISSED]: 'warning',
 };
 
 /**

@@ -428,6 +428,31 @@ export class JobHistoryRepository {
         });
     }
 
+    /**
+     * A scheduled run that did not start in time, as a run of its own: the catch-up that
+     * follows it is an ordinary run and says nothing about the time that was passed over.
+     */
+    static insertMissedRun(
+        id: string,
+        jobId: string,
+        jobName: string | undefined,
+        at: string,
+        reason: string,
+    ): void {
+        this.insert({
+            id,
+            jobId,
+            name: jobName || null,
+            type: "backup",
+            status: "missed",
+            startTime: at,
+            endTime: at,
+            exitCode: null,
+            stdout: null,
+            stderr: reason,
+        });
+    }
+
     static startRunningJob(
         id: string,
         jobId: string | null,

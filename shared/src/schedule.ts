@@ -82,23 +82,81 @@ export function nextRunAfter(schedule: ScheduleConfig, from: Date, anchor: Date 
  * `resynced` says the schedule was more than MAX_CATCHUP_STEPS intervals behind and was
  * anchored on `now` instead: that costs its exact phase but always terminates. Only
  * reachable for a very short interval combined with a very long outage.
+ *
+ * `due` counts the scheduled times that have come, `from` among them: 1 for a run that is
+ * on time, more when runs were passed over. The one catch-up run stands for all of them.
+ * Capped by the same bound, so with `resynced` it is a lower limit.
  */
 export function nextRunPast(
     schedule: ScheduleConfig,
     from: Date,
     now: Date,
     anchor: Date | null,
-): { next: Date; resynced: boolean } {
+): { next: Date; resynced: boolean; due: number } {
     let next = nextRunAfter(schedule, from, anchor);
+    let due = 1;
 
     for (let i = 0; next <= now && i < MAX_CATCHUP_STEPS; i++) {
         next = nextRunAfter(schedule, next, anchor);
+        due++;
     }
 
     if (next <= now) {
-        return { next: nextRunAfter(schedule, now, anchor), resynced: true };
+        return { next: nextRunAfter(schedule, now, anchor), resynced: true, due };
     }
-    return { next, resynced: false };
+    return { next, resynced: false, due };
+}
+
+/**
+ * How late a scheduled run may start before it counts as missed. The agent's scheduler
+ * looks once a minute, so up to a minute is the normal case; the rest lets an agent be
+ * restarted or updated across a scheduled time without a warning.
+ */
+export const MISSED_AFTER_MS = 5 * 60_000;
+
+/**
+ * Whether the run scheduled for `scheduled` and only started at `now` was missed.
+ *
+ * A time that had already passed when the schedule was last saved (`enteredAt`) was not:
+ * a start entered in the past means "run at once", and a schedule switched back on finds
+ * the time it was switched off at.
+ */
+export function isMissedRun(
+    scheduled: Date,
+    now: Date,
+    enteredAt: Date | null,
+    afterMs: number = MISSED_AFTER_MS,
+): boolean {
+    if (now.getTime() - scheduled.getTime() <= afterMs) return false;
+    return !(enteredAt && scheduled <= enteredAt);
+}
+
+/** `7 h 12 min`, `3 d 4 h`, `12 min` -- the two largest units, rounded down. */
+function formatLateness(ms: number): string {
+    const minutes = Math.floor(ms / 60_000);
+    const parts: [number, string][] = [
+        [Math.floor(minutes / 1440), "d"],
+        [Math.floor((minutes % 1440) / 60), "h"],
+        [minutes % 60, "min"],
+    ];
+    const first = parts.findIndex(([n]) => n > 0);
+    if (first === -1) return "0 min";
+    return parts
+        .slice(first, first + 2)
+        .filter(([n]) => n > 0)
+        .map(([n, unit]) => `${n} ${unit}`)
+        .join(" ");
+}
+
+/**
+ * What the history entry of a missed run says: when it was due, how late the catch-up
+ * started, and how many scheduled runs that one catch-up stands for.
+ */
+export function missedRunReason(scheduled: Date, now: Date, due: number, resynced: boolean): string {
+    const late = formatLateness(now.getTime() - scheduled.getTime());
+    const head = `Scheduled for ${scheduled.toISOString()}, started ${late} late.`;
+    if (due <= 1) return head;
+    return `${head} ${resynced ? "More than " : ""}${due} scheduled runs were due; they are caught up by one.`;
 }
 
 /**

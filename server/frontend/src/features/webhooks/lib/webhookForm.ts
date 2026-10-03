@@ -149,7 +149,7 @@ export function previewBody(
 export const PLACEHOLDERS: { path: string; description: string }[] = [
     { path: 'event.message', description: 'Backup "Daily /home" failed' },
     { path: 'event.detail', description: 'Last line of the error output, else null' },
-    { path: 'event.kind', description: 'job.succeeded, job.failed, job.aborted, job.skipped, client.disconnected, client.reconnected' },
+    { path: 'event.kind', description: 'job.succeeded, job.failed, job.aborted, job.skipped, job.missed, client.disconnected, client.reconnected' },
     { path: 'event.level', description: 'info, warning or error' },
     { path: 'event.occurredAt', description: 'When the run ended, or the connection closed or was back (ISO 8601)' },
     { path: 'event.id', description: 'The id of the run, or of the event' },

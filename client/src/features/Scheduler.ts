@@ -1,8 +1,17 @@
 import { randomUUID } from "crypto";
 import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
+import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { Executor } from "./Executor.js";
-import { ScheduleConfig, ScheduleConfigSchema, WS_EVENTS, nextRunPast } from "@pbcm/shared";
+import {
+    JOB_STATUS,
+    ScheduleConfig,
+    ScheduleConfigSchema,
+    WS_EVENTS,
+    isMissedRun,
+    missedRunReason,
+    nextRunPast,
+} from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
 
@@ -67,6 +76,33 @@ export class Scheduler {
         this.run();
     }
 
+    /**
+     * Writes the history entry of a scheduled run that did not start in time and sends it
+     * like any other finished run. Kept until the server has acknowledged it, so an agent
+     * that was cut off reports it late rather than not at all.
+     */
+    private static reportMissed(jobId: string, jobName: string, now: Date, reason: string) {
+        const id = randomUUID();
+        const at = now.toISOString();
+        logger.warn(`Job ${jobName} (${jobId}) missed its schedule. ${reason}`);
+        try {
+            JobHistoryRepository.insertMissedRun(id, jobId, jobName, at, reason);
+        } catch (e) {
+            logger.error({ err: e }, "Failed to log missed run");
+        }
+        Connection.send(WS_EVENTS.STATUS_UPDATE, {
+            id,
+            jobId,
+            name: jobName || "Unknown Backup",
+            startTime: at,
+            endTime: at,
+            status: JOB_STATUS.MISSED,
+            error: reason,
+            stderr: reason,
+            type: "backup",
+        });
+    }
+
     private static run() {
         try {
             const jobs = JobRepository.findAll();
@@ -116,6 +152,23 @@ export class Scheduler {
 
                 const nextRun = new Date(state.next_run);
                 if (now >= nextRun) {
+                    const anchor = state.anchor ? new Date(state.anchor) : null;
+                    // The missed runs are triggered exactly once, below; this puts the
+                    // schedule back in sync in one go (see nextRunPast).
+                    const { next: newNextRun, resynced, due } = nextRunPast(
+                        schedule,
+                        nextRun,
+                        now,
+                        anchor && !isNaN(anchor.getTime()) ? anchor : null,
+                    );
+
+                    // Reported before the catch-up, so the history reads in the order it
+                    // happened: the time that was passed over, then the run that made up for it.
+                    const enteredAt = state.entered_at ? new Date(state.entered_at) : null;
+                    if (isMissedRun(nextRun, now, enteredAt && !isNaN(enteredAt.getTime()) ? enteredAt : null)) {
+                        this.reportMissed(job.id, job.name, now, missedRunReason(nextRun, now, due, resynced));
+                    }
+
                     logger.info(
                         `Scheduler triggering Job ${job.name} (${job.id})`,
                     );
@@ -123,15 +176,6 @@ export class Scheduler {
                     const runId = randomUUID();
                     Executor.executeBackup(runId, job.id);
 
-                    const anchor = state.anchor ? new Date(state.anchor) : null;
-                    // The missed runs are triggered exactly once, above; this puts the
-                    // schedule back in sync in one go (see nextRunPast).
-                    const { next: newNextRun, resynced } = nextRunPast(
-                        schedule,
-                        nextRun,
-                        now,
-                        anchor && !isNaN(anchor.getTime()) ? anchor : null,
-                    );
                     if (resynced) {
                         logger.warn(
                             `Job ${job.name} is too many intervals behind to catch up; ` +

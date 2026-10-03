@@ -90,6 +90,7 @@ function readScheduleStates(db: DatabaseSync, jobIds: Set<string>): Record<strin
             // The old database kept no entered start; the runs keep the time of day of
             // the previous one.
             anchor: null,
+            enteredAt: null,
         };
     }
     return states;

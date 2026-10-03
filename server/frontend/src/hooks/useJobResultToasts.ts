@@ -5,8 +5,11 @@ import { subscribe } from '../lib/realtimeEvents';
 import { getCachedClient } from '../queries/clients';
 import { noteHistoryFailure } from '../queries/history';
 
-/** The states a run ends in. `skipped` is left out: nothing ran, so there is nothing to report. */
-const FINISHED: readonly string[] = [JOB_STATUS.SUCCESS, JOB_STATUS.FAILED, JOB_STATUS.ABORTED];
+/**
+ * The states a run ends in. `skipped` is left out: nothing ran, so there is nothing to
+ * report. `missed` is in: nothing ran there either, but when it should have.
+ */
+const FINISHED: readonly string[] = [JOB_STATUS.SUCCESS, JOB_STATUS.FAILED, JOB_STATUS.ABORTED, JOB_STATUS.MISSED];
 
 /**
  * Jobs started from this browser whose result has not arrived yet, as `clientId:jobId`.
@@ -37,9 +40,9 @@ export function forgetJobRunAsked(clientId: string, jobId: string): void {
 
 /**
  * Turns finished runs into toasts, on whatever page the user is. Mounted once, in the
- * shell. A failure is always reported and stays until dismissed; a success or an abort
- * only for a job started from this browser, since with many clients every scheduled run
- * would otherwise raise one.
+ * shell. A failure is always reported and stays until dismissed, and so is a missed
+ * schedule; a success or an abort only for a job started from this browser, since with
+ * many clients every scheduled run would otherwise raise one.
  *
  * Every failure also raises the unseen count behind the dot on "History".
  */
@@ -57,12 +60,24 @@ export function useJobResultToasts(): void {
             }
             if (job.endTime < loadedAt) return;
 
+            const client = getCachedClient(clientId);
+            const subject = `${client?.displayName || client?.hostname || 'Unknown client'}: ${job.name || 'Job'}`;
+
+            // Not the answer to a run asked for here: that is the catch-up after it,
+            // whose result is still to come -- so `pendingRuns` is left as it is.
+            if (job.status === JOB_STATUS.MISSED) {
+                show({
+                    variant: 'warning',
+                    title: `${subject} missed its schedule`,
+                    description: job.error || undefined,
+                    duration: 0,
+                });
+                return;
+            }
+
             const key = `${clientId}:${job.jobId ?? job.jobConfigId ?? ''}`;
             const asked = pendingRuns.delete(key);
             if (job.status !== JOB_STATUS.FAILED && !asked) return;
-
-            const client = getCachedClient(clientId);
-            const subject = `${client?.displayName || client?.hostname || 'Unknown client'}: ${job.name || 'Job'}`;
 
             if (job.status === JOB_STATUS.FAILED) {
                 show({

@@ -479,6 +479,7 @@ describe("sampleWebhookEvent", () => {
         expect(sampleWebhookEvent(["job.succeeded"]).kind).toBe("job.succeeded");
         expect(sampleWebhookEvent(["job.aborted"]).kind).toBe("job.aborted");
         expect(sampleWebhookEvent(["job.skipped"]).kind).toBe("job.skipped");
+        expect(sampleWebhookEvent(["job.missed"]).kind).toBe("job.missed");
         expect(sampleWebhookEvent(["client.*"]).kind).toBe("client.disconnected");
         expect(sampleWebhookEvent(["client.reconnected"]).kind).toBe("client.reconnected");
         // The order is the samples', not the webhook's.
@@ -501,6 +502,7 @@ describe("DEFAULT_WEBHOOK_TEMPLATE", () => {
         "job.succeeded",
         "job.aborted",
         "job.skipped",
+        "job.missed",
         "client.disconnected",
         "client.reconnected",
     ])("renders the %s sample", (kind) => {

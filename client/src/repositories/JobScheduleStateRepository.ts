@@ -16,6 +16,13 @@ export const ScheduleStateSchema = z.object({
      * the scheduler initialised itself; its runs keep the time of day of the previous one.
      */
     anchor: z.string().nullable().default(null),
+    /**
+     * When the schedule was last saved. A run whose time had already passed by then is not
+     * a missed one: a start entered in the past means "run at once", and a schedule
+     * switched back on finds the time it was switched off at. `null` for state written
+     * before the field, which leaves every late run a missed one.
+     */
+    enteredAt: z.string().nullable().default(null),
 });
 export type ScheduleState = z.infer<typeof ScheduleStateSchema>;
 
@@ -24,6 +31,7 @@ export interface StateRow {
     last_run: string | null;
     next_run: string | null;
     anchor: string | null;
+    entered_at: string | null;
 }
 
 /**
@@ -68,7 +76,13 @@ export class JobScheduleStateRepository {
     static findById(id: string): StateRow | undefined {
         const state = this.load().get(id);
         return state
-            ? { id, last_run: state.lastRun, next_run: state.nextRun, anchor: state.anchor }
+            ? {
+                  id,
+                  last_run: state.lastRun,
+                  next_run: state.nextRun,
+                  anchor: state.anchor,
+                  entered_at: state.enteredAt,
+              }
             : undefined;
     }
 
@@ -85,12 +99,23 @@ export class JobScheduleStateRepository {
         lastRun: string | null,
         anchor: string | null = null,
     ): void {
-        this.set(id, { lastRun, nextRun, anchor });
+        this.set(id, { lastRun, nextRun, anchor, enteredAt: null });
     }
 
     static updateBoth(id: string, lastRun: string, nextRun: string | null): void {
-        const anchor = this.load().get(id)?.anchor ?? null;
-        this.set(id, { lastRun, nextRun, anchor });
+        const state = this.load().get(id);
+        this.set(id, {
+            lastRun,
+            nextRun,
+            anchor: state?.anchor ?? null,
+            enteredAt: state?.enteredAt ?? null,
+        });
+    }
+
+    /** The schedule was saved at `at`; see `enteredAt`. Nothing to note without state. */
+    static markEntered(id: string, at: string): void {
+        const state = this.load().get(id);
+        if (state) this.set(id, { ...state, enteredAt: at });
     }
 
     static delete(id: string): void {
