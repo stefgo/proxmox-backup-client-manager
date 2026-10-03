@@ -200,7 +200,8 @@ kinds of entry deviate:
 | Entry | `staleTime` | Why |
 |---|---|---|
 | Client list, jobs, latest runs, seen state, scheduler status | `Infinity` | The socket writes every change into them. |
-| History list, tokens, directory listings | `0` | Nothing pushes into them; read again each time they are opened. |
+| History pages | `0` | Read again each time they are opened; a `JOB_UPDATE` marks them stale, since a page the server cut cannot be patched in place. |
+| Tokens, directory listings | `0` | Nothing pushes into them; read again each time they are opened. |
 | A client's tunnel configuration | `gcTime: 0` | Seeds a form, so it is dropped when the form closes. |
 
 **The keys are hierarchical.** `invalidateQueries({ queryKey: queryKeys.clients.all })`
@@ -240,6 +241,25 @@ dismissed. A **success** or an **abort** only for a job started from this browse
 (`markJobRunAsked` at "Run now"): with many clients, every scheduled run would otherwise raise
 one. A run is reported once (an agent re-sends finished runs after a reconnect), and not at
 all if it ended before the page was loaded.
+
+### The history page asks for one page (`features/history`)
+
+The History page is the one list the server filters and pages. `GET /api/v1/history` takes
+`limit`, `offset`, `status` and `clientId` and answers with `{ items, total }`; the page holds
+the rows on screen and no more.
+
+- **The view is the URL.** `lib/historyView.ts` reads `page`, `pageSize`, `status` and
+  `clientId` out of the query string and writes them back, so a reload and a shared link land
+  on the same rows. A value that does not parse falls back to the default instead of reaching
+  the server. All four are written through one setter: the router's `setSearchParams` does not
+  queue, so a filter and the page it resets, written by two setters, would be the second alone.
+- **A filter shows its first page.** Changing "Failures only" or the client resets `page`.
+- **The page before stays up** while the next one loads (`placeholderData: keepPreviousData`),
+  so paging does not flash the loading state between two full lists.
+- **A page past the end** -- from a link, or because the cleanup removed what was on it --
+  moves to the last page that holds a row.
+- **`BaseHistoryList` takes `paging`** for this: `mode: 'server'`, the page and the total. The
+  embedded lists leave it out and page in the browser, as they hold their whole list.
 
 ### Job history rows (`features/history/components/BaseHistoryList.tsx`)
 
@@ -394,6 +414,9 @@ Most data-driven lists utilize a common base to provide consistent loading, erro
 - **`DataTable`**: A generic, column-based tabular view for structured data.
 - **`DataList`**: A simpler, row-based list view.
 - **`PaginationControls`**: Integrated pagination logic for larger datasets.
+- **`LoadingIndicator`** and **`components/QueryError`**: what a page shows while its data is
+  on the way, and when it could not be read -- what failed, and the server's own words for
+  why. No page builds its own.
 
 ### Actions & Buttons
 

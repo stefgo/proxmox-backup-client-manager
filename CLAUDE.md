@@ -170,6 +170,10 @@ Both directions are described once, as Zod schemas in `shared`, and both ends ha
   takes only a member of it; `WebSocketProvider` dispatches in a `switch` ending in
   `assertNever`. **A new message type goes into the union first** -- the frontend's
   `typecheck` then fails until it has a case.
+- **A list the server delivers whole is a bare array; one it delivers in pages is
+  `{ items, total }`.** `GET /api/v1/history` is the only paged one. `total` is what no page
+  can tell -- an envelope around a whole list would only repeat its length, which is why the
+  `{ success, count, data }` that endpoint once had is gone.
 - **A response schema describes what the server sends, not what an editor accepts.** A
   nullable SQLite column arrives as `null` (`ClientViewSchema`, not `ClientSchema`), and a
   job is checked for its shape only (`BackupJobViewSchema`), so one stored by an older
@@ -268,7 +272,7 @@ See `docs/development.md` for the workflow details.
   `react-hooks` and `react-refresh` plugins. A new Node workspace is covered by the
   root config without another file. `prefer-const` runs with `ignoreReadBeforeAssign`,
   for the `let` a closure reads before anything assigns it.
-- **UI components**: `@stefgo/react-ui-components` (3.x) – custom external library,
+- **UI components**: `@stefgo/react-ui-components` (4.x) – custom external library,
   published to GitHub Packages; `npm install` needs `NPM_TOKEN` in the environment.
 - **Colours**: pick the *role*, never the palette — `bg-success`, `text-error`,
   `bg-badge-info-bg`. The library defines each role once and redefines it inside
@@ -286,6 +290,8 @@ See `docs/development.md` for the workflow details.
   checking in review.
 - **Loading state**: one full-panel spinner, `components/LoadingIndicator`. A second
   hand-built one is how the first two came to look different.
+- **A read that failed**: `components/QueryError`, with a title that says what could not be
+  loaded. It shows the server's message below it.
 
 ## Key Docs
 
