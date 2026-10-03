@@ -1,45 +1,32 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../auth/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteUser, describeLastUser } from '../confirmations';
-import { UserListSchema } from '@pbcm/shared';
+import { userListOptions, useUsers } from '../../../queries/users';
 import { api } from '../../../lib/api';
 import { getErrorMessage } from '../../../utils';
 
+const NO_USERS: UserData[] = [];
+
 export const UserOverview = () => {
-    const { isAuthenticated } = useAuth();
-    const [users, setUsers] = useState<UserData[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
+    // `isPending` only for the first load: a reload after a change keeps the rows showing.
+    const { data: users = NO_USERS, isPending, error } = useUsers();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const { confirm, alert } = useConfirm();
     const { show } = useToast();
 
-    /** Bumped to load the list again after a change; the effect below is the only loader. */
-    const [reloadCount, setReloadCount] = useState(0);
-
-    // The effect only ever lowers isLoading: the first load starts with it set, and a reload
-    // raises it in fetchUsers, outside the effect.
     useEffect(() => {
-        const load = async () => {
-            try {
-                setUsers(await api.get('/api/v1/users', UserListSchema, { fallback: 'Failed to load users' }));
-            } catch (e) {
-                console.error(e);
-                show({ variant: 'error', title: 'Could not load the users', description: getErrorMessage(e) });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        load();
-    }, [isAuthenticated, reloadCount, show]);
+        if (!error) return;
+        console.error(error);
+        show({ variant: 'error', title: 'Could not load the users', description: getErrorMessage(error) });
+    }, [error, show]);
 
-    const fetchUsers = () => {
-        setIsLoading(true);
-        setReloadCount((n) => n + 1);
-    };
+    /** Reads the list again after a change. */
+    const fetchUsers = () => queryClient.invalidateQueries({ queryKey: userListOptions.queryKey });
 
     const handleCreateUser = () => {
         setEditingUser(null);
@@ -86,7 +73,7 @@ export const UserOverview = () => {
         <div className="space-y-6">
             <UserList
                 users={users}
-                isLoading={isLoading}
+                isLoading={isPending}
                 onCreateUser={handleCreateUser}
                 onEditUser={handleEditUser}
                 onDeleteUser={requestDeleteUser}
