@@ -8,6 +8,7 @@ import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-co
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
+import { RunLog } from './RunLog';
 import { canAbortRun } from '../lib/runAbort';
 import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
 import { statusBadgeVariant } from '../lib/statusBadge';
@@ -45,19 +46,14 @@ const statusLabel = (item: BaseHistoryItem): string =>
         ? 'reading snapshot'
         : item.status;
 
-const LOG_CLASS = 'mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text';
 const NOTE_CLASS = 'mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default';
 
 const renderOutput = (output: RunOutput) => {
     switch (output.kind) {
         case 'live':
-            return <div className={`${LOG_CLASS} bg-badge-info-bg text-badge-info-text`}>{output.text}</div>;
+            return <RunLog text={output.text} tone="live" follow />;
         case 'log':
-            return (
-                <div className={`${LOG_CLASS} ${output.failed ? 'bg-error-bg text-error' : 'bg-hover text-text-muted'}`}>
-                    {output.text}
-                </div>
-            );
+            return <RunLog text={output.text} tone={output.failed ? 'failed' : 'plain'} />;
         case 'waiting':
             return <div className={NOTE_CLASS}>Waiting for output…</div>;
         case 'none':
