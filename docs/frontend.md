@@ -806,8 +806,24 @@ The restore process is complex and distributed across:
    snapshot (type, id, time); `SnapshotRestoreRoute` reads it from the same snapshot list
    the page it was opened from shows.
 3. `SnapshotRestoreEditor` (in `features/repositories`):
-    - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
-    - Target path input on the client.
+    - Laid out like the editors -- `Card`, the X in its header, one button under the
+      fields, and the outcome said next to that button -- but **not** on `useEntityForm`:
+      nothing is saved, so there is no baseline, and a hook that holds its messages back
+      until something changed would leave a form that opens filled in but for the target
+      with a dead button and no reason. It calls `checkDraft` (`lib/entityForm.ts`)
+      itself, against `RestoreRequestSchema` from `shared` -- the schema the backend
+      parses the request with -- and shows what is missing from the start.
+    - `lib/restoreForm.ts` holds the pure parts: the draft a snapshot opens with, the
+      request built from it (`restoreInputFrom`), the rules only the form knows
+      (`restoreRules`: a client, an online one, an archive, a target).
+    - Archives (e.g., `root.pxar`), all preselected.
+    - The client: picked in the form, or locked to the one the route names. An offline
+      client is refused at the field -- the restore runs on its agent.
+    - The target directory is typed or picked in the file browser; a directory that does
+      not exist yet cannot be clicked.
+    - The start asks first (`describeRestore`: client, target, archives, and that files
+      already there are replaced), through `useConfirm()`. It is `useStartRestore` in
+      `queries/jobs.ts`. No question on leaving: the selection is rebuilt in seconds.
     - **Restore through the SSH reverse tunnel** — the same question `JobTunnelSettings` asks
       of a job, asked here because a restore has no stored config to carry it. It follows the
       *selected* client, not the one the editor was opened for, since the client can still be

@@ -28,3 +28,17 @@ export function describeDistribute(): ConfirmOptions {
         confirmLabel: 'Distribute'
     };
 }
+
+/**
+ * A restore writes into a directory on a machine, and `proxmox-backup-client restore`
+ * does not ask before it replaces a file that is already there. So the dialog names where
+ * it goes and what goes there -- the two things that cannot be taken back afterwards.
+ */
+export function describeRestore(clientName: string, targetPath: string, archives: string[]): ConfirmOptions {
+    return {
+        title: `Restore to ${targetPath} on ${clientName}?`,
+        description: `${archives.length === 1 ? 'The archive' : 'The archives'} ${archives.join(', ')} ${archives.length === 1 ? 'is' : 'are'} written into ${targetPath}. Files of the same name that are already there are replaced.`,
+        confirmLabel: 'Start restore',
+        variant: 'danger'
+    };
+}

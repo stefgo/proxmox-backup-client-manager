@@ -76,6 +76,8 @@ export const ClientSelect = ({
                 <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-text-muted uppercase">Select Client</label>
                     <button
+                        // Inside a form a button submits unless it says otherwise.
+                        type="button"
                         onClick={() => onSetIsSelecting?.(false)}
                         className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
@@ -150,6 +152,8 @@ export const ClientSelect = ({
                 </label>
                 {!locked && (
                     <button
+                        // Inside a form a button submits unless it says otherwise.
+                        type="button"
                         onClick={() => onSetIsSelecting?.(true)}
                         className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}
                     >

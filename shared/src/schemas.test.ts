@@ -3,6 +3,7 @@ import {
     ClientUpdateSchema,
     HistoryQuerySchema,
     RepositoryInputSchema,
+    RestoreRequestSchema,
     SnapshotQuerySchema,
     TunnelUpdateSchema,
 } from "./schemas.js";
@@ -104,5 +105,32 @@ describe("SnapshotQuerySchema", () => {
 
     it("refuses an empty backup id", () => {
         expect(SnapshotQuerySchema.safeParse({ backupId: "" }).success).toBe(false);
+    });
+});
+
+describe("RestoreRequestSchema", () => {
+    const request = {
+        snapshot: "host/c1/2026-01-02T03:04:05Z",
+        targetPath: "/restore",
+        repositoryId: "7",
+        archives: ["root.pxar"],
+    };
+
+    it("accepts a restore that names its repository", () => {
+        expect(RestoreRequestSchema.safeParse(request).success).toBe(true);
+    });
+
+    it("refuses a target that is not absolute", () => {
+        const parsed = RestoreRequestSchema.safeParse({ ...request, targetPath: "restore" });
+        expect(parsed.error?.issues.map((issue) => issue.path)).toEqual([["targetPath"]]);
+    });
+
+    it("refuses a restore without a repository", () => {
+        const parsed = RestoreRequestSchema.safeParse({ ...request, repositoryId: "" });
+        expect(parsed.error?.issues.map((issue) => issue.path)).toEqual([["repositoryId"]]);
+    });
+
+    it("refuses a snapshot that would be read as an option", () => {
+        expect(RestoreRequestSchema.safeParse({ ...request, snapshot: "--repository=x" }).success).toBe(false);
     });
 });

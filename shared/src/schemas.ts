@@ -398,6 +398,21 @@ export const RestoreJobSchema = JobSchema.extend({
 });
 
 /**
+ * What the browser sends to start a restore (`POST /api/v1/clients/:clientId/restore`).
+ * The repository is named, not described: the server builds it from the managed
+ * repository, secret included, which the browser never sees.
+ */
+export const RestoreRequestSchema = RestoreJobSchema.pick({
+    snapshot: true,
+    targetPath: true,
+    archives: true,
+    encryption: true,
+    tunnel: true,
+}).extend({
+    repositoryId: z.string().min(1),
+});
+
+/**
  * What an agent sends to `POST /api/v1/register`. It brings no identity of its own:
  * the server issues both `clientId` and `authToken` and returns them below.
  */

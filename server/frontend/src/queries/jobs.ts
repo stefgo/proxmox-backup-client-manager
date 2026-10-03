@@ -5,6 +5,7 @@ import {
     GlobalJobListSchema,
     type BackupJob,
     type BackupJobSchema,
+    type RestoreRequest,
 } from '@pbcm/shared';
 import type { z } from 'zod';
 import { api } from '../lib/api';
@@ -69,6 +70,19 @@ export function useTriggerJob() {
         // Before the request: a run that is skipped at once can report before it returns.
         onMutate: ({ clientId, jobId }) => markJobRunAsked(clientId, jobId),
         onError: (_error, { clientId, jobId }) => forgetJobRunAsked(clientId, jobId),
+    });
+}
+
+/**
+ * Starts a restore on a client. Nothing to invalidate: the run reports itself over the
+ * socket, like one the scheduler started.
+ */
+export function useStartRestore() {
+    return useMutation({
+        mutationFn: ({ clientId, request }: { clientId: string; request: RestoreRequest }) =>
+            api.post(`/api/v1/clients/${clientId}/restore`, request, undefined, {
+                fallback: 'Failed to start the restore',
+            }),
     });
 }
 

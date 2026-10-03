@@ -19,6 +19,7 @@ import {
     BackupJobSchema,
     JobSchema,
     RestoreJobSchema,
+    RestoreRequestSchema,
     RepositoryInputSchema,
     RepositorySchema,
     RegistrationPayloadSchema,
@@ -117,6 +118,8 @@ export type Job = z.infer<typeof JobSchema>;
 export type EncryptionConfig = z.infer<typeof EncryptionConfigSchema>;
 export type BackupJob = z.infer<typeof BackupJobSchema>;
 export type RestoreJob = z.infer<typeof RestoreJobSchema>;
+/** The body of `POST /api/v1/clients/:clientId/restore`, as the restore form builds it. */
+export type RestoreRequest = z.input<typeof RestoreRequestSchema>;
 
 export type Snapshot = z.infer<typeof SnapshotSchema>;
 export type RunSnapshotDetails = z.infer<typeof RunSnapshotDetailsSchema>;

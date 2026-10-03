@@ -1,14 +1,34 @@
 import { useState } from 'react';
-import { X, Folder, AlertCircle, ShieldCheck } from 'lucide-react';
-import { Client, ManagedRepository as Repository } from '@pbcm/shared';
+import { X, AlertCircle, RotateCcw } from 'lucide-react';
+import { Client, ManagedRepository as Repository, RestoreRequestSchema } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
 import { useClientFiles } from '../../../queries/fileSystem';
-import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
+import { useStartRestore } from '../../../queries/jobs';
+import {
+    ActionButton,
+    Button,
+    Card,
+    Checkbox,
+    FileBrowser,
+    FormField,
+    Input,
+    useConfirm,
+} from '@stefgo/react-ui-components';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { formatDate, getErrorMessage } from '../../../utils';
-import { api, ApiError } from '../../../lib/api';
 import { EntityLink } from '../../../components/EntityLink';
 import { clientTab } from '../../../lib/paths';
+import { checkDraft } from '../../../lib/entityForm';
+import { describeRestore } from '../confirmations';
+import {
+    archiveLabel,
+    restorableArchives,
+    restoreDraftFrom,
+    restoreFieldOf,
+    restoreInputFrom,
+    restoreRules,
+    type RestoreDraft,
+} from '../lib/restoreForm';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -20,56 +40,37 @@ interface SnapshotRestoreEditorProps {
 
 const EMPTY_CLIENTS: Client[] = [];
 
-/** Archives a restore can take from; all of them are preselected. */
-const restorableArchives = (snapshot: Snapshot) =>
-    snapshot.files
-        .map(f => f.filename)
-        .filter(f => f && (f.endsWith('pxar.didx')));
-
 /**
- * The client a restore of this snapshot starts out with: the one the editor was opened
- * for, else the client the snapshot was taken from, else the first one. `fallback` when
- * there is nothing to choose from.
+ * Starts a restore of one snapshot. Laid out like the editors -- the X in the card header
+ * leaves, the one button sits under the fields it sends, and what became of it is said
+ * next to that button.
+ *
+ * It is not one of them, though: nothing is saved here, so there is no baseline a draft
+ * could differ from, and `useEntityForm` -- which holds its messages back until something
+ * was changed -- would leave a form that opens filled in but for the target with a dead
+ * button and no reason. The draft is checked by the same rules (`checkDraft`, against the
+ * schema the backend parses the request with), and what is missing is said from the start.
  */
-const initialClientId = (snapshot: Snapshot, selectedClient: Client | undefined, clients: Client[], fallback: string) => {
-    if (selectedClient) return selectedClient.id;
-    if (clients.length === 0) return fallback;
-    return (clients.find(c => c.id === snapshot.backupId) ?? clients[0]).id;
-};
-
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
-    const [selectedClientId, setSelectedClientId] = useState<string>(() => initialClientId(snapshot, selectedClient, clients, ''));
+    const { confirm } = useConfirm();
+    const { mutateAsync: startRestore, isPending: isStarting } = useStartRestore();
+
+    const [draft, setDraft] = useState<RestoreDraft>(() => restoreDraftFrom(snapshot, selectedClient, clients));
     // ClientSelect only opens its list when it is told to. Without this state the
     // "Set Client" button had nothing to call and the preselected client was final.
     const [isSelectingClient, setIsSelectingClient] = useState(false);
-    const [selectedTarget, setSelectedTarget] = useState<string>('');
     const [browserPath, setBrowserPath] = useState('/');
-    const [selectedArchives, setSelectedArchives] = useState<string[]>(() => restorableArchives(snapshot));
-    /**
-     * Whether this restore reaches the repository through the client's SSH tunnel.
-     *
-     * Asked here rather than derived from the client, for the same reason a backup job
-     * asks it: stored credentials say the detour is *possible*, not that this repository
-     * needs it. Defaulted to on, because a client that has a tunnel at all usually has it
-     * for want of a direct route — and a restore that cannot reach the PBS is the more
-     * expensive mistake of the two.
-     */
-    const [useTunnel, setUseTunnel] = useState(true);
-
-    const [error, setError] = useState<string | null>(null);
+    const [startError, setStartError] = useState<string | null>(null);
     // A started restore used to leave the form looking untouched, which invites
     // triggering it a second time. What was started doubles as the button's lock.
     const [started, setStarted] = useState<{ archives: number; clientId: string } | null>(null);
 
-
-    // The client can still be swapped in the form, so the offer follows the selection and
-    // not the client this editor was opened for.
-    const restoreClient = selectedClient?.id === selectedClientId
-        ? selectedClient
-        : clients.find((c) => c.id === selectedClientId);
-    const tunnelAvailable = !!restoreClient?.tunnelConfigured;
-
-    const availableArchives = restorableArchives(snapshot).sort();
+    /** Any change describes another restore: what was said about the last one no longer applies. */
+    const change = (changes: Partial<RestoreDraft>) => {
+        setDraft((prev) => ({ ...prev, ...changes }));
+        setStarted(null);
+        setStartError(null);
+    };
 
     // Another snapshot starts the form over. Done while rendering rather than in an effect,
     // so no frame shows the previous snapshot's choices. Keyed on the snapshot alone: a
@@ -77,170 +78,124 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     const [seededSnapshot, setSeededSnapshot] = useState(snapshot);
     if (snapshot !== seededSnapshot) {
         setSeededSnapshot(snapshot);
-        setSelectedClientId(initialClientId(snapshot, selectedClient, clients, selectedClientId));
-        setSelectedTarget('');
+        setDraft(restoreDraftFrom(snapshot, selectedClient, clients, draft.clientId));
         setBrowserPath('/');
-        setUseTunnel(true);
         setIsSelectingClient(false);
         setStarted(null);
-        setError(null);
-        setSelectedArchives(restorableArchives(snapshot));
+        setStartError(null);
     }
 
+    // The client can still be swapped in the form, so everything below follows the
+    // selection and not the client this editor was opened for.
+    const restoreClient = selectedClient?.id === draft.clientId
+        ? selectedClient
+        : clients.find((c) => c.id === draft.clientId);
+    const tunnelAvailable = !!restoreClient?.tunnelConfigured;
+
+    const availableArchives = restorableArchives(snapshot);
+
+    const check = checkDraft(
+        {
+            schema: RestoreRequestSchema,
+            toInput: (value: RestoreDraft) => restoreInputFrom(value, { snapshot, repoId: repo.id, tunnelAvailable }),
+            fieldOf: restoreFieldOf,
+            rules: (value: RestoreDraft) => restoreRules(value, restoreClient),
+        },
+        draft,
+    );
+    const { errors } = check;
+
     // The directory the browser shows, on the client the restore goes to.
-    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(selectedClientId, browserPath);
+    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(draft.clientId, browserPath);
 
-    const handleRestore = async () => {
-        setError(null);
-        setStarted(null);
-        if (!selectedClientId || !selectedTarget || !snapshot || !repo) return;
-        if (selectedArchives.length === 0) {
-            setError('Please select at least one archive to restore.');
-            return;
-        }
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        // The button asks the same, but a form is also submitted by Enter.
+        if (!check.isValid || check.input === null || !restoreClient || started || isStarting) return;
+        const request = check.input;
+        const clientName = restoreClient.displayName || restoreClient.hostname;
+        if (!(await confirm(describeRestore(clientName, request.targetPath, draft.archives.map(archiveLabel))))) return;
 
+        setStartError(null);
         try {
-            // Format Snapshot ID: type/id/time
-            // Time must be ISO format. backup_time is epoch seconds.
-            const backupTime = snapshot.backupTime || 0;
-            // Remove milliseconds from ISO string (PBS expects YYYY-MM-DDTHH:MM:SSZ)
-            const timeStr = new Date(backupTime * 1000).toISOString().split('.')[0] + 'Z';
-            const snapshotId = `${snapshot.backupType}/${snapshot.backupId}/${timeStr}`;
-
-            // We need to send the archive name expected by the restore command.
-            // Remove .didx, .fidx, .blob suffix
-            const sanitizedArchives = selectedArchives.map(a => a.replace(/\.(didx|fidx|blob)$/, ''));
-
-            await api.post(
-                `/api/v1/clients/${selectedClientId}/restore`,
-                {
-                    snapshot: snapshotId,
-                    targetPath: selectedTarget,
-                    // Named, not described: the server builds the repository, secret
-                    // included, from the configured one.
-                    repositoryId: String(repo.id),
-                    archives: sanitizedArchives,
-                    // Only when it is actually on offer: a client without credentials
-                    // would have the request refused for a box it was never shown.
-                    tunnel: tunnelAvailable ? { required: useTunnel } : undefined
-                },
-                undefined,
-                { fallback: 'Unknown error' },
-            );
-
-            setStarted({ archives: sanitizedArchives.length, clientId: selectedClientId });
+            await startRestore({ clientId: restoreClient.id, request });
+            setStarted({ archives: request.archives.length, clientId: restoreClient.id });
         } catch (e: unknown) {
             console.error(e);
-            // A refusal is the server's answer; anything else never got one.
-            setError((e instanceof ApiError ? 'Failed to start restore: ' : 'Error triggering restore: ') + getErrorMessage(e));
+            setStartError(getErrorMessage(e));
         }
     };
-
-    if (!snapshot || !repo) return null;
 
     const toggleArchive = (arch: string) => {
-        setStarted(null);
-        if (selectedArchives.includes(arch)) {
-            setSelectedArchives(selectedArchives.filter(a => a !== arch));
-        } else {
-            setSelectedArchives([...selectedArchives, arch]);
-        }
+        change({
+            archives: draft.archives.includes(arch)
+                ? draft.archives.filter((a) => a !== arch)
+                : [...draft.archives, arch],
+        });
     };
 
-    const formatArchiveName = (name: string) => {
-        // Special handling for pxar: root.pxar.didx -> root
-        if (name.endsWith('.pxar.didx')) {
-            return name.replace('.pxar.didx', '');
-        }
-        // General handling: remove index extension
-        return name.replace(/\.(didx|fidx|blob)$/, '');
-    };
+    const footerError = startError ?? check.formError;
 
     return (
-        <div className=" rounded-xl border border-border shadow-premium flex flex-col h-full overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b border-border flex justify-between items-center bg-app-bg">
-                <div>
-                    <h3 className="font-semibold text-text-primary flex items-center gap-2">
-                        <Folder size={20} className="text-text-muted" /> Restore Snapshot
-                    </h3>
-                    <div className="text-xs text-text-muted font-mono mt-1">
+        <Card
+            className="flex flex-col"
+            title="Restore Snapshot"
+            action={<ActionButton icon={X} tooltip="Close" onClick={onCancel} />}
+            classNames={{ headerTitle: 'text-xl font-bold' }}
+        >
+            <form onSubmit={handleSubmit} className="flex flex-col">
+                <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-6">
+                    <div className="text-xs text-text-muted font-mono">
                         {snapshot.backupType}/{snapshot.backupId} ({snapshot.backupTime ? formatDate(snapshot.backupTime * 1000) : 'Unknown Date'})
                     </div>
-                </div>
-                <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
-            </div>
 
-            {started && (
-                <div className="mx-6 mt-6 p-3 bg-badge-success-bg border border-success rounded text-success text-sm flex items-center gap-2">
-                    <ShieldCheck size={16} className="shrink-0" />
-                    <span>
-                        Restore of {started.archives} archive(s) started — follow it in the{' '}
-                        {/* Of the client the restore went to, which the form may have changed since. */}
-                        <EntityLink to={clientTab(started.clientId, 'history')} className="underline">
-                            client's job history
-                        </EntityLink>
-                        .
-                    </span>
-                </div>
-            )}
+                    <FormField label="Archives" required error={errors.archives}>
+                        {() =>
+                            availableArchives.length > 0 ? (
+                                <div className="border border-border rounded overflow-hidden">
+                                    {availableArchives.map((arch) => (
+                                        <Checkbox
+                                            key={arch}
+                                            className="p-2 hover:bg-hover border-b last:border-0 border-border"
+                                            // `flex-1` on the label, so the whole row toggles the box
+                                            // and not just the words: the label is a sibling of the
+                                            // box inside a flex row, so it has to be told to take the
+                                            // rest of the width.
+                                            classNames={{ label: 'flex-1 text-sm font-mono text-text-muted' }}
+                                            label={archiveLabel(arch)}
+                                            checked={draft.archives.includes(arch)}
+                                            onChange={() => toggleArchive(arch)}
+                                            disabled={isStarting}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-3 text-sm text-text-muted bg-app-bg rounded border border-border flex items-center gap-2">
+                                    <AlertCircle size={16} /> No archives found in this snapshot.
+                                </div>
+                            )
+                        }
+                    </FormField>
 
-            {/* Error Message */}
-            {error && (
-                <div className="mx-6 mt-6 p-3 bg-error-bg border border-error rounded text-error text-sm flex items-center gap-2">
-                    <AlertCircle size={16} />
-                    {error}
-                </div>
-            )}
-
-            {/* Content */}
-            <div className="p-6 flex-1 overflow-y-auto space-y-6">
-                <div className="grid grid-cols-1 gap-6">
-
-                    {/* Step 1: Archives Selection */}
-                    <div>
-                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Select Archives</label>
-
-                        {availableArchives.length > 0 ? (
-                            <div className="border border-border rounded overflow-hidden">
-                                {availableArchives.map(arch => (
-                                    <Checkbox
-                                        key={arch}
-                                        className="p-2 hover:bg-hover border-b last:border-0 border-border"
-                                        // `flex-1` on the label, so the whole row toggles the box
-                                        // and not just the words. The row used to be one <label>
-                                        // with the padding on it; the label here is a sibling of
-                                        // the box inside a flex row, so it has to be told to take
-                                        // the rest of the width.
-                                        classNames={{ label: 'flex-1 text-sm font-mono text-text-muted' }}
-                                        label={formatArchiveName(arch)}
-                                        checked={selectedArchives.includes(arch)}
-                                        onChange={() => toggleArchive(arch)}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="p-3 text-sm text-text-muted bg-app-bg rounded border border-border flex items-center gap-2">
-                                <AlertCircle size={16} /> No archives found in this snapshot.
-                            </div>
+                    {/* Shown also when the form was opened for one client: locked then, but
+                        still the place that says the client is offline. */}
+                    <FormField error={errors.clientId}>
+                        {() => (
+                            <ClientSelect
+                                clients={selectedClient ? [selectedClient] : clients}
+                                selectedClientId={draft.clientId}
+                                locked={!!selectedClient}
+                                disableOffline
+                                isSelecting={isSelectingClient}
+                                onSetIsSelecting={setIsSelectingClient}
+                                onSelect={(id) => {
+                                    // Another machine: its directories are not the ones on screen.
+                                    change({ clientId: id, targetPath: '' });
+                                    setBrowserPath('/');
+                                }}
+                            />
                         )}
-                    </div>
-
-                    {/* Step 2: Client Selection (Only if no client pre-selected) */}
-                    {!selectedClient && (
-                        <ClientSelect
-                            clients={clients}
-                            selectedClientId={selectedClientId}
-                            isSelecting={isSelectingClient}
-                            onSetIsSelecting={setIsSelectingClient}
-                            onSelect={(id) => {
-                                setSelectedClientId(id);
-                                setBrowserPath('/');
-                                setSelectedTarget('');
-                                setStarted(null);
-                            }}
-                        />
-                    )}
+                    </FormField>
 
                     {/* Only for a client that has credentials. Hidden rather than disabled:
                         a client with no tunnel has no choice to make, and an inert switch
@@ -248,50 +203,68 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                     {tunnelAvailable && (
                         <Checkbox
                             label="Restore through the SSH reverse tunnel"
-                            checked={useTunnel}
-                            onChange={() => {
-                                setUseTunnel(!useTunnel);
-                                setStarted(null);
-                            }}
+                            checked={draft.useTunnel}
+                            onChange={() => change({ useTunnel: !draft.useTunnel })}
+                            error={errors.useTunnel}
+                            disabled={isStarting}
                             classNames={{ label: 'text-sm text-text-muted' }}
                         />
                     )}
 
+                    <div className="flex flex-col gap-2">
+                        {/* Typed or picked: a directory that does not exist yet cannot be
+                            clicked, and a known path is quicker typed than walked to. */}
+                        <Input
+                            label="Target Directory"
+                            required
+                            type="text"
+                            placeholder="/path/on/the/client"
+                            value={draft.targetPath}
+                            onChange={(e) => change({ targetPath: e.target.value })}
+                            error={errors.targetPath}
+                            disabled={isStarting}
+                            classNames={{ input: 'font-mono' }}
+                        />
+                        {restoreClient && (
+                            <>
+                                <FileBrowser
+                                    currentPath={browserPath}
+                                    onNavigate={setBrowserPath}
+                                    files={fileList}
+                                    isLoading={isLoadingFiles}
+                                    onSelect={(path) => change({ targetPath: path })}
+                                    className="flex-1 min-h-[250px] max-h-[300px]"
+                                />
+                                {fileListError && <div className="text-xs text-error">{fileListError}</div>}
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                {/* Step 3: Directory Selection */}
-                {selectedClientId && (
-                    <div className="flex flex-col">
-                        <label className="block text-xs font-bold text-text-muted uppercase mb-1">Target Directory <span className="text-error">*</span></label>
-                        <FileBrowser
-                            currentPath={browserPath}
-                            onNavigate={setBrowserPath}
-                            files={fileList}
-                            isLoading={isLoadingFiles}
-                            onSelect={(path) => {
-                                setSelectedTarget(path);
-                                setStarted(null);
-                            }}
-                            className="flex-1 min-h-[250px] max-h-[300px]"
-                        />
-                        {fileListError && <div className="text-xs text-error mt-1">{fileListError}</div>}
-                    </div>
-                )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-border flex justify-end gap-3 bg-app-bg">
-                <Button variant="secondary" onClick={onCancel}>
-                    Cancel
-                </Button>
-                <Button
-                    onClick={handleRestore}
-                    disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!started}
-                    title={started ? 'Change the selection to start another restore' : undefined}
-                >
-                    {started ? 'Restore Started' : 'Restore Content'}
-                </Button>
-            </div>
-        </div>
+                <div className="flex items-center justify-end gap-4 border-t border-border px-6 py-5">
+                    {footerError && <span className="text-sm text-error mr-auto">{footerError}</span>}
+                    {!footerError && started && (
+                        <span className="text-sm text-success mr-auto">
+                            Restore of {started.archives} archive(s) started — follow it in the{' '}
+                            {/* Of the client the restore went to, which the form may have changed since. */}
+                            <EntityLink to={clientTab(started.clientId, 'history')} className="underline">
+                                client's job history
+                            </EntityLink>
+                            . Change the selection to start another.
+                        </span>
+                    )}
+                    <Button
+                        type="submit"
+                        variant="primary"
+                        isLoading={isStarting}
+                        disabled={!check.isValid || !!started || isStarting}
+                        icon={RotateCcw}
+                        className="shadow-glow-accent"
+                    >
+                        Restore Content
+                    </Button>
+                </div>
+            </form>
+        </Card>
     );
 };

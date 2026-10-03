@@ -1,8 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { ProxyService } from "../services/ProxyService.js";
-import { WS_EVENTS, BackupJob, BackupJobSchema, RestoreJobSchema } from "@pbcm/shared";
+import { WS_EVENTS, BackupJob, BackupJobSchema, RestoreRequestSchema } from "@pbcm/shared";
 import { randomUUID } from "crypto";
-import { z } from "zod";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
 import { TunnelLease } from "./websocket/TunnelLease.js";
@@ -11,21 +10,6 @@ import {
     redactJob,
     restoreRepository,
 } from "../services/JobSecrets.js";
-
-/**
- * What the browser sends to start a restore. The repository is named, not described: the
- * server builds it from the managed repository, secret included, which the browser never
- * sees.
- */
-const RestoreRequestSchema = RestoreJobSchema.pick({
-    snapshot: true,
-    targetPath: true,
-    archives: true,
-    encryption: true,
-    tunnel: true,
-}).extend({
-    repositoryId: z.string().min(1),
-});
 
 /**
  * Whether a tunnel is available to this client's jobs at all.
