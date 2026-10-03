@@ -3,6 +3,7 @@ import {
     ClientUpdateSchema,
     HistoryQuerySchema,
     RepositoryInputSchema,
+    SnapshotQuerySchema,
     TunnelUpdateSchema,
 } from "./schemas.js";
 
@@ -89,5 +90,19 @@ describe("HistoryQuerySchema", () => {
 
     it("refuses an empty client id, which would match no run", () => {
         expect(HistoryQuerySchema.safeParse({ clientId: "" }).success).toBe(false);
+    });
+});
+
+describe("SnapshotQuerySchema", () => {
+    it("asks for every snapshot when no backup id is named", () => {
+        expect(SnapshotQuerySchema.parse({})).toEqual({});
+    });
+
+    it("takes the backup id to filter by", () => {
+        expect(SnapshotQuerySchema.parse({ backupId: "c1" })).toEqual({ backupId: "c1" });
+    });
+
+    it("refuses an empty backup id", () => {
+        expect(SnapshotQuerySchema.safeParse({ backupId: "" }).success).toBe(false);
     });
 });

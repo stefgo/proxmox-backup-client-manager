@@ -1378,6 +1378,12 @@ reported, not queued.
 | :------------- | :----- | :------- | :---------------------- |
 | `repositoryId` | string | **Yes**  | UUID of the repository. |
 
+#### Query Parameters
+
+| Parameter  | Type   | Description                                                                   |
+| :--------- | :----- | :---------------------------------------------------------------------------- |
+| `backupId` | string | Only the snapshots of this backup id. PBS is asked for these alone (`backup-id`), so a client's page does not transfer every other client's snapshots. |
+
 #### Response (Array of Snapshot objects)
 
 | Field          | Type   | Description                                              |

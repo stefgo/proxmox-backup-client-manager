@@ -856,6 +856,15 @@ export const HistoryQuerySchema = z.object({
 });
 
 /**
+ * Query of `GET /api/v1/repositories/:repositoryId/snapshots`. With `backupId` the answer
+ * holds that backup id's snapshots only -- a client's page asks for its own instead of
+ * taking every client's and dropping the rest in the browser.
+ */
+export const SnapshotQuerySchema = z.object({
+    backupId: z.string().min(1).optional(),
+});
+
+/**
  * How far one user has looked at the job history: `seenAt` is when they last opened it
  * (null if never), `unseenFailed` how many failed runs ended after that. The sidebar marks
  * the History entry while it is above zero.

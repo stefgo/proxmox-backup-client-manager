@@ -12,7 +12,7 @@ import { api } from '../lib/api';
 import { SessionExpiredError } from '../lib/apiFetch';
 import { recentRuns } from '../lib/cacheUpdates';
 import { queryKeys } from '../lib/queryKeys';
-import { repositorySnapshotsOptions } from './repositories';
+import { backupSnapshotsOptions } from './repositories';
 
 const NO_RUNS: HistoryEntry[] = [];
 const NO_JOBS: BackupJob[] = [];
@@ -77,9 +77,10 @@ export type SnapshotWithRepository = Snapshot & { repository: ManagedRepository 
 /**
  * A client's snapshots across every repository, newest first.
  *
- * Each repository answers on its own, into the same cache entry its own page reads. One
- * that fails is named in `error` rather than turned into an empty list, so a partial list
- * does not pass for the complete one without a word.
+ * Each repository is asked for this client's snapshots only, and answers on its own: one
+ * that is slow does not hold the others back. One that fails is named in `error` rather
+ * than turned into an empty list, so a partial list does not pass for the complete one
+ * without a word.
  */
 export function useClientSnapshots(clientId: string, repositories: ManagedRepository[]) {
     // Stable for as long as its inputs are: `useQueries` runs `combine` again only when
@@ -89,9 +90,7 @@ export function useClientSnapshots(clientId: string, repositories: ManagedReposi
             const failed = repositories.filter((_, i) => results[i]?.isError);
             const snapshots = results
                 .flatMap((result, i): SnapshotWithRepository[] =>
-                    (result.data ?? [])
-                        .filter((s) => s.backupId === clientId)
-                        .map((s) => ({ ...s, repository: repositories[i] })),
+                    (result.data ?? []).map((s) => ({ ...s, repository: repositories[i] })),
                 )
                 .sort((a, b) => b.backupTime - a.backupTime);
             return {
@@ -102,11 +101,11 @@ export function useClientSnapshots(clientId: string, repositories: ManagedReposi
                         : null,
             };
         },
-        [clientId, repositories],
+        [repositories],
     );
 
     return useQueries({
-        queries: repositories.map((repo) => repositorySnapshotsOptions(repo.id)),
+        queries: repositories.map((repo) => backupSnapshotsOptions(repo.id, clientId)),
         combine,
     });
 }

@@ -20,6 +20,9 @@ export const queryKeys = {
         /** Every repository's snapshots: what a finished backup makes stale. */
         allSnapshots: () => ['repositories', 'snapshots'] as const,
         snapshots: (id: RepositoryId) => ['repositories', 'snapshots', String(id)] as const,
+        /** One backup id's snapshots in a repository. Below `snapshots(id)`, so it goes stale with it. */
+        snapshotsOf: (id: RepositoryId, backupId: string) =>
+            ['repositories', 'snapshots', String(id), backupId] as const,
     },
     clients: {
         all: ['clients'] as const,

@@ -7,6 +7,7 @@ import {
     BackupJob,
     RepositoryInputSchema,
     PbsSnapshotListSchema,
+    SnapshotQuerySchema,
     normalizeFingerprint,
     firstIssue,
     type CertificateCheck,
@@ -321,11 +322,20 @@ export class RepositoryController {
                 .send({ error: "Repository record is incomplete" });
         }
 
+        const query = SnapshotQuerySchema.safeParse(request.query);
+        if (!query.success) {
+            return reply.code(400).send({ error: firstIssue(query.error) });
+        }
+        const { backupId } = query.data;
+
         try {
             let baseUrl = repo.base_url;
             if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
 
-            const url = `${baseUrl}/api2/json/admin/datastore/${repo.datastore}/snapshots`;
+            // PBS filters by `backup-id` itself, so the other clients' snapshots are not
+            // even transferred to this server.
+            const filter = backupId ? `?backup-id=${encodeURIComponent(backupId)}` : "";
+            const url = `${baseUrl}/api2/json/admin/datastore/${repo.datastore}/snapshots${filter}`;
             const authHeader = pbsAuthHeader(repo);
 
             const controller = new AbortController();
@@ -353,12 +363,16 @@ export class RepositoryController {
                 }
                 // Spread first, then add the camelCase names: the kebab-case originals
                 // stay on the object, as they always have.
-                return parsed.data.data.map((s) => ({
-                    ...s,
-                    backupType: s["backup-type"],
-                    backupId: s["backup-id"],
-                    backupTime: s["backup-time"],
-                }));
+                return parsed.data.data
+                    // Filtered again here: a PBS that ignores the parameter answers with
+                    // every snapshot, and the caller was promised one backup id's.
+                    .filter((s) => !backupId || s["backup-id"] === backupId)
+                    .map((s) => ({
+                        ...s,
+                        backupType: s["backup-type"],
+                        backupId: s["backup-id"],
+                        backupTime: s["backup-time"],
+                    }));
             } else {
                 return reply
                     .code(502)

@@ -30,6 +30,7 @@ describe('queryKeys', () => {
         const snapshots = queryKeys.repositories.allSnapshots();
         expect(reaches(snapshots, queryKeys.repositories.snapshots(1))).toBe(true);
         expect(reaches(snapshots, queryKeys.repositories.snapshots(2))).toBe(true);
+        expect(reaches(snapshots, queryKeys.repositories.snapshotsOf(2, 'c1'))).toBe(true);
         expect(reaches(snapshots, queryKeys.repositories.list())).toBe(false);
         expect(reaches(snapshots, queryKeys.repositories.status(1))).toBe(false);
     });
@@ -41,6 +42,11 @@ describe('queryKeys', () => {
 
     it('keeps one directory apart from another', () => {
         expect(reaches(queryKeys.clients.fs(CLIENT, '/home'), queryKeys.clients.fs(CLIENT, '/etc'))).toBe(false);
+    });
+
+    it('reaches the snapshots of one backup id from those of its repository, and of no other', () => {
+        expect(reaches(queryKeys.repositories.snapshots(1), queryKeys.repositories.snapshotsOf(1, 'c1'))).toBe(true);
+        expect(reaches(queryKeys.repositories.snapshots(2), queryKeys.repositories.snapshotsOf(1, 'c1'))).toBe(false);
     });
 
     it('addresses a repository the same by its number and by the id in the URL', () => {

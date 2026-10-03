@@ -69,6 +69,7 @@ import {
     UpdateUserSchema,
     CleanupSettingsSchema,
     HistoryQuerySchema,
+    SnapshotQuerySchema,
     HistorySeenSchema,
     PbsSnapshotSchema,
     WebhookInputSchema,
@@ -127,6 +128,7 @@ export type CreateUser = z.infer<typeof CreateUserSchema>;
 export type UpdateUser = z.infer<typeof UpdateUserSchema>;
 export type CleanupSettings = z.infer<typeof CleanupSettingsSchema>;
 export type HistoryQuery = z.infer<typeof HistoryQuerySchema>;
+export type SnapshotQuery = z.infer<typeof SnapshotQuerySchema>;
 export type PbsSnapshot = z.infer<typeof PbsSnapshotSchema>;
 
 // WS Payloads

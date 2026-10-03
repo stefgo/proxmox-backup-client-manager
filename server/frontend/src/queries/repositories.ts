@@ -67,6 +67,22 @@ export const repositorySnapshotsOptions = (id: RepositoryId) =>
     });
 
 /**
+ * The snapshots one backup id left in a repository, newest first -- what a client's page
+ * shows. The server asks PBS for these alone, so the other clients' snapshots are neither
+ * transferred nor dropped here.
+ */
+export const backupSnapshotsOptions = (id: RepositoryId, backupId: string) =>
+    queryOptions({
+        queryKey: queryKeys.repositories.snapshotsOf(id, backupId),
+        queryFn: () =>
+            api.get(
+                `/api/v1/repositories/${id}/snapshots?backupId=${encodeURIComponent(backupId)}`,
+                SnapshotListSchema,
+                { fallback: 'Failed to fetch snapshots' },
+            ),
+    });
+
+/**
  * The repositories, each with the status the server last measured for it: `loading` until
  * the first answer, `offline` when the check itself failed -- a refusal and an unreachable
  * server read the same here.
