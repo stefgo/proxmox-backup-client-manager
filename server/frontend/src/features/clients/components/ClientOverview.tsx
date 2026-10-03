@@ -1,25 +1,22 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../auth/AuthContext';
 import { StatCard, ActionButton, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
-import { BackupJob, Client, JOB_STATUS, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
+import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
-import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
+import { useClientHistory, useClientJobs, useClientSnapshots, type SnapshotWithRepository } from '../../../queries/clientDetail';
+import { useDeleteJob, useTriggerJob } from '../../../queries/jobs';
 import { useRepositories } from '../../../queries/repositories';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
-import { useClientSubscription } from '../../../hooks/useClientSubscription';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
-import { useResyncKey } from '../../app/context/WebSocketContext';
 
 
 /** The tabs, in the order the arrow keys walk them. */
@@ -31,7 +28,6 @@ interface ClientOverviewProps {
 
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
-    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const { pathname, search, state } = useLocation();
     // The list is the only surface that opens this page today, and the honest fallback for a
@@ -46,50 +42,14 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         onChange: setTab,
     });
 
-    // Global Store Data
-    const {
-        configuredJobs,
-        history: backupJobs,
-        lastHistory,
-        clientSnapshots,
-        snapshotsError,
-        fetchClientData,
-        deleteBackupJob: deleteJob,
-        triggerBackupJob: triggerJob,
-        fetchClientSnapshots
-    } = useClientDetailStore();
-
+    // Everything below reads the cache. The socket keeps the jobs and the history
+    // current, and a finished backup makes the snapshots stale -- see WebSocketProvider.
+    const { jobs: configuredJobs } = useClientJobs(client.id);
+    const { history: backupJobs, lastHistory } = useClientHistory(client.id);
     const { repositories } = useRepositories();
-
-    // Init Data & Subscriptions, and again after a reconnect.
-    const resyncKey = useResyncKey();
-    useEffect(() => {
-        if (client.id && isAuthenticated) {
-            fetchClientData(client.id);
-        }
-    }, [client.id, isAuthenticated, resyncKey, fetchClientData]);
-
-    // Which repositories exist, not the array holding them: every status check that
-    // answers produces a new array. Depending on the reference reloaded every snapshot
-    // once per repository, and each reload is itself one request per repository.
-    const repositoryIds = useMemo(
-        () => repositories.map((r) => r.id).join(','),
-        [repositories],
-    );
-
-    useEffect(() => {
-        if (client.id && isAuthenticated && repositories.length > 0) {
-            fetchClientSnapshots(client.id, repositories);
-        }
-        // repositoryIds deliberately stands in for repositories -- see above.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [client.id, isAuthenticated, repositoryIds, fetchClientSnapshots]);
-
-    useClientSubscription(client.id, (job) => {
-        if (job.status === JOB_STATUS.SUCCESS) {
-            fetchClientSnapshots(client.id, repositories);
-        }
-    });
+    const { snapshots: clientSnapshots, error: snapshotsError } = useClientSnapshots(client.id, repositories);
+    const { mutateAsync: triggerJob } = useTriggerJob();
+    const { mutateAsync: deleteJob } = useDeleteJob();
 
     /**
      * The job editor is a page of its own. `from` carries the open tab along, so saving or
@@ -110,13 +70,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { show } = useToast();
 
     const handleTriggerJob = async (jobId: string) => {
-        // Before the request: a run that is skipped at once can report before it returns.
-        markJobRunAsked(client.id, jobId);
         try {
-            await triggerJob(client.id, jobId);
+            await triggerJob({ clientId: client.id, jobId });
             show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
-            forgetJobRunAsked(client.id, jobId);
             show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };
@@ -127,7 +84,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         const jobId = job.id;
         confirm({
             ...describeDeleteJob(job.name, client.displayName || client.hostname),
-            onConfirm: () => deleteJob(client.id, jobId),
+            onConfirm: () => deleteJob({ clientId: client.id, jobId }),
         });
     };
 

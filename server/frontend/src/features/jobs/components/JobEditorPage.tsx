@@ -8,7 +8,6 @@ import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { useJobForm } from '../../clients/hooks/useJobForm';
 import { useClients } from '../../../queries/clients';
-import { useClientDetailStore } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../lib/queryKeys';
@@ -49,7 +48,6 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     const { repositories } = useRepositories();
     const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
     const queryClient = useQueryClient();
-    const fetchClientData = useClientDetailStore((s) => s.fetchClientData);
 
     const [selectedClientId, setSelectedClientId] = useState(lockedClientId ?? '');
     const [isSelectingClient, setIsSelectingClient] = useState(false);
@@ -65,9 +63,11 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
      */
     const handleSaveSuccess = useCallback((wasEditing: boolean) => {
         queryClient.invalidateQueries({ queryKey: queryKeys.jobs.list() });
-        if (selectedClientId) fetchClientData(selectedClientId);
+        if (selectedClientId) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.clients.jobs(selectedClientId) });
+        }
         if (!wasEditing) navigate(back);
-    }, [queryClient, fetchClientData, selectedClientId, navigate, back]);
+    }, [queryClient, selectedClientId, navigate, back]);
 
     const jobForm = useJobForm({
         clientId: selectedClientId || null,

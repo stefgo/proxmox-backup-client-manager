@@ -134,3 +134,24 @@ export function applyRunToLatest(
         ...latest.filter((j) => !isSameJob(j, entry)),
     ].sort(byStartTimeDesc);
 }
+
+/** Takes a run's status update into a client's history: the row it has, or a new first one. */
+export function upsertRun(history: HistoryEntry[], job: HistoryEntry): HistoryEntry[] {
+    return history.some((j) => j.id === job.id)
+        ? history.map((j) => (j.id === job.id ? { ...j, ...job } : j))
+        : [job, ...history];
+}
+
+const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RECENT_LIMIT = 10;
+
+/**
+ * The runs of the last 24 hours, at most ten, in the order of the history they are taken
+ * from. A run counts by when it ended, or by when it started while it is still running.
+ */
+export function recentRuns(history: HistoryEntry[], now: number): HistoryEntry[] {
+    const since = now - RECENT_WINDOW_MS;
+    return history
+        .filter((j) => new Date(j.endTime ?? j.startTime).getTime() > since)
+        .slice(0, RECENT_LIMIT);
+}

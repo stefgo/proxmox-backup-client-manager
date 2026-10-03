@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { queryClient } from '../../../lib/queryClient';
-import { applyRunToLatest, mergeTunnelState, replaceClientJobs, setJobNextRun } from '../../../lib/cacheUpdates';
+import { JOB_STATUS } from '@pbcm/shared';
+import { queryKeys } from '../../../lib/queryKeys';
+import { applyRunToLatest, mergeTunnelState, replaceClientJobs, setJobNextRun, upsertRun } from '../../../lib/cacheUpdates';
 import { clientListOptions, getCachedClient } from '../../../queries/clients';
 import { globalJobsOptions, latestPerJobOptions } from '../../../queries/jobs';
+import { clientHistoryOptions, clientJobsOptions } from '../../../queries/clientDetail';
 import { useSchedulerStore } from '../../../stores/useSchedulerStore';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
@@ -74,7 +77,13 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 setIsConnected(true);
                 disarmLostTimer();
                 setIsLost(false);
-                if (hasConnected) setResyncKey((key) => key + 1);
+                // What the server pushed while the socket was down is lost, and only
+                // CLIENTS_UPDATE is sent again on connect. Everything on screen is read
+                // again; the rest is marked stale and read when it is next shown.
+                if (hasConnected) {
+                    queryClient.invalidateQueries();
+                    setResyncKey((key) => key + 1);
+                }
                 hasConnected = true;
                 if (reconnectTimeoutRef.current) {
                     clearTimeout(reconnectTimeoutRef.current);
@@ -103,6 +112,9 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                             globalJobsOptions.queryKey,
                             (all) => all && replaceClientJobs(all, clientId, jobs),
                         );
+                        // Only where the client's own list has been read: an entry made
+                        // here would pass for a fetched one on a page that never asked.
+                        queryClient.setQueryData(clientJobsOptions(clientId).queryKey, (own) => own && jobs);
                         break;
                     }
 
@@ -124,6 +136,15 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                             latestPerJobOptions.queryKey,
                             (latest) => latest && applyRunToLatest(latest, clientId, job, getCachedClient(clientId)),
                         );
+                        queryClient.setQueryData(
+                            clientHistoryOptions(clientId).queryKey,
+                            (history) => history && upsertRun(history, job),
+                        );
+                        // A finished backup left a snapshot behind. Whatever shows
+                        // snapshots reads them again; what does not is only marked stale.
+                        if (job.status === JOB_STATUS.SUCCESS) {
+                            queryClient.invalidateQueries({ queryKey: queryKeys.repositories.allSnapshots() });
+                        }
                         emit('jobUpdate', { clientId, job });
                         break;
                     }
@@ -140,6 +161,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         queryClient.setQueryData(
                             globalJobsOptions.queryKey,
                             (all) => all && setJobNextRun(all, clientId, jobId, nextRunAt),
+                        );
+                        queryClient.setQueryData(
+                            clientJobsOptions(clientId).queryKey,
+                            (own) => own && setJobNextRun(own, clientId, jobId, nextRunAt),
                         );
                         break;
                     }
