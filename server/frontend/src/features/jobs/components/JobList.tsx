@@ -11,8 +11,8 @@ interface JobListProps {
     jobs: GlobalJob[];
     onEditJob: (job: GlobalJob) => void;
     onCreateJob: () => void;
-    onTriggerJob: (clientId: string, jobId: string) => void;
-    onDeleteJob: (clientId: string, jobId: string) => void;
+    onTriggerJob: (job: GlobalJob) => void;
+    onDeleteJob: (job: GlobalJob) => void;
     getClientStatus: (clientId: string) => ClientStatus;
     getClientName: (clientId: string) => string;
     getLastRun: (job: GlobalJob) => LastRun | undefined;
@@ -66,12 +66,8 @@ export const JobList = ({
             showNewJobButton={empty.kind !== 'allOffline'}
             onEditJob={onEditJob}
             onCreateJob={onCreateJob}
-            onTriggerJob={(job) => {
-                if (job.clientId && job.id) onTriggerJob(job.clientId, job.id);
-            }}
-            onDeleteJob={(job) => {
-                if (job.clientId && job.id) onDeleteJob(job.clientId, job.id);
-            }}
+            onTriggerJob={onTriggerJob}
+            onDeleteJob={onDeleteJob}
             getClientStatus={getClientStatus}
             getClientName={getClientName}
             getLastRun={getLastRun}

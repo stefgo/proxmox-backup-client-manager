@@ -1,8 +1,9 @@
-import { Navigate, type RouteObject } from 'react-router-dom';
+import type { RouteObject } from 'react-router-dom';
 import {
     Activity,
     HardDrive,
     Key,
+    LayoutDashboard,
     Monitor,
     Server as ServerIcon,
     Settings as SettingsIcon,
@@ -15,6 +16,7 @@ import { ROUTES } from '../../lib/paths';
 import type { TitleHandle } from '../../lib/pageTitle';
 import { RouteError } from './RouteError';
 import {
+    DashboardOverview,
     HistoryOverview,
     ManagedJobs,
     Settings,
@@ -84,7 +86,12 @@ const JOB: RouteHandle = { subject: 'job', title: 'Job' };
  *   `subject` a route is about, the `title` of a form.
  */
 export const shellRoutes: RouteObject[] = [
-    { path: ROUTES.root, element: <Navigate to={ROUTES.clients} replace /> },
+    {
+        path: ROUTES.dashboard,
+        handle: nav({ id: 'dashboard', groupId: 'resources', label: 'Dashboard', icon: LayoutDashboard }),
+        errorElement: <RouteError />,
+        element: <DashboardOverview />,
+    },
     {
         path: ROUTES.clients,
         handle: nav({ id: 'clients', groupId: 'resources', label: 'Clients', icon: Monitor }),

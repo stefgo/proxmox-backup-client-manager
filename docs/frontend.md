@@ -72,7 +72,7 @@ shell.
 | Path                                    | Component               | Description                                     |
 | :-------------------------------------- | :---------------------- | :---------------------------------------------- |
 | `/login`                                | `Login`                 | Authentication page (local & OIDC).             |
-| `/`                                     | —                       | Redirects to `/clients`.                        |
+| `/`                                     | `DashboardOverview`     | The dashboard: three counts and what needs attention. First in the sidebar, and where the login lands. |
 | `/clients`                              | `ManagedClients`        | Client list.                                    |
 | `/clients/new`                          | `AddClientWizard`       | Adds a client, starting with the connection mode. |
 | `/clients/:clientId`                    | `ClientOverview`        | Detail view of a client; `?tab=` names the open tab. |
@@ -305,6 +305,36 @@ where its data lives:
 
 The tab lists every run, restores included; `clientTab(clientId, 'history')` in
 `lib/paths.ts` is the link the notice of a started restore uses.
+
+### The dashboard (`features/dashboard`)
+
+`/` is a page of its own, `DashboardOverview`. It reads only what the shell has cached
+anyway, plus one page of the history.
+
+- **Three `StatCard`s**, each the way to its list: "Hosts online" (`/clients`),
+  "Repositories online" (`/repositories`), "Jobs active" (`/jobs`). The numbers come from
+  `lib/dashboard.ts` -- `clientCount`, `repositoryCount`, `activeJobCount` -- and
+  `AppLayout` builds the sidebar's badges from the same functions, so a card and its
+  badge cannot disagree. "Jobs active" is the jobs on online clients; there is no total,
+  because the server knows a client's jobs only while its agent is connected.
+- **Errors / Warnings**, which holds only what needs attention:
+    - **Missed Jobs** -- `missedJobs`: the schedule is on, `nextRunAt` is past by more
+      than `MISSED_GRACE_MS` (a minute; the agent starts a due job on its next tick), the
+      client is online, and no run of the job is under way or queued. The rows the job
+      list shows as "Pending". Rendered with `BaseJobList`, so a missed job can be started
+      or opened from here; the card is absent while there is none. The page moves its
+      "now" every 30 seconds -- a job turns missed by the clock, with no message to say so.
+    - **Failed Runs** -- `useGlobalHistory` with `status=failed`, in `BaseHistoryList`,
+      paged by the server. Its key lies below `queryKeys.history.lists()`, which every
+      `JOB_UPDATE` marks stale, so a new failure appears without a rule of its own.
+    - Neither: one `EmptyState`, "No errors or warnings".
+
+Opening the dashboard does not mark the failures as seen; the dot on "History" stays
+until the history itself was opened.
+
+`useGlobalJobActions` (`features/jobs/hooks`) holds what a row of jobs across all clients
+can do -- start, delete after asking, name its client -- for the job page and the
+dashboard's list alike.
 
 ### Aborting a run (`hooks/useAbortRunAction.ts`)
 

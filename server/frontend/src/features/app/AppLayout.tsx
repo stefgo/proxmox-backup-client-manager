@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useMemo } from 'react';
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router-dom';
 import { ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider } from '@stefgo/react-ui-components';
-import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
 
 import { useTheme } from './context/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
@@ -9,6 +8,7 @@ import { useWebSocket } from './context/WebSocketContext';
 import { navEntries, type RouteHandle } from './routes';
 import { ROUTES } from '../../lib/paths';
 import { APP_NAME, routeTitle, type TitleSubject } from '../../lib/pageTitle';
+import { activeJobCount, clientCount, formatOnlineCount, repositoryCount } from '../dashboard/lib/dashboard';
 
 // Hooks, queries & stores
 import { useClients } from '../../queries/clients';
@@ -83,25 +83,14 @@ export function AppLayout() {
         };
     }, [title]);
 
-    // Stats
+    // The same counts the dashboard's cards show, from the same functions.
     const stats = useMemo(
         () => ({
-            clients: {
-                active: clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).length,
-                total: clients.length,
-            },
-            repositories: {
-                active: repos.filter((r) => r.status === REPOSITORY_STATUS.ONLINE).length,
-                total: repos.length,
-            },
+            clients: formatOnlineCount(clientCount(clients)),
+            repositories: formatOnlineCount(repositoryCount(repos)),
             // Only the active count: the total counted the same cache, so on an
             // offline client both halves read the same number and said nothing.
-            jobs: {
-                active: globalJobs.filter((j) => {
-                    const client = clients.find((c) => c.id === j.clientId);
-                    return client?.status === CLIENT_STATUS.ONLINE;
-                }).length,
-            },
+            jobs: String(activeJobCount(globalJobs, clients)),
         }),
         [clients, repos, globalJobs],
     );
@@ -137,9 +126,9 @@ export function AppLayout() {
     // What is added here is what only the running application knows.
     const pages: DashboardPage[] = useMemo(() => {
         const live: Record<string, Partial<PageNav>> = {
-            clients: { badge: `${stats.clients.active} / ${stats.clients.total}` },
-            repositories: { badge: `${stats.repositories.active} / ${stats.repositories.total}` },
-            jobs: { badge: `${stats.jobs.active}` },
+            clients: { badge: stats.clients },
+            repositories: { badge: stats.repositories },
+            jobs: { badge: stats.jobs },
             history: { badgeDot: unseenFailures, badgeTone: unseenFailures ? 'error' : undefined },
         };
 

@@ -10,7 +10,9 @@ import { generatePath } from 'react-router-dom';
  */
 export const ROUTES = {
     login: '/login',
-    root: '/',
+    // The dashboard is the root itself: where the login lands, and where "not found"
+    // leads back to.
+    dashboard: '/',
 
     clients: '/clients',
     clientNew: '/clients/new',
