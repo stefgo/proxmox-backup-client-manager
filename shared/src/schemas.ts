@@ -30,6 +30,17 @@ export const RepositorySchema = z.object({
 });
 
 /**
+ * `POST /api/v1/repositories` and `PUT /api/v1/repositories/:repositoryId` -- what the
+ * repository editor sends. The secret is optional here and only here: it is never sent to
+ * the browser, so an update carries one only to change it, and one without keeps what is
+ * stored. Creating requires it; the controller says so, since only it knows which of the
+ * two it is.
+ */
+export const RepositoryInputSchema = RepositorySchema.extend({
+    secret: z.string().optional(),
+});
+
+/**
  * A single IPv4 address or an IPv4 network in CIDR notation.
  *
  * Only v4: the pin is checked with `isIpInCidr` on the server, which works on

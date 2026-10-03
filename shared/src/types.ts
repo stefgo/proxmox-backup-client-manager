@@ -19,6 +19,7 @@ import {
     BackupJobSchema,
     JobSchema,
     RestoreJobSchema,
+    RepositoryInputSchema,
     RepositorySchema,
     RegistrationPayloadSchema,
     RegistrationResponseSchema,
@@ -97,11 +98,8 @@ export type RegistrationResponse = z.infer<typeof RegistrationResponseSchema>;
 
 export type Repository = z.infer<typeof RepositorySchema>;
 
-/**
- * What the repository editor sends. The secret is in it only to set or change it: an
- * update without one keeps the stored secret.
- */
-export type RepositoryInput = Partial<Repository>;
+/** What the repository editor sends; see `RepositoryInputSchema`. */
+export type RepositoryInput = z.input<typeof RepositoryInputSchema>;
 
 /** A client as the server sends it; see `ClientViewSchema` for why that is not `ClientSchema`. */
 export type Client = z.infer<typeof ClientViewSchema>;

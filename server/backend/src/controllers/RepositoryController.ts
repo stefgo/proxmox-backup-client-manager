@@ -5,7 +5,7 @@ import {
     CLIENT_STATUS,
     REPOSITORY_STATUS,
     BackupJob,
-    RepositorySchema,
+    RepositoryInputSchema,
     PbsSnapshotListSchema,
     normalizeFingerprint,
     firstIssue,
@@ -248,7 +248,7 @@ export class RepositoryController {
     static async create(request: FastifyRequest, reply: FastifyReply) {
         // The full shape, not a partial one: RepositoryEditor checks the same four
         // required fields before it submits and always sends the whole set.
-        const parsed = RepositorySchema.safeParse(request.body);
+        const parsed = RepositoryInputSchema.safeParse(request.body);
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
@@ -277,7 +277,7 @@ export class RepositoryController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { repositoryId } = request.params as { repositoryId: string };
-        const parsed = RepositorySchema.safeParse(request.body);
+        const parsed = RepositoryInputSchema.safeParse(request.body);
         if (!parsed.success) {
             return reply.code(400).send({ error: firstIssue(parsed.error) });
         }
