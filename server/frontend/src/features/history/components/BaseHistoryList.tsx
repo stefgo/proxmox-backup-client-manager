@@ -134,8 +134,7 @@ export const BaseHistoryList = ({
                 const isExpanded = expandedIds.has(item.id);
                 // The kind a webhook filter and `{{event.kind}}` know this run by, once it has ended.
                 const eventKind = jobRunEventKind(item.status);
-                const { duration, size } = runSummary(item);
-                const facts = [duration, size].filter((fact) => fact !== null);
+                const summary = runSummary(item);
                 return (
                     <div className="w-full">
                         <div className="group">
@@ -174,10 +173,14 @@ export const BaseHistoryList = ({
                                             <Tag size={10} /> {eventKind}
                                         </span>
                                     )}
-                                    {/* What the run came to, where the eye already is. */}
-                                    {facts.length > 0 && <span>{facts.join(' · ')}</span>}
+                                    {/* What the backup left behind, where the eye already is. */}
+                                    {summary.size && <span>{summary.size}</span>}
                                 </span>
-                                <span className="font-mono shrink-0">{formatDate(item.startTime)}</span>
+                                {/* When and how long, as one statement -- the way the job
+                                    list's "Last Run" reads. */}
+                                <span className="shrink-0">
+                                    {[formatDate(item.startTime), summary.duration].filter(Boolean).join(' · ')}
+                                </span>
                             </div>
                         </div>
                         {isExpanded && (

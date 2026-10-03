@@ -311,9 +311,9 @@ The tab lists every run, restores included; `clientTab(clientId, 'history')` in
 Every history list — "Recent Activity" of a client, the History page, "Last Activity" under
 Jobs — renders through `BaseHistoryList`, so the following holds in all of them:
 
-- **What a row says unopened.** Below the name: the event kind, then how long the run took
-  and, for a successful backup, the size of its snapshot (`features/history/lib/runSummary.ts`).
-  A run still going has no duration. The run id is in the expanded row, above the output —
+- **What a row says unopened.** Below the name: the event kind and, for a successful backup,
+  the size of its snapshot; at the right the start and how long the run took, as one
+  statement (`features/history/lib/runSummary.ts`). A run still going has no duration. The run id is in the expanded row, above the output —
   it is looked up, not scanned.
 - **The client's name is a link** to its page (`components/EntityLink`), wherever the list
   shows one. A run outlives its client; one whose client is gone reads *Unknown Client* and
