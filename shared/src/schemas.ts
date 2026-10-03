@@ -241,6 +241,18 @@ export const TargetAddressSchema = z
         error: "Must be a host or host:port, without scheme, path or credentials",
     });
 
+/**
+ * `PUT /api/v1/clients/:clientId` -- what the client editor may change. Every key is
+ * optional, and an absent one leaves the stored value alone. Which of the two addresses a
+ * client has at all follows from its connection mode; the controller decides that against
+ * the stored row, which a schema cannot see.
+ */
+export const ClientUpdateSchema = z.object({
+    displayName: ClientSchema.shape.displayName,
+    outboundTargetAddress: TargetAddressSchema.optional(),
+    inboundAllowedIp: ClientSchema.shape.inboundAllowedIp,
+});
+
 /** `POST /api/v1/clients/outbound`. */
 export const CreateOutboundClientSchema = z.object({
     outboundTargetAddress: TargetAddressSchema,
@@ -279,6 +291,24 @@ export const TunnelConfigSchema = z.object({
     privateKey: z.string().min(1),
     passphrase: z.string().optional(),
     hostKeySha256: z.string().min(1),
+});
+
+/**
+ * `POST /api/v1/clients/:clientId/tunnel`. Everything is required: there is no
+ * half-configured tunnel worth storing.
+ */
+export const TunnelCreateSchema = TunnelConfigSchema;
+
+/**
+ * `PUT /api/v1/clients/:clientId/tunnel`. Every field optional -- the repository builds
+ * its UPDATE from the keys that are present, so an absent one means "leave it alone".
+ *
+ * `passphrase` is the exception that has to be spelled out: `null` is a value here, not a
+ * missing field. It is how a key that no longer has a passphrase gets its stored one
+ * cleared, and `.partial()` alone would not allow it through.
+ */
+export const TunnelUpdateSchema = TunnelConfigSchema.partial().extend({
+    passphrase: z.string().nullable().optional(),
 });
 
 export const ScheduleConfigSchema = z.object({

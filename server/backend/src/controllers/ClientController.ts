@@ -4,9 +4,8 @@ import { ProxyService } from "../services/ProxyService.js";
 import {
     WS_EVENTS,
     CONNECTION_MODE,
-    ClientSchema,
+    ClientUpdateSchema,
     CreateOutboundClientSchema,
-    normaliseTargetAddress,
     type ReconnectResult,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
@@ -146,11 +145,7 @@ export class ClientController {
 
     static async update(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
-        const parsed = ClientSchema.pick({
-            displayName: true,
-            outboundTargetAddress: true,
-            inboundAllowedIp: true,
-        }).safeParse(request.body);
+        const parsed = ClientUpdateSchema.safeParse(request.body);
         if (!parsed.success) {
             return reply
                 .code(400)
@@ -163,19 +158,12 @@ export class ClientController {
             return reply.code(404).send({ error: "Client not found" });
         }
 
-        let address: string | undefined;
-        if (body.outboundTargetAddress !== undefined) {
-            if (client.connection_mode !== CONNECTION_MODE.OUTBOUND) {
-                return reply.code(400).send({
-                    error: "Only outbound clients have a target address",
-                });
-            }
-            address = normaliseTargetAddress(body.outboundTargetAddress) ?? undefined;
-            if (!address) {
-                return reply.code(400).send({
-                    error: "Must be a host or host:port, without scheme, path or credentials",
-                });
-            }
+        // Already `host:port`: the schema normalises the value it accepts.
+        const address = body.outboundTargetAddress;
+        if (address !== undefined && client.connection_mode !== CONNECTION_MODE.OUTBOUND) {
+            return reply.code(400).send({
+                error: "Only outbound clients have a target address",
+            });
         }
 
         if (body.inboundAllowedIp !== undefined) {

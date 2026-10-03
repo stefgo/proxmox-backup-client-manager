@@ -3,7 +3,12 @@ import { FastifyReply, FastifyRequest } from "fastify";
 // unlike `Client` — so it has to come off the default export.
 import ssh2 from "ssh2";
 import { z } from "zod";
-import { TunnelConfigSchema, firstIssue } from "@pbcm/shared";
+import {
+    TunnelConfigSchema,
+    TunnelCreateSchema,
+    TunnelUpdateSchema,
+    firstIssue,
+} from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientTunnelRepository } from "../repositories/ClientTunnelRepository.js";
 import { TunnelService } from "../services/TunnelService.js";
@@ -12,24 +17,10 @@ import { ProxyService } from "../services/ProxyService.js";
 // Request bodies for the tunnel endpoints.
 //
 // Derived from `TunnelConfigSchema` rather than restated, so the field rules -- a port is
-// 1..65535, a host is not the empty string -- are written down once. They live here and
-// not in `@pbcm/shared` because they describe what these HTTP handlers accept; the agent
-// never sees them, and the private key deliberately never leaves the backend.
-
-/** Everything is required: there is no half-configured tunnel worth storing. */
-const TunnelCreateSchema = TunnelConfigSchema;
-
-/**
- * Every field optional -- the repository builds its UPDATE from the keys that are present,
- * so an absent one means "leave it alone".
- *
- * `passphrase` is the exception that has to be spelled out: `null` is a value here, not a
- * missing field. It is how a key that no longer has a passphrase gets its stored one
- * cleared, and `.partial()` alone would not allow it through.
- */
-const TunnelUpdateSchema = TunnelConfigSchema.partial().extend({
-    passphrase: z.string().nullable().optional(),
-});
+// 1..65535, a host is not the empty string -- are written down once. The two a form is
+// saved with, `TunnelCreateSchema` and `TunnelUpdateSchema`, are in `@pbcm/shared`, where
+// the dashboard checks its draft against them. The rest describe what only these handlers
+// accept and stay here.
 
 /** A test against credentials supplied in the request, before anything is stored. */
 const TunnelTestSchema = TunnelConfigSchema.omit({
