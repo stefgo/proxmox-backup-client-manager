@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Folder, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Client, ManagedRepository as Repository } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
-import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
+import { useClientFiles } from '../../../queries/fileSystem';
 import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-components';
-import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { api, ApiError } from '../../../lib/api';
@@ -37,7 +36,6 @@ const initialClientId = (snapshot: Snapshot, selectedClient: Client | undefined,
 };
 
 export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPTY_CLIENTS, selectedClient }: SnapshotRestoreEditorProps) => {
-    const { isAuthenticated } = useAuth();
     const [selectedClientId, setSelectedClientId] = useState<string>(() => initialClientId(snapshot, selectedClient, clients, ''));
     // ClientSelect only opens its list when it is told to. Without this state the
     // "Set Client" button had nothing to call and the preselected client was final.
@@ -61,8 +59,6 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     // triggering it a second time. The message doubles as the button's lock.
     const [message, setMessage] = useState<string | null>(null);
 
-    // Use Global Store for File Browser
-    const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
 
     // The client can still be swapped in the form, so the offer follows the selection and
     // not the client this editor was opened for.
@@ -89,12 +85,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
         setSelectedArchives(restorableArchives(snapshot));
     }
 
-    // Fetch files when path or client changes
-    useEffect(() => {
-        if (selectedClientId && isAuthenticated) {
-            fetchFileList(selectedClientId, browserPath);
-        }
-    }, [selectedClientId, browserPath, isAuthenticated, fetchFileList]);
+    // The directory the browser shows, on the client the restore goes to.
+    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(selectedClientId, browserPath);
 
     const handleRestore = async () => {
         setError(null);

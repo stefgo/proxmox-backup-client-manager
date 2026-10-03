@@ -3,7 +3,7 @@ import { JOB_STATUS } from '@pbcm/shared';
 import { useToast } from '@stefgo/react-ui-components';
 import { subscribe } from '../lib/realtimeEvents';
 import { getCachedClient } from '../queries/clients';
-import { useHistorySeenStore } from '../stores/useHistorySeenStore';
+import { noteHistoryFailure } from '../queries/history';
 
 /** The states a run ends in. `skipped` is left out: nothing ran, so there is nothing to report. */
 const FINISHED: readonly string[] = [JOB_STATUS.SUCCESS, JOB_STATUS.FAILED, JOB_STATUS.ABORTED];
@@ -53,7 +53,7 @@ export function useJobResultToasts(): void {
             reported.add(job.id);
 
             if (job.status === JOB_STATUS.FAILED) {
-                useHistorySeenStore.getState().noteFailure(job.endTime);
+                noteHistoryFailure(job.endTime);
             }
             if (job.endTime < loadedAt) return;
 

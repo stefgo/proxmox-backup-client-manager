@@ -1,4 +1,4 @@
-import { ReactNode, Suspense, lazy, useMemo, useEffect } from 'react';
+import { ReactNode, Suspense, lazy, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
@@ -32,7 +32,7 @@ import { queryKeys } from '../../lib/queryKeys';
 import { useAddRepository, useDeleteRepository, useRepositories, useUpdateRepository } from '../../queries/repositories';
 import { useGlobalJobs } from '../../queries/jobs';
 import { useUIStore } from '../../stores/useUIStore';
-import { useHistorySeenStore } from '../../stores/useHistorySeenStore';
+import { useUnseenFailures } from '../../queries/history';
 import { useJobResultToasts } from '../../hooks/useJobResultToasts';
 
 // Page components – loaded on demand, so a chunk only arrives when its route does.
@@ -68,7 +68,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 // ---------------------------------------------------------------------------
 // Routes
 //
-// Each route pulls what it needs from the stores itself. AppLayout used to hold
+// Each route pulls what it needs from the query cache itself. AppLayout used to hold
 // the selected client and repository for every page at once; now only the route
 // that shows them does.
 // ---------------------------------------------------------------------------
@@ -282,10 +282,9 @@ function NotFound() {
 }
 
 function AppLayout() {
-    const { isAuthenticated, username, logout } = useAuth();
+    const { username, logout } = useAuth();
     const connection = useWebSocket();
     const isLost = connection?.isLost ?? false;
-    const resyncKey = connection?.resyncKey ?? 0;
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -297,20 +296,11 @@ function AppLayout() {
     const { clients } = useClients();
     const { repositories: repos } = useRepositories();
     const { jobs: globalJobs } = useGlobalJobs();
-    const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
     // Not on the history page itself: what fails there is in view as it arrives.
-    const unseenFailures = useHistorySeenStore((s) => s.unseenFailed > 0) && path !== '/history';
+    const unseenFailures = useUnseenFailures() && path !== '/history';
 
     // In the shell rather than a page: a run outlives the page it was started from.
     useJobResultToasts();
-
-    // Initial fetch, and again after a reconnect: what the server pushed while the socket
-    // was down is lost, and only CLIENTS_UPDATE is sent again on connect.
-    useEffect(() => {
-        if (isAuthenticated) {
-            fetchSeen();
-        }
-    }, [isAuthenticated, resyncKey, fetchSeen]);
 
     // Stats
     const stats = useMemo(

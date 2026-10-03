@@ -3,13 +3,20 @@ import { useAuth } from '../../auth/AuthContext';
 import { queryClient } from '../../../lib/queryClient';
 import { JOB_STATUS } from '@pbcm/shared';
 import { queryKeys } from '../../../lib/queryKeys';
-import { applyRunToLatest, mergeTunnelState, replaceClientJobs, setJobNextRun, upsertRun } from '../../../lib/cacheUpdates';
+import {
+    applyRunToLatest,
+    applySchedulerUpdate,
+    mergeTunnelState,
+    replaceClientJobs,
+    setJobNextRun,
+    upsertRun,
+} from '../../../lib/cacheUpdates';
 import { clientListOptions, getCachedClient } from '../../../queries/clients';
 import { globalJobsOptions, latestPerJobOptions } from '../../../queries/jobs';
 import { clientHistoryOptions, clientJobsOptions } from '../../../queries/clientDetail';
-import { useSchedulerStore } from '../../../stores/useSchedulerStore';
-import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
-import { useWebhookStore } from '../../../stores/useWebhookStore';
+import { historySeenOptions } from '../../../queries/history';
+import { schedulerStatusOptions } from '../../../queries/scheduler';
+import { webhookListOptions } from '../../../queries/webhooks';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
 import { assertNever, createDashboardMessageReader, historyUpdateFrom } from '../lib/dashboardMessages';
@@ -37,7 +44,6 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     }, [username]);
     const [isConnected, setIsConnected] = useState(false);
     const [isLost, setIsLost] = useState(false);
-    const [resyncKey, setResyncKey] = useState(0);
     const socketRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -80,10 +86,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 // What the server pushed while the socket was down is lost, and only
                 // CLIENTS_UPDATE is sent again on connect. Everything on screen is read
                 // again; the rest is marked stale and read when it is next shown.
-                if (hasConnected) {
-                    queryClient.invalidateQueries();
-                    setResyncKey((key) => key + 1);
-                }
+                if (hasConnected) queryClient.invalidateQueries();
                 hasConnected = true;
                 if (reconnectTimeoutRef.current) {
                     clearTimeout(reconnectTimeoutRef.current);
@@ -172,20 +175,23 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // Every dashboard receives every user's; only this user's own concerns this tab.
                     case 'HISTORY_SEEN':
                         if (message.payload.username === usernameRef.current) {
-                            useHistorySeenStore.getState().applySeen(message.payload);
+                            const { seenAt, unseenFailed } = message.payload;
+                            queryClient.setQueryData(historySeenOptions.queryKey, { seenAt, unseenFailed });
                         }
                         break;
 
-                    // No payload: the list changed, and only a page that has loaded it re-reads it.
+                    // No payload: the list changed. A page that shows it reads it again
+                    // now; otherwise it is only marked stale for the next one that does.
                     case 'WEBHOOKS_UPDATE':
-                        if (useWebhookStore.getState().loaded) {
-                            useWebhookStore.getState().fetchWebhooks();
-                        }
+                        queryClient.invalidateQueries({ queryKey: webhookListOptions.queryKey });
                         break;
 
                     // One scheduler at a time, whenever a run starts or ends or its timer moves.
                     case 'SCHEDULER_STATUS_UPDATE':
-                        useSchedulerStore.getState().applyUpdate(message.payload);
+                        queryClient.setQueryData(
+                            schedulerStatusOptions.queryKey,
+                            (schedulers) => schedulers && applySchedulerUpdate(schedulers, message.payload),
+                        );
                         break;
 
                     // Does not compile while a member of DashboardMessage has no case above.
@@ -246,7 +252,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     }, [isAuthenticated]);
 
     return (
-        <WebSocketContext.Provider value={{ isConnected, isLost, resyncKey }}>
+        <WebSocketContext.Provider value={{ isConnected, isLost }}>
             {children}
         </WebSocketContext.Provider>
     );

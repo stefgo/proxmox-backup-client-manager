@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { GlobalHistorySchema, JOB_STATUS } from '@pbcm/shared';
+import { useEffect, useMemo } from 'react';
+import { JOB_STATUS } from '@pbcm/shared';
 import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
-import { useAuth } from '../../auth/AuthContext';
-import { useResyncKey } from '../../app/context/WebSocketContext';
 import { BaseHistoryList, BaseHistoryItem } from './BaseHistoryList';
-import { api, ApiError } from '../../../lib/api';
-import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
+import { ApiError } from '../../../lib/api';
+import { markHistorySeen, useGlobalHistory } from '../../../queries/history';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE } from '../../../components/listDefaults';
 
+const NO_HISTORY: BaseHistoryItem[] = [];
+
 export const HistoryOverview = () => {
-    const { isAuthenticated } = useAuth();
-    const resyncKey = useResyncKey();
-    const [history, setHistory] = useState<BaseHistoryItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const markSeen = useHistorySeenStore((s) => s.markSeen);
+    // Read again after a reconnect like everything else in the cache: runs that ended
+    // while the socket was down never arrived.
+    const { data: history = NO_HISTORY, isPending, error } = useGlobalHistory();
     // In the URL, so a link from the failure dot or a colleague lands on the same view.
     const [status, setStatus] = useSearchQueryParam('status');
     const failedOnly = status === JOB_STATUS.FAILED;
@@ -27,30 +24,13 @@ export const HistoryOverview = () => {
     // Seen on the way in and again on the way out: a failure that arrives while the page
     // is open appears in it, so it has been seen as well.
     useEffect(() => {
-        markSeen();
+        markHistorySeen();
         return () => {
-            markSeen();
+            markHistorySeen();
         };
-    }, [markSeen]);
+    }, []);
 
-    useEffect(() => {
-        const fetchHistory = async () => {
-            if (!isAuthenticated) return;
-            try {
-                setHistory(await api.get('/api/v1/history?limit=1000', GlobalHistorySchema));
-            } catch (e) {
-                // A refusal is the server's answer; anything else never got one.
-                setError(e instanceof ApiError ? 'Failed to fetch history' : 'An error occurred while fetching history');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchHistory();
-        // Again after a reconnect: runs that ended while the socket was down never arrived.
-    }, [isAuthenticated, resyncKey]);
-
-    if (loading) {
+    if (isPending) {
         return <LoadingIndicator label="Loading history…" />;
     }
 
@@ -58,7 +38,8 @@ export const HistoryOverview = () => {
         return (
             <div className="p-6">
                 <div className="bg-error-bg text-error p-4 rounded-md">
-                    {error}
+                    {/* A refusal is the server's answer; anything else never got one. */}
+                    {error instanceof ApiError ? 'Failed to fetch history' : 'An error occurred while fetching history'}
                 </div>
             </div>
         );

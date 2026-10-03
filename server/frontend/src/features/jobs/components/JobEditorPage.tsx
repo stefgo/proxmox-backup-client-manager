@@ -3,12 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BackupJob } from '@pbcm/shared';
 import { useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
-import { useAuth } from '../../auth/AuthContext';
 import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { useJobForm } from '../../clients/hooks/useJobForm';
 import { useClients } from '../../../queries/clients';
-import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
+import { useClientFiles } from '../../../queries/fileSystem';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../lib/queryKeys';
 import { useRepositories } from '../../../queries/repositories';
@@ -43,10 +42,8 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     // page says where back is; a directly opened URL falls back to its own list.
     const back = (location.state as { from?: string } | null)?.from ?? fallbackBack;
 
-    const { isAuthenticated } = useAuth();
     const { clients } = useClients();
     const { repositories } = useRepositories();
-    const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
     const queryClient = useQueryClient();
 
     const [selectedClientId, setSelectedClientId] = useState(lockedClientId ?? '');
@@ -88,12 +85,10 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
         }
     });
 
-    const { fileBrowserPath } = jobForm;
-    useEffect(() => {
-        if (isAuthenticated && selectedClientId) {
-            fetchFileList(selectedClientId, fileBrowserPath);
-        }
-    }, [isAuthenticated, selectedClientId, fileBrowserPath, fetchFileList]);
+    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(
+        selectedClientId,
+        jobForm.fileBrowserPath,
+    );
 
     /**
      * Leaving asks first while the form holds unsaved work — the exit sits a few pixels

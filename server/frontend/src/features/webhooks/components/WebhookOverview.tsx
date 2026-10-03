@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Webhook } from '@pbcm/shared';
 import { useConfirm } from '@stefgo/react-ui-components';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
-import { useWebhookStore } from '../../../stores/useWebhookStore';
+import { useWebhooks, webhookListOptions } from '../../../queries/webhooks';
 import { describeDeleteWebhook } from '../confirmations';
 import { WebhookList } from './WebhookList';
 
@@ -12,14 +13,13 @@ export const WebhookOverview = () => {
     const navigate = useNavigate();
     const { pathname, search } = useLocation();
     const { confirm } = useConfirm();
-    const { webhooks, loaded, fetchWebhooks } = useWebhookStore();
+    // Kept current by WEBHOOKS_UPDATE, which invalidates the list.
+    const { webhooks, isPending } = useWebhooks();
+    const queryClient = useQueryClient();
+    /** Resolves once the list has been read again. */
+    const reload = () => queryClient.invalidateQueries({ queryKey: webhookListOptions.queryKey });
     /** The switch moves at once, before the server has answered. */
     const [pendingEnabled, setPendingEnabled] = useState<Record<string, boolean>>({});
-
-    // Kept current by WEBHOOKS_UPDATE from here on.
-    useEffect(() => {
-        fetchWebhooks();
-    }, [fetchWebhooks]);
 
     // The editor goes back to where it was opened from, search included.
     const open = (to: string) => navigate(to, { state: { from: pathname + search } });
@@ -29,7 +29,7 @@ export const WebhookOverview = () => {
             ...describeDeleteWebhook(webhook.name),
             onConfirm: async () => {
                 await api.delete(`/api/v1/webhooks/${webhook.id}`, { fallback: 'Failed to delete the webhook' });
-                await fetchWebhooks();
+                await reload();
             },
         });
 
@@ -42,7 +42,7 @@ export const WebhookOverview = () => {
         } catch (e) {
             console.error(e);
         } finally {
-            await fetchWebhooks();
+            await reload();
             setPendingEnabled((p) => {
                 const next = { ...p };
                 delete next[webhook.id];
@@ -57,7 +57,7 @@ export const WebhookOverview = () => {
         <div className="space-y-6">
             <WebhookList
                 webhooks={shown}
-                isLoading={!loaded}
+                isLoading={isPending}
                 onAdd={() => open('/webhooks/new')}
                 onEdit={(webhook) => open(`/webhooks/${webhook.id}`)}
                 onDelete={requestDelete}

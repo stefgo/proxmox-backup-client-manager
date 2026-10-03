@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Save, Settings as SettingsIcon } from 'lucide-react';
 import {
     Button,
@@ -27,23 +28,8 @@ import {
     settingsFrom,
 } from '../features/settings/sections';
 import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
-import { useSchedulerStore } from '../stores/useSchedulerStore';
-import { useResyncKey } from '../features/app/context/WebSocketContext';
-import { SchedulerStatusResponseSchema, SettingsResponseSchema, type SchedulerStatuses } from '@pbcm/shared';
-
-interface SchedulerStatusResponse {
-    schedulers?: Partial<SchedulerStatuses>;
-}
-
-/** Loads the scheduler status without touching state; null when it cannot be read. */
-async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null> {
-    try {
-        return await api.get('/api/v1/settings/scheduler-status', SchedulerStatusResponseSchema);
-    } catch (e) {
-        console.error('Failed to fetch scheduler status:', e);
-        return null;
-    }
-}
+import { schedulerStatusOptions } from '../queries/scheduler';
+import { SettingsResponseSchema } from '@pbcm/shared';
 
 // The tab fills the sidebar's width, so the ring is drawn inside it -- an outward one would
 // be clipped by the panel border next to it.
@@ -84,17 +70,12 @@ export default function Settings() {
         orientation: 'vertical',
     });
 
-    const setSchedulers = useSchedulerStore((s) => s.setSchedulers);
+    const queryClient = useQueryClient();
 
-    // Split into a request that touches no state and a function that applies its answer:
-    // the effect below may only set state once the response is there, and a save loads the
-    // status again afterwards. The store setter is stable.
-    const applySchedulerStatus = useCallback((data: SchedulerStatusResponse) => {
-        if (data.schedulers) setSchedulers(data.schedulers);
-    }, [setSchedulers]);
-
-    // Settings and scheduler status are loaded once, inside the effect. isLoading starts
-    // out true, so the load only ever has to lower it.
+    // Loaded once, into the draft. Deliberately not a cache entry: the reconnect that
+    // invalidates the cache would read the settings again and overwrite what is typed and
+    // not yet saved. The scheduler status below the fields is one, and follows the socket.
+    // isLoading starts out true, so the load only ever has to lower it.
     useEffect(() => {
         if (!isAuthenticated) return;
         let cancelled = false;
@@ -102,9 +83,9 @@ export default function Settings() {
             try {
                 const data = await api.get('/api/v1/settings/cleanup', SettingsResponseSchema);
                 if (!cancelled) {
-                    const loaded = { ...DEFAULT_SETTINGS, ...settingsFrom(data) };
-                    setSaved(loaded);
-                    setDraft(loaded);
+                    const initial = { ...DEFAULT_SETTINGS, ...settingsFrom(data) };
+                    setSaved(initial);
+                    setDraft(initial);
                 }
             } catch (e) {
                 console.error('Failed to fetch settings:', e);
@@ -113,27 +94,10 @@ export default function Settings() {
             }
         };
         loadSettings();
-        requestSchedulerStatus().then((data) => {
-            if (!cancelled && data) applySchedulerStatus(data);
-        });
         return () => {
             cancelled = true;
         };
-    }, [isAuthenticated, applySchedulerStatus]);
-
-    // After a reconnect only the scheduler status is loaded again. The settings are left
-    // alone: loading them would overwrite what is typed and not yet saved.
-    const resyncKey = useResyncKey();
-    useEffect(() => {
-        if (resyncKey === 0) return;
-        let cancelled = false;
-        requestSchedulerStatus().then((data) => {
-            if (!cancelled && data) applySchedulerStatus(data);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [resyncKey, applySchedulerStatus]);
+    }, [isAuthenticated]);
 
     const change = (key: string, value: string) => setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -146,8 +110,7 @@ export default function Settings() {
             setSaved((prev) => ({ ...prev, ...body }));
             show({ variant: 'success', title: `${section.label} saved` });
             // A changed interval moves the next scheduled run.
-            const status = await requestSchedulerStatus();
-            if (status) applySchedulerStatus(status);
+            queryClient.invalidateQueries({ queryKey: schedulerStatusOptions.queryKey });
         } catch (e: unknown) {
             alert(describeFailure('Could not save the settings', e));
         } finally {

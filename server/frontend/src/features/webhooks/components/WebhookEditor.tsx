@@ -23,7 +23,8 @@ import {
 import { api } from '../../../lib/api';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { NotFoundCard } from '../../../components/NotFoundCard';
-import { useWebhookStore } from '../../../stores/useWebhookStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWebhooks, webhookListOptions } from '../../../queries/webhooks';
 import { describeDiscardWebhookChanges } from '../confirmations';
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from '../lib/webhookForm';
 
@@ -34,14 +35,10 @@ import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type Webh
  */
 export const WebhookEditorRoute = () => {
     const { webhookId } = useParams();
-    const { webhooks, loaded, fetchWebhooks } = useWebhookStore();
-
-    useEffect(() => {
-        if (webhookId) fetchWebhooks();
-    }, [webhookId, fetchWebhooks]);
+    const { webhooks, isPending } = useWebhooks();
 
     if (!webhookId) return <WebhookEditor webhook={null} />;
-    if (!loaded) return <LoadingIndicator label="Loading webhook…" />;
+    if (isPending) return <LoadingIndicator label="Loading webhook…" />;
     const webhook = webhooks.find((w) => w.id === webhookId);
     if (!webhook) {
         return (
@@ -66,6 +63,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const { confirm } = useConfirm();
+    const queryClient = useQueryClient();
     const back = (location.state as { from?: string } | null)?.from ?? '/webhooks';
 
     const [initial] = useState<WebhookDraft>(() => (webhook ? draftFrom(webhook) : EMPTY_DRAFT));
@@ -110,6 +108,8 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
             const input = inputFrom(draft);
             if (webhook) await api.put(`/api/v1/webhooks/${webhook.id}`, input);
             else await api.post('/api/v1/webhooks', input);
+            // Not awaited: the list this returns to reads it again as it mounts.
+            queryClient.invalidateQueries({ queryKey: webhookListOptions.queryKey });
             navigate(back);
         } catch (err: unknown) {
             setError(getErrorMessage(err));
