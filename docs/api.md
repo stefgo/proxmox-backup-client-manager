@@ -31,6 +31,7 @@
     - [Delete Job](#delete-job)
     - [Run Backup](#run-backup)
     - [Trigger Restore](#trigger-restore)
+    - [Abort Run](#abort-run)
 - [Global Data Views](#-global-data-views)
     - [List All Jobs](#list-all-jobs)
     - [Get Global History](#get-global-history)
@@ -1075,6 +1076,40 @@ needs it. `tunnel.required` for a client with no credentials is rejected with `4
     "runId": "restore-run-456"
 }
 ```
+
+### Abort Run
+
+`POST /v1/clients/:clientId/runs/:runId/abort`
+
+**Description:** Asks the client's agent to end a run that is under way — a backup, a
+restore, or a backup queued behind another run of its job. The server does not end the run
+itself: the agent stops `proxmox-backup-client` (`SIGTERM`, `SIGKILL` after ten seconds) and
+reports the end through the `STATUS_UPDATE` every run ends with, as status `abort`. So the
+history, the webhooks (`job.aborted`) and the dashboard learn of it the way they learn of
+any end.
+
+A run that is reading back its snapshot (`phase: "snapshot"`) cannot be aborted: its backup
+is finished and in the repository. Neither can a run that exited in the moment the request
+was under way; if its CLI still ended with 0, it stays a success.
+
+No request body.
+
+#### Response
+
+**Example Response:**
+
+```json
+{
+    "status": "aborting",
+    "runId": "run-uuid"
+}
+```
+
+| Status | When |
+| :----- | :--- |
+| `200`  | The agent accepted the request. The run's end follows as a `JOB_UPDATE`. |
+| `409`  | The client is not connected, or the run is not under way on it any more. `error` says which. |
+| `504`  | The agent did not answer — most likely a version from before this message existed, which drops it unread. |
 
 ---
 
@@ -2123,6 +2158,32 @@ meanwhile is sent again. Not sent when storing failed — the agent retries afte
 
 `tunnel` is present only when the restore was triggered for it; absent means a direct
 connection.
+
+**`ABORT_RUN`**
+**Description:** Server asks the agent to end a run that is under way. Unlike the two
+above it is a request with an answer: whether the run could still be stopped is something
+only the agent knows.
+**Payload:**
+
+```json
+{
+    "requestId": "req-uuid",
+    "runId": "run-uuid"
+}
+```
+
+**Response** (same type, from the agent):
+
+```json
+{
+    "requestId": "req-uuid",
+    "success": false,
+    "error": "This run is not under way on the client any more."
+}
+```
+
+`success: true` means the run was told to stop, not that it has: it ends through its own
+`STATUS_UPDATE`, with status `abort`.
 
 **`JOB_LIST_CONFIG`**
 **Description:** Server requests the list of configured jobs from the agent.

@@ -29,7 +29,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | :-------------------------- | :------------------------------------------------------------------------- |
 | `AuthController.ts`         | Local login, OIDC flow (login, callback, config endpoint).                 |
 | `ClientController.ts`       | Client list, update, delete, file system browsing, version, history.       |
-| `JobController.ts`          | Job CRUD, manual backup/restore triggers, encryption key generation.        |
+| `JobController.ts`          | Job CRUD, manual backup/restore triggers, aborting a run, encryption key generation. |
 | `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing, certificate probe, fingerprint distribution. |
 | `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |

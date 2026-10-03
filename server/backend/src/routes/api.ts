@@ -204,6 +204,10 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     "/clients/:clientId/restore",
                     JobController.triggerRestore,
                 );
+                protectedRoutes.post(
+                    "/clients/:clientId/runs/:runId/abort",
+                    JobController.abortRun,
+                );
 
                 // Repositories
                 protectedRoutes.get("/repositories", RepositoryController.list);

@@ -224,6 +224,39 @@ export class JobController {
         }
     }
 
+    /**
+     * Asks the agent to end a run that is under way. The run is not ended here: the agent
+     * stops its process and reports the end itself, as `abort`, through the same
+     * `STATUS_UPDATE` every run ends with -- so the history, the webhooks and the
+     * dashboard learn of it the one way they learn of any end.
+     */
+    static async abortRun(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId, runId } = request.params as {
+            clientId: string;
+            runId: string;
+        };
+
+        try {
+            const result = await ProxyService.sendRequest(clientId, WS_EVENTS.ABORT_RUN, {
+                requestId: request.id,
+                runId,
+            });
+            if (result.success) return { status: "aborting", runId };
+            throw new Error(result.error || "The agent refused to abort the run");
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            // An agent built before this message existed drops it unread, so the request
+            // runs into its timeout. Said as what it most likely is, not as "Timeout".
+            if (message.startsWith("Timeout")) {
+                return reply.code(504).send({
+                    error: "The agent did not answer. It may be a version that cannot abort a run yet.",
+                });
+            }
+            // Not connected, or nothing left to stop: the request was fine, the state was not.
+            return reply.code(409).send({ error: message });
+        }
+    }
+
     static async generateKey(request: FastifyRequest, reply: FastifyReply) {
         const { clientId } = request.params as { clientId: string };
 
