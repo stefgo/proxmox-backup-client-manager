@@ -6,6 +6,7 @@ import {
     GlobalHistoryEntry,
     isFinalJobStatus,
     RunSnapshotDetailsSchema,
+    type HistoryQuery,
     type RunSnapshotDetails,
     type WebhookRun,
 } from "@pbcm/shared";
@@ -68,6 +69,27 @@ function detailsColumn(details: RunSnapshotDetails | null | undefined): string |
  * post-script that turns a success into a failure sends its update without them, and an
  * agent of an older build never sends any. Details that arrive clear an earlier error.
  */
+/** What narrows the global history; both are optional and combine with AND. */
+export type HistoryFilter = Pick<HistoryQuery, "status" | "clientId">;
+
+/**
+ * The WHERE clause for a filter, over `job_history h`. One function for the page and for
+ * its count, so the total cannot describe a different set than the rows.
+ */
+function historyWhere(filter: HistoryFilter): { where: string; params: string[] } {
+    const conditions: string[] = [];
+    const params: string[] = [];
+    if (filter.status) {
+        conditions.push("h.status = ?");
+        params.push(filter.status);
+    }
+    if (filter.clientId) {
+        conditions.push("h.client_id = ?");
+        params.push(filter.clientId);
+    }
+    return { where: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", params };
+}
+
 const SNAPSHOT_UPDATE = `
                 snapshot=COALESCE(excluded.snapshot, job_history.snapshot),
                 snapshot_details=COALESCE(excluded.snapshot_details, job_history.snapshot_details),
@@ -100,7 +122,8 @@ export class JobHistoryRepository {
      * which the job rows themselves do not carry -- hence GlobalHistoryEntry rather
      * than HistoryEntry. The caller bounds limit and offset.
      */
-    static findGlobal(limit: number, offset: number): GlobalHistoryEntry[] {
+    static findGlobal(limit: number, offset: number, filter: HistoryFilter = {}): GlobalHistoryEntry[] {
+        const { where, params } = historyWhere(filter);
         return db
             .prepare(
                 `
@@ -113,12 +136,22 @@ export class JobHistoryRepository {
                 c.hostname, c.display_name as displayName
             FROM job_history h
             LEFT JOIN clients c ON h.client_id = c.id
+            ${where}
             ORDER BY h.start_time DESC
             LIMIT ? OFFSET ?
         `,
             )
-            .all(limit, offset)
+            .all(...params, limit, offset)
             .map((row) => withSnapshot(row as SnapshotColumns)) as GlobalHistoryEntry[];
+    }
+
+    /** How many runs `findGlobal` would return for this filter without a limit. */
+    static countGlobal(filter: HistoryFilter = {}): number {
+        const { where, params } = historyWhere(filter);
+        const row = db
+            .prepare(`SELECT COUNT(*) as n FROM job_history h ${where}`)
+            .get(...params) as { n: number };
+        return row.n;
     }
 
     /**

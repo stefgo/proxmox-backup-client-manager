@@ -1094,23 +1094,41 @@ _Same structure as [List Client Jobs](#list-client-jobs)._
 
 `GET /v1/history`
 
-**Description:** Retrieves the execution history of all jobs across all clients, newest
-first. Takes `limit` (1–1000, default 100) and `offset` as query parameters.
+**Description:** Retrieves one page of the execution history of all jobs across all clients,
+newest first.
+
+#### Query Parameters
+
+| Parameter  | Type   | Description                                                                 |
+| :--------- | :----- | :-------------------------------------------------------------------------- |
+| `limit`    | number | Rows per page, 1–1000. Default 100.                                         |
+| `offset`   | number | Rows to skip. Default 0.                                                    |
+| `status`   | string | Only runs in this status (`success`, `failed`, `abort`, `running`, …). An unknown status answers with 400. |
+| `clientId` | string | Only runs of this client.                                                   |
 
 #### Response
 
-A bare array, like every other list endpoint. Each entry has the fields of
-[Get Client History](#get-client-history), with two differences: the job is named `jobId`
-instead of `jobConfigId`, and the row carries its client -- `clientId`, plus `hostname` and
-`displayName`, which are `null` once a history row has outlived its client.
+| Field   | Type   | Description                                                        |
+| :------ | :----- | :----------------------------------------------------------------- |
+| `items` | array  | The page.                                                          |
+| `total` | number | How many runs the filter matches in all, across every page.        |
+
+Each entry of `items` has the fields of [Get Client History](#get-client-history), with two
+differences: the job is named `jobId` instead of `jobConfigId`, and the row carries its
+client -- `clientId`, plus `hostname` and `displayName`, which are `null` once a history
+row has outlived its client.
+
+This is the one list with an envelope. A list the server delivers whole is a bare array;
+this one is delivered in pages, and `total` is what no page can tell.
 
 A failure answers with `{ "error": "…" }` and the matching status, as everywhere else.
 
 !!! note "Changed after 1.6"
-    This endpoint and [Get Latest History per Job](#get-latest-history-per-job) used to
-    wrap the array as `{ "success": true, "count": n, "data": [...] }` and report failures
-    as `{ "success": false, "error": "…" }`. They were the only two that did. A caller
-    reading `.data` now reads the response itself; `count` was always `data.length`.
+    This endpoint used to answer with `{ "success": true, "count": n, "data": [...] }`,
+    where `count` was `data.length`. It now answers with `{ "items": [...], "total": n }`,
+    where `total` counts every match. A caller reading `.data` reads `.items`.
+    [Get Latest History per Job](#get-latest-history-per-job) had the same wrapper and is
+    now a bare array. Failures were `{ "success": false, "error": "…" }` on both.
 
 ### Get Latest History per Job
 
@@ -1123,7 +1141,7 @@ this includes jobs that have not run for a long time. The Jobs page shows it as
 
 #### Response
 
-_Same structure as [Get Global History](#get-global-history)._
+A bare array of the entries [Get Global History](#get-global-history) returns in `items`.
 
 ### Get History Seen State
 

@@ -3,6 +3,7 @@ import {
     HistoryQuerySchema,
     firstIssue,
     type GlobalHistoryEntry,
+    type GlobalHistoryPage,
     type HistorySeen,
 } from "@pbcm/shared";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
@@ -22,8 +23,8 @@ function seenState(username: string): HistorySeen {
 
 export class HistoryController {
     /**
-     * Fetch global history sorted by start_time descending.
-     * Optionally takes limit/offset as query parameters.
+     * One page of the global history, sorted by start_time descending, and how many runs
+     * the filter matches in all. Takes limit/offset and the filters status and clientId.
      */
     static async getGlobalHistory(req: FastifyRequest, reply: FastifyReply) {
         try {
@@ -34,13 +35,16 @@ export class HistoryController {
             if (!parsed.success) {
                 return reply.code(400).send({ error: firstIssue(parsed.error) });
             }
-            const { limit, offset } = parsed.data;
+            const { limit, offset, ...filter } = parsed.data;
 
-            // The bare array, like every other list endpoint. This one used to wrap it in
-            // `{ success, count, data }`, which made it the single response a caller had
-            // to unpack -- and `count` was only ever `data.length`.
-            const records: GlobalHistoryEntry[] = JobHistoryRepository.findGlobal(limit, offset);
-            return reply.send(records);
+            // The one list with an envelope, because it is the one delivered in pages:
+            // `total` counts what the filter matches, which no page can tell. The
+            // `{ success, count, data }` this endpoint once had carried `data.length`.
+            const page: GlobalHistoryPage = {
+                items: JobHistoryRepository.findGlobal(limit, offset, filter),
+                total: JobHistoryRepository.countGlobal(filter),
+            };
+            return reply.send(page);
         } catch (error) {
             req.log.error({
                 msg: "Failed to fetch global history",

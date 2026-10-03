@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ClientUpdateSchema, RepositoryInputSchema, TunnelUpdateSchema } from "./schemas.js";
+import {
+    ClientUpdateSchema,
+    HistoryQuerySchema,
+    RepositoryInputSchema,
+    TunnelUpdateSchema,
+} from "./schemas.js";
 
 describe("RepositoryInputSchema", () => {
     const repository = {
@@ -51,5 +56,38 @@ describe("TunnelUpdateSchema", () => {
 
     it("leaves every field out of an update that names none", () => {
         expect(TunnelUpdateSchema.parse({})).toEqual({});
+    });
+});
+
+describe("HistoryQuerySchema", () => {
+    it("reads the page from the query string, where every value is text", () => {
+        expect(HistoryQuerySchema.parse({ limit: "20", offset: "40" })).toEqual({ limit: 20, offset: 40 });
+    });
+
+    it("falls back to the first hundred rows", () => {
+        expect(HistoryQuerySchema.parse({})).toEqual({ limit: 100, offset: 0 });
+    });
+
+    it("refuses a negative limit, which SQLite reads as no limit", () => {
+        expect(HistoryQuerySchema.safeParse({ limit: "-1" }).success).toBe(false);
+    });
+
+    it("refuses a limit that is not a number", () => {
+        expect(HistoryQuerySchema.safeParse({ limit: "abc" }).success).toBe(false);
+    });
+
+    it("takes a status and a client to filter by", () => {
+        expect(HistoryQuerySchema.parse({ status: "failed", clientId: "c1" })).toMatchObject({
+            status: "failed",
+            clientId: "c1",
+        });
+    });
+
+    it("refuses a status no run can have, rather than answering with an empty page", () => {
+        expect(HistoryQuerySchema.safeParse({ status: "broken" }).success).toBe(false);
+    });
+
+    it("refuses an empty client id, which would match no run", () => {
+        expect(HistoryQuerySchema.safeParse({ clientId: "" }).success).toBe(false);
     });
 });

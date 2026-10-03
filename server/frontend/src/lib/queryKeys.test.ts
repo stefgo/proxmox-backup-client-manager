@@ -49,9 +49,17 @@ describe('queryKeys', () => {
     });
 
     it('does not reach the seen state or the latest runs from the history list', () => {
-        const list = queryKeys.history.list({ limit: 1000 });
+        const list = queryKeys.history.list({ page: 1, pageSize: 20 });
         expect(reaches(list, queryKeys.history.seen())).toBe(false);
         expect(reaches(list, queryKeys.history.latest())).toBe(false);
+    });
+
+    it('reaches every page and filter of the history from the lists, and nothing beside them', () => {
+        const lists = queryKeys.history.lists();
+        expect(reaches(lists, queryKeys.history.list({ page: 1, pageSize: 20 }))).toBe(true);
+        expect(reaches(lists, queryKeys.history.list({ page: 3, pageSize: 50, status: 'failed' }))).toBe(true);
+        expect(reaches(lists, queryKeys.history.seen())).toBe(false);
+        expect(reaches(lists, queryKeys.history.latest())).toBe(false);
     });
 });
 

@@ -4,7 +4,7 @@ import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
 import { Badge, Card } from '@stefgo/react-ui-components';
-import { DataList, DataListDef } from '@stefgo/react-ui-components';
+import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runSnapshotLog } from '../lib/runSnapshotLog';
 
@@ -67,6 +67,11 @@ export interface BaseHistoryListProps {
     action?: ReactNode;
     /** Rows per page: `PAGE_SIZE.page` where the list is the page, embedded otherwise. */
     pageSize?: number;
+    /**
+     * Replaces the paging the list does itself. For a caller whose `items` are one page
+     * the server cut: it passes `mode: 'server'`, the page and the total.
+     */
+    paging?: PaginationProps;
 }
 
 export const BaseHistoryList = ({
@@ -76,6 +81,7 @@ export const BaseHistoryList = ({
     emptyMessage = 'No history available',
     action,
     pageSize = PAGE_SIZE.embedded,
+    paging,
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -212,7 +218,7 @@ export const BaseHistoryList = ({
                 className="rounded-b-xl border-0 shadow-none flex-1"
                 emptyMessage={emptyMessage}
                 rowClassName="!px-5 !py-3"
-                pagination={pagination(pageSize)}
+                pagination={paging ?? pagination(pageSize)}
             />
         </Card>
     );

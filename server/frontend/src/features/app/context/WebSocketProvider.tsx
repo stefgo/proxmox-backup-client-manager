@@ -143,6 +143,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                             clientHistoryOptions(clientId).queryKey,
                             (history) => history && upsertRun(history, job),
                         );
+                        // The history page holds one page the server cut, which cannot
+                        // be patched here: it is read again, if it is on screen.
+                        queryClient.invalidateQueries(
+                            { queryKey: queryKeys.history.lists() },
+                            { cancelRefetch: false },
+                        );
                         // A finished backup left a snapshot behind. Whatever shows
                         // snapshots reads them again; what does not is only marked stale.
                         // A read already under way is left to finish: an agent that

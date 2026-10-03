@@ -36,7 +36,10 @@ export const queryKeys = {
     history: {
         all: ['history'] as const,
         latest: () => ['history', 'latest'] as const,
-        list: (params: { limit: number }) => ['history', 'list', params] as const,
+        /** Every page of the history, whatever its filter: what a run that changed makes stale. */
+        lists: () => ['history', 'list'] as const,
+        list: (view: { page: number; pageSize: number; status?: string; clientId?: string }) =>
+            ['history', 'list', view] as const,
         seen: () => ['history', 'seen'] as const,
     },
     webhooks: {

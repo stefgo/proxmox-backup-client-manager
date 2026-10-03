@@ -4,6 +4,7 @@ import {
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
     JOB_PHASE,
+    JOB_STATUS,
     SCHEDULER_IDS,
     SCHEDULER_RUN_STATUSES,
     SCHEDULER_TRIGGERS,
@@ -848,6 +849,10 @@ export const CleanupSettingsSchema = z.looseObject({
 export const HistoryQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(1000).default(100),
     offset: z.coerce.number().int().min(0).default(0),
+    /** Only the runs in this status. An unknown one is refused rather than matching nothing. */
+    status: z.enum(JOB_STATUS).optional(),
+    /** Only the runs of this client. */
+    clientId: z.string().min(1).optional(),
 });
 
 /**

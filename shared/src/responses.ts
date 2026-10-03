@@ -42,8 +42,20 @@ export const GlobalJobListSchema = z.array(
 /** `GET /api/v1/clients/:clientId/history`, as the agent reports it. */
 export const ClientHistorySchema = z.array(HistoryEntrySchema);
 
-/** `GET /api/v1/history` and `GET /api/v1/history/latest`. */
+/** `GET /api/v1/history/latest`. */
 export const GlobalHistorySchema = z.array(GlobalHistoryEntrySchema);
+
+/**
+ * `GET /api/v1/history`: one page of the runs, and how many the filter matches in all.
+ *
+ * A list the server delivers whole is a bare array; this one is delivered in pages, and
+ * `total` is the one thing about it the page cannot tell -- hence the envelope here and
+ * nowhere else.
+ */
+export const GlobalHistoryPageSchema = z.object({
+    items: z.array(GlobalHistoryEntrySchema),
+    total: z.number().int().min(0),
+});
 
 /** `GET /api/v1/clients/:clientId/fs`. */
 export const FsFileListSchema = z.array(FsFileSchema);
@@ -209,6 +221,7 @@ export const WebhookTestResultSchema = z.object({
     response: z.string().nullable(),
 });
 
+export type GlobalHistoryPage = z.infer<typeof GlobalHistoryPageSchema>;
 export type CertificateCheck = z.infer<typeof CertificateCheckSchema>;
 export type DistributeResult = z.infer<typeof DistributeResultSchema>;
 export type TunnelInfo = z.infer<typeof TunnelInfoSchema>;

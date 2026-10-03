@@ -1,25 +1,32 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
-import { GlobalHistorySchema, HistorySeenSchema, type HistorySeen } from '@pbcm/shared';
+import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
+import { GlobalHistoryPageSchema, HistorySeenSchema, type HistorySeen } from '@pbcm/shared';
 import { api } from '../lib/api';
 import { noteFailure } from '../lib/cacheUpdates';
 import { queryClient } from '../lib/queryClient';
 import { queryKeys } from '../lib/queryKeys';
-
-/** How many runs the history page asks for; it filters and pages them in the browser. */
-const HISTORY_LIMIT = 1000;
+import { historyQueryString, type HistoryView } from '../features/history/lib/historyView';
 
 /**
- * The runs of every client, newest first. Always stale: nothing pushes into this list, so
- * the page reads it again each time it is opened -- showing what it had in the meantime.
+ * One page of the runs of every client, newest first, and how many the filter matches in
+ * all. The server filters and pages; the browser holds the rows on screen and no more.
+ *
+ * Always stale, so the page reads it again each time it is opened. While it is open, a
+ * `JOB_UPDATE` marks every page stale -- a list in pages cannot be patched in place: a new
+ * run moves every row one down, and whether it belongs to the filter is the server's call.
+ *
+ * The page before stays on screen while the next one loads, so paging does not flash the
+ * loading state between two full lists.
  */
-export const globalHistoryOptions = queryOptions({
-    queryKey: queryKeys.history.list({ limit: HISTORY_LIMIT }),
-    queryFn: () => api.get(`/api/v1/history?limit=${HISTORY_LIMIT}`, GlobalHistorySchema),
-    staleTime: 0,
-});
+export const globalHistoryOptions = (view: HistoryView) =>
+    queryOptions({
+        queryKey: queryKeys.history.list(view),
+        queryFn: () => api.get(`/api/v1/history?${historyQueryString(view)}`, GlobalHistoryPageSchema),
+        staleTime: 0,
+        placeholderData: keepPreviousData,
+    });
 
-export function useGlobalHistory() {
-    return useQuery(globalHistoryOptions);
+export function useGlobalHistory(view: HistoryView) {
+    return useQuery(globalHistoryOptions(view));
 }
 
 /**
