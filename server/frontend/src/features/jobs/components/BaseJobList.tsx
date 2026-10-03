@@ -282,11 +282,15 @@ export const BaseJobList = <T extends BaseJobItem>({
                     </Cell>
                 );
             }
-            return (
+            const badge = (
                 <Badge variant={statusBadgeVariant(run.status)} size="sm" className="uppercase font-bold">
                     {run.status}
                 </Badge>
             );
+            // In the table the badge gets a box as tall as a line of the cells beside it
+            // (`text-sm`) and sits in its middle. Left inline, it stands on the baseline
+            // of the cell's own, taller line and ends up below the text of its row.
+            return view === 'list' ? badge : <div className="flex h-5 items-center">{badge}</div>;
         },
     };
 
