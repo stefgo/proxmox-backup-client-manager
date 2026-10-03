@@ -5,7 +5,6 @@ import {
     applySchedulerUpdate,
     jobIdOf,
     mergeTunnelState,
-    noteFailure,
     recentRuns,
     replaceClientJobs,
     setJobNextRun,
@@ -307,26 +306,6 @@ describe('recentRuns', () => {
     it('stops at ten, in the order of the history', () => {
         const history = Array.from({ length: 12 }, (_, i) => ended(`run-${i}`, '2026-09-29T11:00:00.000Z'));
         expect(recentRuns(history, NOW).map((j) => j.id)).toEqual(history.slice(0, 10).map((j) => j.id));
-    });
-});
-
-describe('noteFailure', () => {
-    it('counts a failure when the history was never opened', () => {
-        expect(noteFailure({ seenAt: null, unseenFailed: 0 }, '2026-09-28T02:00:00.000Z')).toEqual({
-            seenAt: null,
-            unseenFailed: 1,
-        });
-    });
-
-    it('counts a failure that ended after the history was last opened', () => {
-        const seen = { seenAt: '2026-09-28T02:00:00.000Z', unseenFailed: 2 };
-        expect(noteFailure(seen, '2026-09-28T02:00:01.000Z').unseenFailed).toBe(3);
-    });
-
-    it('ignores a failure that ended before it, as a run synced late can have', () => {
-        const seen = { seenAt: '2026-09-28T02:00:00.000Z', unseenFailed: 0 };
-        expect(noteFailure(seen, '2026-09-28T01:59:59.000Z')).toBe(seen);
-        expect(noteFailure(seen, '2026-09-28T02:00:00.000Z')).toBe(seen);
     });
 });
 

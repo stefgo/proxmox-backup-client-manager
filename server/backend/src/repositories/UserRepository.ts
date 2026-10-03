@@ -1,4 +1,5 @@
 import db from "../core/Database.js";
+import { HistorySeenRepository } from "./HistorySeenRepository.js";
 
 /** A row of the `users` table. `id` is INTEGER AUTOINCREMENT, hence number, not string. */
 export interface UserRow {
@@ -46,14 +47,22 @@ export class UserRepository {
             | undefined;
     }
 
+    /**
+     * The user starts with everything that has happened so far marked as seen: the failures
+     * of before their time are not news to them. Written with the user, so there is no
+     * user without a mark.
+     */
     static create(
         username: string,
         passwordHash: string | null,
         authMethods: string,
     ): void {
-        db.prepare(
-            "INSERT INTO users (username, password_hash, auth_methods) VALUES (?, ?, ?)",
-        ).run(username, passwordHash, authMethods);
+        db.transaction(() => {
+            db.prepare(
+                "INSERT INTO users (username, password_hash, auth_methods) VALUES (?, ?, ?)",
+            ).run(username, passwordHash, authMethods);
+            HistorySeenRepository.set(username, new Date().toISOString());
+        })();
     }
 
     /** Also ends every session of the user: a token signed under the old password must not outlive it. */
@@ -76,7 +85,12 @@ export class UserRepository {
         ).run(authMethods, authMethods, id);
     }
 
+    /** Takes what the user had marked as seen along; see `HistorySeenRepository.deleteForUser`. */
     static delete(id: string): { changes: number } {
-        return db.prepare("DELETE FROM users WHERE id = ?").run(id);
+        return db.transaction(() => {
+            const username = this.findById(id)?.username;
+            if (username) HistorySeenRepository.deleteForUser(username);
+            return db.prepare("DELETE FROM users WHERE id = ?").run(id);
+        })();
     }
 }

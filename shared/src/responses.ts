@@ -46,6 +46,14 @@ export const ClientHistorySchema = z.array(HistoryEntrySchema);
 export const GlobalHistorySchema = z.array(GlobalHistoryEntrySchema);
 
 /**
+ * A run as the history page carries it: with whether the user asking has yet to mark it as
+ * seen. Only here -- a `JOB_UPDATE` goes to every user and cannot say it.
+ */
+export const GlobalHistoryPageEntrySchema = GlobalHistoryEntrySchema.extend({
+    unseen: z.boolean(),
+});
+
+/**
  * `GET /api/v1/history`: one page of the runs, and how many the filter matches in all.
  *
  * A list the server delivers whole is a bare array; this one is delivered in pages, and
@@ -53,7 +61,7 @@ export const GlobalHistorySchema = z.array(GlobalHistoryEntrySchema);
  * nowhere else.
  */
 export const GlobalHistoryPageSchema = z.object({
-    items: z.array(GlobalHistoryEntrySchema),
+    items: z.array(GlobalHistoryPageEntrySchema),
     total: z.number().int().min(0),
 });
 
@@ -221,6 +229,7 @@ export const WebhookTestResultSchema = z.object({
     response: z.string().nullable(),
 });
 
+export type GlobalHistoryPageEntry = z.infer<typeof GlobalHistoryPageEntrySchema>;
 export type GlobalHistoryPage = z.infer<typeof GlobalHistoryPageSchema>;
 export type CertificateCheck = z.infer<typeof CertificateCheckSchema>;
 export type DistributeResult = z.infer<typeof DistributeResultSchema>;

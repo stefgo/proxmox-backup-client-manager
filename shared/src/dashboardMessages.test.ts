@@ -44,7 +44,7 @@ const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     },
     HISTORY_SEEN: {
         type: "HISTORY_SEEN",
-        payload: { username: "admin", seenAt: null, unseenFailed: 0 },
+        payload: { username: "admin", seenAt: null, unseenFailed: 0, unseenMissed: 0 },
     },
     WEBHOOKS_UPDATE: { type: "WEBHOOKS_UPDATE" },
     SCHEDULER_STATUS_UPDATE: {

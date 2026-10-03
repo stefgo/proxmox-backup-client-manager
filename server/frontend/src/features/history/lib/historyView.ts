@@ -18,6 +18,8 @@ export interface HistoryView {
     search?: string;
     /** Only this client's runs. Never in the URL: the client's own page sets it. */
     clientId?: string;
+    /** Only what the user has yet to mark as seen. Never in the URL: the dashboard sets it. */
+    unseen?: boolean;
 }
 
 const STATUSES: readonly string[] = Object.values(JOB_STATUS);
@@ -84,6 +86,7 @@ export function historyQueryString(view: HistoryView): string {
     });
     if (view.status) query.set('status', view.status);
     if (view.clientId) query.set('clientId', view.clientId);
+    if (view.unseen) query.set('unseen', 'true');
     // Without the blanks around it, and not at all if that is all it holds: the server
     // refuses an empty search.
     const search = view.search?.trim();

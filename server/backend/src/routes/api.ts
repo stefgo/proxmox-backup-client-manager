@@ -186,7 +186,11 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 );
                 protectedRoutes.put(
                     "/history/seen",
-                    HistoryController.markSeen,
+                    HistoryController.markAllSeen,
+                );
+                protectedRoutes.put(
+                    "/history/:historyId/seen",
+                    HistoryController.markRunSeen,
                 );
 
                 // Client Keys

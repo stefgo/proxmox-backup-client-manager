@@ -6,13 +6,13 @@ import { useTheme } from './context/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from './context/WebSocketContext';
 import { navEntries, type RouteHandle } from './routes';
-import { ROUTES } from '../../lib/paths';
 import { APP_NAME, routeTitle, type TitleSubject } from '../../lib/pageTitle';
 import {
     activeJobCount,
     clientCount,
     describeActiveJobs,
     describeOnlineCount,
+    describeUnseen,
     formatOnlineCount,
     repositoryCount,
 } from '../dashboard/lib/dashboard';
@@ -22,7 +22,7 @@ import { useClients } from '../../queries/clients';
 import { useRepositories } from '../../queries/repositories';
 import { useGlobalJobs } from '../../queries/jobs';
 import { useUIStore } from '../../stores/useUIStore';
-import { useUnseenFailures } from '../../queries/history';
+import { useUnseen } from '../../queries/history';
 import { useJobResultToasts } from '../../hooks/useJobResultToasts';
 
 type PageNav = NonNullable<DashboardPage['nav']>;
@@ -56,8 +56,11 @@ export function AppLayout() {
     const { clients } = useClients();
     const { repositories: repos } = useRepositories();
     const { jobs: globalJobs } = useGlobalJobs();
-    // Not on the history page itself: what fails there is in view as it arrives.
-    const unseenFailures = useUnseenFailures() && pathname !== ROUTES.history;
+    // A failed read leaves the dot off rather than reporting: the dot is a hint, and the
+    // dashboard says what could not be read.
+    const { unseen } = useUnseen();
+    const unseenFailed = unseen?.failed ?? 0;
+    const unseenMissed = unseen?.missed ?? 0;
 
     // In the shell rather than a page: a run outlives the page it was started from.
     useJobResultToasts();
@@ -105,8 +108,14 @@ export function AppLayout() {
             clients: { badge: formatOnlineCount(clientsOnline), badgeLabel: describeOnlineCount(clientsOnline) },
             repositories: { badge: formatOnlineCount(reposOnline), badgeLabel: describeOnlineCount(reposOnline) },
             jobs: { badge: String(jobsActive), badgeLabel: describeActiveJobs(jobsActive) },
+            // On every page, the history's own too: opening it marks nothing as seen.
+            history: {
+                badgeDot: unseenFailed + unseenMissed > 0,
+                badgeTone: unseenFailed > 0 ? ('error' as const) : unseenMissed > 0 ? ('warning' as const) : undefined,
+                badgeLabel: describeUnseen(unseenMissed, unseenFailed),
+            },
         };
-    }, [clients, repos, globalJobs]);
+    }, [clients, repos, globalJobs, unseenFailed, unseenMissed]);
 
     // Comes from /api/v1/me now. It used to be base64-decoded out of the JWT here, which
     // the page cannot do any more — and should not: the name belongs to the server that
@@ -142,7 +151,7 @@ export function AppLayout() {
             clients: stats.clients,
             repositories: stats.repositories,
             jobs: stats.jobs,
-            history: { badgeDot: unseenFailures, badgeTone: unseenFailures ? 'error' : undefined },
+            history: stats.history,
         };
 
         return navEntries.map(({ id, path, ...entry }) => ({
@@ -150,7 +159,7 @@ export function AppLayout() {
             active: id === activeId,
             nav: { ...entry, ...live[id], onClick: () => navigate(path) },
         }));
-    }, [stats, navigate, unseenFailures, activeId]);
+    }, [stats, navigate, activeId]);
 
     return (
         // While the socket is lost, no status dot pulses: nothing is watching those states.

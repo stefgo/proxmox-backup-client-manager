@@ -41,7 +41,14 @@ export const queryKeys = {
         latest: () => ['history', 'latest'] as const,
         /** Every page of the history, whatever its filter: what a run that changed makes stale. */
         lists: () => ['history', 'list'] as const,
-        list: (view: { page: number; pageSize: number; status?: string; clientId?: string; search?: string }) =>
+        list: (view: {
+            page: number;
+            pageSize: number;
+            status?: string;
+            clientId?: string;
+            search?: string;
+            unseen?: boolean;
+        }) =>
             ['history', 'list', view] as const,
         seen: () => ['history', 'seen'] as const,
     },

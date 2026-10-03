@@ -4,6 +4,7 @@ import {
     StatusUpdatePayload,
     HistoryEntry,
     GlobalHistoryEntry,
+    type GlobalHistoryPageEntry,
     isFinalJobStatus,
     RunSnapshotDetailsSchema,
     type HistoryQuery,
@@ -70,7 +71,23 @@ function detailsColumn(details: RunSnapshotDetails | null | undefined): string |
  * agent of an older build never sends any. Details that arrive clear an earlier error.
  */
 /** What narrows the global history; each is optional and they combine with AND. */
-export type HistoryFilter = Pick<HistoryQuery, "status" | "clientId" | "search">;
+export type HistoryFilter = Pick<HistoryQuery, "status" | "clientId" | "search" | "unseen">;
+
+/** The statuses a user has to mark as seen: what went wrong, and what did not happen. */
+const TO_BE_SEEN = [JOB_STATUS.FAILED, JOB_STATUS.MISSED];
+
+/**
+ * Whether the run `h` is one a user has yet to mark as seen: it ended after their mark and
+ * is not among the runs they marked one by one. Takes the username twice. A user without a
+ * mark has seen nothing. Compared as text: `end_time` is the agent's ISO timestamp and the
+ * mark comes from `toISOString()`, so the two sort the same way.
+ */
+const UNSEEN = `(
+    h.status IN (${TO_BE_SEEN.map((status) => `'${status}'`).join(", ")})
+    AND h.end_time IS NOT NULL
+    AND h.end_time > COALESCE((SELECT seen_at FROM history_seen WHERE username = ?), '')
+    AND NOT EXISTS (SELECT 1 FROM history_seen_runs r WHERE r.username = ? AND r.history_id = h.id)
+)`;
 
 /** The columns a search reads: what a row of the history shows, and the id it is named by. */
 const SEARCH_COLUMNS = ["h.name", "h.job_id", "h.id", "c.hostname", "c.display_name"];
@@ -88,9 +105,13 @@ function likePattern(text: string): string {
  * for the page and for its count, so the total cannot describe a different set than the
  * rows.
  */
-function historyWhere(filter: HistoryFilter): { where: string; params: string[] } {
+function historyWhere(filter: HistoryFilter, username: string): { where: string; params: string[] } {
     const conditions: string[] = [];
     const params: string[] = [];
+    if (filter.unseen) {
+        conditions.push(UNSEEN);
+        params.push(username, username);
+    }
     if (filter.status) {
         conditions.push("h.status = ?");
         params.push(filter.status);
@@ -135,12 +156,17 @@ function finishedRun(before: string | undefined, applied: boolean, run: WebhookR
 
 export class JobHistoryRepository {
     /**
-     * History across all clients, newest first. The join fills in the client's names,
-     * which the job rows themselves do not carry -- hence GlobalHistoryEntry rather
-     * than HistoryEntry. The caller bounds limit and offset.
+     * History across all clients, newest first, each run with whether `username` has yet
+     * to mark it as seen. The join fills in the client's names, which the job rows
+     * themselves do not carry. The caller bounds limit and offset.
      */
-    static findGlobal(limit: number, offset: number, filter: HistoryFilter = {}): GlobalHistoryEntry[] {
-        const { where, params } = historyWhere(filter);
+    static findGlobal(
+        limit: number,
+        offset: number,
+        filter: HistoryFilter,
+        username: string,
+    ): GlobalHistoryPageEntry[] {
+        const { where, params } = historyWhere(filter, username);
         return db
             .prepare(
                 `
@@ -150,7 +176,8 @@ export class JobHistoryRepository {
                 h.exit_code as exitCode, h.stdout, h.stderr,
                 h.snapshot, h.snapshot_details as snapshotDetails,
                 h.snapshot_error as snapshotError,
-                c.hostname, c.display_name as displayName
+                c.hostname, c.display_name as displayName,
+                ${UNSEEN} as unseen
             FROM job_history h
             LEFT JOIN clients c ON h.client_id = c.id
             ${where}
@@ -158,18 +185,26 @@ export class JobHistoryRepository {
             LIMIT ? OFFSET ?
         `,
             )
-            .all(...params, limit, offset)
-            .map((row) => withSnapshot(row as SnapshotColumns)) as GlobalHistoryEntry[];
+            .all(username, username, ...params, limit, offset)
+            .map((row) => {
+                const entry = withSnapshot(row as SnapshotColumns & { unseen: number });
+                // SQLite has no boolean; the expression arrives as 0 or 1.
+                return { ...entry, unseen: entry.unseen === 1 };
+            }) as GlobalHistoryPageEntry[];
     }
 
     /** How many runs `findGlobal` would return for this filter without a limit. */
-    static countGlobal(filter: HistoryFilter = {}): number {
-        const { where, params } = historyWhere(filter);
+    static countGlobal(filter: HistoryFilter, username: string): number {
+        const { where, params } = historyWhere(filter, username);
         const row = db
             // The join the page has: a search reads the client's names.
             .prepare(`SELECT COUNT(*) as n FROM job_history h LEFT JOIN clients c ON h.client_id = c.id ${where}`)
             .get(...params) as { n: number };
         return row.n;
+    }
+
+    static exists(id: string): boolean {
+        return db.prepare("SELECT 1 FROM job_history WHERE id = ?").get(id) !== undefined;
     }
 
     /**
@@ -205,21 +240,13 @@ export class JobHistoryRepository {
             .map((row) => withSnapshot(row as SnapshotColumns)) as GlobalHistoryEntry[];
     }
 
-    /**
-     * Failed runs that ended after `since`, or all of them for null. Compared as text:
-     * `end_time` is the agent's ISO timestamp, and `since` comes from `toISOString()`, so
-     * the two sort the same way.
-     */
-    static countFailedSince(since: string | null): number {
-        const row = db
-            .prepare(
-                `
-            SELECT COUNT(*) as n FROM job_history
-            WHERE status = ? AND end_time IS NOT NULL AND (? IS NULL OR end_time > ?)
-        `,
-            )
-            .get(JOB_STATUS.FAILED, since, since) as { n: number };
-        return row.n;
+    /** How many failed and how many missed runs `username` has yet to mark as seen. */
+    static countUnseen(username: string): { failed: number; missed: number } {
+        const rows = db
+            .prepare(`SELECT h.status, COUNT(*) as n FROM job_history h WHERE ${UNSEEN} GROUP BY h.status`)
+            .all(username, username) as { status: string; n: number }[];
+        const count = (status: string) => rows.find((row) => row.status === status)?.n ?? 0;
+        return { failed: count(JOB_STATUS.FAILED), missed: count(JOB_STATUS.MISSED) };
     }
 
     /**

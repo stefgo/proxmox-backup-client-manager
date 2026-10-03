@@ -893,6 +893,14 @@ export const HistoryQuerySchema = z.object({
      * client's hostname or display name. Bounded, as it ends up in a LIKE pattern.
      */
     search: z.string().trim().min(1).max(200).optional(),
+    /**
+     * `true`: only the runs the session's user has yet to mark as seen. Spelled out
+     * rather than coerced -- `z.coerce.boolean()` reads the text "false" as true.
+     */
+    unseen: z
+        .enum(["true", "false"])
+        .transform((value) => value === "true")
+        .optional(),
 });
 
 /**
@@ -905,13 +913,15 @@ export const SnapshotQuerySchema = z.object({
 });
 
 /**
- * How far one user has looked at the job history: `seenAt` is when they last opened it
- * (null if never), `unseenFailed` how many failed runs ended after that. The sidebar marks
- * the History entry while it is above zero.
+ * What one user has yet to mark as seen. `seenAt` is the mark below which everything counts
+ * as seen -- set when the user was created and raised by "mark all" -- and the two counts
+ * are the failed and the missed runs that ended after it and were not marked one by one.
+ * Null only for a session whose user has no mark, which then counts every run.
  */
 export const HistorySeenSchema = z.object({
     seenAt: z.string().nullable(),
     unseenFailed: z.number().int().min(0),
+    unseenMissed: z.number().int().min(0),
 });
 
 /**

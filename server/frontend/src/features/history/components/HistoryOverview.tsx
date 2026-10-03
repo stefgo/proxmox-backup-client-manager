@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { JOB_STATUS } from '@pbcm/shared';
-import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
+import { CheckCheck } from 'lucide-react';
+import { Button, Switch, LoadingIndicator } from '@stefgo/react-ui-components';
 import { BaseHistoryList } from './BaseHistoryList';
 import { QueryError } from '../../../components/QueryError';
-import { markHistorySeen, useGlobalHistory } from '../../../queries/history';
+import { useGlobalHistory } from '../../../queries/history';
+import { useMarkSeen } from '../hooks/useMarkSeen';
 import { PAGE_SIZE } from '../../../components/listDefaults';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { lastPage, readHistoryView, requestedView, writeHistoryView, type HistoryView } from '../lib/historyView';
@@ -38,14 +40,9 @@ export const HistoryOverview = () => {
     // while the socket was down never arrived.
     const { data, isPending, isPlaceholderData, error } = useGlobalHistory(requested);
 
-    // Seen on the way in and again on the way out: a failure that arrives while the page
-    // is open appears in it, so it has been seen as well.
-    useEffect(() => {
-        markHistorySeen();
-        return () => {
-            markHistorySeen();
-        };
-    }, []);
+    // Opening the page marks nothing: a failure is seen when the user says so, here or on
+    // the dashboard.
+    const seen = useMarkSeen();
 
     // A page past the end -- from a link, or because the cleanup removed what was on it --
     // would show an empty list above a total that says otherwise.
@@ -77,6 +74,15 @@ export const HistoryOverview = () => {
             items={data.items}
             showClientName={true}
             emptyMessage={emptyMessage}
+            onMarkSeen={seen.markRun}
+            markingRunId={seen.markingRunId}
+            action={
+                seen.unseenCount > 0 && (
+                    <Button size="sm" variant="secondary" icon={CheckCheck} disabled={seen.markingAll} onClick={seen.markAll}>
+                        Mark all as seen
+                    </Button>
+                )
+            }
             paging={{
                 mode: 'server',
                 value: { page: view.page, pageSize: view.pageSize },

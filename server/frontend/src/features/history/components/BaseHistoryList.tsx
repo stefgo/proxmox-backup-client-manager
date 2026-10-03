@@ -1,4 +1,4 @@
-import { Activity, ChevronRight, Square, Tag } from 'lucide-react';
+import { Activity, Check, ChevronRight, Square, Tag } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
@@ -38,6 +38,8 @@ export interface BaseHistoryItem {
     snapshot?: string | null;
     snapshotDetails?: RunSnapshotDetails | null;
     snapshotError?: string | null;
+    /** Whether the user has yet to mark the run as seen. Only the paged history says. */
+    unseen?: boolean;
 }
 
 /** The status as the badge names it: a run reading back its snapshot says so. */
@@ -106,6 +108,10 @@ export interface BaseHistoryListProps {
     searchPlaceholder?: string;
     /** Controls at the right end of the search bar, which narrow the same list. */
     searchActions?: ReactNode;
+    /** Gives every run that is `unseen` a button to mark it as seen. */
+    onMarkSeen?: (runId: string) => void;
+    /** The run whose mark is on its way. */
+    markingRunId?: string;
 }
 
 export const BaseHistoryList = ({
@@ -120,6 +126,8 @@ export const BaseHistoryList = ({
     search,
     searchPlaceholder,
     searchActions,
+    onMarkSeen,
+    markingRunId,
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -171,6 +179,21 @@ export const BaseHistoryList = ({
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
+                                    {onMarkSeen && item.unseen && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            icon={Check}
+                                            disabled={markingRunId === item.id}
+                                            // The row opens on a click; this one is not for it.
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onMarkSeen(item.id);
+                                            }}
+                                        >
+                                            Mark as seen
+                                        </Button>
+                                    )}
                                     {lacksSnapshotDetails(item) && (
                                         <Badge variant="warning" size="sm" className="uppercase font-bold">
                                             no snapshot details

@@ -3,13 +3,16 @@ import { JOB_STATUS } from '@pbcm/shared';
 import { useToast } from '@stefgo/react-ui-components';
 import { subscribe } from '../lib/realtimeEvents';
 import { getCachedClient } from '../queries/clients';
-import { noteHistoryFailure } from '../queries/history';
+import { refreshUnseen } from '../queries/history';
 
 /**
  * The states a run ends in. `skipped` is left out: nothing ran, so there is nothing to
  * report. `missed` is in: nothing ran there either, but when it should have.
  */
 const FINISHED: readonly string[] = [JOB_STATUS.SUCCESS, JOB_STATUS.FAILED, JOB_STATUS.ABORTED, JOB_STATUS.MISSED];
+
+/** The ends a user has to mark as seen: what went wrong, and what did not happen. */
+const TO_BE_SEEN: readonly string[] = [JOB_STATUS.FAILED, JOB_STATUS.MISSED];
 
 /**
  * Jobs started from this browser whose result has not arrived yet, as `clientId:jobId`.
@@ -44,7 +47,8 @@ export function forgetJobRunAsked(clientId: string, jobId: string): void {
  * schedule; a success or an abort only for a job started from this browser, since with
  * many clients every scheduled run would otherwise raise one.
  *
- * Every failure also raises the unseen count behind the dot on "History".
+ * A failure and a missed schedule are also one more to mark as seen, so the count behind
+ * the dashboard's card and the dot on "History" is read again.
  */
 export function useJobResultToasts(): void {
     const { show } = useToast();
@@ -55,9 +59,7 @@ export function useJobResultToasts(): void {
             if (reported.has(job.id)) return;
             reported.add(job.id);
 
-            if (job.status === JOB_STATUS.FAILED) {
-                noteHistoryFailure(job.endTime);
-            }
+            if (TO_BE_SEEN.includes(job.status)) refreshUnseen();
             if (job.endTime < loadedAt) return;
 
             const client = getCachedClient(clientId);

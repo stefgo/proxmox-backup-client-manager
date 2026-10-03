@@ -17,8 +17,18 @@ function sessionUser(req: FastifyRequest): string | null {
 }
 
 function seenState(username: string): HistorySeen {
-    const seenAt = HistorySeenRepository.get(username);
-    return { seenAt, unseenFailed: JobHistoryRepository.countFailedSince(seenAt) };
+    const { failed, missed } = JobHistoryRepository.countUnseen(username);
+    return { seenAt: HistorySeenRepository.get(username), unseenFailed: failed, unseenMissed: missed };
+}
+
+/** Tells the user's other tabs; every dashboard receives it and keeps only its own user's. */
+function broadcastSeen(username: string): HistorySeen {
+    const state = seenState(username);
+    ProxyService.broadcastToDashboard({
+        type: "HISTORY_SEEN",
+        payload: { username, ...state },
+    });
+    return state;
 }
 
 export class HistoryController {
@@ -36,13 +46,16 @@ export class HistoryController {
                 return reply.code(400).send({ error: firstIssue(parsed.error) });
             }
             const { limit, offset, ...filter } = parsed.data;
+            // Whether a run is unseen is a statement about the user asking.
+            const username = sessionUser(req);
+            if (!username) return reply.code(401).send({ error: "No user in session" });
 
             // The one list with an envelope, because it is the one delivered in pages:
             // `total` counts what the filter matches, which no page can tell. The
             // `{ success, count, data }` this endpoint once had carried `data.length`.
             const page: GlobalHistoryPage = {
-                items: JobHistoryRepository.findGlobal(limit, offset, filter),
-                total: JobHistoryRepository.countGlobal(filter),
+                items: JobHistoryRepository.findGlobal(limit, offset, filter, username),
+                total: JobHistoryRepository.countGlobal(filter, username),
             };
             return reply.send(page);
         } catch (error) {
@@ -68,7 +81,7 @@ export class HistoryController {
         }
     }
 
-    /** How far the session's user has looked at the history. */
+    /** What the session's user has yet to mark as seen. */
     static async getSeen(req: FastifyRequest, reply: FastifyReply) {
         const username = sessionUser(req);
         if (!username) return reply.code(401).send({ error: "No user in session" });
@@ -76,20 +89,27 @@ export class HistoryController {
     }
 
     /**
-     * Records that the session's user has looked at the history now. Broadcast as
-     * `HISTORY_SEEN`, so the user's other tabs clear the mark as well; every dashboard
-     * receives it and keeps only its own user's.
+     * Marks everything that has happened up to now as seen for the session's user.
+     * Broadcast as `HISTORY_SEEN`, so the user's other tabs follow.
      */
-    static async markSeen(req: FastifyRequest, reply: FastifyReply) {
+    static async markAllSeen(req: FastifyRequest, reply: FastifyReply) {
         const username = sessionUser(req);
         if (!username) return reply.code(401).send({ error: "No user in session" });
 
-        HistorySeenRepository.set(username, new Date().toISOString());
-        const state = seenState(username);
-        ProxyService.broadcastToDashboard({
-            type: "HISTORY_SEEN",
-            payload: { username, ...state },
-        });
-        return reply.send(state);
+        HistorySeenRepository.markAll(username, new Date().toISOString());
+        return reply.send(broadcastSeen(username));
+    }
+
+    /** Marks one run as seen for the session's user. Answers and broadcasts like `markAllSeen`. */
+    static async markRunSeen(req: FastifyRequest, reply: FastifyReply) {
+        const username = sessionUser(req);
+        if (!username) return reply.code(401).send({ error: "No user in session" });
+
+        const { historyId } = req.params as { historyId: string };
+        if (!JobHistoryRepository.exists(historyId)) {
+            return reply.code(404).send({ error: "Run not found" });
+        }
+        HistorySeenRepository.markRun(username, historyId);
+        return reply.send(broadcastSeen(username));
     }
 }

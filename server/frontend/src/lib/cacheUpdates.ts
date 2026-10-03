@@ -3,7 +3,6 @@ import type {
     Client,
     GlobalHistoryEntry,
     HistoryEntry,
-    HistorySeen,
     SchedulerStatuses,
     SchedulerStatusUpdate,
     TunnelState,
@@ -163,18 +162,6 @@ export function recentRuns(history: HistoryEntry[], now: number): HistoryEntry[]
     return history
         .filter((j) => new Date(j.endTime ?? j.startTime).getTime() > since)
         .slice(0, RECENT_LIMIT);
-}
-
-/**
- * A run failed. Raises the count behind the dot on "History" -- unless the run ended
- * before this user last opened the history, as one that an agent syncs late can have.
- *
- * A failure the server had already counted and an agent syncs again can raise it twice,
- * which is harmless: only "above zero" is shown.
- */
-export function noteFailure(seen: HistorySeen, endTime: string): HistorySeen {
-    if (seen.seenAt !== null && endTime <= seen.seenAt) return seen;
-    return { ...seen, unseenFailed: seen.unseenFailed + 1 };
 }
 
 /** `SCHEDULER_STATUS_UPDATE` carries one scheduler at a time; the others stay as they are. */

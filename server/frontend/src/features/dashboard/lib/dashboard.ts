@@ -1,6 +1,4 @@
 import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
-import { canAbortRun, type AbortableRun } from '../../history/lib/runAbort';
-import { parseTimestamp } from '../../../lib/time';
 
 /**
  * The numbers the dashboard's cards and the sidebar's badges both show. Counted here, once,
@@ -52,52 +50,18 @@ export function activeJobCount(
 }
 
 /**
- * How long past its time a job may be before it counts as missed. The agent's scheduler
- * starts a due job on its next tick, and the new `nextRunAt` takes a moment to arrive.
- */
-export const MISSED_GRACE_MS = 60_000;
-
-interface ScheduledJob {
-    id?: string | null;
-    clientId: string;
-    scheduleEnabled?: boolean | null;
-    nextRunAt?: string | null;
-}
-
-/**
- * The jobs whose scheduled run did not happen: the schedule is on, the time it names is
- * past by more than the grace, and nothing is running that would explain it.
- *
- * Only on clients that are online. An offline client's jobs are not known, and that it is
- * offline is said by the card above -- its jobs would be missed for a reason already shown.
- *
- * A job whose run is under way or queued is not missed: its `nextRunAt` moves on when
- * that run ends.
- */
-export function missedJobs<J extends ScheduledJob>(
-    jobs: readonly J[],
-    clients: readonly (WithStatus & { id: string })[],
-    lastRunOf: (job: J) => AbortableRun | undefined,
-    now: number,
-    graceMs: number = MISSED_GRACE_MS,
-): J[] {
-    const online = onlineIds(clients);
-    return jobs.filter((job) => {
-        if (!job.scheduleEnabled || !online.has(job.clientId)) return false;
-        const due = parseTimestamp(job.nextRunAt)?.getTime();
-        if (due === undefined || now - due <= graceMs) return false;
-        const run = lastRunOf(job);
-        return !(run && canAbortRun(run));
-    });
-}
-
-/**
  * What the "Errors / Warnings" card says below its number: what the number is made of.
- * A part that is zero is left out, and with nothing wrong the card says that instead.
+ * A part that is zero is left out, and with nothing left to mark as seen the card says
+ * that instead.
  */
 export function problemSummary(missed: number, failed: number): string {
-    const parts = [missed > 0 ? `${missed} missed` : null, failed > 0 ? `${failed} failed` : null].filter(
+    const parts = [failed > 0 ? `${failed} failed` : null, missed > 0 ? `${missed} missed` : null].filter(
         (part) => part !== null,
     );
     return parts.length > 0 ? parts.join(' · ') : 'Nothing to report';
+}
+
+/** The dot on "History" in words, for whoever cannot see it: `2 failed · 1 missed, not marked as seen`. */
+export function describeUnseen(missed: number, failed: number): string | undefined {
+    return missed + failed > 0 ? `${problemSummary(missed, failed)}, not marked as seen` : undefined;
 }

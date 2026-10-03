@@ -1,7 +1,13 @@
-import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
+import {
+    keepPreviousData,
+    queryOptions,
+    useMutation,
+    useQuery,
+    useQueryClient,
+    type QueryClient,
+} from '@tanstack/react-query';
 import { GlobalHistoryPageSchema, HistorySeenSchema, type HistorySeen } from '@pbcm/shared';
 import { api } from '../lib/api';
-import { noteFailure } from '../lib/cacheUpdates';
 import { queryClient } from '../lib/queryClient';
 import { queryKeys } from '../lib/queryKeys';
 import { historyQueryString, type HistoryView } from '../features/history/lib/historyView';
@@ -30,12 +36,12 @@ export function useGlobalHistory(view: HistoryView) {
 }
 
 /**
- * Whether failures happened that this user has not looked at yet -- what the dot on
- * "History" in the sidebar shows. The record lives on the server (`/api/v1/history/seen`),
- * so it follows the user to another browser and survives a reload.
+ * What this user has yet to mark as seen -- the number on the dashboard's card and the dot
+ * on "History" in the sidebar. The record lives on the server (`/api/v1/history/seen`), so
+ * it follows the user to another browser and survives a reload.
  *
- * Never stale by age: this tab raises the count itself as failures arrive, and
- * `HISTORY_SEEN` brings what another tab of the same user did.
+ * Never stale by age: a run that fails or is missed invalidates it, a mark is answered
+ * with the new state, and `HISTORY_SEEN` brings what another tab of the same user did.
  */
 export const historySeenOptions = queryOptions({
     queryKey: queryKeys.history.seen(),
@@ -43,34 +49,50 @@ export const historySeenOptions = queryOptions({
     staleTime: Infinity,
 });
 
-/** Before the server has answered: never opened, nothing counted. */
-const NOTHING_SEEN: HistorySeen = { seenAt: null, unseenFailed: 0 };
-
-/**
- * A failed read leaves the dot off rather than reporting: the dot is a hint, and the
- * history page itself still shows every failure.
- */
-export function useUnseenFailures(): boolean {
-    return useQuery({ ...historySeenOptions, select: (seen) => seen.unseenFailed > 0 }).data ?? false;
+export interface UnseenCounts {
+    failed: number;
+    missed: number;
 }
 
-/** A run failed at `endTime`. Called from the socket's side, outside React's render. */
-export function noteHistoryFailure(endTime: string): void {
-    queryClient.setQueryData(historySeenOptions.queryKey, (seen) => noteFailure(seen ?? NOTHING_SEEN, endTime));
+const unseenCounts = (seen: HistorySeen): UnseenCounts => ({ failed: seen.unseenFailed, missed: seen.unseenMissed });
+
+/** `isPending` until the server has answered; a card would otherwise say "0" for "not known yet". */
+export function useUnseen() {
+    const { data, isPending, error } = useQuery({ ...historySeenOptions, select: unseenCounts });
+    return { unseen: data, isPending, error };
 }
 
 /**
- * The history is on screen. A plain function rather than a mutation hook: the page calls
- * it on the way in and again on the way out, when no component is left to own one.
+ * A run failed or was missed, so there is one more to mark as seen. Asked rather than
+ * counted here: an agent that reconnects sends a run again, and a count kept in the
+ * browser would then say two for what the server holds as one. Called from the socket's
+ * side, outside React's render.
  */
-export async function markHistorySeen(): Promise<void> {
-    const key = historySeenOptions.queryKey;
-    // Cleared at once: the page is open, so its failures are in view whatever the
-    // request makes of it.
-    queryClient.setQueryData(key, (seen) => ({ ...(seen ?? NOTHING_SEEN), unseenFailed: 0 }));
-    try {
-        queryClient.setQueryData(key, await api.put('/api/v1/history/seen', undefined, HistorySeenSchema));
-    } catch (e) {
-        console.error('Failed to mark the history as seen', e);
-    }
+export function refreshUnseen(): void {
+    void queryClient.invalidateQueries({ queryKey: historySeenOptions.queryKey }, { cancelRefetch: false });
+}
+
+/** The server's answer to a mark is the new state; the lists hold `unseen` per run and are read again. */
+function seenChanged(client: QueryClient, seen: HistorySeen): void {
+    client.setQueryData(historySeenOptions.queryKey, seen);
+    void client.invalidateQueries({ queryKey: queryKeys.history.lists() });
+}
+
+/** Marks one run as seen for this user. */
+export function useMarkRunSeen() {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: (runId: string) =>
+            api.put(`/api/v1/history/${encodeURIComponent(runId)}/seen`, undefined, HistorySeenSchema),
+        onSuccess: (seen) => seenChanged(client, seen),
+    });
+}
+
+/** Marks everything that has happened up to now as seen for this user. */
+export function useMarkAllSeen() {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: () => api.put('/api/v1/history/seen', undefined, HistorySeenSchema),
+        onSuccess: (seen) => seenChanged(client, seen),
+    });
 }

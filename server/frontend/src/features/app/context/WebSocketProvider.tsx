@@ -187,8 +187,15 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // Every dashboard receives every user's; only this user's own concerns this tab.
                     case 'HISTORY_SEEN':
                         if (message.payload.username === usernameRef.current) {
-                            const { seenAt, unseenFailed } = message.payload;
-                            queryClient.setQueryData(historySeenOptions.queryKey, { seenAt, unseenFailed });
+                            const { seenAt, unseenFailed, unseenMissed } = message.payload;
+                            queryClient.setQueryData(historySeenOptions.queryKey, { seenAt, unseenFailed, unseenMissed });
+                            // The lists say `unseen` per run. Read again here too, although
+                            // the tab that made the mark does so itself: this is how another
+                            // tab of the same user learns of it.
+                            queryClient.invalidateQueries(
+                                { queryKey: queryKeys.history.lists() },
+                                { cancelRefetch: false },
+                            );
                         }
                         break;
 

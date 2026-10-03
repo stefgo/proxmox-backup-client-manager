@@ -98,6 +98,12 @@ describe("HistoryQuerySchema", () => {
         expect(HistoryQuerySchema.parse({ search: "  nightly " })).toMatchObject({ search: "nightly" });
     });
 
+    it("reads unseen as the word it is, not as a truthy text", () => {
+        expect(HistoryQuerySchema.parse({ unseen: "true" })).toMatchObject({ unseen: true });
+        expect(HistoryQuerySchema.parse({ unseen: "false" })).toMatchObject({ unseen: false });
+        expect(HistoryQuerySchema.safeParse({ unseen: "1" }).success).toBe(false);
+    });
+
     it("refuses a search for nothing but blanks, which would match every run", () => {
         expect(HistoryQuerySchema.safeParse({ search: "   " }).success).toBe(false);
     });

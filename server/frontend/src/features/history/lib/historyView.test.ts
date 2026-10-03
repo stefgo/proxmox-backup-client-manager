@@ -94,6 +94,11 @@ describe('historyQueryString', () => {
             .toBe('limit=10&offset=0&status=failed&clientId=a%26b');
     });
 
+    it('asks for the unseen runs only when told to', () => {
+        expect(historyQueryString({ page: 1, pageSize: 10, unseen: true })).toBe('limit=10&offset=0&unseen=true');
+        expect(historyQueryString({ page: 1, pageSize: 10, unseen: false })).toBe('limit=10&offset=0');
+    });
+
     it('sends the search without the blanks around it', () => {
         expect(historyQueryString({ page: 1, pageSize: 10, search: ' web ' })).toBe('limit=10&offset=0&search=web');
     });

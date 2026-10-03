@@ -29,6 +29,7 @@ import { migration16 } from "./migrations/16_job_history_snapshot.js";
 import { migration17 } from "./migrations/17_user_token_version.js";
 import { migration18 } from "./migrations/18_protect_secrets.js";
 import { migration19 } from "./migrations/19_drop_webhook_client_ids.js";
+import { migration20 } from "./migrations/20_history_seen_runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -150,6 +151,11 @@ const migrator = new Umzug<Database.Database>({
             name: "19_drop_webhook_client_ids",
             up: migration19.up,
             down: migration19.down,
+        },
+        {
+            name: "20_history_seen_runs",
+            up: migration20.up,
+            down: migration20.down,
         },
     ],
     context: db,
