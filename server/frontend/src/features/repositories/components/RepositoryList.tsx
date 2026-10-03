@@ -1,12 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
-import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
-import { DataAction } from '@stefgo/react-ui-components';
-import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
-import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
+import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 
 /** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
@@ -42,131 +40,55 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             (r.username ?? '').toLowerCase().includes(q);
     }, []);
 
-    const buildTableDefinitions = (): DataTableDef<Repository>[] => {
-        const cols: DataTableDef<Repository>[] = [];
+    // One set of actions for both views, so the table and the list cannot drift apart.
+    const renderActions = (repo: Repository) => (
+        <div onClick={(e) => e.stopPropagation()}>
+            <DataAction
+                rowId={repo.id as string}
+                menuEntries={[
+                    {
+                        label: 'Edit Repository',
+                        icon: Edit,
+                        onClick: () => onEdit(repo),
+                        variant: 'default',
+                    },
+                    {
+                        label: 'Delete Repository',
+                        icon: Trash2,
+                        onClick: () => {
+                            if (repo.id) onDelete(repo.id);
+                        },
+                        variant: 'danger',
+                    },
+                ]}
+            />
+        </div>
+    );
 
-        cols.push({
-            tableHeader: 'Repository',
+    const columns: DataColumnDef<Repository>[] = [
+        {
+            header: 'Repository',
             sortable: true,
             sortValue: (repo) => `${repo.baseUrl}:${repo.datastore}`,
-            tableItemRender: (repo) => (
-                <div className="flex items-center gap-3">
+            list: { label: null },
+            render: (repo, view) => (
+                <div className={view === 'list' ? 'flex items-center gap-2 py-1' : 'flex items-center gap-3'}>
                     <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
-                    <div className={`text-sm text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
-                        {repo.baseUrl}:{repo.datastore}
-                    </div>
-                </div>
-            )
-        });
-
-        cols.push({
-            tableHeader: 'Actions',
-            tableHeaderClassName: 'text-center',
-            tableCellClassName: 'content-center',
-            tableItemRender: (repo) => (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction
-                        rowId={repo.id as string}
-                        menuEntries={[
-                            {
-                                label: 'Edit Repository',
-                                icon: Edit,
-                                onClick: () => onEdit(repo),
-                                variant: 'default',
-                            },
-                            {
-                                label: 'Delete Repository',
-                                icon: Trash2,
-                                onClick: () => {
-                                    if (repo.id) onDelete(repo.id);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
-                </div>
-            )
-        });
-
-        return cols;
-    };
-
-    const buildListDefinitions = (): DataListColumnDef<Repository>[] => {
-        const contentFields: DataListDef<Repository>[] = [];
-        const actionFields: DataListDef<Repository>[] = [];
-
-        contentFields.push({
-            listItemRender: (repo) => (
-                <div className="flex items-center gap-2 py-1">
-                    <StatusDot size="sm" {...STATUS_DOT[repositoryTone(repo)]} label={repo.status} />
-                    <div className={`font-inherit text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
+                    <div className={`${view === 'list' ? 'font-inherit' : 'text-sm'} text-text-primary ${repo.status === REPOSITORY_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {repo.baseUrl}:{repo.datastore}
                     </div>
                 </div>
             ),
-            listLabel: null,
-        });
-
-        contentFields.push({
-            accessorKey: 'id',
-            listLabel: 'ID'
-        });
-
-        contentFields.push({
-            accessorKey: 'baseUrl',
-            listLabel: 'URL'
-        });
-
-        contentFields.push({
-            accessorKey: 'datastore',
-            listLabel: 'Datastore'
-        });
-
-        contentFields.push({
-            accessorKey: 'username',
-            listLabel: 'User'
-        });
-
-        contentFields.push({
-            accessorKey: 'tokenname',
-            listLabel: 'Tokenname'
-        });
-
-        actionFields.push({
-            listItemRender: (repo) => (
-                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                    <DataAction
-                        rowId={repo.id as string}
-                        menuEntries={[
-                            {
-                                label: 'Edit Repository',
-                                icon: Edit,
-                                onClick: () => onEdit(repo),
-                                variant: 'default',
-                            },
-                            {
-                                label: 'Delete Repository',
-                                icon: Trash2,
-                                onClick: () => {
-                                    if (repo.id) onDelete(repo.id);
-                                },
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
-                </div>
-            ),
-            listLabel: null,
-        });
-
-        return [
-            { fields: contentFields, columnClassName: 'flex-1' },
-            { fields: actionFields, columnClassName: 'md:text-right' }
-        ];
-    };
-
-    const tableColumns = buildTableDefinitions();
-    const listColumns = buildListDefinitions();
+        },
+        // The table names a repository by URL and datastore; the list has the room to
+        // spell out the rest.
+        { header: 'ID', accessorKey: 'id', table: false },
+        { header: 'URL', accessorKey: 'baseUrl', table: false },
+        { header: 'Datastore', accessorKey: 'datastore', table: false },
+        { header: 'User', accessorKey: 'username', table: false },
+        { header: 'Tokenname', accessorKey: 'tokenname', table: false },
+        actionsColumn(renderActions),
+    ];
 
     return (
         <DataMultiView
@@ -179,8 +101,8 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'repositoryViewMode', scope: 'local' } }}
             data={sortedRepositories}
-            tableDef={tableColumns}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search Repositories ..."

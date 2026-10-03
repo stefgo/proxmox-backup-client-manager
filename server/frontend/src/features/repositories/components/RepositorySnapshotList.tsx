@@ -1,10 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { DataTableDef, DataListColumnDef, DataListDef, DataAction, DataMultiView, StatusDot } from '@stefgo/react-ui-components';
+import { DataAction, DataMultiView, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
@@ -67,149 +68,88 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         return getClientStatus(snap.backupId);
     };
 
-    const tableDef: DataTableDef<T>[] = [];
+    const sizeLabel = (snap: Snapshot) => (snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-');
 
-    if (showClientColumn) {
-        tableDef.push({
-            tableHeader: 'Client',
-            sortable: true,
-            sortValue: (snap) => (snap.backupId && getClientName ? getClientName(snap.backupId) : '') ?? '',
-            tableItemRender: (snap) => {
-                const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
-                if (!name) return null;
+    const renderActions = (snap: T) => (
+        <DataAction
+            rowId={snapshotKey(snap)}
+            actions={[
+                {
+                    icon: ArchiveRestore,
+                    onClick: () => onRestore(snap),
+                    color: 'blue',
+                    tooltip: 'Restore Snapshot',
+                },
+            ]}
+        />
+    );
 
-                const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
-                return (
-                    <div className="flex items-center gap-3">
-                        <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />
-                        <div
-                            className={`text-sm ${online ? 'text-text-primary' : ''
-                                } max-w-[150px] truncate`}
-                            title={name}
-                        >
-                            {name}
-                        </div>
-                    </div>
-                );
-            }
-        });
-    }
-
-    tableDef.push({
-        tableHeader: 'Date',
+    const clientColumn: DataColumnDef<T> = {
+        header: 'Client',
         sortable: true,
-        sortValue: (snap) => snap.backupTime,
-        tableItemRender: (snap) => (
-            <div className="text-sm text-text-muted flex items-center gap-2">
-                {formatDate(snap.backupTime * 1000)}
-            </div>
-        )
-    });
+        sortValue: (snap) => (snap.backupId && getClientName ? getClientName(snap.backupId) : '') ?? '',
+        list: { label: null },
+        render: (snap, view) => {
+            const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
+            if (!name) return null;
 
-    tableDef.push({
-        tableHeader: 'Size',
-        sortable: true,
-        sortValue: (snap) => snap.size ?? 0,
-        tableItemRender: (snap) => (
-            <div className="text-sm text-text-muted">
-                {snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'}
-            </div>
-        )
-    });
-
-    tableDef.push({
-        tableHeader: 'Actions',
-        tableHeaderClassName: 'text-right',
-        tableItemRender: (snap) => (
-            <DataAction
-                rowId={snapshotKey(snap)}
-                actions={[
-                    {
-                        icon: ArchiveRestore,
-                        onClick: () => onRestore(snap),
-                        color: 'blue',
-                        tooltip: 'Restore Snapshot',
-                    }
-                ]}
-            />
-        )
-    });
-
-    const listColumns: DataListColumnDef<T>[] = [];
-    const fields: DataListDef<T>[] = [];
-
-    if (showClientColumn) {
-        fields.push({
-            listLabel: null,
-            listItemRender: (snap) => {
-                const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
-                if (!name) return null;
-
-                const isOnline = getStatus(snap) === CLIENT_STATUS.ONLINE;
-                return (
-                    <div className="flex items-center gap-2 py-1">
-                        <StatusDot size="sm" {...STATUS_DOT[isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />
-                        <span
-                            className={`${isOnline
-                                ? 'text-text-primary'
-                                : 'text-inherit'
-                                }`}
-                        >
-                            {name}
-                        </span>
-                    </div>
-                );
-            },
-        });
-    }
-
-    fields.push({
-        listLabel: 'Snapshot',
-        listItemRender: (snap) => `${snap.backupType} / ${snap.backupId}`
-    });
-
-    fields.push({
-        listLabel: 'Date',
-        listItemRender: (snap) => formatDate(snap.backupTime * 1000)
-    });
-
-    fields.push({
-        listLabel: 'Size',
-        listItemRender: (snap) => snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-'
-    });
-
-    listColumns.push({ fields, columnClassName: 'flex-1' });
-
-    listColumns.push({
-        fields: [{
-            listLabel: null,
-            listItemRender: (snap) => (
-                <div className="flex justify-center mt-2">
-                    <DataAction
-                        rowId={snapshotKey(snap)}
-                        actions={[
-                            {
-                                icon: ArchiveRestore,
-                                onClick: () => onRestore(snap),
-                                color: 'blue',
-                                tooltip: 'Restore Snapshot',
-                            }
-                        ]}
-                    />
+            const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
+            const dot = <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />;
+            return view === 'list' ? (
+                <div className="flex items-center gap-2 py-1">
+                    {dot}
+                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{name}</span>
                 </div>
-            )
-        }],
-        columnClassName: 'md:text-right'
-    });
+            ) : (
+                <div className="flex items-center gap-3">
+                    {dot}
+                    <div className={`text-sm ${online ? 'text-text-primary' : ''} max-w-[150px] truncate`} title={name}>
+                        {name}
+                    </div>
+                </div>
+            );
+        },
+    };
 
+    const columns: DataColumnDef<T>[] = [
+        ...(showClientColumn ? [clientColumn] : []),
+        {
+            header: 'Snapshot',
+            table: false,
+            render: (snap) => `${snap.backupType} / ${snap.backupId}`,
+        },
+        {
+            header: 'Date',
+            sortable: true,
+            sortValue: (snap) => snap.backupTime,
+            render: (snap, view) =>
+                view === 'list' ? (
+                    formatDate(snap.backupTime * 1000)
+                ) : (
+                    <div className="text-sm text-text-muted flex items-center gap-2">
+                        {formatDate(snap.backupTime * 1000)}
+                    </div>
+                ),
+        },
+        {
+            header: 'Size',
+            sortable: true,
+            sortValue: (snap) => snap.size ?? 0,
+            render: (snap, view) =>
+                view === 'list' ? sizeLabel(snap) : <div className="text-sm text-text-muted">{sizeLabel(snap)}</div>,
+        },
+        { ...actionsColumn(renderActions, 'flex justify-center mt-2'), table: { headerClassName: 'text-right' } },
+    ];
+
+    // Counted among the table's columns: "Snapshot" is a field of the list only.
     const dateSortColIndex = showClientColumn ? 1 : 0;
 
     return (
         <DataMultiView
             title={<><FileBox size={18} className="text-text-muted" /> Snapshots</>}
             data={sortedSnapshots}
-            tableDef={tableDef}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField={snapshotKey}
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
             viewMode={{ persist: { key: 'snapshotListViewMode', scope: 'local' } }}

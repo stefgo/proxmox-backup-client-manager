@@ -2,15 +2,12 @@ import { useCallback, useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTableDef, StatusDot } from '@stefgo/react-ui-components';
-import { DataAction } from '@stefgo/react-ui-components';
-import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
-import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
-import { Button } from '@stefgo/react-ui-components';
+import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { actionsColumn, listGroups } from '../../../components/listColumns';
 
 interface ClientListProps {
     clients: Client[];
@@ -88,109 +85,54 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             c.id.toLowerCase().includes(q);
     }, []);
 
-    const buildTableDefinitions = (): DataTableDef<Client>[] => {
-        const cols: DataTableDef<Client>[] = [];
+    const renderActions = (client: Client) => (
+        <div onClick={(e) => e.stopPropagation()}>
+            <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
+        </div>
+    );
 
-        cols.push({
-            tableHeader: 'Client',
+    const columns: DataColumnDef<Client>[] = [
+        {
+            header: 'Client',
             sortable: true,
             sortValue: (client) => client.displayName || client.hostname,
-            tableItemRender: (client) => (
-                <div className="flex items-center gap-3">
+            list: { label: null },
+            render: (client, view) => (
+                <div className={view === 'list' ? 'flex items-center gap-2 py-1' : 'flex items-center gap-3'}>
                     <StatusDot size="sm" {...STATUS_DOT[client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={client.status} />
-                    <div className={`text-sm text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
-                        {client.displayName || client.hostname}
-                    </div>
-                    <ConnectionBadge client={client} />
-                </div>
-            )
-        });
-
-        cols.push({
-            tableHeader: null,
-            tableCellClassName: 'align-top text-sm text-text-primary',
-            tableItemRender: (client) => (
-                client.status !== CLIENT_STATUS.ONLINE ? (
-                    <div className="whitespace-nowrap opacity-70">
-                        Last seen: {formatDate(client.lastSeen)}
-                    </div >
-                ) : null
-            )
-        });
-
-        cols.push({
-            tableHeader: 'Actions',
-            tableHeaderClassName: 'text-center',
-            tableCellClassName: 'content-center',
-            tableItemRender: (client) => (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
-                </div>
-            )
-        });
-
-        return cols;
-    };
-
-    const buildListDefinitions = (): DataListColumnDef<Client>[] => {
-        const contentFields: DataListDef<Client>[] = [];
-        const actionFields: DataListDef<Client>[] = [];
-
-        contentFields.push({
-            listItemRender: (client) => (
-                <div className="flex items-center gap-2 py-1">
-                    <StatusDot size="sm" {...STATUS_DOT[client.status === CLIENT_STATUS.ONLINE ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={client.status} />
-                    <div className={`font-inherit text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
+                    <div className={`${view === 'list' ? 'font-inherit' : 'text-sm'} text-text-primary ${client.status === CLIENT_STATUS.ONLINE ? '' : 'opacity-70'} truncate`}>
                         {client.displayName || client.hostname}
                     </div>
                     <ConnectionBadge client={client} />
                 </div>
             ),
-            listLabel: null,
-        });
-
-        contentFields.push({
-            accessorKey: 'id',
-            listLabel: 'ID'
-        });
-
-        contentFields.push({
-            listItemRender: (client) => (
-                <span className="text-sm text-text-primary">
-                    {client.version}
-                </span>
-            ),
-            listLabel: 'Version',
-        });
-
-        contentFields.push({
-            listItemRender: (client) => (
-                client.status !== CLIENT_STATUS.ONLINE ? (
-                    <span className="text-sm text-text-muted">
-                        {formatDate(client.lastSeen)}
-                    </span>
-                ) : <span className="text-success text-sm">Online</span>
-            ),
-            listLabel: 'Status',
-        });
-
-        actionFields.push({
-            listItemRender: (client) => (
-                <div onClick={(e) => e.stopPropagation()} className="mt-2 md:mt-0 flex justify-center">
-                    <DataAction rowId={client.id} menuEntries={buildMenuEntries(client)} />
-                </div>
-            ),
-            listLabel: null,
-        });
-
-        return [
-            { fields: contentFields, columnClassName: 'flex-1' },
-            { fields: actionFields, columnClassName: 'md:text-right' }
-        ];
-    };
-
-    const tableColumns = buildTableDefinitions();
-    const listColumns = buildListDefinitions();
+        },
+        { header: 'ID', accessorKey: 'id', table: false },
+        {
+            header: 'Version',
+            table: false,
+            render: (client) => <span className="text-sm text-text-primary">{client.version}</span>,
+        },
+        {
+            // The table says when an offline client was last seen and nothing for an online
+            // one -- the dot already does. The list has a labelled field and fills it.
+            header: null,
+            table: { cellClassName: 'align-top text-sm text-text-primary' },
+            list: { label: 'Status' },
+            render: (client, view) => {
+                const online = client.status === CLIENT_STATUS.ONLINE;
+                if (view === 'list') {
+                    return online
+                        ? <span className="text-success text-sm">Online</span>
+                        : <span className="text-sm text-text-muted">{formatDate(client.lastSeen)}</span>;
+                }
+                return online ? null : (
+                    <div className="whitespace-nowrap opacity-70">Last seen: {formatDate(client.lastSeen)}</div>
+                );
+            },
+        },
+        actionsColumn(renderActions),
+    ];
 
     return (
         <DataMultiView
@@ -203,8 +145,8 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'clientViewMode', scope: 'local' } }}
             data={sortedClients}
-            tableDef={tableColumns}
-            listColumns={listColumns}
+            columns={columns}
+            listGroups={listGroups()}
             keyField="id"
             searchable
             searchPlaceholder="Search Clients ..."
