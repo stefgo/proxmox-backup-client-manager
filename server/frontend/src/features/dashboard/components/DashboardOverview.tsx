@@ -141,12 +141,8 @@ export const DashboardOverview = () => {
                     ref={problemsRef}
                     id="dashboard-problems-section"
                     className="flex flex-col gap-4"
-                    aria-labelledby="dashboard-problems"
+                    aria-label="Errors / Warnings"
                 >
-                    <h2 id="dashboard-problems" className="text-lg font-bold text-text-primary">
-                        Errors / Warnings
-                    </h2>
-
                     {!hasProblems && (
                         <Card>
                             <EmptyState

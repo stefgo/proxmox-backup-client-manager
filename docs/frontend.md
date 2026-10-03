@@ -330,7 +330,9 @@ anyway, plus one page of the history.
   name is rendered only while it has something to show -- or after a click on the card,
   which with nothing wrong opens it to say so and closes it again; with something wrong
   the click scrolls down to it. The card carries `aria-expanded` for the section.
-- **Errors / Warnings**, the section, which holds only what needs attention:
+- **Errors / Warnings**, the section, which holds only what needs attention. It has no
+  heading of its own -- the lists below carry their titles -- and takes its name from
+  `aria-label`:
     - **Missed Jobs** -- `missedJobs`: the schedule is on, `nextRunAt` is past by more
       than `MISSED_GRACE_MS` (a minute; the agent starts a due job on its next tick), the
       client is online, and no run of the job is under way or queued. The rows the job
