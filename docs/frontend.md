@@ -72,7 +72,7 @@ shell.
 | Path                                    | Component               | Description                                     |
 | :-------------------------------------- | :---------------------- | :---------------------------------------------- |
 | `/login`                                | `Login`                 | Authentication page (local & OIDC).             |
-| `/`                                     | `ManagedJobs`           | The dashboard: the job list across all clients, plus each job's last run. First in the sidebar, and where the login lands. |
+| `/`                                     | —                       | Redirects to `/clients`.                        |
 | `/clients`                              | `ManagedClients`        | Client list.                                    |
 | `/clients/new`                          | `AddClientWizard`       | Adds a client, starting with the connection mode. |
 | `/clients/:clientId`                    | `ClientOverview`        | Detail view of a client; `?tab=` names the open tab. |
@@ -81,8 +81,9 @@ shell.
 | `/clients/:clientId/jobs/new`           | `ClientJobEditor`       | New job for this client.                        |
 | `/clients/:clientId/jobs/:jobId`        | `ClientJobEditor`       | Edit a job; closes onto the client.             |
 | `/clients/:clientId/restore/:repoId/:backupType/:backupTime` | `SnapshotRestoreEditor` | Restores one of the client's snapshots. |
-| `/jobs/new`                             | `ClientJobEditor`       | New job, client picked in the form. A child of the dashboard. |
-| `/jobs/:clientId/:jobId`                | `ClientJobEditor`       | Same editor; closes onto `/`.                   |
+| `/jobs`                                 | `ManagedJobs`           | Global job list, plus each job's last run.      |
+| `/jobs/new`                             | `ClientJobEditor`       | New job, client picked in the form.             |
+| `/jobs/:clientId/:jobId`                | `ClientJobEditor`       | Same editor; closes onto `/jobs`.               |
 | `/repositories`                         | `ManagedRepositories`   | Repository list.                                |
 | `/repositories/new`                     | `RepositoryEditor`      | Adds a repository.                              |
 | `/repositories/:repoId`                 | `RepositoryOverview`    | Detail view of a repository.                    |
@@ -106,16 +107,9 @@ repository editor and the restore form, which used to be local state of the page
 opened them.
 
 **The job editor sits under two path families** for the same page — under the client when
-it was opened from there, under `/jobs` when it was opened from the dashboard's list
-across all clients. That is deliberate: the sidebar keeps marking the place the operator
-came from, and the tree says where each closes onto.
-
-**The dashboard is the root, and it is the job list.** `ROUTES.dashboard` is `/`; nothing
-redirects there or away from it. Its two editors keep `/jobs/...` as their address --
-they name a job, and the root has no segment of its own to put in front -- and are its
-children in the tree all the same, which is all the sidebar mark and "back" read. There
-is no page at `/jobs` itself: the list moved, and a bookmark of it gets the "page not
-found" card, which leads to the dashboard.
+it was opened from there, under `/jobs` when it was opened from the list across all
+clients. That is deliberate: the sidebar keeps marking the place the operator came from,
+and the tree says where each closes onto.
 
 ### Where "back" is
 

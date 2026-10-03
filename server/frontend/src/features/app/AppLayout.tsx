@@ -139,7 +139,7 @@ export function AppLayout() {
         const live: Record<string, Partial<PageNav>> = {
             clients: { badge: `${stats.clients.active} / ${stats.clients.total}` },
             repositories: { badge: `${stats.repositories.active} / ${stats.repositories.total}` },
-            dashboard: { badge: `${stats.jobs.active}` },
+            jobs: { badge: `${stats.jobs.active}` },
             history: { badgeDot: unseenFailures, badgeTone: unseenFailures ? 'error' : undefined },
         };
 

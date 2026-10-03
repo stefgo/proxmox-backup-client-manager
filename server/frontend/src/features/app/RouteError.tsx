@@ -22,8 +22,8 @@ const NOT_FOUND: Record<NotFoundSubject, { title: string; text: string; backTo: 
     job: {
         title: 'Job not found',
         text: 'There is no job with this ID on this client. It may have been deleted.',
-        backTo: ROUTES.dashboard,
-        backLabel: 'Back to dashboard',
+        backTo: ROUTES.jobs,
+        backLabel: 'Back to jobs',
     },
     snapshot: {
         title: 'Snapshot not found',

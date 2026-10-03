@@ -1,8 +1,8 @@
-import type { RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router-dom';
 import {
     Activity,
+    HardDrive,
     Key,
-    LayoutDashboard,
     Monitor,
     Server as ServerIcon,
     Settings as SettingsIcon,
@@ -67,7 +67,7 @@ const nav = (entry: NavEntry): RouteHandle => ({ nav: entry });
 /** A route called by a fixed name: a form, mostly. */
 const titled = (title: string): RouteHandle => ({ title });
 
-/** The job editor, under a client and under the dashboard: called by the job's name. */
+/** The job editor, under a client and under the list across all clients: called by the job's name. */
 const JOB: RouteHandle = { subject: 'job', title: 'Job' };
 
 /**
@@ -82,22 +82,9 @@ const JOB: RouteHandle = { subject: 'job', title: 'Job' };
  * - **Not found** is the area's `errorElement`: a boundary below throws `NotFoundError`.
  * - **The document title** is the handles along the open route: the area's label, the
  *   `subject` a route is about, the `title` of a form.
- *
- * The first area is the dashboard, at the root: the job list across all clients. Its
- * editors keep `/jobs/...` as their address and are its children all the same -- the tree
- * says who is whose parent, not the address.
  */
 export const shellRoutes: RouteObject[] = [
-    {
-        path: ROUTES.dashboard,
-        handle: nav({ id: 'dashboard', groupId: 'resources', label: 'Dashboard', icon: LayoutDashboard }),
-        errorElement: <RouteError />,
-        children: [
-            { index: true, element: <ManagedJobs /> },
-            { path: ROUTES.jobNew, handle: titled('New Job'), element: <NewJobRoute /> },
-            { path: ROUTES.job, handle: JOB, element: <EditJobRoute /> },
-        ],
-    },
+    { path: ROUTES.root, element: <Navigate to={ROUTES.clients} replace /> },
     {
         path: ROUTES.clients,
         handle: nav({ id: 'clients', groupId: 'resources', label: 'Clients', icon: Monitor }),
@@ -137,6 +124,16 @@ export const shellRoutes: RouteObject[] = [
                     { path: ROUTES.repositoryRestore, handle: titled('Restore'), element: <RepositoryRestoreRoute /> },
                 ],
             },
+        ],
+    },
+    {
+        path: ROUTES.jobs,
+        handle: nav({ id: 'jobs', groupId: 'resources', label: 'Jobs', icon: HardDrive }),
+        errorElement: <RouteError />,
+        children: [
+            { index: true, element: <ManagedJobs /> },
+            { path: ROUTES.jobNew, handle: titled('New Job'), element: <NewJobRoute /> },
+            { path: ROUTES.job, handle: JOB, element: <EditJobRoute /> },
         ],
     },
     {
