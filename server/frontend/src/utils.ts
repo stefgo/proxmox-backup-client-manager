@@ -1,4 +1,5 @@
 import type { AlertOptions } from '@stefgo/react-ui-components';
+import { parseTimestamp } from './lib/time';
 
 /** What a value that is not there yet shows, such as the last run of a scheduler that never ran. */
 export const EMPTY_VALUE = '–';
@@ -8,18 +9,8 @@ export const formatDate = (
 ): string => {
     if (!date) return 'Never';
 
-    let d = new Date(date);
-
-    if (typeof date === 'string') {
-        // Handle SQLite default format "YYYY-MM-DD HH:MM:SS" -> Treat as UTC
-        if (date.includes(' ') && !date.includes('T')) {
-            d = new Date(date.replace(' ', 'T') + 'Z');
-        }
-    }
-
-    if (isNaN(d.getTime())) {
-        return 'Invalid Date';
-    }
+    const d = parseTimestamp(date);
+    if (!d) return 'Invalid Date';
 
     return new Intl.DateTimeFormat('de-DE', {
         year: 'numeric',
