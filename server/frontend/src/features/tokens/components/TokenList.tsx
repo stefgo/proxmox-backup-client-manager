@@ -5,6 +5,7 @@ import {
     Badge,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
 } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
@@ -153,7 +154,13 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No tokens match “${searchQuery}”.`}
-            emptyMessage="No tokens generated"
+            emptyMessage={
+                <EmptyState
+                    icon={Key}
+                    title="No tokens generated"
+                    description="A token is generated when a client is added; its agent registers with it."
+                />
+            }
             pagination={pagination(PAGE_SIZE.page)}
         />
     );

@@ -160,7 +160,6 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                     icon={Monitor}
                     title="No clients registered yet"
                     description="Add a client, then start its agent with the registration token it is given."
-                    action={<Button size="sm" icon={Plus} onClick={addClient}>Add Client</Button>}
                 />
             }
             rowClassName="align-top"

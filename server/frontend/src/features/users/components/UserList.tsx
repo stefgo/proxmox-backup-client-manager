@@ -5,6 +5,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
 } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
@@ -135,7 +136,13 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No users match “${searchQuery}”.`}
-            emptyMessage="No users found"
+            emptyMessage={
+                <EmptyState
+                    icon={User}
+                    title="No users found"
+                    description="Add a user to give someone access to the dashboard."
+                />
+            }
             pagination={pagination(PAGE_SIZE.page)}
         />
     );

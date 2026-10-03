@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { DataAction, DataMultiView, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
+import { DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
 import { formatBytes, formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
@@ -169,7 +169,13 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No snapshots match “${searchQuery}”.`}
-            emptyMessage="No snapshots found in this repository."
+            emptyMessage={
+                <EmptyState
+                    icon={FileBox}
+                    title="No snapshots found"
+                    description="A snapshot appears here once a backup has finished."
+                />
+            }
             pagination={pagination(PAGE_SIZE.embedded)}
         />
     );

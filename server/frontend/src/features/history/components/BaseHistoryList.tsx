@@ -3,7 +3,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
-import { Badge, Button, DataMultiView } from '@stefgo/react-ui-components';
+import { Badge, Button, DataMultiView, EmptyState } from '@stefgo/react-ui-components';
 import { DataListDef, type Controllable, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
@@ -89,7 +89,8 @@ export interface BaseHistoryListProps {
      * the runs an agent reports of itself. It is what an abort is addressed to.
      */
     clientId?: string;
-    emptyMessage?: string;
+    /** What an empty list says; an `EmptyState` unless it answers a search or a filter. */
+    emptyMessage?: ReactNode;
     /** Controls in the card header, e.g. a filter. */
     action?: ReactNode;
     /** Rows per page: `PAGE_SIZE.page` where the list is the page, embedded otherwise. */
@@ -119,7 +120,13 @@ export const BaseHistoryList = ({
     title = 'Recent Activity',
     showClientName = false,
     clientId,
-    emptyMessage = 'No history available',
+    emptyMessage = (
+        <EmptyState
+            icon={Activity}
+            title="No history available"
+            description="A run appears here once a job has started."
+        />
+    ),
     action,
     pageSize = PAGE_SIZE.embedded,
     paging,

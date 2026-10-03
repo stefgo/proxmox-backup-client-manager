@@ -114,7 +114,6 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                     icon={Server}
                     title="No repositories added yet"
                     description="A repository is a Proxmox Backup Server datastore that jobs back up into."
-                    action={<Button size="sm" icon={Plus} onClick={onAdd}>Add Repository</Button>}
                 />
             }
             rowClassName="align-top"

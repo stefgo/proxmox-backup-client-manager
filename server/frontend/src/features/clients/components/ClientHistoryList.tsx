@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { BaseHistoryItem, BaseHistoryList } from '../../history/components/BaseHistoryList';
 
 interface ClientHistoryListProps {
@@ -11,7 +12,7 @@ interface ClientHistoryListProps {
     showClientName?: boolean;
     /** Forwarded to the list underneath -- see BaseHistoryListProps. */
     clientId?: string;
-    emptyMessage?: string;
+    emptyMessage?: ReactNode;
 }
 
 export const ClientHistoryList = ({ history, type, title = 'Recent Activity', showClientName = false, clientId, emptyMessage }: ClientHistoryListProps) => {

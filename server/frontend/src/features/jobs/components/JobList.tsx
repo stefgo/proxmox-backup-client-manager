@@ -39,6 +39,7 @@ const emptyMessage = (empty: JobListEmpty) => {
         case 'someOffline':
             return (
                 <EmptyState
+                    icon={Unplug}
                     title="No jobs on the clients that are online"
                     description={`${empty.offline} offline ${empty.offline === 1 ? 'client is' : 'clients are'} not shown: their jobs appear once they are online.`}
                 />

@@ -1,7 +1,7 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
 import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { StatCard, ActionButton, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
+import { StatCard, ActionButton, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { EMPTY_VALUE, formatRelativeDate, getErrorMessage } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
@@ -254,7 +254,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                     title="Last History"
                                     history={lastHistory}
                                     clientId={client.id}
-                                    emptyMessage="No data available in the observation period."
+                                    emptyMessage={
+                                        <EmptyState
+                                            icon={Activity}
+                                            title="No runs in the observation period"
+                                            description="The agent reports the runs of its last day here; older ones are on the history tab."
+                                        />
+                                    }
                                 />
                             </div>
                         )}

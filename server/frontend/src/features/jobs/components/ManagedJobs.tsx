@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CLIENT_STATUS } from '@pbcm/shared';
-import { LoadingIndicator } from '@stefgo/react-ui-components';
+import { Activity } from 'lucide-react';
+import { EmptyState, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useGlobalJobs, useLatestPerJob } from '../../../queries/jobs';
 import { useClients } from '../../../queries/clients';
 import { JobList } from './JobList';
@@ -89,7 +90,13 @@ export const ManagedJobs = () => {
                     title="Last Activity"
                     history={latestOfExistingJobs}
                     showClientName={true}
-                    emptyMessage="No job has run yet."
+                    emptyMessage={
+                        <EmptyState
+                            icon={Activity}
+                            title="No job has run yet"
+                            description="The last run of every job appears here."
+                        />
+                    }
                 />
             </div>
         </div>

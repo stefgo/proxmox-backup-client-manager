@@ -406,8 +406,9 @@ export const BaseJobList = <T extends BaseJobItem>({
             emptyMessage={
                 emptyMessage ?? (
                     <EmptyState
+                        icon={HardDrive}
                         title="No jobs configured yet"
-                        action={newJobButton || undefined}
+                        description="A job backs up paths of a client into a repository, on a schedule or on demand."
                     />
                 )
             }

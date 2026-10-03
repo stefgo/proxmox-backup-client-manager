@@ -6,6 +6,7 @@ import {
     Button,
     DataAction,
     DataMultiView,
+    EmptyState,
     type DataColumnDef,
     Switch,
 } from '@stefgo/react-ui-components';
@@ -193,7 +194,13 @@ export const WebhookList = ({
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No webhooks match “${searchQuery}”.`}
-            emptyMessage="No webhooks yet. Add one to have the clients report their backup runs to an external service."
+            emptyMessage={
+                <EmptyState
+                    icon={WebhookIcon}
+                    title="No webhooks yet"
+                    description="Add one to have the clients report their backup runs to an external service."
+                />
+            }
             pagination={pagination(PAGE_SIZE.page)}
         />
     );
