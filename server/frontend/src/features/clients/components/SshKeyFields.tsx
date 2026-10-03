@@ -3,8 +3,8 @@ import { KeyRound, Check } from 'lucide-react';
 import { Button, Input, RadioGroup, Radio, Textarea } from '@stefgo/react-ui-components';
 import { GeneratedKeyPairSchema } from '@pbcm/shared';
 import { api } from '../../../lib/api';
+import type { SshKeyMode } from '../lib/tunnelForm';
 
-export type SshKeyMode = 'keep' | 'generate' | 'manual';
 
 interface SshKeyFieldsProps {
     mode: SshKeyMode;
@@ -15,6 +15,8 @@ interface SshKeyFieldsProps {
     onPassphraseChange: (value: string) => void;
     /** Adds "keep the stored key" as the preselected option — for the editor. */
     allowKeep?: boolean;
+    /** Why the key as it stands is not enough, shown where the key is entered or made. */
+    error?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export const SshKeyFields = ({
     passphrase,
     onPassphraseChange,
     allowKeep = false,
+    error: keyError,
 }: SshKeyFieldsProps) => {
     const groupName = useId();
     const [busy, setBusy] = useState(false);
@@ -98,6 +101,7 @@ export const SshKeyFields = ({
                             ed25519 key generated
                         </div>
                     )}
+                    {!generated && keyError && <p className="text-xs text-error ml-1">{keyError}</p>}
                     <p className="text-xs text-text-muted">
                         No passphrase — the server uses the key unattended. It is only stored,
                         never handed back out.
@@ -112,6 +116,7 @@ export const SshKeyFields = ({
                         required
                         value={privateKey}
                         onChange={(e) => onPrivateKeyChange(e.target.value)}
+                        error={keyError}
                         rows={5}
                         spellCheck={false}
                         placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"

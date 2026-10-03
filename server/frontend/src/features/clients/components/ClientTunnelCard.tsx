@@ -1,21 +1,42 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useState } from 'react';
 import {
     TUNNEL_STATUS,
-    TunnelTestResultSchema,
+    TunnelUpdateSchema,
     type TunnelInfo,
     type TunnelState,
     type TunnelStatus,
 } from '@pbcm/shared';
-import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { clientTunnelOptions } from '../../../queries/clients';
+import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2, X } from 'lucide-react';
+import { ActionButton, Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
+import { useQuery } from '@tanstack/react-query';
+import {
+    clientTunnelOptions,
+    testStoredTunnel,
+    testTunnelCredentials,
+    useCreateTunnel,
+    useDeleteTunnel,
+    useUpdateTunnel,
+} from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
-import { SshKeyFields, SshKeyMode } from './SshKeyFields';
+import { useEntityForm } from '../../../hooks/useEntityForm';
+import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard';
+import { SshKeyFields } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
-import { api } from '../../../lib/api';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { describeRemoveTunnel } from '../confirmations';
+import {
+    NewTunnelSchema,
+    carriesNewKey,
+    newTunnelInputFrom,
+    significantTunnelDraft,
+    sshPortFrom,
+    storedTunnelDraft,
+    tunnelDraftFrom,
+    tunnelFieldOf,
+    tunnelRules,
+    tunnelUpdateInputFrom,
+    type TunnelDraft,
+} from '../lib/tunnelForm';
 
 interface ClientTunnelCardProps {
     clientId: string;
@@ -28,14 +49,6 @@ interface ClientTunnelCardProps {
     clientName?: string;
     /** Live state from the cached client list — kept current by TUNNEL_UPDATE over the socket. */
     state?: TunnelState;
-    /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
-    onDirtyChange?: (dirty: boolean) => void;
-    /**
-     * Placed in the card header, beside the lease badge. The page passes its close control
-     * here — and it is rendered in every state of the card, the load error and the
-     * placeholder included, so a stuck request never traps the operator on the page.
-     */
-    action?: ReactNode;
 }
 
 /**
@@ -70,81 +83,140 @@ const COPY_FEEDBACK_MS = 2000;
  * The card owns its own save button because the credentials are their own endpoint. The
  * test button sends the *form* values, not the stored ones, so a green result always
  * describes what is on screen.
+ *
+ * It also owns its way out, in every state: the X in its header, asking about unsaved
+ * credentials first -- a half-pasted private key is not retyped from memory.
  */
-export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, action }: ClientTunnelCardProps) => {
-    const queryClient = useQueryClient();
-    const tunnelOptions = clientTunnelOptions(clientId);
+/**
+ * The card in every state it has: the heading, the client it belongs to on the line
+ * beneath it, and the way out. Built once, so the header does not change shape when the
+ * configuration arrives. Same stack as {@link ClientIdentityCard} — `span`s throughout,
+ * because the title is rendered as an `h3`, which may not contain a `div`.
+ */
+const TunnelCardShell = ({
+    clientId,
+    clientName,
+    state,
+    hasTunnel,
+    action,
+    children,
+}: ClientTunnelCardProps & { hasTunnel: boolean; action: ReactNode; children: ReactNode }) => (
+    <Card
+        title={
+            <span className="flex items-center gap-4">
+                {/* Only once there is a tunnel: a dot on a card that is a setup form
+                    would report the state of something that does not exist. */}
+                {hasTunnel && <StatusDot size="md" {...STATUS_DOT[TUNNEL_STATUS_TONE[state?.status ?? 'idle']]} label={state?.status ?? 'idle'} />}
+                <span>
+                    <span className="block text-xl font-bold">SSH Reverse Tunnel</span>
+                    <span className="block text-sm font-normal text-text-muted">
+                        {clientName}
+                        <span className="font-mono text-xs ml-2 opacity-70">{clientId}</span>
+                    </span>
+                </span>
+            </span>
+        }
+        titleAs="h3"
+        action={action}
+        classNames={{ header: 'py-5 px-7' }}
+    >
+        {children}
+    </Card>
+);
+
+/**
+ * The way out of a card that holds no form yet. Rendered in the loading and the error
+ * state too, so a stuck request never traps the operator on the page.
+ */
+const ClosePage = () => {
+    const { close } = useUnsavedChangesGuard(false, 'tunnel');
+    return <ActionButton icon={X} tooltip="Close" onClick={close} />;
+};
+
+export const ClientTunnelCard = (props: ClientTunnelCardProps) => {
+    const { clientId } = props;
     /**
      * `isPending` distinguishes "no answer yet" from "this client has no tunnel", which
      * arrives as `null`. The key carries the client, so switching clients is pending again
      * on that same render and an answer for the previous client cannot pass for this one.
      */
-    const { data, isPending, error: tunnelError } = useQuery(tunnelOptions);
-    const info = data ?? null;
-    const loadError = tunnelError ? getErrorMessage(tunnelError) : null;
-    /** What a save, a removal or a newly pinned host key leaves the server holding. */
-    const setInfo = (update: (prev: TunnelInfo | null) => TunnelInfo | null) =>
-        queryClient.setQueryData(tunnelOptions.queryKey, (prev) => update(prev ?? null));
-    const [sshHost, setSshHost] = useState('');
-    const [sshPort, setSshPort] = useState('22');
-    const [sshUser, setSshUser] = useState('');
-    const [keyMode, setKeyMode] = useState<SshKeyMode>('keep');
-    const [privateKey, setPrivateKey] = useState('');
-    const [passphrase, setPassphrase] = useState('');
-    const [busy, setBusy] = useState(false);
+    const { data, isPending, error } = useQuery(clientTunnelOptions(clientId));
+
+    if (error) {
+        return (
+            <TunnelCardShell {...props} hasTunnel={false} action={<ClosePage />}>
+                <div className="px-7 py-6 bg-card text-sm text-error break-words">{getErrorMessage(error)}</div>
+            </TunnelCardShell>
+        );
+    }
+
+    // A short, silent gap would read as an empty card; the one loading indicator says
+    // what is on its way without inventing a second loading idiom.
+    if (isPending) {
+        return (
+            <TunnelCardShell {...props} hasTunnel={false} action={<ClosePage />}>
+                <div className="px-7 py-6 bg-card" aria-busy>
+                    <LoadingIndicator label="Loading tunnel…" />
+                </div>
+            </TunnelCardShell>
+        );
+    }
+
+    // Mounted with the first answer for a client, which fills the form. A later answer --
+    // the cache is read again after a reconnect -- reaches the form as `info` only, and
+    // does not overwrite what is being typed. Keyed by the client, so no frame shows the
+    // previous client's fields.
+    return <TunnelForm key={clientId} {...props} info={data} />;
+};
+
+/**
+ * The form of the card, once the server has said what it holds. Two states: no credentials
+ * yet (`info` is `null`, the form creates them) and credentials stored.
+ *
+ * The draft is the fields; everything else the card keeps -- the outcome of a test, a host
+ * key the host presented, the "copied" tick -- describes an action taken from the form and
+ * is no part of what it saves.
+ */
+const TunnelForm = ({ info, ...props }: ClientTunnelCardProps & { info: TunnelInfo | null }) => {
+    const { clientId, state } = props;
+    const isNew = !info;
+    const { confirm } = useConfirm();
+    const { mutateAsync: createTunnel } = useCreateTunnel(clientId);
+    const { mutateAsync: updateTunnel } = useUpdateTunnel(clientId);
+    const { mutateAsync: deleteTunnel } = useDeleteTunnel(clientId);
+
+    // Which schema applies changes with the state of the card: a setup form is checked as
+    // the credentials of a new tunnel, a loaded one as an update.
+    const form = useEntityForm<TunnelDraft, typeof NewTunnelSchema | typeof TunnelUpdateSchema>({
+        schema: isNew ? NewTunnelSchema : TunnelUpdateSchema,
+        initial: () => tunnelDraftFrom(info),
+        toInput: (draft) => (isNew ? newTunnelInputFrom(draft) : tunnelUpdateInputFrom(draft)),
+        fieldOf: tunnelFieldOf,
+        rules: (draft) => tunnelRules(draft, isNew),
+        significant: significantTunnelDraft,
+    });
+    const { draft, errors } = form;
+    const { close } = useUnsavedChangesGuard(form.isDirty, 'tunnel');
+
+    const [acting, setActing] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     /** A fingerprint the host actually presented that differs from the stored one. */
     const [unknownHostKey, setUnknownHostKey] = useState<string | null>(null);
-    const { confirm } = useConfirm();
 
-    // The first answer for a client fills the form; a later one -- the cache is read again
-    // after a reconnect -- must not, or it would overwrite what is being typed. Done while
-    // rendering rather than in an effect, so no frame shows the previous client's fields.
-    const [seededFor, setSeededFor] = useState<string | null>(null);
-    if (data !== undefined && seededFor !== clientId) {
-        setSeededFor(clientId);
-        if (data) {
-            setSshHost(data.sshHost);
-            setSshPort(String(data.sshPort));
-            setSshUser(data.sshUser);
-            setKeyMode('keep');
-        } else {
-            setKeyMode('generate');
-        }
-    }
-
-    /** Answered, no configuration, nothing broken: the card is a setup form. */
-    const isNew = !isPending && !info && !loadError;
-
-    const isDirty = info
-        ? sshHost !== info.sshHost ||
-          sshPort !== String(info.sshPort) ||
-          sshUser !== info.sshUser ||
-          (keyMode !== 'keep' && !!privateKey.trim())
-        : // A half-filled setup form is worth warning about on the way out just as much
-          // as an edited one.
-          !!sshHost.trim() || !!sshUser.trim() || !!privateKey.trim();
-
-    const complete = !!sshHost.trim() && !!sshUser.trim();
-    const canSave = isNew ? complete && !!privateKey.trim() : isDirty && complete;
-
-    // Testing without a key in the form falls back to the stored credentials, and a client
-    // that has none answers with a message about the very tunnel being set up here. Ask for
-    // the key first rather than explaining the setup back to the operator.
-    const canTest = complete && (!isNew || !!privateKey.trim());
-
-    // Above the early returns for the loading and error states, so the hook order does not
-    // depend on whether the configuration has arrived yet.
-    useEffect(() => {
-        onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
+    const busy = acting || form.isSaving;
 
     const resetFeedback = () => {
         setMessage(null);
-        setError(null);
+        setActionError(null);
         setUnknownHostKey(null);
+    };
+
+    // What a test or a save said described the fields as they were.
+    const change = (changes: Partial<TunnelDraft>) => {
+        resetFeedback();
+        form.patch(changes);
     };
 
     /**
@@ -155,51 +227,37 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
      * from the database and only takes host, port and user from the request.
      */
     const handleTest = async () => {
-        setBusy(true);
+        setActing(true);
         resetFeedback();
         try {
-            const usesNewKey = keyMode !== 'keep' && !!privateKey.trim();
-            const data = usesNewKey
-                ? await api.post(
-                      '/api/v1/tunnel/test',
-                      {
-                          sshHost,
-                          sshPort: Number(sshPort) || 22,
-                          sshUser,
-                          privateKey: privateKey.trim(),
-                          passphrase: passphrase || undefined,
-                          expectedHostKeySha256: info?.hostKeySha256,
-                      },
-                      TunnelTestResultSchema,
-                  )
-                : await api.post(
-                      `/api/v1/clients/${clientId}/tunnel/test`,
-                      { sshHost, sshPort: Number(sshPort) || 22, sshUser },
-                      TunnelTestResultSchema,
-                  );
-            if (data.ok) {
+            const result = carriesNewKey(draft)
+                ? await testTunnelCredentials({
+                      ...newTunnelInputFrom(draft),
+                      expectedHostKeySha256: info?.hostKeySha256,
+                  })
+                : await testStoredTunnel(clientId, {
+                      sshHost: draft.sshHost,
+                      sshPort: sshPortFrom(draft.sshPort),
+                      sshUser: draft.sshUser,
+                  });
+            if (result.ok) {
                 setMessage(
-                    `Connection succeeded${data.boundPort ? ` (test port ${data.boundPort})` : ''}`,
+                    `Connection succeeded${result.boundPort ? ` (test port ${result.boundPort})` : ''}`,
                 );
                 return;
             }
-            setError(data.error || 'Tunnel test failed');
+            setActionError(result.error || 'Tunnel test failed');
             // A key that does not match the pinned one is the one failure the operator can
             // resolve from here, so surface the fingerprint the host actually presented.
-            if (data.hostKeySha256 && info && data.hostKeySha256 !== info.hostKeySha256) {
-                setUnknownHostKey(data.hostKeySha256);
+            if (result.hostKeySha256 && info && result.hostKeySha256 !== info.hostKeySha256) {
+                setUnknownHostKey(result.hostKeySha256);
             }
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            setActionError(getErrorMessage(e));
         } finally {
-            setBusy(false);
+            setActing(false);
         }
     };
-
-    const saveTunnel = (body: Record<string, unknown>) =>
-        api.put(`/api/v1/clients/${clientId}/tunnel`, body, undefined, {
-            fallback: 'Failed to save the tunnel configuration',
-        });
 
     /**
      * Sets up a tunnel for a client that has none — test and create in one action, the
@@ -208,122 +266,57 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
      * host actually presents, so a host that swaps keys in between fails the create.
      */
     const handleCreate = async () => {
-        setBusy(true);
         resetFeedback();
-        try {
-            const test = await api.post(
-                '/api/v1/tunnel/test',
-                {
-                    sshHost,
-                    sshPort: Number(sshPort) || 22,
-                    sshUser,
-                    privateKey: privateKey.trim(),
-                    passphrase: passphrase || undefined,
-                },
-                TunnelTestResultSchema,
-                { fallback: 'Tunnel test failed' },
-            );
-            if (!test.ok || !test.hostKeySha256) {
-                throw new Error(test.error || 'Tunnel test failed');
-            }
-
-            await api.post(
-                `/api/v1/clients/${clientId}/tunnel`,
-                {
-                    sshHost,
-                    sshPort: Number(sshPort) || 22,
-                    sshUser,
-                    privateKey: privateKey.trim(),
-                    passphrase: keyMode === 'manual' && passphrase ? passphrase : undefined,
-                    hostKeySha256: test.hostKeySha256,
-                },
-                undefined,
-                { fallback: 'Failed to set up the tunnel' },
-            );
-
-            const hostKeySha256 = test.hostKeySha256;
-            setInfo(() => ({
-                sshHost,
-                sshPort: Number(sshPort) || 22,
-                sshUser,
-                hostKeySha256,
-                remoteBindHost: '127.0.0.1',
-            }));
-            setKeyMode('keep');
-            setPrivateKey('');
-            setPassphrase('');
-            setMessage('Tunnel set up — a job can now be configured to use it.');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setBusy(false);
-        }
+        const created = await form.submit(
+            async () => {
+                const credentials = newTunnelInputFrom(draft);
+                const test = await testTunnelCredentials(credentials);
+                if (!test.ok || !test.hostKeySha256) {
+                    throw new Error(test.error || 'Tunnel test failed');
+                }
+                await createTunnel({ ...credentials, hostKeySha256: test.hostKeySha256 });
+            },
+            { rebase: storedTunnelDraft },
+        );
+        if (created) setMessage('Tunnel set up — a job can now be configured to use it.');
     };
 
-    /** Removes the tunnel with its credentials. The client and its history stay. */
+    const handleSave = async () => {
+        resetFeedback();
+        const saved = await form.submit(() => updateTunnel(tunnelUpdateInputFrom(draft)), {
+            rebase: storedTunnelDraft,
+        });
+        if (saved) setMessage('Tunnel configuration saved');
+    };
+
     // Runs inside the confirmation, which shows a refusal next to the button that retries.
     const removeTunnel = async () => {
-        setBusy(true);
+        setActing(true);
         resetFeedback();
         try {
-            await api.delete(`/api/v1/clients/${clientId}/tunnel`, { fallback: 'Failed to remove the tunnel' });
-            setInfo(() => null);
-            setSshHost('');
-            setSshPort('22');
-            setSshUser('');
-            setKeyMode('generate');
-            setPrivateKey('');
-            setPassphrase('');
+            await deleteTunnel();
+            form.reset(tunnelDraftFrom(null));
             setMessage('Tunnel removed. Jobs still configured for it will now fail.');
         } finally {
-            setBusy(false);
+            setActing(false);
         }
     };
 
     const handleDelete = () => confirm({ ...describeRemoveTunnel(), onConfirm: removeTunnel });
 
-    const handleSave = async () => {
-        setBusy(true);
-        resetFeedback();
-        try {
-            const body: Record<string, unknown> = {
-                sshHost,
-                sshPort: Number(sshPort) || 22,
-                sshUser,
-            };
-            if (keyMode !== 'keep' && privateKey.trim()) {
-                body.privateKey = privateKey.trim();
-                body.passphrase = keyMode === 'manual' && passphrase ? passphrase : null;
-            }
-            await saveTunnel(body);
-            setInfo((prev) =>
-                prev ? { ...prev, sshHost, sshPort: Number(sshPort) || 22, sshUser } : prev,
-            );
-            setMessage('Tunnel configuration saved');
-            setKeyMode('keep');
-            setPrivateKey('');
-            setPassphrase('');
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setBusy(false);
-        }
-    };
-
     /** Pins the fingerprint the host presented instead of the one stored. */
     const handleTrustHostKey = async () => {
         if (!unknownHostKey) return;
-        setBusy(true);
+        setActing(true);
         try {
-            await saveTunnel({ hostKeySha256: unknownHostKey });
-            setInfo((prev) => (prev ? { ...prev, hostKeySha256: unknownHostKey } : prev));
+            await updateTunnel({ hostKeySha256: unknownHostKey });
             setUnknownHostKey(null);
-            setError(null);
+            setActionError(null);
             setMessage('New host key pinned — run the test again to confirm.');
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            setActionError(getErrorMessage(e));
         } finally {
-            setBusy(false);
+            setActing(false);
         }
     };
 
@@ -334,7 +327,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
             setCopied(true);
             setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
         } catch {
-            setError('Copy failed — select the fingerprint manually');
+            setActionError('Copy failed — select the fingerprint manually');
         }
     };
 
@@ -345,7 +338,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
      */
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (busy || !canSave) return;
+        if (busy) return;
         if (isNew) {
             handleCreate();
             return;
@@ -353,53 +346,14 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         handleSave();
     };
 
-    /**
-     * Built once and rendered in every state of the card, so the header does not change
-     * shape when the configuration arrives. Same stack as {@link ClientIdentityCard}: the
-     * heading, and the client it belongs to on the line beneath it — `span`s throughout,
-     * because the title is rendered as an `h3`, which may not contain a `div`.
-     */
-    const title = (
-        <span className="flex items-center gap-4">
-            {/* Only once there is a tunnel: a dot on a card that is a setup form
-                would report the state of something that does not exist. */}
-            {info && <StatusDot size="md" {...STATUS_DOT[TUNNEL_STATUS_TONE[state?.status ?? 'idle']]} label={state?.status ?? 'idle'} />}
-            <span>
-                <span className="block text-xl font-bold">SSH Reverse Tunnel</span>
-                <span className="block text-sm font-normal text-text-muted">
-                    {clientName}
-                    <span className="font-mono text-xs ml-2 opacity-70">{clientId}</span>
-                </span>
-            </span>
-        </span>
-    );
-
-    if (loadError) {
-        return (
-            <Card title={title} titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
-                <div className="px-7 py-6 bg-card text-sm text-error break-words">{loadError}</div>
-            </Card>
-        );
-    }
-
-    // A short, silent gap would read as an empty card; the one loading indicator says
-    // what is on its way without inventing a second loading idiom.
-    if (isPending) {
-        return (
-            <Card title={title} titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
-                <div className="px-7 py-6 bg-card" aria-busy>
-                    <LoadingIndicator label="Loading tunnel…" />
-                </div>
-            </Card>
-        );
-    }
+    const error = form.saveError ?? form.formError ?? actionError;
 
     return (
-        <Card
-            title={title}
-            titleAs="h3"
+        <TunnelCardShell
+            {...props}
+            hasTunnel={!!info}
             action={
-                /* The badge describes the tunnel, the page's control leaves the page —
+                /* The badge describes the tunnel, the control beside it leaves the page —
                    read left to right, the state comes before the way out. */
                 <span className="flex items-center gap-3">
                     {info && !!state?.activeLeases && (
@@ -407,10 +361,9 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                             {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
                         </Badge>
                     )}
-                    {action}
+                    <ActionButton icon={X} tooltip="Close" onClick={close} />
                 </span>
             }
-            classNames={{ header: 'py-5 px-7' }}
         >
             <div className="px-7 py-6 bg-card">
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -424,7 +377,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                         <div className="text-xs text-text-muted space-y-1">
                             {state.forwards?.map((f) => (
                                 <div key={f.target} className="font-mono break-all">
-                                    {f.target} → {info!.remoteBindHost}:{f.port}
+                                    {f.target} → {info.remoteBindHost}:{f.port}
                                 </div>
                             ))}
                             {state.lastUsedAt && <div>Last used {formatDate(state.lastUsedAt)}</div>}
@@ -436,43 +389,47 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                         <div className="sm:col-span-2">
                             <Input
                                 label="SSH Host"
-                                value={sshHost}
-                                onChange={(e) => { setSshHost(e.target.value); resetFeedback(); }}
+                                value={draft.sshHost}
+                                onChange={(e) => change({ sshHost: e.target.value })}
+                                error={errors.sshHost}
                                 disabled={busy}
                             />
                         </div>
                         <Input
                             label="Port"
-                            value={sshPort}
-                            onChange={(e) => { setSshPort(e.target.value); resetFeedback(); }}
+                            value={draft.sshPort}
+                            onChange={(e) => change({ sshPort: e.target.value })}
+                            error={errors.sshPort}
                             disabled={busy}
                         />
                     </div>
                     <Input
                         label="SSH User"
-                        value={sshUser}
-                        onChange={(e) => { setSshUser(e.target.value); resetFeedback(); }}
+                        value={draft.sshUser}
+                        onChange={(e) => change({ sshUser: e.target.value })}
+                        error={errors.sshUser}
                         disabled={busy}
                     />
 
                     <SshKeyFields
                         allowKeep={!isNew}
-                        mode={keyMode}
-                        onModeChange={(m) => { setKeyMode(m); setPrivateKey(''); setPassphrase(''); resetFeedback(); }}
-                        privateKey={privateKey}
-                        onPrivateKeyChange={setPrivateKey}
-                        passphrase={passphrase}
-                        onPassphraseChange={setPassphrase}
+                        mode={draft.keyMode}
+                        onModeChange={(keyMode) => change({ keyMode, privateKey: '', passphrase: '' })}
+                        privateKey={draft.privateKey}
+                        onPrivateKeyChange={(privateKey) => form.set('privateKey', privateKey)}
+                        passphrase={draft.passphrase}
+                        onPassphraseChange={(passphrase) => form.set('passphrase', passphrase)}
+                        error={errors.privateKey}
                     />
 
                     {/* Only shown once a key is in hand: the snippet derives its public half
                         from it, and the stored key never leaves the backend — so in 'keep'
                         mode it could only render a command with an empty key in it. */}
-                    {keyMode !== 'keep' && (
+                    {draft.keyMode !== 'keep' && (
                         <SshHostSetupSnippet
-                            privateKey={privateKey}
-                            passphrase={passphrase}
-                            sshUser={sshUser}
+                            privateKey={draft.privateKey}
+                            passphrase={draft.passphrase}
+                            sshUser={draft.sshUser}
                         />
                     )}
 
@@ -485,7 +442,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                             while the value takes the wrapping. */}
                         <div className="flex items-center gap-2">
                             <span className="font-mono text-xs break-all text-text-primary">
-                                {info!.hostKeySha256}
+                                {info.hostKeySha256}
                             </span>
                             <Button
                                 type="button"
@@ -549,23 +506,23 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                                 Remove
                             </Button>
                         )}
-                        <Button type="button" variant="secondary" onClick={handleTest} disabled={busy || !canTest} icon={PlugZap}>
+                        <Button type="button" variant="secondary" onClick={handleTest} disabled={busy || !form.isValid} icon={PlugZap}>
                             Test Connection
                         </Button>
                         {/* `submit`, so Enter in any field triggers it — `handleSubmit` picks
                             the same action this button carries. */}
                         {isNew ? (
-                            <Button type="submit" variant="primary" disabled={busy || !canSave} icon={Plus} className="shadow-glow-accent">
+                            <Button type="submit" variant="primary" disabled={busy || !form.canSave} icon={Plus} className="shadow-glow-accent">
                                 Test &amp; Set Up
                             </Button>
                         ) : (
-                            <Button type="submit" variant="primary" disabled={busy || !canSave} icon={Save} className="shadow-glow-accent">
+                            <Button type="submit" variant="primary" disabled={busy || !form.canSave} icon={Save} className="shadow-glow-accent">
                                 Save Tunnel
                             </Button>
                         )}
                     </div>
                 </form>
             </div>
-        </Card>
+        </TunnelCardShell>
     );
 };

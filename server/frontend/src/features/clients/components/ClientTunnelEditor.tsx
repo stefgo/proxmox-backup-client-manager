@@ -1,13 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
-import { X } from 'lucide-react';
-import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
-import { describeDiscardChanges } from '../../../components/confirmations';
-import { useQueryClient } from '@tanstack/react-query';
 import { useClient } from '../../../queries/clients';
-import { queryKeys } from '../../../lib/queryKeys';
-import { useBackPath } from '../../../hooks/useBackPath';
 import { ClientTunnelCard } from './ClientTunnelCard';
 
 interface ClientTunnelEditorProps {
@@ -26,9 +18,9 @@ interface ClientTunnelEditorProps {
  * the list — "Add" or "Edit", depending on whether credentials are stored — says that in
  * the one place where the operator is looking at clients.
  *
- * The work is all in `ClientTunnelCard`; what this adds is the way out, handed to the card
- * so it lands in its header. The card ends with a key field and a host setup snippet, and
- * the header is the only place that stays reachable across all of it.
+ * The work is all in `ClientTunnelCard`, the way out included: the card ends with a key
+ * field and a host setup snippet, and its header is the only place that stays reachable
+ * across all of it. What this adds is the client the card is about, kept current.
  *
  * No heading of its own: the card is the top-level element here, exactly as in
  * {@link ClientEditor}. A page heading above it repeated the card's title and put the
@@ -36,46 +28,9 @@ interface ClientTunnelEditorProps {
  * editors open the same way.
  */
 export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
-    const navigate = useNavigate();
-    // The client's page, like the client editor: the parent in the route tree.
-    const back = useBackPath();
-
     // The caller holds a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the cache instead of the prop.
     const live = useClient(client.id) ?? client;
-    // Whether a tunnel exists is part of the client row (`tunnelConfigured`), and the
-    // list's action label reads it — so leaving refetches.
-    const queryClient = useQueryClient();
-    const [dirty, setDirty] = useState(false);
-    const { confirm } = useConfirm();
-
-    const leave = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() });
-        navigate(back);
-    }, [queryClient, navigate, back]);
-
-    /**
-     * Leaving used to discard silently under a warning label. It asks now: a half-pasted
-     * private key is the kind of thing that is not retyped from memory, and the exit sits
-     * in the header, far from the field it would throw away.
-     */
-    const requestClose = useCallback(async () => {
-        if (dirty && !(await confirm(describeDiscardChanges('tunnel')))) return;
-        leave();
-    }, [dirty, confirm, leave]);
-
-    // Escape does exactly what the header's button does — including asking first.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return;
-            // Not while a select, a dialog or an autocomplete is using Escape for itself —
-            // this includes the discard confirmation, which closes on its own Escape.
-            if (e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [requestClose]);
 
     return (
         <div className="space-y-6">
@@ -83,8 +38,6 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
                 clientId={live.id}
                 clientName={live.displayName || live.hostname}
                 state={live.tunnel}
-                onDirtyChange={setDirty}
-                action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
             />
         </div>
     );

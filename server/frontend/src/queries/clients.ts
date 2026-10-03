@@ -1,5 +1,14 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClientListSchema, TunnelInfoSchema, type Client, type TunnelInfo } from '@pbcm/shared';
+import {
+    ClientListSchema,
+    TunnelInfoSchema,
+    TunnelTestResultSchema,
+    type Client,
+    type TunnelCreateSchema,
+    type TunnelInfo,
+    type TunnelUpdateSchema,
+} from '@pbcm/shared';
+import type { z } from 'zod';
 import { api, ApiError } from '../lib/api';
 import { queryClient } from '../lib/queryClient';
 import { queryKeys } from '../lib/queryKeys';
@@ -110,4 +119,88 @@ export const clientTunnelOptions = (clientId: string) =>
             }
         },
         gcTime: 0,
+    });
+
+type TunnelCreateInput = z.input<typeof TunnelCreateSchema>;
+type TunnelUpdateInput = z.input<typeof TunnelUpdateSchema>;
+
+/**
+ * Sets up a client's tunnel. The answer carries nothing, so the cache is told what the
+ * server now holds -- and the client list is read again: whether a tunnel exists is part
+ * of the client row (`tunnelConfigured`), which the list's action label reads.
+ */
+export function useCreateTunnel(clientId: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (input: TunnelCreateInput) =>
+            api.post(`/api/v1/clients/${clientId}/tunnel`, input, undefined, { fallback: 'Failed to set up the tunnel' }),
+        onSuccess: (_, input) => {
+            queryClient.setQueryData(clientTunnelOptions(clientId).queryKey, (): TunnelInfo => ({
+                sshHost: input.sshHost,
+                sshPort: input.sshPort ?? 22,
+                sshUser: input.sshUser,
+                hostKeySha256: input.hostKeySha256,
+                // Not editable and not part of the request: the server binds forwards to loopback.
+                remoteBindHost: '127.0.0.1',
+            }));
+            void queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey });
+        },
+    });
+}
+
+/** Changes the stored credentials, or pins another host key. Only the keys sent are changed. */
+export function useUpdateTunnel(clientId: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (input: TunnelUpdateInput) =>
+            api.put(`/api/v1/clients/${clientId}/tunnel`, input, undefined, {
+                fallback: 'Failed to save the tunnel configuration',
+            }),
+        onSuccess: (_, input) => {
+            queryClient.setQueryData(clientTunnelOptions(clientId).queryKey, (prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          sshHost: input.sshHost ?? prev.sshHost,
+                          sshPort: input.sshPort ?? prev.sshPort,
+                          sshUser: input.sshUser ?? prev.sshUser,
+                          hostKeySha256: input.hostKeySha256 ?? prev.hostKeySha256,
+                      }
+                    : prev,
+            );
+        },
+    });
+}
+
+/** Removes the tunnel with its credentials. The client and its history stay. */
+export function useDeleteTunnel(clientId: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => api.delete(`/api/v1/clients/${clientId}/tunnel`, { fallback: 'Failed to remove the tunnel' }),
+        onSuccess: () => {
+            queryClient.setQueryData(clientTunnelOptions(clientId).queryKey, null);
+            void queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey });
+        },
+    });
+}
+
+/**
+ * Tests credentials the request brings along, before anything is stored. Not cached: a
+ * connection is tried now or not at all. A failed test is still an answer; `ok` says how
+ * it went.
+ */
+export const testTunnelCredentials = (
+    credentials: Omit<TunnelCreateInput, 'hostKeySha256'> & { expectedHostKeySha256?: string },
+) => api.post('/api/v1/tunnel/test', credentials, TunnelTestResultSchema, { fallback: 'Tunnel test failed' });
+
+/**
+ * Tests with the stored key, which never leaves the backend: the server reads it from the
+ * database and takes only host, port and user from the request.
+ */
+export const testStoredTunnel = (
+    clientId: string,
+    address: Pick<TunnelUpdateInput, 'sshHost' | 'sshPort' | 'sshUser'>,
+) =>
+    api.post(`/api/v1/clients/${clientId}/tunnel/test`, address, TunnelTestResultSchema, {
+        fallback: 'Tunnel test failed',
     });
