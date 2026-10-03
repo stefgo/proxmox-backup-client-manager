@@ -179,7 +179,7 @@ with four workspaces:
 | Workspace | What it is |
 |---|---|
 | [`server/backend`](backend.md) | Fastify API server — the control plane and the WebSocket hub, holding the SQLite database of configurations and job histories. |
-| [`server/frontend`](frontend.md) | React SPA (Vite, Tailwind, Zustand), served by the backend from `server/dist/public`. |
+| [`server/frontend`](frontend.md) | React SPA (Vite, Tailwind, TanStack Query), served by the backend from `server/dist/public`. |
 | [`client`](client.md) | Lightweight Node.js daemon wrapping the `proxmox-backup-client` CLI. It keeps the job configs in its own data files and runs them on schedule **even while the server is unreachable**. |
 | `shared` | Single source of truth for the TypeScript types, Zod schemas and constants the other three agree on. |
 

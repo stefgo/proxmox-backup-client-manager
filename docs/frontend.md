@@ -21,20 +21,23 @@ src/
 ├── pages/            # Main pages (Entry points for routes)
 │   ├── Login.tsx
 │   └── Settings.tsx
-├── stores/           # Global State Management (Zustand)
-│   ├── useUIStore.ts               # UI state (sidebar, modals, filters)
-│   ├── useClientStore.ts           # Client list & connectivity status
-│   ├── useClientDetailStore.ts     # Data unique to a selected client
-│   ├── useClientFileSystemStore.ts # Remote file browsing for a client
-│   ├── useGlobalJobsStore.ts       # Centralized backup job configurations
-│   ├── useRepositoryStore.ts       # PBS repository configurations
-│   ├── useSchedulerStore.ts        # Status of the server's cleanup schedulers
-│   └── useRepositorySnapshotStore.ts # PBS snapshot management
+├── queries/          # Server data: one module per area, read through the query cache
+│   ├── clients.ts        # Client list, one client, a client's tunnel configuration
+│   ├── clientDetail.ts   # A client's jobs, history and snapshots
+│   ├── jobs.ts           # Jobs across all clients, their latest runs, start and delete
+│   ├── repositories.ts   # Repositories, their status, their snapshots
+│   ├── history.ts        # The history list and the "seen" state behind the dot
+│   ├── webhooks.ts, scheduler.ts, fileSystem.ts, tokens.ts, users.ts
+├── stores/           # Client-only state (Zustand)
+│   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
-├── hooks/            # Global Custom Hooks (WebSocket subscriptions)
+├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters)
 ├── lib/              # Non-React modules
 │   ├── api.ts             # The one place a response is read: api.get(path, schema), …
 │   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
+│   ├── queryClient.ts     # The one QueryClient and its defaults
+│   ├── queryKeys.ts       # Every cache key, hierarchical
+│   ├── cacheUpdates.ts    # What a socket message makes of a cache entry (pure)
 │   └── realtimeEvents.ts  # Typed emitter for the high-frequency WS stream
 ├── index.css         # Global CSS layers (glass-card, field-label)
 ├── Main.tsx          # Entry point (mounts App)
@@ -80,9 +83,9 @@ prop rather than guessing.
 
 Every client form is a route, not a state flag: the URL says what is on screen, a reload
 keeps it there, and the browser's back button works. Every route carrying a `:clientId`
-resolves it through the shared `useRouteClient` helper, which reads `useClientStore` and
-redirects to `/clients` when the id is unknown — a stale bookmark must not render an editor
-over `undefined`.
+resolves it through the shared `useRouteClient` helper, which reads the cached client list:
+a spinner while that is pending, the not-found card once it has answered without this id —
+a stale bookmark must not render an editor over `undefined`.
 
 **Where "back" is** is the caller's business, not the editor's: the surface that opens an
 editor navigates with `{ state: { from: location.pathname } }`, and the editor reads
@@ -123,20 +126,50 @@ The session is a cookie the browser manages, and `AuthProvider`
 
 ---
 
-### Modular State Management
+### Server data and client state
 
-We use **Zustand** split into specialized stores to maintain a clean, reactive state.
+Two kinds of state, kept apart:
 
-- **`useUIStore`**: Manages global UI state like sidebar visibility, active notifications, and global search/filter parameters.
-- **`useClientStore`**: Holds the master list of registered clients and their real-time online/offline status.
-- **`useClientDetailStore`**: Focuses on the currently selected client, managing its local history, job configurations, and activity logs.
-- **`useClientFileSystemStore`**: Browses the selected client's file system, backing the directory picker in the job editor and the restore form. Separate from `useClientDetailStore` because a browse is a transient lookup, not part of what a client *is*.
-- **`useRepositoryStore`**: Holds the configured PBS repositories.
-- **`useRepositorySnapshotStore`**: Handles listing and browsing available snapshots from the PBS repositories.
-- **`useGlobalJobsStore`**: Provides a unified view and management interface for backup job configurations across all registered clients.
-- **`useSchedulerStore`**: The status of the server's own schedulers (`token-cleanup`, `job-history-cleanup`). Filled by `GET /api/v1/settings/scheduler-status` when the settings page loads and after each save, kept current by `SCHEDULER_STATUS_UPDATE`, which carries one scheduler at a time.
-- **`useWebhookStore`**: The webhooks with their last delivery. `WEBHOOKS_UPDATE` carries no payload and makes a store that has loaded once fetch the list again — after a webhook was saved, or a delivery went out. The editor's preview renders with `renderTemplate` from `@pbcm/shared`, the code the server sends with.
-- **`useHistorySeenStore`**: Whether failed runs happened that this user has not looked at yet -- the red dot on "History" in the sidebar. Filled by `GET /api/v1/history/seen` when the shell loads, raised by every failed `jobUpdate`, reset by `PUT /api/v1/history/seen` when the history page opens and closes, and by `HISTORY_SEEN` from the user's other tabs. The record is the server's, so it survives a reload and follows the user to another browser.
+- **Server data lives in the TanStack Query cache.** Everything the server holds -- clients,
+  jobs, runs, repositories, snapshots, webhooks, scheduler status -- is read through a hook
+  in `src/queries/`, never fetched by a component or a store. `lib/queryClient.ts` holds
+  the one `QueryClient`, `lib/queryKeys.ts` every key.
+- **Client state lives in Zustand.** That is `useUIStore` and nothing else: whether the
+  sidebar is collapsed. `stores/` holds no server data and makes no request.
+
+**The defaults** (`lib/queryClient.ts`) follow from "the frontend does not poll":
+no refetch on window focus, none on the browser's `online` event, no retry. An entry
+counts as current for 30 seconds, so moving between pages does not ask again. Three
+kinds of entry deviate:
+
+| Entry | `staleTime` | Why |
+|---|---|---|
+| Client list, jobs, latest runs, seen state, scheduler status | `Infinity` | The socket writes every change into them. |
+| History list, tokens, directory listings | `0` | Nothing pushes into them; read again each time they are opened. |
+| A client's tunnel configuration | `gcTime: 0` | Seeds a form, so it is dropped when the form closes. |
+
+**The keys are hierarchical.** `invalidateQueries({ queryKey: queryKeys.clients.all })`
+reaches a client's jobs, history and directory listings, because a key matches whatever
+it is a prefix of. `queryKeys.test.ts` holds the prefix relations the code relies on.
+
+**What a hook returns.** `isPending` is true until the entry has answered once -- also with
+an error. It is what `ClientMissing`, `RepositoryMissing` and `EditJobRoute` wait on: an
+empty list before that says nothing about whether the thing exists.
+
+**Actions are mutations.** Starting and deleting a job exist once, as `useTriggerJob` and
+`useDeleteJob` in `queries/jobs.ts`; the client page and the job list both call them.
+Updating and deleting a client change the list at once and put it back if the server
+refuses. A form that saves itself (`useJobForm`, `WebhookEditor`) still calls `api`
+directly and invalidates the key it changed.
+
+**The settings form is the exception.** `pages/Settings.tsx` loads its values once into a
+draft and is deliberately not a cache entry: the invalidation after a reconnect would
+read them again and overwrite what is typed and not yet saved.
+
+**The rules a socket message applies to an entry are pure functions** in
+`lib/cacheUpdates.ts` -- replace one client's jobs, merge a run into the latest-per-job
+list, raise the unseen-failure count. They take what is cached and what arrived and
+return what is cached now, which is why they are tested without a socket or a component.
 
 ### Job result toasts
 
@@ -155,7 +188,7 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
 - **Reading the snapshot.** After a successful backup the agent reads back its snapshot,
   and the run stays `running` meanwhile. The `jobUpdate` for that step carries
   `phase: "snapshot"`, and the status badge reads *reading snapshot* instead of *running*.
-  The final update sends `phase: null` explicitly: the stores merge updates with a spread,
+  The final update sends `phase: null` explicitly: the cache merges updates with a spread,
   and a phase left out would stay. `useJobResultToasts` needs nothing for this — it reacts
   to final statuses only.
 - **Snapshot details.** The expanded row of a successful backup appends the snapshot to the
@@ -173,7 +206,7 @@ Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows the
 ### Talking to the server (`lib/api.ts`)
 
 Every request goes through `api`, and every response is parsed against a Zod schema from
-`@pbcm/shared` before a component or a store sees it:
+`@pbcm/shared` before a component or the cache sees it:
 
 ```ts
 const clients = await api.get('/api/v1/clients', ClientListSchema);
@@ -213,17 +246,31 @@ case there fails `npm run typecheck -w server/frontend`.
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
 
-**Into the stores** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE`, `JOBS_UPDATE`, `SCHEDULER_STATUS_UPDATE` and `HISTORY_SEEN`. These are
-*state*: a handful of messages describing something the whole application reads.
+**Into the query cache** go `CLIENTS_UPDATE`, `TUNNEL_UPDATE`, `JOBS_UPDATE`,
+`JOB_UPDATE`, `JOB_NEXT_RUN_UPDATE`, `SCHEDULER_STATUS_UPDATE` and `HISTORY_SEEN`. These are
+*state*: a handful of messages describing something the whole application reads. The
+handler writes them with `setQueryData` and an updater function, which changes an entry
+only if it has been read -- a `JOB_UPDATE` before the first fetch does not create half a
+list. `CLIENTS_UPDATE` is the one that sets its entry outright: it carries the whole list.
+
+`WEBHOOKS_UPDATE` carries no payload and **invalidates** instead: a page that shows the
+webhooks reads them again now, any other finds them stale when it opens. A `JOB_UPDATE`
+that reports a successful run does the same to every repository's snapshots.
+
+**After a reconnect the whole cache is invalidated once**, in `socket.onopen`. What the
+server pushed while the socket was down is lost, and only `CLIENTS_UPDATE` is sent again
+on connect. Everything on screen is read again; the rest is read when it is next shown.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
 `GET /api/v1/jobs` returns nothing for an offline client. Without the broadcast, a
 dashboard that was already open kept the list it fetched on mount, and the sidebar's job
 count stayed at whatever it was when the page loaded.
 
-**Through `lib/realtimeEvents.ts`** go `jobUpdate`, `logUpdate` and `jobNextRunUpdate`.
-These are a *stream*: log lines arrive many times a second for exactly one visible
-component, and holding them in a store would re-render every subscriber on every chunk.
+**Through `lib/realtimeEvents.ts`** go `logUpdate` and `jobUpdate`. Log lines are a
+*stream*: they arrive many times a second for exactly one visible component, and holding
+them in the cache would re-render every subscriber on every chunk. `jobUpdate` is both --
+the cache takes the run as the new state of its row, and the event is for whoever reacts
+to the moment itself, which today is `useJobResultToasts`.
 
 The emitter carries a typed event map, its payload types taken from `@pbcm/shared` — the
 same contracts the WebSocket messages are validated against, so the channel cannot drift
@@ -360,7 +407,7 @@ Three rules follow from the same reasoning:
 
 ### ManagedClients (`features/clients`)
 
-This is the "Controller" for the client overview. It connects the UI (`ClientList`) with the logic (`useClientStore`, API calls).
+This is the "Controller" for the client overview. It connects the UI (`ClientList`) with the logic (`queries/clients.ts`, API calls).
 
 - **Functionality**:
     - Displays list of clients.
@@ -370,7 +417,7 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
 ### Client Editor (`ClientEditor.tsx`)
 
 A page at `/client/:clientId/edit`, and a container rather than a form: it selects the live
-client from `useClientStore` by id and renders the card for the one resource it owns.
+client from the cache by id (`useClient`) and renders the card for the one resource it owns.
 
 - **`ClientIdentityCard`** — header (`StatusDot`, id, last seen), connection mode `Badge`,
   agent version, display name, target address, `Save Client`. The address is
@@ -399,7 +446,7 @@ and the card becomes a setup form whose **Test & Set Up** does test and `POST` i
 A `StatusDot` beside the title, exactly as in `ClientIdentityCard` — whether a connection is up
 is answered in one idiom on every client surface, and the tunnel's four states map onto the
 dot's four tones; it appears only once there is a tunnel to report on. Forwards and
-`lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the store; the
+`lastUsedAt` come from `client.tunnel`, which `TUNNEL_UPDATE` keeps current in the cache; the
 `GET /tunnel` call supplies only the stored configuration. `Test Connection` sends the form's
 values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
 key** block (see `docs/tunnel.md`).
@@ -427,7 +474,7 @@ once the exit moved into the header: it now sits a few pixels from the fields it
 throw away, and a warning the operator has scrolled past protects nothing at that distance.
 
 Saving does not leave either editor. The caller passes a client that may be a stale
-snapshot, which is why the live one is read from the store instead.
+snapshot, which is why the live one is read from the cache instead.
 
 `StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately,
 because the domains name the same state differently — a client is `online`, a tunnel is `up`.
@@ -506,9 +553,9 @@ repository, archives, exclusions, encryption, tunnel, schedule.
   reverse tunnel. Per job because one client can have a PBS it reaches directly and another it
   only reaches through the detour; the credentials are the client's, the choice is the job's.
   The switch is disabled while `tunnelAvailable` is false — `useJobForm` reads
-  `client.tunnelConfigured` from `useClientStore` for that — so the impossible combination is
+  `client.tunnelConfigured` through `useClient` for that — so the impossible combination is
   not offered rather than rejected by the backend afterwards. A job already set to use the
-  tunnel keeps the switch usable even without a client row in the store, or the setting could
+  tunnel keeps the switch usable even without a client row in the cache, or the setting could
   be seen but never turned off.
 - `useJobForm` always sends `tunnel`, including as `false`: omitting it on an update would
   leave the stored route standing, and switching the tunnel off would silently not take.
@@ -517,7 +564,7 @@ repository, archives, exclusions, encryption, tunnel, schedule.
 
 The restore process is complex and distributed across:
 
-1. `useRepositorySnapshotStore`: Loads available snapshots from the PBS.
+1. `useRepositorySnapshots` (`queries/repositories.ts`): Loads available snapshots from the PBS.
 2. `SnapshotRestoreEditor` (in `features/repositories`):
     - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
     - Target path input on the client.

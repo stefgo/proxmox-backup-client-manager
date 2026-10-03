@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Proxmox Backup Client Manager (PBCM)** is a centralized management system for `proxmox-backup-client` instances. It consists of three workspaces in an npm monorepo:
 
 - **`server/backend`** – Fastify API server (control plane, WebSocket hub)
-- **`server/frontend`** – React SPA (Vite + Tailwind + Zustand)
+- **`server/frontend`** – React SPA (Vite + Tailwind + TanStack Query, Zustand for UI state)
 - **`client`** – Lightweight Node.js agent running on backed-up machines
 - **`shared`** – Shared TypeScript types, Zod schemas, and constants used by all workspaces
 
@@ -94,17 +94,28 @@ Agent ────WS /ws/agent────────────────�
 
 ### Frontend State Management
 
-State is split across Zustand stores in `server/frontend/src/stores/`:
-- `useUIStore` – sidebar, modals, filters, notifications
-- `useClientStore` – client list and online/offline status (fed by WebSocket)
-- `useClientDetailStore` – selected client data, history, jobs
-- `useGlobalJobsStore` – centralized backup job configs
-- `useRepositoryStore` / `useRepositorySnapshotStore` – PBS repository data
-- `useSchedulerStore` – status of the server's cleanup schedulers (settings page)
-- `useHistorySeenStore` – unseen failed runs behind the dot on "History" (server-side seen state)
-- `useWebhookStore` – webhooks and their last delivery (refetched on `WEBHOOKS_UPDATE`)
+Two kinds of state, kept apart:
 
-WebSocket updates from `/ws/dashboard` flow into these stores; the frontend does not poll.
+- **Server data** lives in the TanStack Query cache and is read through the hooks in
+  `server/frontend/src/queries/` -- one module per area (`clients`, `clientDetail`,
+  `jobs`, `repositories`, `history`, `webhooks`, `scheduler`, `fileSystem`, `tokens`,
+  `users`). `lib/queryClient.ts` holds the one `QueryClient`, `lib/queryKeys.ts` every key.
+  **No component and no store fetches a list by itself**; a new endpoint that is read
+  gets a query there.
+- **Client state** lives in Zustand: `stores/useUIStore` (sidebar collapsed) and nothing
+  else. **`stores/` makes no request.**
+
+WebSocket updates from `/ws/dashboard` are written into the cache by `WebSocketProvider`;
+the frontend does not poll (no refetch on focus, no retry). The rule each message applies
+is a pure function in `lib/cacheUpdates.ts`, written with `setQueryData` and an updater,
+so an entry nobody has read is not created by a message. A socket reconnect invalidates
+the whole cache once -- there is no `resyncKey` to list in an effect.
+
+`isPending` is what a route waits on before it says "not found". A hand-kept `loaded`
+flag next to a list is how that used to be done; do not bring it back.
+
+The settings form (`pages/Settings.tsx`) is the deliberate exception: it loads once into
+a draft, so the invalidation after a reconnect cannot overwrite what is typed.
 
 ### The contract between server and dashboard
 
@@ -241,7 +252,7 @@ See `docs/development.md` for the workflow details.
 
 Detailed documentation lives in `/docs/`:
 - `backend.md` – Controllers, services, WebSocket protocol
-- `frontend.md` – Routing, stores, component conventions
+- `frontend.md` – Routing, query cache and stores, component conventions
 - `client.md` – Agent lifecycle, scheduler, executor
 - `api.md` – Full REST and WebSocket API spec
 - `tunnel.md` – Outbound clients and the SSH reverse tunnel (setup, protocol, test protocol)
