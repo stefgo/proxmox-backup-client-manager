@@ -9,7 +9,7 @@ The structure follows a **Feature-First Approach**, where code belonging to a sp
 ```
 src/
 ├── features/         # Feature modules (Domain Logic)
-│   ├── app/          # App-level layout (App.tsx, App.css)
+│   ├── app/          # Providers (App.tsx), the route tree (routes.tsx), the shell (AppLayout.tsx)
 │   ├── auth/         # Authentication & Context
 │   ├── clients/      # Client management, lists, detail views, job editor
 │   ├── history/      # Execution history views
@@ -31,13 +31,16 @@ src/
 ├── stores/           # Client-only state (Zustand)
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
-├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters)
+├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters, useBackPath)
 ├── lib/              # Non-React modules
 │   ├── api.ts             # The one place a response is read: api.get(path, schema), …
 │   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
 │   ├── queryClient.ts     # The one QueryClient and its defaults
 │   ├── queryKeys.ts       # Every cache key, hierarchical
 │   ├── cacheUpdates.ts    # What a socket message makes of a cache entry (pure)
+│   ├── paths.ts           # Every path, once: the patterns and their builders
+│   ├── backPath.ts        # Where "back" is, from the chain of route matches (pure)
+│   ├── notFound.ts        # NotFoundError, thrown by a route whose subject is gone
 │   └── realtimeEvents.ts  # Typed emitter for the high-frequency WS stream
 ├── index.css         # Global CSS layers (glass-card, field-label)
 ├── Main.tsx          # Entry point (mounts App)
@@ -48,55 +51,105 @@ src/
 
 ## 🚦 Routing & Navigation
 
-Routing is controlled via `react-router-dom` in `App.tsx`.
+One route tree says what lives where, and three things are read off it instead of being
+kept beside it: the paths, the sidebar, and where "back" is.
+
+| File | What it holds |
+| :--- | :------------ |
+| `lib/paths.ts` | `ROUTES` — every path pattern, once — and `paths`, one builder per pattern that takes a parameter (`paths.clientEdit(id)`). **No path literal anywhere else.** |
+| `features/app/routes.tsx` | The tree inside the dashboard shell, as route objects. Each `path` is a `ROUTES` entry. |
+| `features/app/router.tsx` | `createBrowserRouter`: `/login` beside the shell, the shell around the tree. |
+| `features/app/routeElements.tsx` | What the tree renders: the boundaries and the thin wrappers that connect a page to the query cache. |
+| `features/app/lazyPages.ts` | The page components, each loaded with its route. |
+| `features/app/AppLayout.tsx` | The dashboard shell; the page is its `<Outlet />`. |
+| `features/app/RouteError.tsx` | The `errorElement` of every area. |
 
 `/login` stands alone; everything else lives behind `ProtectedRoute` inside the dashboard
 shell.
 
-| Path                            | Component             | Description                                     |
-| :------------------------------ | :-------------------- | :---------------------------------------------- |
-| `/login`                        | `Login`               | Authentication page (local & OIDC).             |
-| `/` and `/clients`              | `ManagedClients`      | Client list.                                    |
-| `/clients/new`                  | `AddClientWizard`     | Adds a client, starting with the connection mode. |
-| `/client/:clientId`             | `ClientOverview`      | Detail view of a client.                        |
-| `/client/:clientId/edit`        | `ClientEditor`        | Name and target address of a client.            |
-| `/client/:clientId/tunnel`      | `ClientTunnelEditor`  | Adds, changes or removes the SSH reverse tunnel. |
-| `/client/:clientId/jobs/new`    | `ClientJobEditor`     | New job for this client.                        |
-| `/client/:clientId/jobs/:jobId` | `ClientJobEditor`     | Edit a job; closes onto `/client/:clientId`.    |
-| `/jobs`                         | `ManagedJobs`         | Global job list, plus each job's last run.      |
-| `/jobs/new`                     | `ClientJobEditor`     | New job, client picked in the form.             |
-| `/jobs/:clientId/:jobId`        | `ClientJobEditor`     | Same editor; closes onto `/jobs`.               |
-| `/repositories`                 | `ManagedRepositories` | Repository list.                                |
-| `/repository/:repoId`           | `RepositoryOverview`  | Detail view of a repository.                    |
-| `/repository/:repoId/edit`      | `RepositoryEditor`    | Repository settings.                            |
-| `/history`                      | `HistoryOverview`     | Global execution history.                       |
-| `/users`                        | `UserOverview`        | User management.                                |
-| `/tokens`                       | `TokenOverview`       | Registration tokens.                            |
-| `/webhooks`                     | `WebhookOverview`     | Webhooks, with their last delivery. |
-| `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute` | Webhook editor with live preview and a test sent by the server. |
-| `/settings`                     | `Settings`            | Cleanup settings and scheduler status, one tab per cleanup. |
-| `*`                             | `NotFound`            | —                                               |
+| Path                                    | Component               | Description                                     |
+| :-------------------------------------- | :---------------------- | :---------------------------------------------- |
+| `/login`                                | `Login`                 | Authentication page (local & OIDC).             |
+| `/`                                     | —                       | Redirects to `/clients`.                        |
+| `/clients`                              | `ManagedClients`        | Client list.                                    |
+| `/clients/new`                          | `AddClientWizard`       | Adds a client, starting with the connection mode. |
+| `/clients/:clientId`                    | `ClientOverview`        | Detail view of a client; `?tab=` names the open tab. |
+| `/clients/:clientId/edit`               | `ClientEditor`          | Name and target address of a client.            |
+| `/clients/:clientId/tunnel`             | `ClientTunnelEditor`    | Adds, changes or removes the SSH reverse tunnel. |
+| `/clients/:clientId/jobs/new`           | `ClientJobEditor`       | New job for this client.                        |
+| `/clients/:clientId/jobs/:jobId`        | `ClientJobEditor`       | Edit a job; closes onto the client.             |
+| `/clients/:clientId/restore/:repoId/:backupType/:backupTime` | `SnapshotRestoreEditor` | Restores one of the client's snapshots. |
+| `/jobs`                                 | `ManagedJobs`           | Global job list, plus each job's last run.      |
+| `/jobs/new`                             | `ClientJobEditor`       | New job, client picked in the form.             |
+| `/jobs/:clientId/:jobId`                | `ClientJobEditor`       | Same editor; closes onto `/jobs`.               |
+| `/repositories`                         | `ManagedRepositories`   | Repository list.                                |
+| `/repositories/new`                     | `RepositoryEditor`      | Adds a repository.                              |
+| `/repositories/:repoId`                 | `RepositoryOverview`    | Detail view of a repository.                    |
+| `/repositories/:repoId/edit`            | `RepositoryEditor`      | Repository settings.                            |
+| `/repositories/:repoId/restore/:backupType/:backupId/:backupTime` | `SnapshotRestoreEditor` | Restores a snapshot, to a client picked in the form. |
+| `/history`                              | `HistoryOverview`       | Global execution history.                       |
+| `/users`                                | `UserOverview`          | User management.                                |
+| `/tokens`                               | `TokenOverview`         | Registration tokens.                            |
+| `/webhooks`                             | `WebhookOverview`       | Webhooks, with their last delivery.             |
+| `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute`    | Webhook editor with live preview and a test sent by the server. |
+| `/settings`                             | `Settings`              | Cleanup settings and scheduler status, one tab per cleanup. |
+| `*`                                     | `NotFound`              | —                                               |
 
-The job editor is reached from two places and returns to the one it came from, which is why
-the same component sits behind two route shapes — `EditJobRoute` takes its `fallback` as a
-prop rather than guessing.
+A list and everything below it share the plural (`/clients/:clientId`). The singular forms
+`/client/…` and `/repository/…` of earlier versions are gone without a redirect; a bookmark
+to one lands on the not-found page.
 
-Every client form is a route, not a state flag: the URL says what is on screen, a reload
-keeps it there, and the browser's back button works. Every route carrying a `:clientId`
-resolves it through the shared `useRouteClient` helper, which reads the cached client list:
-a spinner while that is pending, the not-found card once it has answered without this id —
-a stale bookmark must not render an editor over `undefined`.
+**Every form is a route**, not a state flag: the URL says what is on screen, a reload keeps
+it there, the link can be shared, and the browser's back button works. That includes the
+repository editor and the restore form, which used to be local state of the page that
+opened them.
 
-**Where "back" is** is the caller's business, not the editor's: the surface that opens an
-editor navigates with `{ state: { from: location.pathname } }`, and the editor reads
-`location.state.from` with `/clients` as the fallback. That is why **Edit Client** returns
-to the client list from the list, and to `/client/:clientId` from the detail page, while a
-directly opened URL still closes onto something sensible.
+**The job editor sits under two path families** for the same page — under the client when
+it was opened from there, under `/jobs` when it was opened from the list across all
+clients. That is deliberate: the sidebar keeps marking the place the operator came from,
+and the tree says where each closes onto.
 
-A sidebar entry in `pages` takes a `path` **array**, not a single string, and every route
-that belongs to it is listed there — all eight under `clients`, three under `repositories`,
-three under `jobs`. That is what keeps the entry marked while an editor or a detail view is
-open.
+### Where "back" is
+
+An editor closes onto **its parent in the route tree** — `useBackPath()`, which reads the
+chain of matches (`lib/backPath.ts` holds the rule as a pure function). Nesting a route is
+what decides it: `edit` sits below `/clients/:clientId`, so the client editor closes onto
+the client's page, whichever surface opened it and also after a reload. Nothing travels in
+`location.state`.
+
+The query string is the part that is passed along. A page that opens a form one level
+below itself navigates with its own query (`navigate({ pathname, search })`), and
+`useBackPath()` hands it back on the way out — that is how the client page's open tab and a
+list's search are still there on return, and why they survive a reload of the editor. A
+surface that opens a form which is *not* its child (the client list opening the client
+editor) passes nothing, since its query would mean nothing on the page the form closes onto.
+A page whose query is its own leaves with `useBackPath({ keepSearch: false })`.
+
+### The sidebar
+
+An area of the tree that carries `handle: { nav }` is a sidebar entry; `navEntries` in
+`routes.tsx` reads them off in order. `AppLayout` adds what only the running application
+knows — the counts and the dot for unseen failures, by `id` — and marks the entry whose
+area the innermost match belongs to (`useMatches()`). No list of the routes below an entry
+exists: a route added under `/clients` is marked as *Clients* by being there.
+
+### Not found
+
+Every route below `/clients/:clientId` gets its client from `ClientBoundary`, the layout
+route at that path: a spinner while the cached list is pending, the client as outlet
+context once it is there (`useRouteClient()`), and a thrown `NotFoundError('client')` once
+the list has answered without this id — a stale bookmark must not render an editor over
+`undefined`. `RepositoryBoundary` does the same for repositories; `EditJobRoute`, the
+restore routes and `WebhookEditorRoute` throw for their own subject.
+
+`RouteError`, the `errorElement` of each area, turns the error into the not-found card. It
+replaces the page only, so the shell stays and the URL stays where it was; the router
+drops it on the next navigation. Any other error thrown while rendering is shown there as
+what it is.
+
+The error is thrown in render, not in a `loader`: the lists live in the query cache and
+are kept current by the socket, so a client that is deleted while its page is open is
+noticed, which a loader — run once per navigation — would not.
 
 ---
 
@@ -153,7 +206,7 @@ reaches a client's jobs, history and directory listings, because a key matches w
 it is a prefix of. `queryKeys.test.ts` holds the prefix relations the code relies on.
 
 **What a hook returns.** `isPending` is true until the entry has answered once -- also with
-an error. It is what `ClientMissing`, `RepositoryMissing` and `EditJobRoute` wait on: an
+an error. It is what `ClientBoundary`, `RepositoryBoundary` and `EditJobRoute` wait on: an
 empty list before that says nothing about whether the thing exists.
 
 **Actions are mutations.** Starting and deleting a job exist once, as `useTriggerJob` and
@@ -412,11 +465,11 @@ This is the "Controller" for the client overview. It connects the UI (`ClientLis
 - **Functionality**:
     - Displays list of clients.
     - Deletes clients, reconnects outbound ones.
-    - Navigates to the three editor routes: `/clients/new` from the one **+ Add** button (the connection mode is the wizard's first step), `/client/:id/edit` and `/client/:id/tunnel` from the row actions. It holds no editor state of its own — it used to swap four surfaces through the same `div`, which meant the URL described none of them.
+    - Navigates to the three editor routes: `/clients/new` from the one **+ Add** button (the connection mode is the wizard's first step), `/clients/:id/edit` and `/clients/:id/tunnel` from the row actions. It holds no editor state of its own — it used to swap four surfaces through the same `div`, which meant the URL described none of them.
 
 ### Client Editor (`ClientEditor.tsx`)
 
-A page at `/client/:clientId/edit`, and a container rather than a form: it selects the live
+A page at `/clients/:clientId/edit`, and a container rather than a form: it selects the live
 client from the cache by id (`useClient`) and renders the card for the one resource it owns.
 
 - **`ClientIdentityCard`** — header (`StatusDot`, id, last seen), connection mode `Badge`,
@@ -565,7 +618,10 @@ repository, archives, exclusions, encryption, tunnel, schedule.
 The restore process is complex and distributed across:
 
 1. `useRepositorySnapshots` (`queries/repositories.ts`): Loads available snapshots from the PBS.
-2. `SnapshotRestoreEditor` (in `features/repositories`):
+2. A route of its own, below the client or below the repository. The URL names the
+   snapshot (type, id, time); `SnapshotRestoreRoute` reads it from the same snapshot list
+   the page it was opened from shows.
+3. `SnapshotRestoreEditor` (in `features/repositories`):
     - Selects Repository -> Snapshot -> Archive (e.g., `root.pxar`).
     - Target path input on the client.
     - **Restore through the SSH reverse tunnel** — the same question `JobTunnelSettings` asks
@@ -575,7 +631,7 @@ The restore process is complex and distributed across:
       tunnel has no choice to make, and an inert switch would raise a question the operator
       cannot act on from here — and defaulted to on, because a client that has a tunnel
       usually has it for want of a direct route.
-3. `POST /api/v1/clients/:id/restore`: Triggers the restore command on the client. The tunnel
+4. `POST /api/v1/clients/:id/restore`: Triggers the restore command on the client. The tunnel
    choice travels in that one request as `tunnel: { required }`; the backend rejects a request
    asking for a route the client has no credentials for.
 

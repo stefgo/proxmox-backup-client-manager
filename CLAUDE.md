@@ -114,6 +114,24 @@ the whole cache once -- there is no `resyncKey` to list in an effect.
 `isPending` is what a route waits on before it says "not found". A hand-kept `loaded`
 flag next to a list is how that used to be done; do not bring it back.
 
+### Routing
+
+One route tree, `features/app/routes.tsx` (`createBrowserRouter`), and three things read
+off it rather than kept beside it:
+
+- **Paths** live in `lib/paths.ts`: `ROUTES` holds every pattern once, `paths` builds the
+  ones with parameters. **No path literal outside that file** -- not in a `navigate(...)`,
+  not in the tree.
+- **The sidebar** is the areas carrying `handle: { nav }`. A new route below an area needs
+  no second entry anywhere.
+- **Back** is the parent in the tree, through `useBackPath()`. **Nothing goes into
+  `location.state`**; what has to survive the round trip (the open tab, a search) is passed
+  along as the query string, so it survives a reload too.
+
+A form is a route, never a state flag of the page that opens it. A route whose subject
+does not exist throws `NotFoundError` once its list is no longer pending; the area's
+`errorElement` shows the card.
+
 The settings form (`pages/Settings.tsx`) is the deliberate exception: it loads once into
 a draft, so the invalidation after a reconnect cannot overwrite what is typed.
 
