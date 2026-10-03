@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { ActionButton, Button, Modal, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../../utils';
@@ -24,8 +24,22 @@ const COPY_FEEDBACK_MS = 2000;
 export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) => {
     const [copied, setCopied] = useState(false);
 
+    const [copyUnavailable, setCopyUnavailable] = useState(false);
+    const tokenField = useRef<HTMLInputElement>(null);
+
+    // The clipboard API exists in a secure context only, and the dashboard is often reached
+    // over plain HTTP in a LAN. There the token is selected instead, one keystroke from copied.
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(form.token);
+        try {
+            if (!navigator.clipboard) throw new Error('Clipboard API not available');
+            await navigator.clipboard.writeText(form.token);
+        } catch {
+            tokenField.current?.focus();
+            tokenField.current?.select();
+            setCopyUnavailable(true);
+            return;
+        }
+        setCopyUnavailable(false);
         setCopied(true);
         setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
     };
@@ -48,6 +62,7 @@ export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) =
             <div className="space-y-4">
                 <div className="flex items-center gap-2">
                     <input
+                        ref={tokenField}
                         type="text"
                         readOnly
                         value={form.token}
@@ -68,6 +83,12 @@ export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) =
                         className={copied ? 'text-success' : undefined}
                     />
                 </div>
+
+                {copyUnavailable && (
+                    <p role="status" className="text-xs text-warning">
+                        Copying is not available on this connection — the token is selected, press Ctrl/⌘+C.
+                    </p>
+                )}
 
                 <p className="text-xs text-text-muted">Expires: {formatDate(form.expiresAt)}</p>
 
