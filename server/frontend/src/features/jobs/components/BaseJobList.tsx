@@ -11,8 +11,9 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { EMPTY_VALUE, formatDate, formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
-import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
+import { parseTimestamp } from '../../../lib/time';
 import { statusBadgeVariant } from '../../history/lib/statusBadge';
+import { runSummary } from '../../history/lib/runSummary';
 import type { LastRun } from '../lib/lastRun';
 import { canAbortRun } from '../../history/lib/runAbort';
 import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
@@ -283,16 +284,39 @@ export const BaseJobList = <T extends BaseJobItem>({
                     </Cell>
                 );
             }
-            const ms = durationBetween(run.startTime, run.endTime);
-            const when = [formatDate(run.startTime), ms === null ? null : formatDuration(ms)]
-                .filter((part) => part !== null)
-                .join(' · ');
             return (
                 <Cell view={view} online={isOnline(job)} tone="text-text-muted">
-                    <span className="whitespace-nowrap">{when}</span>
+                    <span className="whitespace-nowrap">{formatDate(run.startTime)}</span>
                 </Cell>
             );
         },
+    };
+
+    // How long the last run took and what it left behind: fields of the list only. The
+    // table has no room for two more columns, and says when the job ran and how that went.
+    const summaryOf = (job: T) => {
+        const run = getLastRun?.(job);
+        return run ? runSummary(run) : null;
+    };
+
+    const lastDurationColumn: DataColumnDef<T> = {
+        header: 'Duration',
+        table: false,
+        render: (job, view) => (
+            <Cell view={view} online={isOnline(job)} tone="text-text-muted">
+                {summaryOf(job)?.duration ?? EMPTY_VALUE}
+            </Cell>
+        ),
+    };
+
+    const lastSizeColumn: DataColumnDef<T> = {
+        header: 'Size',
+        table: false,
+        render: (job, view) => (
+            <Cell view={view} online={isOnline(job)} tone="text-text-muted">
+                {summaryOf(job)?.size ?? EMPTY_VALUE}
+            </Cell>
+        ),
     };
 
     const lastStatusColumn: DataColumnDef<T> = {
@@ -346,7 +370,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 </Cell>
             ),
         },
-        ...(getLastRun ? [lastRunColumn, lastStatusColumn] : []),
+        ...(getLastRun ? [lastRunColumn, lastDurationColumn, lastSizeColumn, lastStatusColumn] : []),
         {
             header: 'Schedule',
             sortable: true,

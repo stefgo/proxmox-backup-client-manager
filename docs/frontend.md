@@ -286,7 +286,10 @@ page holds the rows on screen and no more.
 ### The last run of a job (`features/jobs/lib/lastRun.ts`)
 
 Both job lists — the one across all clients and the one on the client page — have a
-"Last Run" column (start and duration) and a "Last Status" column beside it, each sortable. Both read `GET /api/v1/history/latest`
+"Last Run" column (the start) and a "Last Status" column beside it, each sortable. The list
+view adds two fields the table has no room for, "Duration" and "Size", both from
+`runSummary` in `features/history/lib/runSummary.ts` — so the size is there for a backup
+that succeeded, as in the history. Both lists read `GET /api/v1/history/latest`
 through `useLatestPerJob()`, the cache entry "Last Activity" shows and `JOB_UPDATE` keeps
 current. `lastRunByJob` keys it by client *and* job, since two clients may hold the same job
 id. The badge is `statusBadgeVariant` from `features/history/lib/statusBadge.ts`, the same

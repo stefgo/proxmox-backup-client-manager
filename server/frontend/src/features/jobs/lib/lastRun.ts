@@ -1,15 +1,20 @@
-import { jobIdOf, type SessionHistoryItem } from '../../../lib/cacheUpdates';
+import type { RunSnapshotDetails } from '@pbcm/shared';
+import { jobIdOf,type SessionHistoryItem } from '../../../lib/cacheUpdates';
 import { parseTimestamp } from '../../../lib/time';
 
 /** What a job row shows of its last run. */
 export interface LastRun {
     /** The run itself: what an abort names. */
     id: string;
+    /** What kind of run it was: only a backup leaves a size behind. */
+    type: string;
     status: string;
     /** Set while the run is still `running` after its CLI exited. */
     phase?: string | null;
     startTime: string;
     endTime?: string | null;
+    /** What the PBS reported for the snapshot: where the size comes from. */
+    snapshotDetails?: RunSnapshotDetails | null;
 }
 
 /** A job is named by its client and its id: two clients may hold the same job id. */
