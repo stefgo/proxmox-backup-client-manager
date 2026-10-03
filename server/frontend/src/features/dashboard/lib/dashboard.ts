@@ -29,6 +29,12 @@ export const repositoryCount = (repositories: readonly WithStatus[]): OnlineCoun
 /** `3 / 5`, as a card and a badge write it. */
 export const formatOnlineCount = ({ online, total }: OnlineCount): string => `${online} / ${total}`;
 
+/** The same count in words, for where the pair of numbers has to explain itself: `3 of 5 online`. */
+export const describeOnlineCount = ({ online, total }: OnlineCount): string => `${online} of ${total} online`;
+
+/** The jobs badge in words: `2 jobs active`. */
+export const describeActiveJobs = (count: number): string => `${count} ${count === 1 ? 'job' : 'jobs'} active`;
+
 const onlineIds = (clients: readonly (WithStatus & { id: string })[]): Set<string> =>
     new Set(clients.filter((c) => c.status === CLIENT_STATUS.ONLINE).map((c) => c.id));
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     activeJobCount,
     clientCount,
+    describeActiveJobs,
+    describeOnlineCount,
     formatOnlineCount,
     MISSED_GRACE_MS,
     missedJobs,
@@ -28,6 +30,19 @@ describe('clientCount and repositoryCount', () => {
 
     it('are zero of zero for an empty list', () => {
         expect(formatOnlineCount(clientCount([]))).toBe('0 / 0');
+    });
+});
+
+describe('the counts in words', () => {
+    it('says how many of how many are online', () => {
+        expect(describeOnlineCount({ online: 3, total: 5 })).toBe('3 of 5 online');
+        expect(describeOnlineCount(clientCount([]))).toBe('0 of 0 online');
+    });
+
+    it('counts jobs in the singular where there is one', () => {
+        expect(describeActiveJobs(0)).toBe('0 jobs active');
+        expect(describeActiveJobs(1)).toBe('1 job active');
+        expect(describeActiveJobs(2)).toBe('2 jobs active');
     });
 });
 
