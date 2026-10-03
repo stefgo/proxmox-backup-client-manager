@@ -6,15 +6,21 @@ import {
     KeyRound,
     Plus,
 } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
-import { DataTableDef, Button, StatusDot } from '@stefgo/react-ui-components';
-import { DataListDef, DataListColumnDef } from '@stefgo/react-ui-components';
-import { DataAction } from '@stefgo/react-ui-components';
-import { DataMultiView, EmptyState } from '@stefgo/react-ui-components';
+import {
+    Button,
+    DataAction,
+    DataMultiView,
+    EmptyState,
+    StatusDot,
+    type DataColumnDef,
+    type DataColumnView,
+} from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
+import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 
 /**
@@ -35,6 +41,28 @@ export interface BaseJobItem {
         enabled?: boolean;
     };
 }
+
+interface CellProps {
+    view: DataColumnView;
+    /** Whether the job's client is online; a row that is not takes the muted colour of its row. */
+    online: boolean;
+    /** The colour of the value while the client is online. */
+    tone: string;
+    /** What the table adds to the value that names the row. */
+    emphasis?: string;
+    children: ReactNode;
+}
+
+/**
+ * A value as each view sets it: the table gives it its own size, the list leaves that to
+ * the field. The one place the two views of a column differ, so a column is written once.
+ */
+const Cell = ({ view, online, tone, emphasis, children }: CellProps) =>
+    view === 'list' ? (
+        <span className={online ? tone : 'text-inherit'}>{children}</span>
+    ) : (
+        <div className={`text-sm ${online ? [emphasis, tone].filter(Boolean).join(' ') : ''}`}>{children}</div>
+    );
 
 export interface BaseJobListProps<T extends BaseJobItem> {
     jobs: T[];
@@ -126,293 +154,129 @@ export const BaseJobList = <T extends BaseJobItem>({
         return getClientStatus(job.clientId);
     };
 
-    // ── Table definitions ────────────────────────────────────────────────────
-    const buildTableDefinitions = (): DataTableDef<T>[] => {
-        const cols: DataTableDef<T>[] = [];
+    const isOnline = (job: T) => getStatus(job) === CLIENT_STATUS.ONLINE;
+    const clientName = (job: T) => (job.clientId && getClientName ? getClientName(job.clientId) : 'Unknown');
+    const rowId = (job: T) => (job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new'));
 
-        if (showClientColumn) {
-            cols.push({
-                tableHeader: 'Client',
-                sortable: true,
-                sortValue: (job) => (job.clientId && getClientName ? getClientName(job.clientId) : '') ?? '',
-                tableItemRender: (job) => {
-                    const online = getStatus(job) === CLIENT_STATUS.ONLINE;
-                    return (
-                        <div className="flex items-center gap-3 mb-1">
-                            <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />
-                            <div
-                                className={`text-sm ${online ? 'text-text-primary' : ''
-                                    } max-w-[150px] truncate`}
-                                title={
-                                    job.clientId && getClientName
-                                        ? getClientName(job.clientId)
-                                        : 'Unknown'
-                                }
-                            >
-                                {job.clientId && getClientName
-                                    ? getClientName(job.clientId)
-                                    : 'Unknown'}
-                            </div>
-                        </div>
-                    );
-                },
-            });
-        }
+    // One set of actions for both views, so the table and the list cannot drift apart.
+    const renderActions = (job: T) => {
+        const online = isOnline(job);
+        return (
+            <DataAction
+                rowId={rowId(job)}
+                actions={[
+                    {
+                        icon: Play,
+                        onClick: () => onTriggerJob(job),
+                        disabled: !online,
+                        color: 'green',
+                        tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
+                    },
+                    {
+                        icon: Pencil,
+                        onClick: () => onEditJob(job),
+                        disabled: !online,
+                        color: 'blue',
+                        tooltip: { enabled: 'Edit Job', disabled: 'Client Offline' },
+                    },
+                ]}
+                menuEntries={[
+                    {
+                        label: 'Delete Job',
+                        icon: Trash2,
+                        onClick: () => onDeleteJob(job),
+                        disabled: !online,
+                        disabledTitle: 'Client Offline',
+                        variant: 'danger',
+                    },
+                ]}
+            />
+        );
+    };
 
-        cols.push({
-            tableHeader: 'Job',
+    const clientColumn: DataColumnDef<T> = {
+        header: 'Client',
+        sortable: true,
+        sortValue: (job) => (job.clientId && getClientName ? getClientName(job.clientId) : '') ?? '',
+        list: { label: null },
+        render: (job, view) => {
+            const online = isOnline(job);
+            const dot = <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />;
+            return view === 'list' ? (
+                <div className="flex items-center gap-2 py-1">
+                    {dot}
+                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{clientName(job)}</span>
+                </div>
+            ) : (
+                <div className="flex items-center gap-3 mb-1">
+                    {dot}
+                    <div className={`text-sm ${online ? 'text-text-primary' : ''} max-w-[150px] truncate`} title={clientName(job)}>
+                        {clientName(job)}
+                    </div>
+                </div>
+            );
+        },
+    };
+
+    // ── Columns, each once for the table and the list ────────────────────────
+    const columns: DataColumnDef<T>[] = [
+        ...(showClientColumn ? [clientColumn] : []),
+        { header: 'ID', accessorKey: 'id', table: false },
+        {
+            header: 'Job',
             sortable: true,
             sortValue: (job) => job.name,
-            tableItemRender: (job) => {
-                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <div
-                        className={`text-sm ${online ? 'font-medium text-text-primary' : ''
-                            }`}
-                    >
-                        {job.name}
-                    </div>
-                );
-            },
-        });
-
-        cols.push({
-            tableHeader: 'Archives',
+            list: { label: 'Name' },
+            render: (job, view) => (
+                <Cell view={view} online={isOnline(job)} tone="text-text-primary" emphasis="font-medium">
+                    {job.name}
+                </Cell>
+            ),
+        },
+        {
+            header: 'Archives',
             sortable: true,
             sortValue: (job) => job.archives?.length ?? 0,
-            tableItemRender: (job) => {
-                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <div className={`text-sm ${online ? 'text-text-primary' : ''}`}>
-                        {job.archives?.length || 0}
-                    </div>
-                );
-            },
-        });
-
-        cols.push({
-            tableHeader: 'Schedule',
+            render: (job, view) => (
+                <Cell view={view} online={isOnline(job)} tone="text-text-primary">
+                    {job.archives?.length || 0}
+                </Cell>
+            ),
+        },
+        {
+            header: 'Schedule',
             sortable: true,
             sortValue: (job) => job.nextRunAt ?? '',
-            tableItemRender: (job) => {
-                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
+            render: (job, view) => {
+                const online = isOnline(job);
                 return (
-                    <div className={`text-sm ${online ? 'text-text-muted' : ''}`}>
+                    <Cell view={view} online={online} tone="text-text-muted">
                         {job.scheduleEnabled ? (
                             formatNextRun(job.nextRunAt, online)
                         ) : (
-                            <span className={online ? 'text-text-muted' : ''}>
-                                Manual Only
-                            </span>
+                            <span className={online ? 'text-text-muted' : 'text-inherit'}>Manual Only</span>
                         )}
-                    </div>
+                    </Cell>
                 );
             },
-        });
-
-        // Encryption indicator
-        cols.push({
-            tableHeader: 'Encrypted',
-            tableHeaderClassName: 'w-8',
-            tableItemRender: (job) => {
-                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return job.encryption?.enabled ? (
-                    <KeyRound
-                        size={16}
-                        className={
-                            online
-                                ? 'text-text-muted'
-                                : 'text-text-muted'
-                        }
-                    />
-                ) : null;
-            },
-        });
-
-        // Actions
-        cols.push({
-            tableHeader: 'Actions',
-            tableHeaderClassName: 'text-center',
-            tableCellClassName: 'content-center',
-            tableItemRender: (job) => {
-                const online = getStatus(job) === CLIENT_STATUS.ONLINE;
-                const rowId = job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new');
-                return (
-                    <DataAction
-                        rowId={rowId}
-                        actions={[
-                            {
-                                icon: Play,
-                                onClick: () => onTriggerJob(job),
-                                disabled: !online,
-                                color: 'green',
-                                tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
-                            },
-                            {
-                                icon: Pencil,
-                                onClick: () => onEditJob(job),
-                                disabled: !online,
-                                color: 'blue',
-                                tooltip: { enabled: 'Edit Job', disabled: 'Client Offline' },
-                            },
-                        ]}
-                        menuEntries={[
-                            {
-                                label: 'Delete Job',
-                                icon: Trash2,
-                                onClick: () => onDeleteJob(job),
-                                disabled: !online,
-                                disabledTitle: 'Client Offline',
-                                variant: 'danger',
-                            },
-                        ]}
-                    />
-                );
-            },
-        });
-
-        return cols;
-    };
-
-    // ── List definitions ─────────────────────────────────────────────────────
-    const buildListDefinitions = (): DataListColumnDef<T>[] => {
-        const contentFields: DataListDef<T>[] = [];
-        const actionFields: DataListDef<T>[] = [];
-
-        if (showClientColumn) {
-            contentFields.push({
-                listItemRender: (job) => {
-                    const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
-                    return (
-                        <div className="flex items-center gap-2 py-1">
-                            <StatusDot size="sm" {...STATUS_DOT[isOnline ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />
-                            <span
-                                className={`${isOnline
-                                    ? 'text-text-primary'
-                                    : 'text-inherit'
-                                    }`}
-                            >
-                                {job.clientId && getClientName
-                                    ? getClientName(job.clientId)
-                                    : 'Unknown'}
-                            </span>
-                        </div>
-                    );
-                },
-                listLabel: null,
-            });
-        }
-
-        contentFields.push({
-            accessorKey: 'id',
-            listLabel: 'ID'
-        });
-
-        contentFields.push({
-            listItemRender: (job) => {
-                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <span className={isOnline ? 'text-text-primary' : 'text-inherit'}>
-                        {job.name}
-                    </span>
-                );
-            },
-            listLabel: 'Name',
-        });
-
-        contentFields.push({
-            listItemRender: (job) => {
-                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <span className={isOnline ? 'text-text-primary' : 'text-inherit'}>
-                        {job.archives?.length || 0}
-                    </span>
-                );
-            },
-            listLabel: 'Archives',
-        });
-
-        contentFields.push({
-            listItemRender: (job) => {
-                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <span className={isOnline ? 'text-text-muted' : 'text-inherit'}>
-                        {job.scheduleEnabled ? (
-                            formatNextRun(job.nextRunAt, isOnline)
-                        ) : (
-                            <span className={isOnline ? 'text-text-muted' : 'text-inherit'}>
-                                Manual Only
-                            </span>
-                        )}
-                    </span>
-                );
-            },
-            listLabel: 'Schedule',
-        });
-
-        // Encryption indicator
-        contentFields.push({
-            listItemRender: (job) => {
+        },
+        {
+            header: 'Encrypted',
+            table: { headerClassName: 'w-8' },
+            // The table has a narrow column for the key alone; the list spells it out.
+            render: (job, view) => {
                 if (!job.encryption?.enabled) return null;
-                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
+                if (view === 'table') return <KeyRound size={16} className="text-text-muted" />;
+                const online = isOnline(job);
                 return (
-                    <span className={`${isOnline ? 'text-text-muted' : 'text-inherit'} flex items-center gap-1`}>
-                        <KeyRound size={14} className={isOnline ? '' : 'text-inherit'} /> Yes
+                    <span className={`${online ? 'text-text-muted' : 'text-inherit'} flex items-center gap-1`}>
+                        <KeyRound size={14} className={online ? '' : 'text-inherit'} /> Yes
                     </span>
                 );
             },
-            listLabel: 'Encrypted',
-        });
-
-        // Actions
-        actionFields.push({
-            listItemRender: (job) => {
-                const isOnline = getStatus(job) === CLIENT_STATUS.ONLINE;
-                return (
-                    <div className="flex items-center justify-center gap-3 mt-3">
-                        <DataAction
-                            rowId={job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new')}
-                            actions={[
-                                {
-                                    icon: Play,
-                                    onClick: () => onTriggerJob(job),
-                                    disabled: !isOnline,
-                                    color: 'green',
-                                    tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
-                                },
-                                {
-                                    icon: Pencil,
-                                    onClick: () => onEditJob(job),
-                                    disabled: !isOnline,
-                                    color: 'blue',
-                                    tooltip: { enabled: 'Edit Job', disabled: 'Client Offline' },
-                                },
-                            ]}
-                            menuEntries={[
-                                {
-                                    label: 'Delete Job',
-                                    icon: Trash2,
-                                    onClick: () => onDeleteJob(job),
-                                    disabled: !isOnline,
-                                    disabledTitle: 'Client Offline',
-                                    variant: 'danger',
-                                },
-                            ]}
-                        />
-                    </div>
-                );
-            },
-            listLabel: null,
-        });
-
-        return [
-            { fields: contentFields, columnClassName: 'flex-1' },
-            { fields: actionFields, columnClassName: 'md:text-right' }
-        ];
-    };
-
-    const tableItems = buildTableDefinitions();
-    const listItems = buildListDefinitions();
+        },
+        actionsColumn(renderActions, 'flex items-center justify-center gap-3 mt-3'),
+    ];
 
     const newJobButton = showNewJobButton && onCreateJob && (
         <Button size="sm" icon={Plus} onClick={onCreateJob}>
@@ -427,11 +291,9 @@ export const BaseJobList = <T extends BaseJobItem>({
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: viewModePersistKey, scope: 'local' } }}
             data={sortedJobs}
-            tableDef={tableItems}
-            listColumns={listItems}
-            keyField={(job) =>
-                job.clientId ? `${job.clientId}-${job.id || 'new'}` : (job.id || 'new')
-            }
+            columns={columns}
+            listGroups={listGroups()}
+            keyField={rowId}
             searchable
             searchPlaceholder="Search Jobs ..."
             search={{ value: searchQuery, onChange: setSearchQuery }}
