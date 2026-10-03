@@ -1,5 +1,6 @@
 import { ReactNode, Suspense, lazy, useMemo, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import {
     Monitor,
     HardDrive,
@@ -23,6 +24,7 @@ import { AuthProvider } from '../auth/AuthProvider';
 import { useAuth } from '../auth/AuthContext';
 import { WebSocketProvider } from './context/WebSocketProvider';
 import { useWebSocket } from './context/WebSocketContext';
+import { queryClient } from '../../lib/queryClient';
 
 // Hooks & Stores
 import { useClientStore } from '../../stores/useClientStore';
@@ -523,17 +525,21 @@ function AppLayout() {
 function App() {
     return (
         <ThemeProvider>
-            <AuthProvider>
-                <WebSocketProvider>
-                    {/* Every page asks through useConfirm() and reports through useToast();
-                        the one dialog and the one toast stack that answer live here. */}
-                    <ToastProvider>
-                        <ConfirmProvider>
-                            <AppRoutes />
-                        </ConfirmProvider>
-                    </ToastProvider>
-                </WebSocketProvider>
-            </AuthProvider>
+            {/* Outside the session: the cache outlives a login, and AuthProvider empties
+                it on logout. */}
+            <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                    <WebSocketProvider>
+                        {/* Every page asks through useConfirm() and reports through useToast();
+                            the one dialog and the one toast stack that answer live here. */}
+                        <ToastProvider>
+                            <ConfirmProvider>
+                                <AppRoutes />
+                            </ConfirmProvider>
+                        </ToastProvider>
+                    </WebSocketProvider>
+                </AuthProvider>
+            </QueryClientProvider>
         </ThemeProvider>
     );
 }

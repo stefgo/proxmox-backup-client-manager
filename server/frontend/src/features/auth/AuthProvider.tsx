@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { SessionUserSchema } from '@pbcm/shared';
 import { setUnauthorizedHandler, hasSessionFlag } from '../../lib/apiFetch';
 import { api, publicApi } from '../../lib/api';
+import { queryClient } from '../../lib/queryClient';
 import { AuthContext } from './AuthContext';
 
 interface AuthProviderProps {
@@ -30,6 +31,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const logout = useCallback(() => {
         setIsAuthenticated(false);
         setUsername(null);
+        // What the cache holds was read with this session. The next one may be another
+        // user's, and must not start out with the previous one's lists on screen.
+        queryClient.clear();
         // The session cookie is httpOnly, so only the server can remove it. Fired and
         // not awaited: the UI must return to the login form either way, and a failed
         // call would otherwise leave the user staring at a page they cannot use.
