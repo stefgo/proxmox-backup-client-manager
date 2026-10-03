@@ -1,19 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Client } from '@pbcm/shared';
+import { Client, ClientUpdateSchema } from '@pbcm/shared';
 import { X } from 'lucide-react';
-import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
-import { describeDiscardChanges } from '../../../components/confirmations';
-import { useClient } from '../../../queries/clients';
-import { useBackPath } from '../../../hooks/useBackPath';
+import { ActionButton } from '@stefgo/react-ui-components';
+import { useClient, type ClientUpdate } from '../../../queries/clients';
+import { useEntityForm } from '../../../hooks/useEntityForm';
+import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard';
+import {
+    clientDraftFrom,
+    clientFieldOf,
+    clientInputFrom,
+    clientRules,
+    isOutbound,
+    significantClientDraft,
+    storedClientDraft,
+    type ClientDraft,
+} from '../lib/clientForm';
 import { ClientIdentityCard } from './ClientIdentityCard';
 
 interface ClientEditorProps {
     client: Client;
-    onSave: (
-        id: string,
-        data: { displayName?: string; outboundTargetAddress?: string; inboundAllowedIp?: string | null },
-    ) => Promise<void>;
+    /** Must reject on failure -- the card's footer is where the error is shown. */
+    onSave: (id: string, data: ClientUpdate) => Promise<void>;
 }
 
 /**
@@ -29,50 +35,36 @@ interface ClientEditorProps {
  * Leaving is a navigation, and the control for it sits in the card's header — the one part
  * of the form that is in reach from every scroll position without a floating bar over the
  * content. Where it goes is the route tree's business: this editor sits below the client's
- * page, so that is where it closes onto, whichever surface opened it.
+ * page, so that is where it closes onto, whichever surface opened it. Unsaved work is asked
+ * about on every way out, by `useUnsavedChangesGuard`.
+ *
+ * The form is held here and not in the card, because this is where both of its readers
+ * are: the card shows it, the guard asks about it.
  */
 export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
-    const navigate = useNavigate();
-    const back = useBackPath();
-
     // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the cache instead of the prop.
     const live = useClient(client.id) ?? client;
-    // `useState` setters are referentially stable, so the card can list it in an effect's
-    // dependencies without re-running it on every render of this component.
-    const [dirty, setDirty] = useState(false);
-    const { confirm } = useConfirm();
 
-    /**
-     * Leaving used to discard silently under a warning label. It asks now: the exit moved
-     * into the header, where it sits a few pixels from the fields it would throw away, and
-     * a warning the operator has already scrolled past is no protection at that distance.
-     */
-    const requestClose = useCallback(async () => {
-        if (dirty && !(await confirm(describeDiscardChanges('client')))) return;
-        navigate(back);
-    }, [dirty, confirm, navigate, back]);
-
-    // Escape does exactly what the header's button does — including asking first.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return;
-            // Not while a select, a dialog or an autocomplete is using Escape for itself —
-            // this includes the discard confirmation, which closes on its own Escape.
-            if (e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [requestClose]);
+    // Fixed for the life of the page: a client does not change its connection mode.
+    const outbound = isOutbound(client);
+    const form = useEntityForm({
+        schema: ClientUpdateSchema,
+        initial: () => clientDraftFrom(client),
+        toInput: (draft: ClientDraft) => clientInputFrom(draft, outbound),
+        fieldOf: clientFieldOf,
+        rules: (draft) => clientRules(draft, outbound),
+        significant: (draft) => significantClientDraft(draft, outbound),
+    });
+    const { close } = useUnsavedChangesGuard(form.isDirty, 'client');
 
     return (
         <div className="space-y-6">
             <ClientIdentityCard
                 client={live}
-                onSave={onSave}
-                onDirtyChange={setDirty}
-                action={<ActionButton icon={X} tooltip="Close" onClick={requestClose} />}
+                form={form}
+                onSubmit={() => form.submit((input) => onSave(client.id, input), { rebase: storedClientDraft })}
+                action={<ActionButton icon={X} tooltip="Close" onClick={close} />}
             />
         </div>
     );

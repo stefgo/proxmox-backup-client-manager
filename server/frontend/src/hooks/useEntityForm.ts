@@ -6,6 +6,12 @@ import { getErrorMessage } from '../utils';
 interface EntityFormOptions<D extends object, S extends z.ZodType> extends DraftRules<D, S> {
     /** The draft the form opens with. Read once; `reset` is how a form starts over. */
     initial: D | (() => D);
+    /**
+     * The part of a draft that counts as a change, when that is not all of it: an address
+     * typed under a box that was unticked again is sent nowhere, and asking about it on
+     * the way out would be asking about nothing. Defaults to the whole draft.
+     */
+    significant?: (draft: D) => unknown;
 }
 
 interface SubmitOptions<D> {
@@ -57,6 +63,7 @@ export interface EntityForm<D extends object, I> {
  */
 export function useEntityForm<D extends object, S extends z.ZodType>({
     initial,
+    significant,
     ...rules
 }: EntityFormOptions<D, S>): EntityForm<D, z.input<S>> {
     const [baseline, setBaseline] = useState<D>(initial);
@@ -66,7 +73,9 @@ export function useEntityForm<D extends object, S extends z.ZodType>({
     const [justSaved, setJustSaved] = useState(false);
 
     const check = checkDraft(rules, draft);
-    const isDirty = !isSameDraft(draft, baseline);
+    const isDirty = significant
+        ? !isSameDraft(significant(draft), significant(baseline))
+        : !isSameDraft(draft, baseline);
     const canSave = isDirty && check.isValid && !isSaving;
 
     const patch = (changes: Partial<D>) => {
