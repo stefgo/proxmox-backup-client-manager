@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../../utils';
 import { QueryError } from '../../../components/QueryError';
 import { describeDeleteJob } from '../confirmations';
 import { ROUTES, paths } from '../../../lib/paths';
+import { lastRunByJob, lastRunKey } from '../lib/lastRun';
 
 export const ManagedJobs = () => {
     const navigate = useNavigate();
@@ -48,6 +49,9 @@ export const ManagedJobs = () => {
             return jobId !== null && jobs.has(jobId);
         });
     }, [latestPerJob, globalJobs, clients]);
+
+    // The same cache entry "Last Activity" below reads, so the two cannot disagree.
+    const lastRuns = useMemo(() => lastRunByJob(latestPerJob), [latestPerJob]);
 
     const handleTriggerJob = async (clientId: string, jobId: string) => {
         try {
@@ -112,6 +116,7 @@ export const ManagedJobs = () => {
                     }}
                     getClientStatus={getClientStatus}
                     getClientName={getClientName}
+                    getLastRun={(job) => (job.id ? lastRuns.get(lastRunKey(job.clientId, job.id)) : undefined)}
                 />
             </div>
 

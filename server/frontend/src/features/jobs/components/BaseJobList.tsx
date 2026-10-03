@@ -9,7 +9,11 @@ import {
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
+import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
+import { statusBadgeVariant } from '../../history/lib/statusBadge';
+import type { LastRun } from '../lib/lastRun';
 import {
+    Badge,
     Button,
     DataAction,
     DataMultiView,
@@ -75,6 +79,11 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     onCreateJob?: () => void;
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
+    /**
+     * The newest run of a job, `undefined` for one that never ran. Given, the list has a
+     * "Last Run" column -- whether the backup ran is answered in the row of the job.
+     */
+    getLastRun?: (job: T) => LastRun | undefined;
     /** Storage key for the remembered view toggle; the scope is always the browser. */
     viewModePersistKey?: string;
     /**
@@ -98,6 +107,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     onCreateJob,
     getClientStatus,
     getClientName,
+    getLastRun,
     viewModePersistKey = 'jobViewMode',
     searchParamKey = 'search',
     pageSize = PAGE_SIZE.embedded,
@@ -218,6 +228,42 @@ export const BaseJobList = <T extends BaseJobItem>({
         },
     };
 
+    const lastRunColumn: DataColumnDef<T> = {
+        header: 'Last Run',
+        sortable: true,
+        sortValue: (job) => parseTimestamp(getLastRun?.(job)?.startTime)?.getTime() ?? 0,
+        render: (job, view) => {
+            const run = getLastRun?.(job);
+            if (!run) {
+                return (
+                    <Cell view={view} online={isOnline(job)} tone="text-text-muted">
+                        Never
+                    </Cell>
+                );
+            }
+            const ms = durationBetween(run.startTime, run.endTime);
+            const when = [formatDate(run.startTime), ms === null ? null : formatDuration(ms)]
+                .filter((part) => part !== null)
+                .join(' · ');
+            const badge = (
+                <Badge variant={statusBadgeVariant(run.status)} size="sm" className="uppercase font-bold">
+                    {run.status}
+                </Badge>
+            );
+            return view === 'list' ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                    {badge}
+                    {when}
+                </span>
+            ) : (
+                <div className="flex flex-col items-start gap-1">
+                    {badge}
+                    <span className="text-xs text-text-muted whitespace-nowrap">{when}</span>
+                </div>
+            );
+        },
+    };
+
     // ── Columns, each once for the table and the list ────────────────────────
     const columns: DataColumnDef<T>[] = [
         ...(showClientColumn ? [clientColumn] : []),
@@ -243,6 +289,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 </Cell>
             ),
         },
+        ...(getLastRun ? [lastRunColumn] : []),
         {
             header: 'Schedule',
             sortable: true,

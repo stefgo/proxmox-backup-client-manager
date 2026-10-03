@@ -1,5 +1,5 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard, ActionButton, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
@@ -9,7 +9,8 @@ import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientHistory, useClientJobs, useClientSnapshots } from '../../../queries/clientDetail';
-import { useDeleteJob, useTriggerJob } from '../../../queries/jobs';
+import { useDeleteJob, useLatestPerJob, useTriggerJob } from '../../../queries/jobs';
+import { lastRunByJob, lastRunKey } from '../../jobs/lib/lastRun';
 import { useRepositories } from '../../../queries/repositories';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 
@@ -49,6 +50,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { history: backupJobs, lastHistory } = useClientHistory(client.id);
     const { repositories } = useRepositories();
     const { snapshots: clientSnapshots, error: snapshotsError } = useClientSnapshots(client.id, repositories);
+    // From the server's own history, as in the list across all clients: the job rows of
+    // both lists read one cache entry.
+    const { latestPerJob } = useLatestPerJob();
+    const lastRuns = useMemo(() => lastRunByJob(latestPerJob), [latestPerJob]);
     const { mutateAsync: triggerJob } = useTriggerJob();
     const { mutateAsync: deleteJob } = useDeleteJob();
 
@@ -231,6 +236,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                         if (job) requestDeleteJob(job);
                                     }}
                                     onCreateJob={() => openJobEditor()}
+                                    getLastRun={(job) => (job.id ? lastRuns.get(lastRunKey(client.id, job.id)) : undefined)}
                                 />
                                 <div className="mt-6">
                                     <ClientHistoryList

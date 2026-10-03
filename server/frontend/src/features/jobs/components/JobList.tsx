@@ -1,6 +1,7 @@
 import { ClientStatus } from '@pbcm/shared';
 import type { GlobalJob } from '../../../lib/cacheUpdates';
 import { BaseJobList } from './BaseJobList';
+import type { LastRun } from '../lib/lastRun';
 import { PAGE_SIZE } from '../../../components/listDefaults';
 
 interface JobListProps {
@@ -11,6 +12,7 @@ interface JobListProps {
     onDeleteJob: (clientId: string, jobId: string) => void;
     getClientStatus: (clientId: string) => ClientStatus;
     getClientName: (clientId: string) => string;
+    getLastRun: (job: GlobalJob) => LastRun | undefined;
 }
 
 export const JobList = ({
@@ -21,6 +23,7 @@ export const JobList = ({
     onDeleteJob,
     getClientStatus,
     getClientName,
+    getLastRun,
 }: JobListProps) => {
     return (
         <BaseJobList
@@ -38,6 +41,7 @@ export const JobList = ({
             }}
             getClientStatus={getClientStatus}
             getClientName={getClientName}
+            getLastRun={getLastRun}
             viewModePersistKey="globalJobViewMode"
             pageSize={PAGE_SIZE.page}
         />

@@ -1,5 +1,5 @@
 import { Activity, ChevronRight, Tag } from 'lucide-react';
-import { useState, useEffect, type ComponentProps, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
@@ -8,18 +8,7 @@ import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-co
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
-
-// The status maps to a role, not to a colour -- Badge owns what each role
-// looks like, in both themes. "neutral" covers idle, queued, skipped and
-// anything an older agent might report.
-type BadgeVariant = ComponentProps<typeof Badge>['variant'];
-
-const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
-    [JOB_STATUS.RUNNING]: 'info',
-    [JOB_STATUS.SUCCESS]: 'success',
-    [JOB_STATUS.FAILED]: 'error',
-    [JOB_STATUS.ABORTED]: 'warning',
-};
+import { statusBadgeVariant } from '../lib/statusBadge';
 
 export interface BaseHistoryItem {
     id: string;
@@ -158,7 +147,7 @@ export const BaseHistoryList = ({
                                         </Badge>
                                     )}
                                     <Badge
-                                        variant={STATUS_BADGE_VARIANT[item.status] ?? 'neutral'}
+                                        variant={statusBadgeVariant(item.status)}
                                         size="sm"
                                         className="uppercase font-bold"
                                     >
