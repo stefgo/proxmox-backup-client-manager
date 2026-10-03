@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
-import { formatDate } from '../../../utils';
+import { formatRelativeDate } from '../../../utils';
+import { useNow } from '../../../hooks/useNow';
 import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
@@ -23,6 +24,7 @@ interface ClientListProps {
 
 export const ClientList = ({ clients, setSelectedClient, deleteClient, editClient, addClient, editTunnel, reconnectClient }: ClientListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
+    const now = useNow();
 
     /**
      * The row's actions, built once for both views — table and list show the same menu,
@@ -124,10 +126,10 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                 if (view === 'list') {
                     return online
                         ? <span className="text-success text-sm">Online</span>
-                        : <span className="text-sm text-text-muted">{formatDate(client.lastSeen)}</span>;
+                        : <span className="text-sm text-text-muted">{formatRelativeDate(client.lastSeen, now)}</span>;
                 }
                 return online ? null : (
-                    <div className="whitespace-nowrap opacity-70">Last seen: {formatDate(client.lastSeen)}</div>
+                    <div className="whitespace-nowrap opacity-70">Last seen: {formatRelativeDate(client.lastSeen, now)}</div>
                 );
             },
         },

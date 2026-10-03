@@ -3,7 +3,8 @@ import { RefreshCw } from 'lucide-react';
 import { DescriptionList } from '@stefgo/react-ui-components';
 import type { SchedulerId } from '@pbcm/shared';
 import { useSchedulerStatus } from '../../../queries/scheduler';
-import { EMPTY_VALUE, formatDate } from '../../../utils';
+import { EMPTY_VALUE, formatDate, formatRelativeDate } from '../../../utils';
+import { useNow } from '../../../hooks/useNow';
 import { describeRunResult } from '../lib/runResult';
 
 /**
@@ -14,6 +15,7 @@ import { describeRunResult } from '../lib/runResult';
 export const SchedulerBox = ({ scheduler, children }: { scheduler: SchedulerId; children?: ReactNode }) => {
     const status = useSchedulerStatus(scheduler);
     const lastRun = status?.lastRun ?? null;
+    const now = useNow();
 
     const resultClass =
         lastRun?.status === 'failed' || lastRun?.status === 'interrupted'
@@ -53,7 +55,7 @@ export const SchedulerBox = ({ scheduler, children }: { scheduler: SchedulerId; 
                             EMPTY_VALUE
                         ),
                     },
-                    { label: 'Next Run', value: status?.nextRun ? formatDate(status.nextRun) : 'Disabled' },
+                    { label: 'Next Run', value: status?.nextRun ? formatRelativeDate(status.nextRun, now) : 'Disabled' },
                     {
                         label: 'Result',
                         value: lastRun ? (

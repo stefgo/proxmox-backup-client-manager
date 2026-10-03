@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { durationBetween, formatDuration, parseTimestamp } from './time';
+import { durationBetween, formatDuration, formatRelativeTime, parseTimestamp } from './time';
 
 describe('parseTimestamp', () => {
     it('reads the SQLite format as UTC', () => {
@@ -56,5 +56,39 @@ describe('durationBetween', () => {
 
     it('is zero for a run that ended in the second it started', () => {
         expect(durationBetween('2026-10-03 12:00:00', '2026-10-03 12:00:00')).toBe(0);
+    });
+});
+
+describe('formatRelativeTime', () => {
+    const now = new Date('2026-10-03T12:00:00Z');
+    const at = (ms: number) => formatRelativeTime(new Date(now.getTime() + ms), now);
+    const MINUTE = 60_000;
+    const HOUR = 60 * MINUTE;
+    const DAY = 24 * HOUR;
+
+    it('counts nothing below a minute', () => {
+        expect(at(0)).toBe('just now');
+        expect(at(-59_999)).toBe('just now');
+        expect(at(59_999)).toBe('in less than a minute');
+    });
+
+    it('names the past and the future in the largest unit that fits', () => {
+        expect(at(-MINUTE)).toBe('1 minute ago');
+        expect(at(-3 * MINUTE)).toBe('3 minutes ago');
+        expect(at(5 * HOUR)).toBe('in 5 hours');
+        expect(at(-12 * DAY)).toBe('12 days ago');
+        expect(at(-60 * DAY)).toBe('2 months ago');
+        expect(at(800 * DAY)).toBe('in 2 years');
+    });
+
+    it('rounds down, so a unit is never claimed before it is full', () => {
+        expect(at(-(HOUR - 1))).toBe('59 minutes ago');
+        expect(at(2 * HOUR - 1)).toBe('in 1 hour');
+        expect(at(-(30 * DAY - 1))).toBe('29 days ago');
+    });
+
+    it('says a single day by its name', () => {
+        expect(at(-DAY)).toBe('yesterday');
+        expect(at(DAY)).toBe('tomorrow');
     });
 });

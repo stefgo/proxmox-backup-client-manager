@@ -4,7 +4,8 @@ import { Save } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from '@stefgo/react-ui-components';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import type { EntityForm } from '../../../hooks/useEntityForm';
-import { formatDate } from '../../../utils';
+import { formatRelativeDate } from '../../../utils';
+import { useNow } from '../../../hooks/useNow';
 import { isOutbound as isOutboundClient, type ClientDraft, type ClientUpdateInput } from '../lib/clientForm';
 
 interface ClientIdentityCardProps {
@@ -33,6 +34,7 @@ interface ClientIdentityCardProps {
  */
 export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIdentityCardProps) => {
     const { draft, set, errors, isSaving } = form;
+    const now = useNow();
     const isOutbound = isOutboundClient(client);
     const allowedIpTrimmed = draft.allowedIp.trim();
 
@@ -77,7 +79,7 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                             invites the question whether it is stale. */}
                         {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-xs font-normal text-text-muted mt-1">
-                                Last seen {formatDate(client.lastSeen)}
+                                Last seen {formatRelativeDate(client.lastSeen, now)}
                             </div>
                         )}
                     </div>

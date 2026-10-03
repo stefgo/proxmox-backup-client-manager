@@ -3,7 +3,8 @@ import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard, ActionButton, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
-import { EMPTY_VALUE, formatDate, getErrorMessage } from '../../../utils';
+import { EMPTY_VALUE, formatRelativeDate, getErrorMessage } from '../../../utils';
+import { useNow } from '../../../hooks/useNow';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
@@ -38,6 +39,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // Through the merging hook, so switching tabs keeps each tab's own search parameter
     // instead of wiping it -- `setSearchParams({ tab })` used to drop everything else.
     const [tab, setTab] = useSearchQueryParam('tab');
+    const now = useNow();
     const tabs = useTabs({
         tabs: CLIENT_TABS,
         value: (CLIENT_TABS as readonly string[]).includes(tab) ? tab : CLIENT_TABS[0],
@@ -131,7 +133,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         ...(isInbound && client.ipAddress
             ? [{ label: 'Last IP', value: client.ipAddress }]
             : []),
-        ...(isOnline ? [] : [{ label: 'Last Seen', value: formatDate(client.lastSeen) }]),
+        ...(isOnline ? [] : [{ label: 'Last Seen', value: formatRelativeDate(client.lastSeen, now) }]),
     ];
 
     return (

@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { EMPTY_VALUE, formatDate } from '../../../utils';
+import { EMPTY_VALUE, formatDate, formatRelativeDate } from '../../../utils';
+import { useNow } from '../../../hooks/useNow';
 import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
 import { statusBadgeVariant } from '../../history/lib/statusBadge';
 import type { LastRun } from '../lib/lastRun';
@@ -132,6 +133,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     pageSize = PAGE_SIZE.embedded,
 }: BaseJobListProps<T>) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const now = useNow();
     const requestAbort = useAbortRunAction();
 
     const sortedJobs = useMemo(
@@ -156,12 +158,11 @@ export const BaseJobList = <T extends BaseJobItem>({
     const formatNextRun = (nextRunAt: string | undefined, isOnline: boolean) => {
         if (!nextRunAt) return <span className="text-text-muted">not defined</span>;
         const date = new Date(nextRunAt);
-        const now = new Date();
 
         if (!isOnline) {
             return (
                 <span className="text-text-muted grayscale">
-                    {date < now ? 'Pending' : formatDate(date)}
+                    {date < now ? 'Pending' : formatRelativeDate(date, now)}
                 </span>
             );
         }
@@ -173,7 +174,7 @@ export const BaseJobList = <T extends BaseJobItem>({
         }
         return (
             <span className="text-success">
-                {formatDate(date)}
+                {formatRelativeDate(date, now)}
             </span>
         );
     };

@@ -1,25 +1,46 @@
 import type { AlertOptions } from '@stefgo/react-ui-components';
-import { parseTimestamp } from './lib/time';
+import { formatRelativeTime, parseTimestamp } from './lib/time';
 
 /** What a value that is not there yet shows, such as the last run of a scheduler that never ran. */
 export const EMPTY_VALUE = '–';
 
+/**
+ * A point in time as the viewer's own locale writes it. `locale` is for a caller that must
+ * not depend on where it runs; left out, the browser's is taken.
+ */
 export const formatDate = (
     date: Date | string | number | null | undefined,
+    locale?: string,
 ): string => {
     if (!date) return 'Never';
 
     const d = parseTimestamp(date);
     if (!d) return 'Invalid Date';
 
-    return new Intl.DateTimeFormat('de-DE', {
+    return new Intl.DateTimeFormat(locale, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false,
     }).format(d);
+};
+
+/**
+ * A point in time by its distance from `now`: `3 minutes ago`, `in 5 hours`. For the two
+ * things an operator reads as a distance -- when a client was last seen and when a job runs
+ * next. Everything that is looked up rather than glanced at stays a date (`formatDate`).
+ */
+export const formatRelativeDate = (
+    date: Date | string | number | null | undefined,
+    now: Date,
+): string => {
+    if (!date) return 'Never';
+
+    const d = parseTimestamp(date);
+    if (!d) return 'Invalid Date';
+
+    return formatRelativeTime(d, now);
 };
 
 /**
