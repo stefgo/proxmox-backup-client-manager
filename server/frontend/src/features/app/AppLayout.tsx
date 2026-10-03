@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router-dom';
 import { ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider } from '@stefgo/react-ui-components';
 import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from './context/WebSocketContext';
 import { navEntries, type RouteHandle } from './routes';
 import { ROUTES } from '../../lib/paths';
+import { APP_NAME, routeTitle, type TitleSubject } from '../../lib/pageTitle';
 
 // Hooks, queries & stores
 import { useClients } from '../../queries/clients';
@@ -33,7 +34,8 @@ export function AppLayout() {
     const { pathname } = useLocation();
     // The area the open route belongs to -- the innermost match that carries a sidebar
     // entry. This is what marks the entry while an editor or a detail view is open.
-    const activeId = useMatches()
+    const matches = useMatches();
+    const activeId = matches
         .map((match) => (match.handle as RouteHandle | undefined)?.nav?.id)
         .filter(Boolean)
         .pop();
@@ -49,6 +51,37 @@ export function AppLayout() {
 
     // In the shell rather than a page: a run outlives the page it was started from.
     useJobResultToasts();
+
+    // The browser tab names the area and what is open in it. Here rather than in each
+    // page: the route tree says what a page is, and the three lists that name a subject
+    // are in the shell's cache anyway.
+    const title = useMemo(() => {
+        const { clientId, repoId, jobId } = matches[matches.length - 1]?.params ?? {};
+        const nameOf = (subject: TitleSubject) => {
+            switch (subject) {
+                case 'client': {
+                    const client = clients.find((c) => c.id === clientId);
+                    return client && (client.displayName || client.hostname);
+                }
+                case 'repository': {
+                    const repo = repos.find((r) => String(r.id) === repoId);
+                    return repo && `${repo.baseUrl}:${repo.datastore}`;
+                }
+                case 'job':
+                    return globalJobs.find((j) => j.clientId === clientId && j.id === jobId)?.name;
+            }
+        };
+        return routeTitle(matches.map((match) => match.handle as RouteHandle | undefined), nameOf);
+    }, [matches, clients, repos, globalJobs]);
+
+    // Taken back when the shell goes: the login page behind a logout is not the page
+    // that was open before it.
+    useEffect(() => {
+        document.title = title;
+        return () => {
+            document.title = APP_NAME;
+        };
+    }, [title]);
 
     // Stats
     const stats = useMemo(
@@ -91,7 +124,7 @@ export function AppLayout() {
         </div>
     );
 
-    const title = (
+    const brand = (
         <div className="flex flex-col">
             <h1 className="text-xl font-bold text-text-primary leading-tight">P<span className="text-primary">BC</span>M</h1>
             <span className="pt-1 text-[10px] font-mono text-text-muted -mt-1 leading-none">
@@ -123,7 +156,7 @@ export function AppLayout() {
             <Dashboard
                 banner={<ConnectionBanner connected={!isLost} />}
                 logo={logo}
-                title={title}
+                title={brand}
                 username={displayName}
                 onLogout={logout}
                 theme={theme}

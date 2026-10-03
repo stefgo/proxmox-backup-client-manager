@@ -12,6 +12,7 @@ import {
 import type { DashboardPage } from '@stefgo/react-ui-components';
 
 import { ROUTES } from '../../lib/paths';
+import type { TitleHandle } from '../../lib/pageTitle';
 import { RouteError } from './RouteError';
 import {
     HistoryOverview,
@@ -53,12 +54,21 @@ export interface NavEntry extends Pick<PageNav, 'label' | 'icon' | 'groupId' | '
     id: string;
 }
 
-/** What a route's `handle` may carry. The router types it as `any`; this is what is read. */
-export interface RouteHandle {
+/**
+ * What a route's `handle` may carry. The router types it as `any`; this is what is read.
+ * `title` and `subject` are what the document title is made of -- see `lib/pageTitle.ts`.
+ */
+export interface RouteHandle extends TitleHandle {
     nav?: NavEntry;
 }
 
 const nav = (entry: NavEntry): RouteHandle => ({ nav: entry });
+
+/** A route called by a fixed name: a form, mostly. */
+const titled = (title: string): RouteHandle => ({ title });
+
+/** The job editor, under a client and under the list across all clients: called by the job's name. */
+const JOB: RouteHandle = { subject: 'job', title: 'Job' };
 
 /**
  * Everything inside the dashboard shell, as one tree. It is the only description of what
@@ -70,6 +80,8 @@ const nav = (entry: NavEntry): RouteHandle => ({ nav: entry });
  * - **Back** is the parent in this tree (`useBackPath`). Nesting a route decides where its
  *   editor closes onto.
  * - **Not found** is the area's `errorElement`: a boundary below throws `NotFoundError`.
+ * - **The document title** is the handles along the open route: the area's label, the
+ *   `subject` a route is about, the `title` of a form.
  */
 export const shellRoutes: RouteObject[] = [
     { path: ROUTES.root, element: <Navigate to={ROUTES.clients} replace /> },
@@ -79,17 +91,18 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ClientsRoute /> },
-            { path: ROUTES.clientNew, element: <AddClientRoute /> },
+            { path: ROUTES.clientNew, handle: titled('New Client'), element: <AddClientRoute /> },
             {
                 path: ROUTES.client,
+                handle: { subject: 'client' } satisfies RouteHandle,
                 element: <ClientBoundary />,
                 children: [
                     { index: true, element: <ClientDetailRoute /> },
-                    { path: ROUTES.clientEdit, element: <ClientEditRoute /> },
-                    { path: ROUTES.clientTunnel, element: <ClientTunnelRoute /> },
-                    { path: ROUTES.clientJobNew, element: <NewClientJobRoute /> },
-                    { path: ROUTES.clientJob, element: <EditJobRoute /> },
-                    { path: ROUTES.clientRestore, element: <ClientRestoreRoute /> },
+                    { path: ROUTES.clientEdit, handle: titled('Edit'), element: <ClientEditRoute /> },
+                    { path: ROUTES.clientTunnel, handle: titled('Tunnel'), element: <ClientTunnelRoute /> },
+                    { path: ROUTES.clientJobNew, handle: titled('New Job'), element: <NewClientJobRoute /> },
+                    { path: ROUTES.clientJob, handle: JOB, element: <EditJobRoute /> },
+                    { path: ROUTES.clientRestore, handle: titled('Restore'), element: <ClientRestoreRoute /> },
                 ],
             },
         ],
@@ -100,14 +113,15 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <RepositoriesRoute /> },
-            { path: ROUTES.repositoryNew, element: <RepositoryNewRoute /> },
+            { path: ROUTES.repositoryNew, handle: titled('New Repository'), element: <RepositoryNewRoute /> },
             {
                 path: ROUTES.repository,
+                handle: { subject: 'repository' } satisfies RouteHandle,
                 element: <RepositoryBoundary />,
                 children: [
                     { index: true, element: <RepositoryDetailRoute /> },
-                    { path: ROUTES.repositoryEdit, element: <RepositoryEditRoute /> },
-                    { path: ROUTES.repositoryRestore, element: <RepositoryRestoreRoute /> },
+                    { path: ROUTES.repositoryEdit, handle: titled('Edit'), element: <RepositoryEditRoute /> },
+                    { path: ROUTES.repositoryRestore, handle: titled('Restore'), element: <RepositoryRestoreRoute /> },
                 ],
             },
         ],
@@ -118,8 +132,8 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <ManagedJobs /> },
-            { path: ROUTES.jobNew, element: <NewJobRoute /> },
-            { path: ROUTES.job, element: <EditJobRoute /> },
+            { path: ROUTES.jobNew, handle: titled('New Job'), element: <NewJobRoute /> },
+            { path: ROUTES.job, handle: JOB, element: <EditJobRoute /> },
         ],
     },
     {
@@ -146,8 +160,10 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         children: [
             { index: true, element: <WebhookOverview /> },
-            { path: ROUTES.webhookNew, element: <WebhookEditorRoute /> },
-            { path: ROUTES.webhook, element: <WebhookEditorRoute /> },
+            { path: ROUTES.webhookNew, handle: titled('New Webhook'), element: <WebhookEditorRoute /> },
+            // By its kind, not its name: the shell does not read the webhooks, and does not
+            // start to for a title.
+            { path: ROUTES.webhook, handle: titled('Webhook'), element: <WebhookEditorRoute /> },
         ],
     },
     {
@@ -156,7 +172,7 @@ export const shellRoutes: RouteObject[] = [
         errorElement: <RouteError />,
         element: <Settings />,
     },
-    { path: '*', element: <NotFound /> },
+    { path: '*', handle: titled('Not Found'), element: <NotFound /> },
 ];
 
 /** The sidebar entries, read off the tree: every area with a `handle.nav`, and its path. */
