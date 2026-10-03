@@ -88,25 +88,6 @@ function prepare(raw: unknown): Record<string, unknown> {
         delete out.logCapBytes;
     }
 
-    // Gone with the SQLite database: the agent keeps what the server has not acknowledged
-    // plus the last runs, and ages nothing out by days any more.
-    if (out.retentionTime !== undefined) {
-        logger.warn(
-            "Ignoring retentionTime in config.yaml: the agent no longer ages out its history by days",
-        );
-    }
-
-    // Read by earlier versions for outbound registration. Dropped with a warning rather than
-    // ignored silently: an operator who set it expects it to work, and the wizard will now
-    // ask for the setup PIN instead.
-    if (out.registrationSecret !== undefined && out.registrationSecret !== null) {
-        logger.warn(
-            "Ignoring registrationSecret in config.yaml: it is no longer read. Register with the " +
-                "setup PIN from this log, or set PBCM_REGISTRATION_SECRET instead.",
-        );
-    }
-    delete out.registrationSecret;
-
     return out;
 }
 
