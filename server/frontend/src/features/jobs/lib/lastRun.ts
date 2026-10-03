@@ -3,7 +3,11 @@ import { parseTimestamp } from '../../../lib/time';
 
 /** What a job row shows of its last run. */
 export interface LastRun {
+    /** The run itself: what an abort names. */
+    id: string;
     status: string;
+    /** Set while the run is still `running` after its CLI exited. */
+    phase?: string | null;
     startTime: string;
     endTime?: string | null;
 }

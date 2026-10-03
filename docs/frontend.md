@@ -312,6 +312,22 @@ where its data lives:
 The tab lists every run, restores included; `clientTab(clientId, 'history')` in
 `lib/paths.ts` is the link the notice of a started restore uses.
 
+### Aborting a run (`hooks/useAbortRunAction.ts`)
+
+A run that is under way can be stopped from two places, and both call the one hook: the
+expanded **history row** has an "Abort" button, and a **job row** whose last run is still
+going shows "Abort Run" in the slot that otherwise starts the job -- starting it again
+would only queue a second run. `canAbortRun` (`features/history/lib/runAbort.ts`) decides
+whether a row offers it: `running` or `queued`, and not while the run reads back its
+snapshot, which the agent refuses.
+
+The hook asks first (`describeAbortRun` -- a backup leaves no snapshot, a restore leaves its
+target partly written) and sends `useAbortRun` from inside the dialog, so a refusal -- the
+run ended a moment ago, the client dropped -- is read where the abort was asked for.
+Nothing is written into the cache: the agent ends the run and its `JOB_UPDATE` turns the
+row to `abort`. A list whose rows do not name their client (a client's own page) passes
+`clientId` to `BaseHistoryList` / `BaseJobList`.
+
 ### Job history rows (`features/history/components/BaseHistoryList.tsx`)
 
 Every history list — "Recent Activity" of a client, the History page, "Last Activity" under

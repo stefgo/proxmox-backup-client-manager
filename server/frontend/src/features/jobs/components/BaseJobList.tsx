@@ -1,6 +1,7 @@
 import {
     HardDrive,
     Play,
+    Square,
     Trash2,
     Pencil,
     KeyRound,
@@ -12,6 +13,8 @@ import { EMPTY_VALUE, formatDate } from '../../../utils';
 import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
 import { statusBadgeVariant } from '../../history/lib/statusBadge';
 import type { LastRun } from '../lib/lastRun';
+import { canAbortRun } from '../../history/lib/runAbort';
+import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
 import {
@@ -82,9 +85,15 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
     /**
+     * The client every job belongs to, for a list whose jobs do not name it themselves:
+     * the job tab of a client's page. It is what an abort is addressed to.
+     */
+    clientId?: string;
+    /**
      * The newest run of a job, `undefined` for one that never ran. Given, the list has the
      * columns "Last Run" and "Last Status" -- whether the backup ran is answered in the
-     * row of the job.
+     * row of the job -- and a job whose last run is still under way offers to abort it
+     * where it otherwise offers to start one.
      */
     getLastRun?: (job: T) => LastRun | undefined;
     /**
@@ -115,6 +124,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     onCreateJob,
     getClientStatus,
     getClientName,
+    clientId,
     getLastRun,
     emptyMessage,
     viewModePersistKey = 'jobViewMode',
@@ -122,6 +132,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     pageSize = PAGE_SIZE.embedded,
 }: BaseJobListProps<T>) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
+    const requestAbort = useAbortRunAction();
 
     const sortedJobs = useMemo(
         () => [...jobs].sort((a, b) => {
@@ -180,17 +191,32 @@ export const BaseJobList = <T extends BaseJobItem>({
     // One set of actions for both views, so the table and the list cannot drift apart.
     const renderActions = (job: T) => {
         const online = isOnline(job);
+        const run = getLastRun?.(job);
+        const abortClientId = job.clientId ?? clientId;
+        // One slot, two meanings: a job that is running cannot usefully be started again
+        // -- that would only queue a second run -- but it can be stopped.
+        const runOrAbort =
+            run && abortClientId && canAbortRun(run)
+                ? {
+                    icon: Square,
+                    onClick: () =>
+                        requestAbort({ clientId: abortClientId, runId: run.id, name: job.name, type: 'backup' }),
+                    disabled: !online,
+                    color: 'error' as const,
+                    tooltip: { enabled: 'Abort Run', disabled: 'Client Offline' },
+                }
+                : {
+                    icon: Play,
+                    onClick: () => onTriggerJob(job),
+                    disabled: !online,
+                    color: 'green' as const,
+                    tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
+                };
         return (
             <DataAction
                 rowId={rowId(job)}
                 actions={[
-                    {
-                        icon: Play,
-                        onClick: () => onTriggerJob(job),
-                        disabled: !online,
-                        color: 'green',
-                        tooltip: { enabled: 'Run Now', disabled: 'Client Offline' },
-                    },
+                    runOrAbort,
                     {
                         icon: Pencil,
                         onClick: () => onEditJob(job),

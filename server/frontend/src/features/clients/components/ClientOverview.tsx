@@ -243,6 +243,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             }}
                             onCreateJob={() => openJobEditor()}
                             getLastRun={(job) => (job.id ? lastRuns.get(lastRunKey(client.id, job.id)) : undefined)}
+                            clientId={client.id}
                         />
                         {/* The agent's last day. Offline, the history tab has the runs. */}
                         {isOnline && (
@@ -250,6 +251,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                                 <ClientHistoryList
                                     title="Last History"
                                     history={lastHistory}
+                                    clientId={client.id}
                                     emptyMessage="No data available in the observation period."
                                 />
                             </div>
@@ -284,7 +286,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 {/* Job History: every run, backups and restores alike -- what the card counts. */}
                 <TabPanel tabs={tabs} value="history">
                     {isOnline ? (
-                        <ClientHistoryList history={runs} />
+                        <ClientHistoryList history={runs} clientId={client.id} />
                     ) : stored.isPending ? (
                         <LoadingIndicator label="Loading history…" />
                     ) : stored.error ? (

@@ -1,13 +1,15 @@
-import { Activity, ChevronRight, Tag } from 'lucide-react';
+import { Activity, ChevronRight, Square, Tag } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
-import { Badge, Card } from '@stefgo/react-ui-components';
+import { Badge, Button, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
+import { canAbortRun } from '../lib/runAbort';
+import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
 import { statusBadgeVariant } from '../lib/statusBadge';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
@@ -84,6 +86,11 @@ export interface BaseHistoryListProps {
     items: BaseHistoryItem[];
     title?: string;
     showClientName?: boolean;
+    /**
+     * The client every row belongs to, for a list whose rows do not name it themselves:
+     * the runs an agent reports of itself. It is what an abort is addressed to.
+     */
+    clientId?: string;
     emptyMessage?: string;
     /** Controls in the card header, e.g. a filter. */
     action?: ReactNode;
@@ -100,6 +107,7 @@ export const BaseHistoryList = ({
     items,
     title = 'Recent Activity',
     showClientName = false,
+    clientId,
     emptyMessage = 'No history available',
     action,
     pageSize = PAGE_SIZE.embedded,
@@ -107,6 +115,7 @@ export const BaseHistoryList = ({
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
+    const requestAbort = useAbortRunAction();
 
     useEffect(() => {
         return subscribe('logUpdate', ({ jobId, output }) => {
@@ -135,6 +144,8 @@ export const BaseHistoryList = ({
                 // The kind a webhook filter and `{{event.kind}}` know this run by, once it has ended.
                 const eventKind = jobRunEventKind(item.status);
                 const summary = runSummary(item);
+                // A run whose client is gone has nobody to send the request to.
+                const abortClientId = item.clientId ?? clientId;
                 return (
                     <div className="w-full">
                         <div className="group">
@@ -187,8 +198,28 @@ export const BaseHistoryList = ({
                             <div onClick={(e) => e.stopPropagation()}>
                                 {/* The id is what a log line or a webhook names the run by:
                                     looked up, not scanned, so it waits here. */}
-                                <div className="mt-2 text-xs text-text-muted font-mono pl-4 ml-6 cursor-text break-all">
-                                    Run {item.id}
+                                <div className="mt-2 flex items-center justify-between gap-3 pl-4 ml-6">
+                                    <span className="text-xs text-text-muted font-mono cursor-text break-all">
+                                        Run {item.id}
+                                    </span>
+                                    {abortClientId && canAbortRun(item) && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline-danger"
+                                            icon={Square}
+                                            className="shrink-0"
+                                            onClick={() =>
+                                                requestAbort({
+                                                    clientId: abortClientId,
+                                                    runId: item.id,
+                                                    name: item.name || item.jobId || 'Unknown Job',
+                                                    type: item.type,
+                                                })
+                                            }
+                                        >
+                                            Abort
+                                        </Button>
+                                    )}
                                 </div>
                                 {renderOutput(runOutput(item, liveLogs[item.id]))}
                             </div>

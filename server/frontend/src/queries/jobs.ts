@@ -86,6 +86,19 @@ export function useStartRestore() {
     });
 }
 
+/**
+ * Asks a client's agent to end a run that is under way. Nothing is written into the cache:
+ * the run ends through its own `JOB_UPDATE`, as every run does.
+ */
+export function useAbortRun() {
+    return useMutation({
+        mutationFn: ({ clientId, runId }: { clientId: string; runId: string }) =>
+            api.post(`/api/v1/clients/${clientId}/runs/${runId}/abort`, undefined, undefined, {
+                fallback: 'Failed to abort the run',
+            }),
+    });
+}
+
 /** Deletes a job on its client. The row leaves both job lists once the server confirmed it. */
 export function useDeleteJob() {
     const queryClient = useQueryClient();

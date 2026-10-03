@@ -11,6 +11,8 @@ interface ClientJobListProps {
     onDeleteJob: (jobId: string) => void;
     onCreateJob: () => void;
     getLastRun: (job: BackupJob) => LastRun | undefined;
+    /** The client these jobs are on. Forwarded to the list underneath -- see BaseJobListProps. */
+    clientId: string;
     /**
      * The client is not connected. Its jobs live on the agent, so the server has none to
      * show -- which the list says, instead of offering to create the first one.
@@ -20,7 +22,7 @@ interface ClientJobListProps {
     searchParamKey?: string;
 }
 
-export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCreateJob, getLastRun, offline = false, searchParamKey }: ClientJobListProps) => {
+export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCreateJob, getLastRun, clientId, offline = false, searchParamKey }: ClientJobListProps) => {
     return (
         <BaseJobList
             jobs={jobs}
@@ -32,6 +34,7 @@ export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCr
             onDeleteJob={(job) => { if (job.id) onDeleteJob(job.id); }}
             onCreateJob={onCreateJob}
             getLastRun={getLastRun}
+            clientId={clientId}
             emptyMessage={
                 offline ? (
                     <EmptyState

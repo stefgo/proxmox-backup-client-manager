@@ -15,3 +15,21 @@ export function describeDeleteJob(jobName: string, clientName: string): ConfirmO
         variant: 'danger'
     };
 }
+
+/**
+ * The agent stops `proxmox-backup-client` and the run ends as `abort`. What that leaves
+ * differs by kind, and is the part to say before: a backup leaves nothing -- the PBS drops
+ * a snapshot that was never finished -- while a restore leaves its target as far as it got.
+ */
+export function describeAbortRun(name: string, type: string): ConfirmOptions {
+    const restore = type === 'restore';
+    return {
+        title: `Abort "${name}"?`,
+        description: restore
+            ? 'The restore stops where it is. Files already written stay in the target directory, so it is left partly restored.'
+            : 'The backup stops where it is and leaves no snapshot. The next scheduled run is not affected.',
+        confirmLabel: restore ? 'Abort restore' : 'Abort backup',
+        cancelLabel: 'Keep running',
+        variant: 'danger'
+    };
+}
