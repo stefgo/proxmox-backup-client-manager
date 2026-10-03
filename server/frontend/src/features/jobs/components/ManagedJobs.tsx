@@ -12,6 +12,7 @@ import { QueryError } from '../../../components/QueryError';
 import { describeDeleteJob } from '../confirmations';
 import { ROUTES, paths } from '../../../lib/paths';
 import { lastRunByJob, lastRunKey } from '../lib/lastRun';
+import { jobListEmpty } from '../lib/jobListEmpty';
 
 export const ManagedJobs = () => {
     const navigate = useNavigate();
@@ -116,6 +117,7 @@ export const ManagedJobs = () => {
                     }}
                     getClientStatus={getClientStatus}
                     getClientName={getClientName}
+                    empty={jobListEmpty(clients)}
                     getLastRun={(job) => (job.id ? lastRuns.get(lastRunKey(job.clientId, job.id)) : undefined)}
                 />
             </div>

@@ -283,6 +283,13 @@ current. `lastRunByJob` keys it by client *and* job, since two clients may hold 
 id. The badge is `statusBadgeVariant` from `features/history/lib/statusBadge.ts`, the same
 mapping the history uses.
 
+### An empty job list (`features/jobs/lib/jobListEmpty.ts`)
+
+`GET /api/v1/jobs` holds a client's jobs only while its agent is connected, so the list
+across all clients says "No jobs configured yet" only when every client answered. With no
+client online it says that, and leaves out "New Job" -- a job is saved on an agent. With
+some offline it names how many could not be asked.
+
 ### An offline client (`features/clients/components/ClientOverview.tsx`)
 
 The client page keeps its three tabs while the client is away; what each shows depends on
