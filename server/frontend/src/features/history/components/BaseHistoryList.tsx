@@ -6,7 +6,7 @@ import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from 
 import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { runSnapshotLog } from '../lib/runSnapshotLog';
+import { runOutput, type RunOutput } from '../lib/runOutput';
 
 // The status maps to a role, not to a colour -- Badge owns what each role
 // looks like, in both themes. "neutral" covers idle, queued, skipped and
@@ -50,6 +50,26 @@ const statusLabel = (item: BaseHistoryItem): string =>
     item.status === JOB_STATUS.RUNNING && item.phase === JOB_PHASE.SNAPSHOT
         ? 'reading snapshot'
         : item.status;
+
+const LOG_CLASS = 'mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text';
+const NOTE_CLASS = 'mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default';
+
+const renderOutput = (output: RunOutput) => {
+    switch (output.kind) {
+        case 'live':
+            return <div className={`${LOG_CLASS} bg-badge-info-bg text-badge-info-text`}>{output.text}</div>;
+        case 'log':
+            return (
+                <div className={`${LOG_CLASS} ${output.failed ? 'bg-error-bg text-error' : 'bg-hover text-text-muted'}`}>
+                    {output.text}
+                </div>
+            );
+        case 'waiting':
+            return <div className={NOTE_CLASS}>Waiting for output…</div>;
+        case 'none':
+            return <div className={NOTE_CLASS}>No output available</div>;
+    }
+};
 
 /** A successful backup whose snapshot details could not be read. */
 const lacksSnapshotDetails = (item: BaseHistoryItem): boolean =>
@@ -112,18 +132,6 @@ export const BaseHistoryList = ({
                 const isExpanded = expandedIds.has(item.id);
                 // The kind a webhook filter and `{{event.kind}}` know this run by, once it has ended.
                 const eventKind = jobRunEventKind(item.status);
-                const snapshotLog =
-                    item.type === 'backup' && item.status === JOB_STATUS.SUCCESS
-                        ? runSnapshotLog({
-                            snapshot: item.snapshot,
-                            details: item.snapshotDetails,
-                            error: item.snapshotError,
-                        })
-                        : null;
-                // The snapshot goes below the CLI's own output, as its last step.
-                const log = [(item.error || item.stderr || item.stdout)?.trimEnd(), snapshotLog]
-                    .filter(Boolean)
-                    .join('\n');
                 return (
                     <div className="w-full">
                         <div className="group">
@@ -169,28 +177,7 @@ export const BaseHistoryList = ({
                         </div>
                         {isExpanded && (
                             <div onClick={(e) => e.stopPropagation()}>
-                                {item.status === JOB_STATUS.RUNNING &&
-                                    liveLogs[item.id] &&
-                                    liveLogs[item.id].length > 0 ? (
-                                    <div
-                                        className="mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text bg-badge-info-bg text-badge-info-text"
-                                    >
-                                        {liveLogs[item.id].join('')}
-                                    </div>
-                                ) : log ? (
-                                    <div
-                                        className={`mt-2 text-xs font-mono p-2 rounded whitespace-pre-wrap pl-4 ml-6 cursor-text ${item.status === JOB_STATUS.FAILED && (item.error || item.stderr)
-                                            ? 'bg-error-bg text-error'
-                                            : 'bg-hover text-text-muted'
-                                            }`}
-                                    >
-                                        {log}
-                                    </div>
-                                ) : (
-                                    <div className="mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default">
-                                        No output available
-                                    </div>
-                                )}
+                                {renderOutput(runOutput(item, liveLogs[item.id]))}
                             </div>
                         )}
                     </div>
