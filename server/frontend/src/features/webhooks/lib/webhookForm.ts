@@ -54,16 +54,18 @@ export function draftFrom(webhook: Webhook): WebhookDraft {
 }
 
 /**
- * The draft as the API takes it. Throws on a header line without a colon -- the one mistake
- * the server could not name, because by then the line would already be gone.
+ * The draft as the API takes it. Throws on a header line without a colon or without a name
+ * before it -- the one mistake the server could not name, because by then the line would
+ * already be gone.
  */
 export function inputFrom(draft: WebhookDraft): WebhookInput {
     const headers: Record<string, string> = {};
     draft.headers.split('\n').forEach((line, index) => {
         if (line.trim() === '') return;
         const colon = line.indexOf(':');
-        if (colon <= 0) throw new Error(`Header line ${index + 1} is not "Name: value"`);
-        headers[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
+        const name = line.slice(0, colon).trim();
+        if (colon <= 0 || name === '') throw new Error(`Header line ${index + 1} is not "Name: value"`);
+        headers[name] = line.slice(colon + 1).trim();
     });
     return {
         name: draft.name,
