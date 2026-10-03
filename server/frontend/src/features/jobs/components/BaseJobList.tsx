@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, type ReactNode } from 'react';
 import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { formatDate } from '../../../utils';
+import { EMPTY_VALUE, formatDate } from '../../../utils';
 import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
 import { statusBadgeVariant } from '../../history/lib/statusBadge';
 import type { LastRun } from '../lib/lastRun';
@@ -82,8 +82,9 @@ export interface BaseJobListProps<T extends BaseJobItem> {
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string;
     /**
-     * The newest run of a job, `undefined` for one that never ran. Given, the list has a
-     * "Last Run" column -- whether the backup ran is answered in the row of the job.
+     * The newest run of a job, `undefined` for one that never ran. Given, the list has the
+     * columns "Last Run" and "Last Status" -- whether the backup ran is answered in the
+     * row of the job.
      */
     getLastRun?: (job: T) => LastRun | undefined;
     /**
@@ -240,6 +241,8 @@ export const BaseJobList = <T extends BaseJobItem>({
         },
     };
 
+    // Two columns rather than one cell: when a job last ran and how that went are sorted
+    // by separately -- "which failed" is not "which ran longest ago".
     const lastRunColumn: DataColumnDef<T> = {
         header: 'Last Run',
         sortable: true,
@@ -257,21 +260,32 @@ export const BaseJobList = <T extends BaseJobItem>({
             const when = [formatDate(run.startTime), ms === null ? null : formatDuration(ms)]
                 .filter((part) => part !== null)
                 .join(' · ');
-            const badge = (
+            return (
+                <Cell view={view} online={isOnline(job)} tone="text-text-muted">
+                    <span className="whitespace-nowrap">{when}</span>
+                </Cell>
+            );
+        },
+    };
+
+    const lastStatusColumn: DataColumnDef<T> = {
+        header: 'Last Status',
+        sortable: true,
+        sortValue: (job) => getLastRun?.(job)?.status ?? '',
+        render: (job, view) => {
+            const run = getLastRun?.(job);
+            // A job that never ran has no status; "Never" stands in the column beside.
+            if (!run) {
+                return (
+                    <Cell view={view} online={isOnline(job)} tone="text-text-muted">
+                        {EMPTY_VALUE}
+                    </Cell>
+                );
+            }
+            return (
                 <Badge variant={statusBadgeVariant(run.status)} size="sm" className="uppercase font-bold">
                     {run.status}
                 </Badge>
-            );
-            return view === 'list' ? (
-                <span className="inline-flex flex-wrap items-center gap-2">
-                    {badge}
-                    {when}
-                </span>
-            ) : (
-                <div className="flex flex-col items-start gap-1">
-                    {badge}
-                    <span className="text-xs text-text-muted whitespace-nowrap">{when}</span>
-                </div>
             );
         },
     };
@@ -301,7 +315,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 </Cell>
             ),
         },
-        ...(getLastRun ? [lastRunColumn] : []),
+        ...(getLastRun ? [lastRunColumn, lastStatusColumn] : []),
         {
             header: 'Schedule',
             sortable: true,
