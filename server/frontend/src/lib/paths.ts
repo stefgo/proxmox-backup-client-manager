@@ -76,3 +76,17 @@ export const paths = {
 
     webhook: (webhookId: string) => generatePath(ROUTES.webhook, { webhookId }),
 };
+
+/** The tabs of the client page, in the order the arrow keys walk them. The first is the default. */
+export const CLIENT_TABS = ['jobs', 'snapshots', 'history'] as const;
+
+export type ClientTab = (typeof CLIENT_TABS)[number];
+
+/**
+ * A client's page with one of its tabs open. Not among `paths`: the tab is the page's
+ * query, not a pattern of its own -- but a link that names it must not spell it out either.
+ */
+export const clientTab = (clientId: string, tab: ClientTab) => ({
+    pathname: paths.client(clientId),
+    search: `?${new URLSearchParams({ tab })}`,
+});

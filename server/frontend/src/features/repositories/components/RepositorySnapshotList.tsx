@@ -7,6 +7,8 @@ import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
+import { EntityLink } from '../../../components/EntityLink';
+import { paths } from '../../../lib/paths';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
@@ -99,19 +101,21 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         render: (snap, view) => {
             const name = snap.backupId && getClientName ? getClientName(snap.backupId) : null;
             if (!name) return null;
+            // A name was found, so the backup id is a client of this server.
+            const link = <EntityLink to={paths.client(snap.backupId)}>{name}</EntityLink>;
 
             const online = getStatus(snap) === CLIENT_STATUS.ONLINE;
             const dot = <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(snap)} />;
             return view === 'list' ? (
                 <div className="flex items-center gap-2 py-1">
                     {dot}
-                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{name}</span>
+                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{link}</span>
                 </div>
             ) : (
                 <div className="flex items-center gap-3">
                     {dot}
                     <div className={`text-sm ${online ? 'text-text-primary' : ''} max-w-[150px] truncate`} title={name}>
-                        {name}
+                        {link}
                     </div>
                 </div>
             );

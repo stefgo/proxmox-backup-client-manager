@@ -19,13 +19,10 @@ import { RepositorySnapshotList } from '../../repositories/components/Repository
 
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { useBackPath } from '../../../hooks/useBackPath';
-import { paths } from '../../../lib/paths';
+import { CLIENT_TABS, paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
-
-/** The tabs, in the order the arrow keys walk them. */
-const TABS = ['jobs', 'snapshots', 'history'] as const;
 
 interface ClientOverviewProps {
     client: Client;
@@ -42,8 +39,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     // instead of wiping it -- `setSearchParams({ tab })` used to drop everything else.
     const [tab, setTab] = useSearchQueryParam('tab');
     const tabs = useTabs({
-        tabs: TABS,
-        value: (TABS as readonly string[]).includes(tab) ? tab : 'jobs',
+        tabs: CLIENT_TABS,
+        value: (CLIENT_TABS as readonly string[]).includes(tab) ? tab : CLIENT_TABS[0],
         onChange: setTab,
     });
 

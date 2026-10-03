@@ -9,6 +9,8 @@ import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
 import { statusBadgeVariant } from '../lib/statusBadge';
+import { EntityLink } from '../../../components/EntityLink';
+import { paths } from '../../../lib/paths';
 
 export interface BaseHistoryItem {
     id: string;
@@ -67,6 +69,16 @@ const lacksSnapshotDetails = (item: BaseHistoryItem): boolean =>
     item.status === JOB_STATUS.SUCCESS &&
     !!item.snapshotError &&
     !item.snapshotDetails;
+
+/**
+ * The client a run belongs to, as a way to its page. A run outlives its client: one whose
+ * client is gone has no name left and nothing to link to.
+ */
+const clientName = (item: BaseHistoryItem) => {
+    const name = item.displayName || item.hostname;
+    if (!name) return 'Unknown Client';
+    return item.clientId ? <EntityLink to={paths.client(item.clientId)}>{name}</EntityLink> : name;
+};
 
 export interface BaseHistoryListProps {
     items: BaseHistoryItem[];
@@ -136,7 +148,7 @@ export const BaseHistoryList = ({
                                         <ChevronRight size={14} className="text-text-muted" />
                                     </span>
                                     <span className="text-sm font-medium text-text-primary">
-                                        {showClientName && `${item.displayName || item.hostname || 'Unknown Client'} : `}
+                                        {showClientName && <>{clientName(item)} : </>}
                                         {item.name || item.jobId || 'Unknown Job'}
                                     </span>
                                 </div>

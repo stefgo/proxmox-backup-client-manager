@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchPath } from 'react-router-dom';
-import { ROUTES, paths } from './paths';
+import { CLIENT_TABS, ROUTES, clientTab, paths } from './paths';
 
 const CLIENT = '11111111-1111-4111-8111-111111111111';
 
@@ -71,5 +71,20 @@ describe('paths', () => {
     it('keeps a backup id that needs escaping in one segment', () => {
         // The router decodes the location before it matches, so the id arrives as given.
         expect(paths.repositoryRestore(3, 'host', 'a b/c', 1)).toBe('/repositories/3/restore/host/a%20b%2Fc/1');
+    });
+});
+
+describe('clientTab', () => {
+    it('opens the client page, with the tab as its query', () => {
+        expect(clientTab(CLIENT, 'history')).toEqual({
+            pathname: `/clients/${CLIENT}`,
+            search: '?tab=history',
+        });
+    });
+
+    it('lands on the client route for every tab', () => {
+        for (const tab of CLIENT_TABS) {
+            expect(matchPath(ROUTES.client, clientTab(CLIENT, tab).pathname)?.params.clientId).toBe(CLIENT);
+        }
     });
 });

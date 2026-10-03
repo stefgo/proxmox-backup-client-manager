@@ -12,6 +12,8 @@ import { formatDate } from '../../../utils';
 import { durationBetween, formatDuration, parseTimestamp } from '../../../lib/time';
 import { statusBadgeVariant } from '../../history/lib/statusBadge';
 import type { LastRun } from '../lib/lastRun';
+import { EntityLink } from '../../../components/EntityLink';
+import { paths } from '../../../lib/paths';
 import {
     Badge,
     Button,
@@ -218,16 +220,20 @@ export const BaseJobList = <T extends BaseJobItem>({
         render: (job, view) => {
             const online = isOnline(job);
             const dot = <StatusDot size="sm" {...STATUS_DOT[online ? STATUS_TONE.ONLINE : STATUS_TONE.OFFLINE]} label={getStatus(job)} />;
+            // The way to the client's page, where its history and its snapshots are.
+            const name = job.clientId
+                ? <EntityLink to={paths.client(job.clientId)}>{clientName(job)}</EntityLink>
+                : clientName(job);
             return view === 'list' ? (
                 <div className="flex items-center gap-2 py-1">
                     {dot}
-                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{clientName(job)}</span>
+                    <span className={online ? 'text-text-primary' : 'text-inherit'}>{name}</span>
                 </div>
             ) : (
                 <div className="flex items-center gap-3 mb-1">
                     {dot}
                     <div className={`text-sm ${online ? 'text-text-primary' : ''} max-w-[150px] truncate`} title={clientName(job)}>
-                        {clientName(job)}
+                        {name}
                     </div>
                 </div>
             );

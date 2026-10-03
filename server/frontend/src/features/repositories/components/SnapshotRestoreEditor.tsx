@@ -7,6 +7,8 @@ import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-co
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { api, ApiError } from '../../../lib/api';
+import { EntityLink } from '../../../components/EntityLink';
+import { clientTab } from '../../../lib/paths';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -56,8 +58,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     const [error, setError] = useState<string | null>(null);
     // A started restore used to leave the form looking untouched, which invites
-    // triggering it a second time. The message doubles as the button's lock.
-    const [message, setMessage] = useState<string | null>(null);
+    // triggering it a second time. What was started doubles as the button's lock.
+    const [started, setStarted] = useState<{ archives: number; clientId: string } | null>(null);
 
 
     // The client can still be swapped in the form, so the offer follows the selection and
@@ -80,7 +82,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
         setBrowserPath('/');
         setUseTunnel(true);
         setIsSelectingClient(false);
-        setMessage(null);
+        setStarted(null);
         setError(null);
         setSelectedArchives(restorableArchives(snapshot));
     }
@@ -90,7 +92,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
 
     const handleRestore = async () => {
         setError(null);
-        setMessage(null);
+        setStarted(null);
         if (!selectedClientId || !selectedTarget || !snapshot || !repo) return;
         if (selectedArchives.length === 0) {
             setError('Please select at least one archive to restore.');
@@ -126,9 +128,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 { fallback: 'Unknown error' },
             );
 
-            setMessage(
-                `Restore of ${sanitizedArchives.length} archive(s) started — follow it in the client's job history.`,
-            );
+            setStarted({ archives: sanitizedArchives.length, clientId: selectedClientId });
         } catch (e: unknown) {
             console.error(e);
             // A refusal is the server's answer; anything else never got one.
@@ -139,7 +139,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     if (!snapshot || !repo) return null;
 
     const toggleArchive = (arch: string) => {
-        setMessage(null);
+        setStarted(null);
         if (selectedArchives.includes(arch)) {
             setSelectedArchives(selectedArchives.filter(a => a !== arch));
         } else {
@@ -171,10 +171,17 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 <ActionButton icon={X} tooltip="Close" onClick={onCancel} />
             </div>
 
-            {message && (
+            {started && (
                 <div className="mx-6 mt-6 p-3 bg-badge-success-bg border border-success rounded text-success text-sm flex items-center gap-2">
                     <ShieldCheck size={16} className="shrink-0" />
-                    {message}
+                    <span>
+                        Restore of {started.archives} archive(s) started — follow it in the{' '}
+                        {/* Of the client the restore went to, which the form may have changed since. */}
+                        <EntityLink to={clientTab(started.clientId, 'history')} className="underline">
+                            client's job history
+                        </EntityLink>
+                        .
+                    </span>
                 </div>
             )}
 
@@ -230,7 +237,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                                 setSelectedClientId(id);
                                 setBrowserPath('/');
                                 setSelectedTarget('');
-                                setMessage(null);
+                                setStarted(null);
                             }}
                         />
                     )}
@@ -244,7 +251,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                             checked={useTunnel}
                             onChange={() => {
                                 setUseTunnel(!useTunnel);
-                                setMessage(null);
+                                setStarted(null);
                             }}
                             classNames={{ label: 'text-sm text-text-muted' }}
                         />
@@ -263,7 +270,7 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                             isLoading={isLoadingFiles}
                             onSelect={(path) => {
                                 setSelectedTarget(path);
-                                setMessage(null);
+                                setStarted(null);
                             }}
                             className="flex-1 min-h-[250px] max-h-[300px]"
                         />
@@ -279,10 +286,10 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                 </Button>
                 <Button
                     onClick={handleRestore}
-                    disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!message}
-                    title={message ? 'Change the selection to start another restore' : undefined}
+                    disabled={!selectedTarget || !selectedClientId || selectedArchives.length === 0 || !!started}
+                    title={started ? 'Change the selection to start another restore' : undefined}
                 >
-                    {message ? 'Restore Started' : 'Restore Content'}
+                    {started ? 'Restore Started' : 'Restore Content'}
                 </Button>
             </div>
         </div>
