@@ -9,6 +9,7 @@ export * from "./repositoryUrl.js";
 export * from "./targetAddress.js";
 export * from "./network.js";
 
+export * from "./schedule.js";
 export * from "./runSnapshot.js";
 export * from "./webhookEvent.js";
 export * from "./webhookTemplate.js";
