@@ -1,3 +1,62 @@
+# [1.6.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.5.0...v1.6.0) (2026-10-03)
+
+
+### Bug Fixes
+
+* **agent:** Check arbitrary server URLs only during registration ([accd11e](https://github.com/stefgo/proxmox-backup-client-manager/commit/accd11e8889cc2022c60d8523a8e61140916835d))
+* **agent:** Reject backup and restore arguments that look like options ([6ee6891](https://github.com/stefgo/proxmox-backup-client-manager/commit/6ee6891eef4c77ba36f5a522b9a4018cf56d2a25))
+* **auth:** End a user's sessions when the user changes or is deleted ([b8a3ed7](https://github.com/stefgo/proxmox-backup-client-manager/commit/b8a3ed717338dd53315fd527332e4961d408077c))
+* **config:** Accept an empty OIDC block while OIDC is off ([cb76514](https://github.com/stefgo/proxmox-backup-client-manager/commit/cb76514f340f285bd1660b846bd141c7a07418c8))
+* **deps:** Update fastify to 5.12.5 ([ddcc635](https://github.com/stefgo/proxmox-backup-client-manager/commit/ddcc635e5eae2e7afd0bd80365b768d2ec90acde))
+* **docker:** Run the server process as an unprivileged user ([e404a85](https://github.com/stefgo/proxmox-backup-client-manager/commit/e404a85c50dfa028931208b35a112fe327536bc6))
+* **history:** Let an agent update only its own runs ([c8559bc](https://github.com/stefgo/proxmox-backup-client-manager/commit/c8559bcb675d58b5418e386c6824c06b6c2fefbe))
+* **security:** Replace tunnel.keySecret with secretKey ([205dd0d](https://github.com/stefgo/proxmox-backup-client-manager/commit/205dd0d2930be4d0661254a49a0cd7f0d6397c3d))
+* **security:** Store agent tokens and repository secrets protected ([d57de8a](https://github.com/stefgo/proxmox-backup-client-manager/commit/d57de8af8fc9eb65cd44986e0ffe0810dc54c6ce))
+* **security:** Trust forwarding headers only from configured proxies ([47b77cb](https://github.com/stefgo/proxmox-backup-client-manager/commit/47b77cb0ca6babe84cff985f2b7bcc3ed3350bba))
+* **tunnel:** Only forward to targets of a configured repository ([fd46b78](https://github.com/stefgo/proxmox-backup-client-manager/commit/fd46b780a98e47c6383edaf20aa12e7d272cf263))
+* **webhooks:** Keep the template preview as tall as the body template ([8f0d505](https://github.com/stefgo/proxmox-backup-client-manager/commit/8f0d50518f382c70f90959ea463ee5325eef8c2c))
+* **webhooks:** Show the last delivery time in plain text with a status badge ([6767f4d](https://github.com/stefgo/proxmox-backup-client-manager/commit/6767f4d55e92044456ac54c981907a73faa44d5d))
+
+
+### Features
+
+* **config:** Warn about unknown keys in config.yaml at startup ([ed6bf80](https://github.com/stefgo/proxmox-backup-client-manager/commit/ed6bf804a7dffadafb00f20ada2cb256eaaff414))
+* **frontend:** Move the drop-key action next to the encryption toggle ([17cb0fe](https://github.com/stefgo/proxmox-backup-client-manager/commit/17cb0fe7b12252d5fe21c7bf664de3621c0c0387))
+* **history:** Show the webhook event kind of a finished run ([fce9139](https://github.com/stefgo/proxmox-backup-client-manager/commit/fce9139dfe676481618930dc4bc42ad07cc5134d))
+* **webhooks:** Remove the client selection ([3de0e77](https://github.com/stefgo/proxmox-backup-client-manager/commit/3de0e77dbde8bcefc948f61f34f661335c4f39a4))
+
+
+### BREAKING CHANGES
+
+* **webhooks:** Webhooks that were limited to some clients report the
+events of all clients after the update. Rolling migration 19 back does
+not restore the selection.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **security:** Stored SSH tunnel credentials were encrypted with
+tunnel.keySecret and can no longer be decrypted. Enter the tunnel
+credentials of every client that has one again after the update; until
+then, backups through the tunnel fail. A tunnel.keySecret left in
+config.yaml is ignored and can be removed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **security:** GET /v1/repositories no longer returns `secret`, and
+job responses return `repository.secret` as "" and `encryption` without
+`keyContent`. PUT /v1/repositories keeps the stored secret when `secret`
+is empty. POST /v1/clients/:clientId/restore takes `repositoryId`
+instead of a `repository` object. config.yaml must be writable when
+tunnel.keySecret is generated, and losing tunnel.keySecret now also
+loses the repository secrets and the outbound clients' tokens.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **security:** X-Forwarded-* headers are ignored unless the peer is
+listed in security.trusted_proxies or PBCM_TRUSTED_PROXIES. Installations
+behind a reverse proxy must list it; otherwise every request appears to
+come from the proxy and the session cookie loses its Secure flag behind a
+TLS-terminating one.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.5.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.4.0...v1.5.0) (2026-09-30)
 
 
