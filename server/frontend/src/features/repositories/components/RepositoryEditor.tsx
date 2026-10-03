@@ -11,7 +11,7 @@ import { Card, Button, Input, ActionButton, useConfirm } from '@stefgo/react-ui-
 import { describeDiscardChanges } from '../../../components/confirmations';
 import { describeDistribute } from '../confirmations';
 import { useAuth } from '../../auth/AuthContext';
-import { useRepositoryStore } from '../../../stores/useRepositoryStore';
+import { distributeRepository, probeCertificate } from '../../../queries/repositories';
 
 interface RepositoryEditorProps {
     repository?: Repository | null;
@@ -37,8 +37,6 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
     const [secret, setSecret] = useState('');
 
     const { isAuthenticated } = useAuth();
-    const probeCertificate = useRepositoryStore((s) => s.probeCertificate);
-    const distribute = useRepositoryStore((s) => s.distribute);
 
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -80,7 +78,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         setDistribution(null);
         setDistributeError(null);
         try {
-            setDistribution(await distribute(repository.id));
+            setDistribution(await distributeRepository(repository.id));
         } catch (e) {
             setDistributeError(e instanceof Error ? e.message : String(e));
         } finally {

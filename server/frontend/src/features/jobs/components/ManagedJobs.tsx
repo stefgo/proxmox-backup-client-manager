@@ -7,7 +7,6 @@ import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
 import { useClientStore } from '../../../stores/useClientStore';
 import { JobList } from './JobList';
 import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
-import { useRepositoryStore } from '../../../stores/useRepositoryStore';
 import { GlobalJob, jobIdOf } from '../../../stores/useGlobalJobsStore';
 import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
 import { getErrorMessage } from '../../../utils';
@@ -23,21 +22,15 @@ export const ManagedJobs = () => {
     const { clients, fetchClients } = useClientStore();
     const { confirm } = useConfirm();
     const { show } = useToast();
-    // Only the action: the repository list itself is read through getState() below,
-    // so this view no longer re-renders on every repository status change.
-    const fetchRepositories = useRepositoryStore((s) => s.fetchRepositories);
 
     useEffect(() => {
         if (!isAuthenticated) return;
         fetchAllJobs();
-        // Read the two stores through getState() rather than the subscribed values:
-        // this only fills them if they are still empty, and depending on their
+        // Read the store through getState() rather than the subscribed value:
+        // this only fills it if it is still empty, and depending on its
         // contents would re-run fetchAllJobs the moment they arrive.
         if (useClientStore.getState().clients.length === 0) fetchClients();
-        if (useRepositoryStore.getState().repositories.length === 0) {
-            fetchRepositories();
-        }
-    }, [isAuthenticated, fetchAllJobs, fetchClients, fetchRepositories]);
+    }, [isAuthenticated, fetchAllJobs, fetchClients]);
 
     useGlobalSubscription();
 

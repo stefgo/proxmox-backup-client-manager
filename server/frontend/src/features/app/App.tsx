@@ -28,7 +28,7 @@ import { queryClient } from '../../lib/queryClient';
 
 // Hooks & Stores
 import { useClientStore } from '../../stores/useClientStore';
-import { useRepositoryStore } from '../../stores/useRepositoryStore';
+import { useAddRepository, useDeleteRepository, useRepositories, useUpdateRepository } from '../../queries/repositories';
 import { useGlobalJobsStore } from '../../stores/useGlobalJobsStore';
 import { useUIStore } from '../../stores/useUIStore';
 import { useHistorySeenStore } from '../../stores/useHistorySeenStore';
@@ -210,14 +210,17 @@ function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) 
 
 function RepositoriesRoute() {
     const navigate = useNavigate();
-    const { repositories, addRepository, updateRepository, deleteRepository } = useRepositoryStore();
+    const { repositories } = useRepositories();
+    const { mutateAsync: addRepository } = useAddRepository();
+    const { mutateAsync: updateRepository } = useUpdateRepository();
+    const { mutateAsync: deleteRepository } = useDeleteRepository();
 
     return (
         <ManagedRepositories
             repositories={repositories}
             onSelect={(r) => (r ? navigate(`/repository/${r.id}`) : navigate('/'))}
             onAdd={addRepository}
-            onUpdate={updateRepository}
+            onUpdate={(id, repo) => updateRepository({ id, repo })}
             onDelete={deleteRepository}
         />
     );
@@ -226,13 +229,13 @@ function RepositoriesRoute() {
 /** Same waiting and not-found handling as `useRouteClient`, for the repository routes. */
 function useRouteRepository() {
     const { repoId } = useParams();
-    const repo = useRepositoryStore((s) => s.repositories.find((r) => String(r.id) === repoId));
-    const loaded = useRepositoryStore((s) => s.loaded);
-    return { repoId, repo, loaded };
+    const { repositories, isPending } = useRepositories();
+    const repo = repositories.find((r) => String(r.id) === repoId);
+    return { repoId, repo, isPending };
 }
 
-function RepositoryMissing({ loaded }: { loaded: boolean }) {
-    if (!loaded) return <LoadingIndicator label="Loading repository…" />;
+function RepositoryMissing({ isPending }: { isPending: boolean }) {
+    if (isPending) return <LoadingIndicator label="Loading repository…" />;
 
     return (
         <NotFoundCard title="Repository not found" backTo="/repositories" backLabel="Back to repositories">
@@ -242,8 +245,8 @@ function RepositoryMissing({ loaded }: { loaded: boolean }) {
 }
 
 function RepositoryDetailRoute() {
-    const { repo, loaded } = useRouteRepository();
-    if (!repo) return <RepositoryMissing loaded={loaded} />;
+    const { repo, isPending } = useRouteRepository();
+    if (!repo) return <RepositoryMissing isPending={isPending} />;
 
     return <RepositoryOverview repo={repo} />;
 }
@@ -254,14 +257,14 @@ function RepositoryDetailRoute() {
  * menu was opened on, so Cancel returns there instead of always falling back to the list.
  */
 function RepositoryEditRoute() {
-    const { repoId, repo, loaded } = useRouteRepository();
+    const { repoId, repo, isPending } = useRouteRepository();
     const navigate = useNavigate();
     const { state } = useLocation();
-    const updateRepository = useRepositoryStore((s) => s.updateRepository);
+    const { mutateAsync: updateRepository } = useUpdateRepository();
 
     const back = (state as { from?: string } | null)?.from ?? `/repository/${repoId}`;
 
-    if (!repo) return <RepositoryMissing loaded={loaded} />;
+    if (!repo) return <RepositoryMissing isPending={isPending} />;
 
     return (
         <RepositoryEditor
@@ -269,7 +272,7 @@ function RepositoryEditRoute() {
             // Errors are not caught here: like the client editor, the form stays open and
             // reports in its own footer. Saving does not navigate away either -- the page
             // says "Repository saved" and the operator decides when to leave.
-            onSave={(data: RepositoryInput) => updateRepository(repo.id, data)}
+            onSave={(data: RepositoryInput) => updateRepository({ id: repo.id, repo: data })}
             onCancel={() => navigate(back)}
         />
     );
@@ -299,7 +302,7 @@ function AppLayout() {
     const path = location.pathname;
 
     const { clients, fetchClients } = useClientStore();
-    const { repositories: repos, fetchRepositories: refreshRepos } = useRepositoryStore();
+    const { repositories: repos } = useRepositories();
     const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
     const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
     // Not on the history page itself: what fails there is in view as it arrives.
@@ -313,11 +316,10 @@ function AppLayout() {
     useEffect(() => {
         if (isAuthenticated) {
             fetchClients();
-            refreshRepos();
             fetchAllJobs();
             fetchSeen();
         }
-    }, [isAuthenticated, resyncKey, fetchClients, refreshRepos, fetchAllJobs, fetchSeen]);
+    }, [isAuthenticated, resyncKey, fetchClients, fetchAllJobs, fetchSeen]);
 
     // Stats
     const stats = useMemo(

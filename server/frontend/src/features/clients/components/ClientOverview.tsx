@@ -10,7 +10,7 @@ import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
 import { useClientDetailStore, SnapshotWithRepository } from '../../../stores/useClientDetailStore';
-import { useRepositoryStore } from '../../../stores/useRepositoryStore';
+import { useRepositories } from '../../../queries/repositories';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
 import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
@@ -59,21 +59,19 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         fetchClientSnapshots
     } = useClientDetailStore();
 
-    const { repositories, fetchRepositories } = useRepositoryStore();
+    const { repositories } = useRepositories();
 
     // Init Data & Subscriptions, and again after a reconnect.
     const resyncKey = useResyncKey();
     useEffect(() => {
         if (client.id && isAuthenticated) {
             fetchClientData(client.id);
-            fetchRepositories();
         }
-    }, [client.id, isAuthenticated, resyncKey, fetchClientData, fetchRepositories]);
+    }, [client.id, isAuthenticated, resyncKey, fetchClientData]);
 
-    // Which repositories exist, not the array holding them: fetchRepositories kicks
-    // off a checkRepositoryStatus per repository, and each of those replaces the
-    // array. Depending on the reference reloaded every snapshot once per repository,
-    // and each reload is itself one request per repository.
+    // Which repositories exist, not the array holding them: every status check that
+    // answers produces a new array. Depending on the reference reloaded every snapshot
+    // once per repository, and each reload is itself one request per repository.
     const repositoryIds = useMemo(
         () => repositories.map((r) => r.id).join(','),
         [repositories],

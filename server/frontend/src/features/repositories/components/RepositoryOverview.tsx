@@ -20,12 +20,15 @@ import {
     StatusDot,
     useActionMenu,
 } from '@stefgo/react-ui-components';
-import { useRepositorySnapshotStore } from '../../../stores/useRepositorySnapshotStore';
+import { useRepositorySnapshots } from '../../../queries/repositories';
+import { getErrorMessage } from '../../../utils';
 import { useClientStore } from '../../../stores/useClientStore';
 import { useAuth } from '../../auth/AuthContext';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { NotFoundCard } from '../../../components/NotFoundCard';
 
+
+const NO_SNAPSHOTS: Snapshot[] = [];
 
 interface RepositoryOverviewProps {
     repo: Repository;
@@ -39,18 +42,14 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
 
-    // Global Store Data
-    const { snapshots, isLoading, error, fetchSnapshots } = useRepositorySnapshotStore();
+    // `isPending`, not `isFetching`: a refetch keeps the list it already shows on screen.
+    const snapshotQuery = useRepositorySnapshots(repo.id);
+    const snapshots = snapshotQuery.data ?? NO_SNAPSHOTS;
+    const isLoading = snapshotQuery.isPending;
+    const error = snapshotQuery.error ? getErrorMessage(snapshotQuery.error) : null;
     const { clients, fetchClients } = useClientStore();
     // const { fetchClients } = useClientActions();
 
-
-    // Fetch Snapshots on mount or repo change
-    useEffect(() => {
-        if (repo && isAuthenticated) {
-            fetchSnapshots(repo);
-        }
-    }, [repo, isAuthenticated, fetchSnapshots]);
 
     // Fetch Clients needed for restore if not already loaded
     useEffect(() => {

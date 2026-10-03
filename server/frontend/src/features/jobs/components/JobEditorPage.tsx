@@ -11,7 +11,7 @@ import { useClientStore } from '../../../stores/useClientStore';
 import { useClientDetailStore } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
-import { useRepositoryStore } from '../../../stores/useRepositoryStore';
+import { useRepositories } from '../../../queries/repositories';
 
 interface JobEditorPageProps {
     /**
@@ -45,7 +45,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
 
     const { isAuthenticated } = useAuth();
     const { clients } = useClientStore();
-    const { repositories, fetchRepositories } = useRepositoryStore();
+    const { repositories } = useRepositories();
     const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
     const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);
     const fetchClientData = useClientDetailStore((s) => s.fetchClientData);
@@ -72,10 +72,6 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
         clientId: selectedClientId || null,
         onSaveSuccess: handleSaveSuccess,
     });
-
-    useEffect(() => {
-        if (isAuthenticated && repositories.length === 0) fetchRepositories();
-    }, [isAuthenticated, repositories.length, fetchRepositories]);
 
     // Seeds the form exactly once. Neither jobForm nor its actions keep their identity
     // across renders, so there is no honest dependency array to write here — the guard
