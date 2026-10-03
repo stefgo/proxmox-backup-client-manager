@@ -147,11 +147,14 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             // An existing row may already carry the client columns from the REST
             // fetch, so the resolved ones only win where they actually resolved --
             // an unknown client must not blank out a name that was already there.
-            const merge = (j: SessionHistoryItem): SessionHistoryItem => ({
-                ...j,
+            const withNamesOf = (j: SessionHistoryItem): SessionHistoryItem => ({
                 ...entry,
                 hostname: entry.hostname ?? j.hostname,
                 displayName: entry.displayName ?? j.displayName,
+            });
+            const merge = (j: SessionHistoryItem): SessionHistoryItem => ({
+                ...j,
+                ...withNamesOf(j),
             });
 
             // A run that belongs to no job has no row here.
@@ -171,9 +174,10 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
             const current = state.latestPerJob.find((j) => isSameJob(j, entry));
             if (current && byStartTimeDesc(entry, current) > 0) return {};
 
+            // The row it replaces is of the same client, so its names still hold.
             return {
                 latestPerJob: [
-                    entry,
+                    current ? withNamesOf(current) : entry,
                     ...state.latestPerJob.filter((j) => !isSameJob(j, entry)),
                 ].sort(byStartTimeDesc),
             };
