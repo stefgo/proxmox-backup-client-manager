@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Client, GlobalHistoryEntry, HistoryEntry } from '@pbcm/shared';
-import { applyRunToLatest, jobIdOf, type SessionHistoryItem } from './cacheUpdates';
+import type { BackupJob, Client, GlobalHistoryEntry, HistoryEntry, SchedulerStatuses, TunnelState } from '@pbcm/shared';
+import {
+    applyRunToLatest,
+    applySchedulerUpdate,
+    jobIdOf,
+    mergeTunnelState,
+    noteFailure,
+    recentRuns,
+    replaceClientJobs,
+    setJobNextRun,
+    upsertRun,
+    type GlobalJob,
+    type SessionHistoryItem,
+} from './cacheUpdates';
 
 const CLIENT_A = '11111111-1111-4111-8111-111111111111';
 const CLIENT_B = '22222222-2222-4222-8222-222222222222';
@@ -170,5 +182,164 @@ describe('applyRunToLatest', () => {
         latest = [restRow({ hostname: 'old', displayName: 'Old' })];
         updateSession(CLIENT_A, run({ status: 'success' }));
         expect(rows()[0]).toMatchObject({ hostname: 'web01', displayName: 'Web 01' });
+    });
+});
+
+const backupJob = (id: string, changes: Partial<BackupJob> = {}): BackupJob => ({
+    id,
+    name: `Job ${id}`,
+    schedule: null,
+    scheduleEnabled: false,
+    archives: [{ path: '/home', name: 'home' }],
+    excludes: [],
+    repository: { baseUrl: 'pbs.example:8007', datastore: 'main', username: 'backup@pbs', secret: '' },
+    ...changes,
+});
+
+const globalJob = (clientId: string, id: string, changes: Partial<BackupJob> = {}): GlobalJob => ({
+    ...backupJob(id, changes),
+    clientId,
+});
+
+describe('mergeTunnelState', () => {
+    const state: TunnelState = { clientId: CLIENT_A, status: 'up', activeLeases: 1, forwards: [] };
+
+    it('puts the state on the client it names and leaves the others alone', () => {
+        const before = [client(CLIENT_A, 'web01'), client(CLIENT_B, 'db01')];
+        const after = mergeTunnelState(before, state);
+        expect(after[0].tunnel).toEqual(state);
+        expect(after[1]).toBe(before[1]);
+    });
+
+    it('changes nothing for a client that is not in the list', () => {
+        const before = [client(CLIENT_B, 'db01')];
+        expect(mergeTunnelState(before, state)).toEqual(before);
+    });
+});
+
+describe('replaceClientJobs', () => {
+    it('replaces the jobs of one client and keeps the rows of the others', () => {
+        const other = globalJob(CLIENT_B, 'job-9', { nextRunAt: '2026-09-29T02:00:00.000Z' });
+        const after = replaceClientJobs(
+            [globalJob(CLIENT_A, 'job-1'), other],
+            CLIENT_A,
+            [backupJob('job-2'), backupJob('job-3')],
+        );
+        expect(after.map((j) => [j.clientId, j.id])).toEqual([
+            [CLIENT_B, 'job-9'],
+            [CLIENT_A, 'job-2'],
+            [CLIENT_A, 'job-3'],
+        ]);
+        expect(after[0]).toBe(other);
+    });
+
+    it('drops every job of a client that reports none, as one that went offline does', () => {
+        const after = replaceClientJobs([globalJob(CLIENT_A, 'job-1'), globalJob(CLIENT_B, 'job-9')], CLIENT_A, []);
+        expect(after.map((j) => j.clientId)).toEqual([CLIENT_B]);
+    });
+
+    it('adds the jobs of a client the list did not hold yet', () => {
+        const after = replaceClientJobs([], CLIENT_A, [backupJob('job-1')]);
+        expect(after).toEqual([globalJob(CLIENT_A, 'job-1')]);
+    });
+});
+
+describe('setJobNextRun', () => {
+    const NEXT = '2026-09-29T02:00:00.000Z';
+
+    it('sets the next run of the job on the client it names', () => {
+        const after = setJobNextRun([globalJob(CLIENT_A, 'job-1'), globalJob(CLIENT_A, 'job-2')], CLIENT_A, 'job-1', NEXT);
+        expect(after.map((j) => j.nextRunAt)).toEqual([NEXT, undefined]);
+    });
+
+    it('keeps the same job id of another client apart', () => {
+        const after = setJobNextRun([globalJob(CLIENT_A, 'job-1'), globalJob(CLIENT_B, 'job-1')], CLIENT_B, 'job-1', NEXT);
+        expect(after.map((j) => j.nextRunAt)).toEqual([undefined, NEXT]);
+    });
+
+    it('matches by the job alone in a list that names no client', () => {
+        const after = setJobNextRun([backupJob('job-1'), backupJob('job-2')], CLIENT_A, 'job-2', NEXT);
+        expect(after.map((j) => j.nextRunAt)).toEqual([undefined, NEXT]);
+    });
+
+    it('clears the next run of a job that is no longer scheduled', () => {
+        const after = setJobNextRun([backupJob('job-1', { nextRunAt: NEXT })], CLIENT_A, 'job-1', null);
+        expect(after[0].nextRunAt).toBeUndefined();
+    });
+});
+
+describe('upsertRun', () => {
+    it('puts a run the history does not hold yet in front', () => {
+        const after = upsertRun([run({ id: 'run-1' })], run({ id: 'run-2' }));
+        expect(after.map((j) => j.id)).toEqual(['run-2', 'run-1']);
+    });
+
+    it('updates the run it already holds, in place', () => {
+        const after = upsertRun(
+            [run({ id: 'run-2' }), run({ id: 'run-1' })],
+            run({ id: 'run-1', status: 'success', exitCode: 0 }),
+        );
+        expect(after.map((j) => [j.id, j.status])).toEqual([
+            ['run-2', 'running'],
+            ['run-1', 'success'],
+        ]);
+    });
+});
+
+describe('recentRuns', () => {
+    const NOW = new Date('2026-09-29T12:00:00.000Z').getTime();
+    const ended = (id: string, endTime: string) =>
+        run({ id, status: 'success', startTime: '2026-09-01T00:00:00.000Z', endTime });
+
+    it('keeps the runs that ended within the last 24 hours', () => {
+        const history = [ended('in', '2026-09-28T12:00:01.000Z'), ended('out', '2026-09-28T12:00:00.000Z')];
+        expect(recentRuns(history, NOW).map((j) => j.id)).toEqual(['in']);
+    });
+
+    it('counts a run that is still running by when it started', () => {
+        const history = [
+            run({ id: 'running', startTime: '2026-09-29T11:00:00.000Z' }),
+            run({ id: 'stuck', startTime: '2026-09-27T11:00:00.000Z' }),
+        ];
+        expect(recentRuns(history, NOW).map((j) => j.id)).toEqual(['running']);
+    });
+
+    it('stops at ten, in the order of the history', () => {
+        const history = Array.from({ length: 12 }, (_, i) => ended(`run-${i}`, '2026-09-29T11:00:00.000Z'));
+        expect(recentRuns(history, NOW).map((j) => j.id)).toEqual(history.slice(0, 10).map((j) => j.id));
+    });
+});
+
+describe('noteFailure', () => {
+    it('counts a failure when the history was never opened', () => {
+        expect(noteFailure({ seenAt: null, unseenFailed: 0 }, '2026-09-28T02:00:00.000Z')).toEqual({
+            seenAt: null,
+            unseenFailed: 1,
+        });
+    });
+
+    it('counts a failure that ended after the history was last opened', () => {
+        const seen = { seenAt: '2026-09-28T02:00:00.000Z', unseenFailed: 2 };
+        expect(noteFailure(seen, '2026-09-28T02:00:01.000Z').unseenFailed).toBe(3);
+    });
+
+    it('ignores a failure that ended before it, as a run synced late can have', () => {
+        const seen = { seenAt: '2026-09-28T02:00:00.000Z', unseenFailed: 0 };
+        expect(noteFailure(seen, '2026-09-28T01:59:59.000Z')).toBe(seen);
+        expect(noteFailure(seen, '2026-09-28T02:00:00.000Z')).toBe(seen);
+    });
+});
+
+describe('applySchedulerUpdate', () => {
+    const idle = { isRunning: false, nextRun: '2026-09-29T00:00:00.000Z', lastRun: null };
+    const schedulers: SchedulerStatuses = { 'token-cleanup': idle, 'job-history-cleanup': idle };
+
+    it('replaces the scheduler the update names and keeps the other', () => {
+        const after = applySchedulerUpdate(schedulers, {
+            scheduler: 'token-cleanup',
+            status: { ...idle, isRunning: true },
+        });
+        expect(after['token-cleanup'].isRunning).toBe(true);
+        expect(after['job-history-cleanup']).toBe(schedulers['job-history-cleanup']);
     });
 });
