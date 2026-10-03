@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { BackupJob } from '@pbcm/shared';
 import { useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
@@ -11,6 +11,7 @@ import { useClientFiles } from '../../../queries/fileSystem';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../lib/queryKeys';
 import { useRepositories } from '../../../queries/repositories';
+import { useBackPath } from '../../../hooks/useBackPath';
 
 interface JobEditorPageProps {
     /**
@@ -22,12 +23,10 @@ interface JobEditorPageProps {
     lockedClientId?: string;
     /** The job to edit. Absent for a new one. */
     job?: BackupJob;
-    /** Where closing and saving return to when the URL was opened directly. */
-    fallbackBack: string;
 }
 
 /**
- * The job editor as a page of its own — `/client/:clientId/jobs/...` when it is reached
+ * The job editor as a page of its own — `/clients/:clientId/jobs/...` when it is reached
  * from a client, `/jobs/...` when it is reached from the job list across all clients.
  *
  * It used to be a state inside those two lists, which is why creating a job was only
@@ -35,12 +34,12 @@ interface JobEditorPageProps {
  * until the operator picks one. Here the id is page state, so the same form serves both —
  * pre-filled and locked in the one case, empty and selectable in the other.
  */
-export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPageProps) => {
+export const JobEditorPage = ({ lockedClientId, job }: JobEditorPageProps) => {
     const navigate = useNavigate();
-    const location = useLocation();
-    // The same `from` convention the client editors use — the surface that opened this
-    // page says where back is; a directly opened URL falls back to its own list.
-    const back = (location.state as { from?: string } | null)?.from ?? fallbackBack;
+    // The parent in the route tree — the client's page under the one path family, the job
+    // list under the other — with the query the opening surface passed along, so the
+    // client's open tab is still open on return.
+    const back = useBackPath();
 
     const { clients } = useClients();
     const { repositories } = useRepositories();

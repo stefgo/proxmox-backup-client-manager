@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CLIENT_STATUS } from '@pbcm/shared';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { useDeleteJob, useGlobalJobs, useLatestPerJob, useTriggerJob } from '../../../queries/jobs';
@@ -9,9 +9,11 @@ import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
 import { jobIdOf, type GlobalJob } from '../../../lib/cacheUpdates';
 import { getErrorMessage } from '../../../utils';
 import { describeDeleteJob } from '../confirmations';
+import { ROUTES, paths } from '../../../lib/paths';
 
 export const ManagedJobs = () => {
     const navigate = useNavigate();
+    const { search } = useLocation();
     const { jobs: globalJobs, isPending, error: jobsError } = useGlobalJobs();
     const { latestPerJob, error: latestError } = useLatestPerJob();
     const error = jobsError ?? latestError;
@@ -78,12 +80,11 @@ export const ManagedJobs = () => {
     /**
      * The editor is a page of its own. Under `/jobs` rather than under the client, so the
      * sidebar keeps marking the list this was opened from -- the client is carried in the
-     * path because the job is saved through its client's endpoint.
+     * path because the job is saved through its client's endpoint. The query goes along,
+     * so the editor closes onto this list as it was searched.
      */
     const openJobEditor = (job?: GlobalJob) => {
-        navigate(job ? `/jobs/${job.clientId}/${job.id}` : '/jobs/new', {
-            state: { from: '/jobs' },
-        });
+        navigate({ pathname: job?.id ? paths.job(job.clientId, job.id) : ROUTES.jobNew, search });
     };
 
     if (isPending) {

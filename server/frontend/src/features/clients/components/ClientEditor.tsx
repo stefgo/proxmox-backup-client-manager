@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
 import { X } from 'lucide-react';
 import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
 import { useClient } from '../../../queries/clients';
+import { useBackPath } from '../../../hooks/useBackPath';
 import { ClientIdentityCard } from './ClientIdentityCard';
 
 interface ClientEditorProps {
@@ -17,7 +18,7 @@ interface ClientEditorProps {
 
 /**
  * Edits what a client *is*: its name and, for an outbound client, where the server dials it.
- * A page of its own, at `/client/:clientId/edit`.
+ * A page of its own, below the client's (`ROUTES.clientEdit`).
  *
  * The SSH tunnel is deliberately not here. It lives behind its own action in the client
  * list ({@link ClientTunnelEditor}) because it is a different resource with its own
@@ -27,15 +28,12 @@ interface ClientEditorProps {
  *
  * Leaving is a navigation, and the control for it sits in the card's header — the one part
  * of the form that is in reach from every scroll position without a floating bar over the
- * content. Where it goes is the caller's business: the client list and the client detail
- * page both open this editor, and `location.state.from` is how each says where back is.
+ * content. Where it goes is the route tree's business: this editor sits below the client's
+ * page, so that is where it closes onto, whichever surface opened it.
  */
 export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
     const navigate = useNavigate();
-    const location = useLocation();
-    // A directly opened URL carries no state — the list is the honest fallback, since it
-    // is the surface this client is guaranteed to appear on.
-    const back = (location.state as { from?: string } | null)?.from ?? '/clients';
+    const back = useBackPath();
 
     // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the cache instead of the prop.

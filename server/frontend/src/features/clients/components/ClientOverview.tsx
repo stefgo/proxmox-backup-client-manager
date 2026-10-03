@@ -1,5 +1,5 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard, ActionButton, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
@@ -8,13 +8,14 @@ import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { ClientHistoryList } from './ClientHistoryList';
-import { useClientHistory, useClientJobs, useClientSnapshots, type SnapshotWithRepository } from '../../../queries/clientDetail';
+import { useClientHistory, useClientJobs, useClientSnapshots } from '../../../queries/clientDetail';
 import { useDeleteJob, useTriggerJob } from '../../../queries/jobs';
 import { useRepositories } from '../../../queries/repositories';
 import { RepositorySnapshotList } from '../../repositories/components/RepositorySnapshotList';
-import { SnapshotRestoreEditor } from '../../repositories/components/SnapshotRestoreEditor';
 
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
+import { useBackPath } from '../../../hooks/useBackPath';
+import { paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
 
@@ -29,10 +30,10 @@ interface ClientOverviewProps {
 export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const navigate = useNavigate();
-    const { pathname, search, state } = useLocation();
-    // The list is the only surface that opens this page today, and the honest fallback for a
-    // directly opened URL -- the same `from` convention the editors reached from here use.
-    const back = (state as { from?: string } | null)?.from ?? '/clients';
+    const { search } = useLocation();
+    // The client list, this page's parent in the route tree. Without the query: `tab` and
+    // the tabs' searches are this page's own and mean nothing on the list.
+    const back = useBackPath({ keepSearch: false });
     // Through the merging hook, so switching tabs keeps each tab's own search parameter
     // instead of wiping it -- `setSearchParams({ tab })` used to drop everything else.
     const [tab, setTab] = useSearchQueryParam('tab');
@@ -52,17 +53,15 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     const { mutateAsync: deleteJob } = useDeleteJob();
 
     /**
-     * The job editor is a page of its own. `from` carries the open tab along, so saving or
-     * cancelling comes back to the job list this was started from rather than to the
-     * client's default tab.
+     * Every form reached from here is a page of its own, one level below this one. The
+     * query goes along in the URL, so closing the form comes back to the tab -- and the
+     * search -- it was opened from rather than to the client's default tab, also after a
+     * reload.
      */
-    const openJobEditor = (jobId?: string) => {
-        navigate(`/client/${client.id}/jobs/${jobId ?? 'new'}`, {
-            state: { from: pathname + search },
-        });
-    };
+    const open = (pathname: string) => navigate({ pathname, search });
 
-    const [restoreSnapshot, setRestoreSnapshot] = useState<SnapshotWithRepository | null>(null);
+    const openJobEditor = (jobId?: string) =>
+        open(jobId ? paths.clientJob(client.id, jobId) : paths.clientJobNew(client.id));
 
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
@@ -89,19 +88,10 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
     };
 
     /**
-     * Escape does what the closest close button does, exactly as in the client editor. The
-     * restore editor still opens inside this page, so it is stepped out of first -- the same
-     * thing its own `X` does, and without a confirmation because that button does not ask
-     * either -- and only the bare overview leaves for the list. The job editor is a route of
-     * its own and handles its own Escape.
+     * Escape leaves for the list, exactly as in the client editor. The job editor and the
+     * restore form are routes of their own and handle their own Escape.
      */
-    const requestClose = useCallback(() => {
-        if (restoreSnapshot) {
-            setRestoreSnapshot(null);
-            return;
-        }
-        navigate(back);
-    }, [restoreSnapshot, navigate, back]);
+    const requestClose = useCallback(() => navigate(back), [navigate, back]);
 
     // Not while a select, a dialog or an autocomplete is using Escape for itself.
     useEffect(() => {
@@ -175,13 +165,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         >
                             <MenuItem
                                 icon={Edit}
-                                onClick={() => {
-                                    // `from` is how the editor knows that back is this
-                                    // page and not the client list.
-                                    navigate(`/client/${client.id}/edit`, {
-                                        state: { from: pathname },
-                                    });
-                                }}
+                                onClick={() => open(paths.clientEdit(client.id))}
                             >
                                 Edit Client
                             </MenuItem>
@@ -193,11 +177,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                               */}
                             <MenuItem
                                 icon={Network}
-                                onClick={() => {
-                                    navigate(`/client/${client.id}/tunnel`, {
-                                        state: { from: pathname },
-                                    });
-                                }}
+                                onClick={() => open(paths.clientTunnel(client.id))}
                             >
                                 {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
                             </MenuItem>
@@ -264,28 +244,23 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
                         {/* Snapshots */}
                         <TabPanel tabs={tabs} value="snapshots">
-                            {restoreSnapshot ? (
-                                <SnapshotRestoreEditor
-                                    snapshot={restoreSnapshot}
-                                    repo={restoreSnapshot.repository}
-                                    selectedClient={client}
-                                    onCancel={() => setRestoreSnapshot(null)}
+                            <>
+                                {snapshotsError && (
+                                    <div role="alert" className="mb-4 text-sm text-error break-words">
+                                        {snapshotsError}
+                                    </div>
+                                )}
+                                <RepositorySnapshotList
+                                    searchParamKey="search.snapshots"
+                                    snapshots={clientSnapshots}
+                                    showClientColumn={false}
+                                    // The repository is part of the address: a client's
+                                    // snapshots come from every repository.
+                                    onRestore={(s) =>
+                                        open(paths.clientRestore(client.id, s.repository.id, s.backupType, s.backupTime))
+                                    }
                                 />
-                            ) : (
-                                <>
-                                    {snapshotsError && (
-                                        <div role="alert" className="mb-4 text-sm text-error break-words">
-                                            {snapshotsError}
-                                        </div>
-                                    )}
-                                    <RepositorySnapshotList
-                                        searchParamKey="search.snapshots"
-                                        snapshots={clientSnapshots}
-                                        showClientColumn={false}
-                                        onRestore={setRestoreSnapshot}
-                                    />
-                                </>
-                            )}
+                            </>
                         </TabPanel>
 
                         {/* Job History */}

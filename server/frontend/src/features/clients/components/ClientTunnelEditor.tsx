@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Client } from '@pbcm/shared';
 import { X } from 'lucide-react';
 import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
@@ -7,6 +7,7 @@ import { describeDiscardChanges } from '../../../components/confirmations';
 import { useQueryClient } from '@tanstack/react-query';
 import { useClient } from '../../../queries/clients';
 import { queryKeys } from '../../../lib/queryKeys';
+import { useBackPath } from '../../../hooks/useBackPath';
 import { ClientTunnelCard } from './ClientTunnelCard';
 
 interface ClientTunnelEditorProps {
@@ -14,9 +15,9 @@ interface ClientTunnelEditorProps {
 }
 
 /**
- * Sets up, changes or removes a client's SSH reverse tunnel — a page at
- * `/client/:clientId/tunnel`, reached from the client list for a client of either
- * connection mode.
+ * Sets up, changes or removes a client's SSH reverse tunnel — a page below the client's
+ * (`ROUTES.clientTunnel`), reached from the client list and the client page for a client
+ * of either connection mode.
  *
  * Its own surface rather than a card inside the client editor, because it answers its own
  * question. The client editor is about what the client *is*; this is about how the PBS is
@@ -36,10 +37,8 @@ interface ClientTunnelEditorProps {
  */
 export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
     const navigate = useNavigate();
-    const location = useLocation();
-    // A directly opened URL carries no state — the list is the honest fallback, since it
-    // is the surface this client is guaranteed to appear on.
-    const back = (location.state as { from?: string } | null)?.from ?? '/clients';
+    // The client's page, like the client editor: the parent in the route tree.
+    const back = useBackPath();
 
     // The caller holds a snapshot from when the editor opened; the tunnel state arrives
     // over the socket afterwards, so read it from the cache instead of the prop.

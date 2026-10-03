@@ -6,12 +6,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../../lib/api';
 import { useWebhooks, webhookListOptions } from '../../../queries/webhooks';
 import { describeDeleteWebhook } from '../confirmations';
+import { ROUTES, paths } from '../../../lib/paths';
 import { WebhookList } from './WebhookList';
 
-/** The page at `/webhooks`. Adding and editing happen on pages of their own. */
+/** The webhook list. Adding and editing happen on pages of their own, below it. */
 export const WebhookOverview = () => {
     const navigate = useNavigate();
-    const { pathname, search } = useLocation();
+    const { search } = useLocation();
     const { confirm } = useConfirm();
     // Kept current by WEBHOOKS_UPDATE, which invalidates the list.
     const { webhooks, isPending } = useWebhooks();
@@ -21,8 +22,8 @@ export const WebhookOverview = () => {
     /** The switch moves at once, before the server has answered. */
     const [pendingEnabled, setPendingEnabled] = useState<Record<string, boolean>>({});
 
-    // The editor goes back to where it was opened from, search included.
-    const open = (to: string) => navigate(to, { state: { from: pathname + search } });
+    // The editor closes onto this list; the query goes along so the search is still there.
+    const open = (pathname: string) => navigate({ pathname, search });
 
     const requestDelete = (webhook: Webhook) =>
         confirm({
@@ -58,8 +59,8 @@ export const WebhookOverview = () => {
             <WebhookList
                 webhooks={shown}
                 isLoading={isPending}
-                onAdd={() => open('/webhooks/new')}
-                onEdit={(webhook) => open(`/webhooks/${webhook.id}`)}
+                onAdd={() => open(ROUTES.webhookNew)}
+                onEdit={(webhook) => open(paths.webhook(webhook.id))}
                 onDelete={requestDelete}
                 onToggleEnabled={toggleEnabled}
             />

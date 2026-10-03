@@ -6,8 +6,6 @@ import {
     REPOSITORY_STATUS,
 } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
-import { useState } from 'react';
-import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
 import {
     ActionButton,
@@ -24,7 +22,7 @@ import { useRepositorySnapshots } from '../../../queries/repositories';
 import { getErrorMessage } from '../../../utils';
 import { useClients } from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
-import { NotFoundCard } from '../../../components/NotFoundCard';
+import { paths } from '../../../lib/paths';
 
 
 const NO_SNAPSHOTS: Snapshot[] = [];
@@ -36,16 +34,18 @@ interface RepositoryOverviewProps {
 export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const navigate = useNavigate();
-    const { pathname } = useLocation();
+    const { search } = useLocation();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
-    const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
+    // The forms reached from here are routes one level below this page. The query goes
+    // along, so closing one comes back to the snapshot list as it was searched.
+    const open = (pathname: string) => navigate({ pathname, search });
 
     // `isPending`, not `isFetching`: a refetch keeps the list it already shows on screen.
     const snapshotQuery = useRepositorySnapshots(repo.id);
     const snapshots = snapshotQuery.data ?? NO_SNAPSHOTS;
     const isLoading = snapshotQuery.isPending;
     const error = snapshotQuery.error ? getErrorMessage(snapshotQuery.error) : null;
-    // Needed for the restore: which client a snapshot belongs to, and whether it is online.
+    // Which client a snapshot belongs to, and whether it is online.
     const { clients } = useClients();
 
     // A fetch in flight reads as "connecting" -- the same amber the list uses for `loading`.
@@ -54,14 +54,6 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         : repo?.status === REPOSITORY_STATUS.ONLINE
           ? STATUS_TONE.ONLINE
           : STATUS_TONE.OFFLINE;
-
-    if (!repo) {
-        return (
-            <NotFoundCard title="Repository not found" backTo="/repositories" backLabel="Back to repositories">
-                There is no repository with this ID. It may have been deleted.
-            </NotFoundCard>
-        );
-    }
 
     /**
      * What the header row has no room for, opened on request like the client page's. The
@@ -106,13 +98,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         >
                             <MenuItem
                                 icon={Edit}
-                                onClick={() => {
-                                    // `from` is how the editor knows that Cancel returns to
-                                    // this page and not to the repository list.
-                                    navigate(`/repository/${repo.id}/edit`, {
-                                        state: { from: pathname },
-                                    });
-                                }}
+                                onClick={() => open(paths.repositoryEdit(repo.id))}
                             >
                                 Edit Repository
                             </MenuItem>
@@ -152,28 +138,18 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                         />
                     </div>
 
-                    {/* Snapshots List OR Restore View */}
-                    {restoreSnapshot ? (
-                        <div className="flex-1 overflow-hidden">
-                            <SnapshotRestoreEditor
-                                snapshot={restoreSnapshot}
-                                repo={repo}
-                                clients={clients}
-                                onCancel={() => setRestoreSnapshot(null)}
-                            />
-                        </div>
-                    ) : (
-                        <RepositorySnapshotList
-                            snapshots={snapshots}
-                            showClientColumn={true}
-                            onRestore={(snapshot) => setRestoreSnapshot(snapshot)}
-                            getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
-                            getClientName={(clientId) => {
-                                const client = clients.find(c => c.id === clientId);
-                                return client ? (client.displayName || client.hostname) : null;
-                            }}
-                        />
-                    )}
+                    <RepositorySnapshotList
+                        snapshots={snapshots}
+                        showClientColumn={true}
+                        onRestore={(s) =>
+                            open(paths.repositoryRestore(repo.id, s.backupType, s.backupId, s.backupTime))
+                        }
+                        getClientStatus={(clientId) => clients.find(c => c.id === clientId)?.status || CLIENT_STATUS.OFFLINE}
+                        getClientName={(clientId) => {
+                            const client = clients.find(c => c.id === clientId);
+                            return client ? (client.displayName || client.hostname) : null;
+                        }}
+                    />
                 </>
             )}
         </div>
