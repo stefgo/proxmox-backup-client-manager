@@ -60,8 +60,8 @@ one project per workspace that has tests (`shared`, `frontend`). `npm test` runs
 - **A test lives next to its module**: `foo.ts` → `foo.test.ts`.
 - **Logic only.** Both projects run in the `node` environment; there is no DOM and
   no Testing Library. Logic that sits inside a hook or a component is moved into a
-  module of its own first — `features/clients/lib/archivePaths.ts` came out of
-  `useJobForm` that way — and tested there.
+  module of its own first — `features/clients/lib/archivePaths.ts` and `jobForm.ts` came
+  out of `useJobForm` that way — and tested there.
 - **The frontend tests read `shared` from source**, through the `development` export
   condition. They need no `npm run build -w shared` and never see a stale `dist`.
 - **`shared` builds with `tsconfig.build.json`**, which leaves `*.test.ts` out of
@@ -134,6 +134,27 @@ does not exist throws `NotFoundError` once its list is no longer pending; the ar
 
 The settings form (`pages/Settings.tsx`) is the deliberate exception: it loads once into
 a draft, so the invalidation after a reconnect cannot overwrite what is typed.
+
+### Forms
+
+An editor's state is a draft, its baseline and how the save went, and
+`hooks/useEntityForm.ts` holds all three. **No editor keeps what it saves in `useState`**;
+what it may keep there is UI state -- an open panel, a half-typed list entry, the result of a
+test -- which is not saved and so does not make the form dirty.
+
+- **The draft is checked against the schema the backend parses the request with**, from
+  `shared`. A schema an editor needs does not stay local to a controller.
+- The draft is as typed, the schema describes the request: `toInput` builds the request,
+  `fieldOf` maps an issue's path back to the field, `rules` add what only the form knows. All
+  three are pure functions in the feature's `lib/` (`jobForm.ts`, `webhookForm.ts`, ...) and
+  are tested there; the hook's own logic is `lib/entityForm.ts`.
+- **A disabled save button has a visible reason at a field** -- through the control's `error`
+  prop, or a label-less `FormField` around a list that has no control.
+- **Saving is a mutation in `queries/`**, which also invalidates what the save changed.
+- **Unsaved work is asked about once**, in `hooks/useUnsavedChangesGuard.ts`, through the
+  router's blocker -- so the sidebar and the back button ask too. An editor calls `close()`;
+  after a save that leaves the page it calls `leave()`. Do not write another "confirm, then
+  navigate".
 
 ### The contract between server and dashboard
 

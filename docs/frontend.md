@@ -31,7 +31,8 @@ src/
 ├── stores/           # Client-only state (Zustand)
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
-├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters, useBackPath)
+├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters, useBackPath,
+│                     #   useEntityForm, useUnsavedChangesGuard)
 ├── lib/              # Non-React modules
 │   ├── api.ts             # The one place a response is read: api.get(path, schema), …
 │   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
@@ -40,6 +41,7 @@ src/
 │   ├── cacheUpdates.ts    # What a socket message makes of a cache entry (pure)
 │   ├── paths.ts           # Every path, once: the patterns and their builders
 │   ├── backPath.ts        # Where "back" is, from the chain of route matches (pure)
+│   ├── entityForm.ts      # How a form's draft is compared and checked against its schema (pure)
 │   ├── notFound.ts        # NotFoundError, thrown by a route whose subject is gone
 │   └── realtimeEvents.ts  # Typed emitter for the high-frequency WS stream
 ├── index.css         # Global CSS layers (glass-card, field-label)
@@ -212,8 +214,14 @@ empty list before that says nothing about whether the thing exists.
 **Actions are mutations.** Starting and deleting a job exist once, as `useTriggerJob` and
 `useDeleteJob` in `queries/jobs.ts`; the client page and the job list both call them.
 Updating and deleting a client change the list at once and put it back if the server
-refuses. A form that saves itself (`useJobForm`, `WebhookEditor`) still calls `api`
-directly and invalidates the key it changed.
+refuses. **Saving a form is a mutation too** -- `useSaveJob`, `useSaveWebhook`,
+`useAddRepository` / `useUpdateRepository`, `useCreateTunnel` / `useUpdateTunnel` /
+`useDeleteTunnel` -- and the mutation, not the editor, invalidates or rewrites the entries
+the save changed. No editor calls `api` to save.
+
+A request made *from* a form that stores nothing is a plain function beside them, not a
+cache entry: `testWebhook`, `testTunnelCredentials`, `testStoredTunnel`, `probeCertificate`,
+`generateEncryptionKey`. Its answer is shown where it was asked and is gone with the page.
 
 **The settings form is the exception.** `pages/Settings.tsx` loads its values once into a
 draft and is deliberately not a cache entry: the invalidation after a reconnect would
@@ -409,12 +417,72 @@ the one dialog that answers; no component keeps a pending request, a busy flag o
   was not asked about first, such as running a job or the cleanups in Settings.
 
 **The texts live in a `confirmations.ts` per feature** (`clients`, `jobs`, `repositories`,
-`users`), one `describeX(...)` per action, returning the complete options including `variant`.
-The discard question every editor asks is the one cross-feature entry, in
-`components/confirmations.ts`, with each editor's own consequence. A component decides *that*
-it asks, never *what* the question says or whether it is `danger`.
+`users`, `webhooks`), one `describeX(...)` per action, returning the complete options including
+`variant`. The discard question every editor asks is the one cross-feature entry, in
+`components/confirmations.ts`, with each editor's own consequence; `useUnsavedChangesGuard`
+is the only caller. A component decides *that* it asks, never *what* the question says or
+whether it is `danger`.
 
 ### Forms and Save Actions
+
+#### One hook for every editor: `useEntityForm`
+
+An editor's state is three things, and `hooks/useEntityForm.ts` holds them: the **draft**
+(what is typed), the **baseline** (what it was when the form opened or was last saved), and
+**how the save went**. A component keeps nothing else about what it saves in `useState`.
+
+```tsx
+const form = useEntityForm({
+    schema: WebhookInputSchema,     // the schema the backend parses the request with
+    initial: () => draftFrom(webhook),
+    toInput: inputFrom,             // draft → request: text to numbers, lines to a record
+    fieldOf: webhookFieldOf,        // issue path → draft field (timeoutMs → timeoutSeconds)
+    rules: webhookRules,            // what only the form knows
+});
+
+<Input value={form.draft.url} onChange={(e) => form.set('url', e.target.value)} error={form.errors.url} />
+<Button type="submit" disabled={!form.canSave} isLoading={form.isSaving}>Save</Button>
+
+await form.submit((input) => saveWebhook({ id, input }));
+```
+
+- **The draft is checked against the backend's schema**, from `shared`, on every render. What
+  the server would refuse is said at the field before anything is sent, in the schema's own
+  words. A schema an editor needs lives in `shared`, not in the controller that parses with it
+  -- `ClientUpdateSchema`, `RepositoryInputSchema`, `TunnelCreateSchema`, `TunnelUpdateSchema`
+  moved there for this.
+- **The draft is as typed; the schema describes the request.** A timeout is text in seconds
+  in the field and milliseconds on the wire. `toInput` builds the request, `fieldOf` says
+  where an issue on the request is shown. `toInput` throws `DraftFieldError(field, message)`
+  when it cannot build one at all (a header line without a colon).
+- **`rules` are for what a schema cannot say**: a secret that is required when creating and
+  optional when editing, a schedule that needs a start, and a required field in words instead
+  of "too small". A rule wins over the schema's message for the same field.
+- **A disabled save button has a reason on screen.** `canSave` is "changed, valid, not being
+  saved". `errors` is empty until the form is dirty -- an untouched form has a disabled button
+  because there is nothing to save -- and from the first change every field that is wrong says
+  so. What belongs to no field is `formError`, shown in the footer beside `saveError`.
+- **`saved` holds only while the draft equals the baseline**, so no `onChange` has to reset
+  it. `submit` makes the stored draft the new baseline; `rebase` is for a draft that differs
+  once stored (the repository's secret field goes back to empty).
+- **`significant`** narrows what counts as a change when part of the draft is sent nowhere:
+  an address under an unticked box, a key mode switched without a key.
+
+Everything the hook computes is a pure function in `lib/entityForm.ts`, and each form's
+`toInput`, `rules` and `fieldOf` are pure functions in its feature's `lib/` (`clientForm.ts`,
+`tunnelForm.ts`, `jobForm.ts`, `repositoryForm.ts`, `webhookForm.ts`) -- that is where they
+are tested, since the tests run without a DOM.
+
+**UI state is not the draft.** An open file browser, a half-typed archive, the result of a
+connection test, a "copied" tick: none of it is saved, so none of it makes the form dirty,
+and it stays in the component that shows it. The job editor's archive and exclusion panels
+hold their own entry until it is confirmed; only then does it enter the draft.
+
+A field is one of the library's controls with its `error` prop. Where there is no control to
+hang the message on -- the job's archive list, its repository card -- the list is wrapped in
+a `FormField` without a label, which renders the message and wires `aria-describedby`.
+
+`pages/Settings.tsx` and the add-client wizard are not on the hook.
 
 **One screen, one save, one resource.** A screen that writes to a second API resource has
 stopped being a form and has to be re-cut — it must not grow a second save button inside the
@@ -444,11 +512,12 @@ Three rules follow from the same reasoning:
   and user from the request. That split is what lets the card test edited values without the
   write-only key ever leaving the backend; it is not a licence to send one endpoint's body to
   the other.
-- **The way out belongs to the container, not to its first child.** `ClientEditor`'s exit
-  used to hang off `ClientIdentityCard` because that card happened to be first. With a second
-  card below it, working the page top to bottom ended with no way out in reach. Closing is a
-  property of the editor, so the editor renders it — see the action bar below. `ClientTunnelEditor`
-  does the same, for a card that is even longer.
+- **The way out belongs to whoever holds the form.** `ClientEditor`'s exit used to hang off
+  `ClientIdentityCard` because that card happened to be first. With a second card below it,
+  working the page top to bottom ended with no way out in reach. Closing asks about the form,
+  so it sits with `useEntityForm` and `useUnsavedChangesGuard` -- in `ClientEditor` for the
+  identity card, in `ClientTunnelCard` itself, whose form only exists once the stored
+  configuration has arrived.
 - **A new mode is a review of its siblings.** Adding a variant such as `SshKeyMode`'s `keep`
   changes what the *neighbouring* components receive — `keep` leaves `privateKey` empty, which
   is why `SshHostSetupSnippet` renders a command with a hole in it. When a mode is added, walk
@@ -473,9 +542,10 @@ A page at `/clients/:clientId/edit`, and a container rather than a form: it sele
 client from the cache by id (`useClient`) and renders the card for the one resource it owns.
 
 - **`ClientIdentityCard`** — header (`StatusDot`, id, last seen), connection mode `Badge`,
-  agent version, display name, target address, `Save Client`. The address is
-  validated in the field against `normaliseTargetAddress` from `@pbcm/shared`, the same
-  function the backend uses, so a rejected address never has to make the round trip.
+  agent version, display name, target address, `Save Client`. The form is held by
+  `ClientEditor` and checked against `ClientUpdateSchema` from `@pbcm/shared`, the schema
+  `PUT /clients/:id` parses with -- it normalises the target address through
+  `normaliseTargetAddress`, so a rejected address never has to make the round trip.
 
 The SSH tunnel is **not** in this editor. It is a different resource on different endpoints,
 and it is not part of what a client *is* but of how a PBS is reached from it — a question that
@@ -488,8 +558,11 @@ Opened from the client list's row action — **Add Tunnel**, or **Edit  Tunnel**
 route to the PBS and is optional on both sides of the WebSocket. Setting one up and changing
 one are one action, not two: the same form on the same endpoints.
 
-`ClientTunnelEditor` is the frame (client name, the close control, Escape, the discard
-dialog); `ClientTunnelCard` is the work. The card holds the SSH
+`ClientTunnelEditor` supplies the live client; `ClientTunnelCard` is the work, the close
+control included. It is two components: a shell that waits for `GET /tunnel` and shows the
+loading and error states, and the form, mounted with the first answer and keyed by the
+client -- so a later answer (the cache is read again after a reconnect) never overwrites
+what is being typed. The card holds the SSH
 credentials and nothing else — stored means *available*, and which runs take the tunnel is set
 per job in `JobTunnelSettings` and per restore in `SnapshotRestoreEditor`. Two states in one
 card, keyed on what `GET /tunnel` answers: a `404` is not an error but "no credentials yet",
@@ -504,30 +577,42 @@ dot's four tones; it appears only once there is a tunnel to report on. Forwards 
 values, `Save Tunnel` writes them, and a fingerprint mismatch surfaces a **Trust this host
 key** block (see `docs/tunnel.md`).
 
-Leaving the editor refetches the clients: `tunnelConfigured` is what the row's action label
-and its tunnel badge read, and it has just changed.
+Creating and removing a tunnel read the clients again (`useCreateTunnel`, `useDeleteTunnel`):
+`tunnelConfigured` is what the row's action label and its tunnel badge read, and it has just
+changed. A port that is not a number is refused at the field; it is not sent as 22.
 
-#### Leaving an editor (both editors)
+#### Leaving an editor (every editor)
 
-The exit is an `ActionButton` with an `X`, and the page hands it to the card through the
-card's `action` prop so it lands in the **card header** — the same place `AddClientWizard`
-and `ClientOverview` already put theirs. This replaced a `sticky bottom-0` bar that both
-editors carried in duplicate; the header is the one part of a card that stays in reach at
-every scroll position without floating over the content. `ClientTunnelCard` renders the
-action in *all* of its states, the load error and the loading placeholder included — an
-exit that disappears when a request hangs is an exit that is missing when it is needed.
+The exit is an `ActionButton` with an `X` in the **card header** — the same place
+`AddClientWizard` and `ClientOverview` put theirs. This replaced a `sticky bottom-0` bar; the
+header is the one part of a card that stays in reach at every scroll position without
+floating over the content. `ClientTunnelCard` renders it in *all* of its states, the load
+error and the loading placeholder included — an exit that disappears when a request hangs is
+an exit that is missing when it is needed.
 
-<kbd>Esc</kbd> does exactly what the button does, guarded by `e.defaultPrevented` so a
-select, an autocomplete or an open confirmation keeps Escape for itself.
+**Unsaved work is asked about in one place**, `hooks/useUnsavedChangesGuard.ts`, through the
+router's `useBlocker`. Every way out is a navigation, so every way out asks the same question
+once: the X, <kbd>Esc</kbd>, an entry in the sidebar, the browser's back button. Before, each
+editor carried its own copy of "ask, then navigate" behind the X and Escape, and the sidebar
+and the back button discarded without a word.
 
-Each card reports its dirty state upwards through `onDirtyChange`. Clean, the click
-navigates straight away; dirty, `describeDiscardChanges` asks first through `useConfirm()` —
-the same way the tunnel's **Remove** asks. It replaced a passive warning line, which stopped being enough
-once the exit moved into the header: it now sits a few pixels from the fields it would
-throw away, and a warning the operator has scrolled past protects nothing at that distance.
+```tsx
+const { close, leave } = useUnsavedChangesGuard(form.isDirty, 'repository');
+```
 
-Saving does not leave either editor. The caller passes a client that may be a stale
-snapshot, which is why the live one is read from the cache instead.
+- `close()` navigates to the parent in the route tree (`useBackPath`). While the form is
+  dirty the blocker stops it and `describeDiscardChanges` asks through `useConfirm()`.
+- `leave()` does the same without the question. It is for the navigation that follows a save:
+  the form is only clean on the next render, and the blocker would still see the one before.
+- <kbd>Esc</kbd> does what the X does, guarded by `e.defaultPrevented` so a select, an
+  autocomplete or an open confirmation keeps Escape for itself. `onEscape` lets a page use
+  the key up first — the job editor closes an open panel back into the form.
+- A reload or a closed tab is not a navigation the router sees; while the form is dirty the
+  browser's own `beforeunload` prompt covers it.
+
+A new job, repository or webhook leaves once it is saved — a form that has produced its
+entity would only produce a second one. Editing a client, a tunnel, a repository or a job
+stays and says so in the footer; the webhook editor leaves after every save.
 
 `StatusDot` (`components/StatusDot.tsx`) takes a **tone** and a **label** separately,
 because the domains name the same state differently — a client is `online`, a tunnel is `up`.
@@ -594,7 +679,22 @@ The detail view of a client. It consists of multiple tabs/sections:
 ### Job Editor (`ClientJobEditor.tsx` + `job-editor/`)
 
 One section per aspect of a job, all reading from `JobFormContext` rather than props:
-repository, archives, exclusions, encryption, tunnel, schedule.
+repository, archives, exclusions, encryption, tunnel, schedule. The context is small: the
+form (`useEntityForm` over a `JobDraft`), the client id, the agent's time zone, and whether a
+tunnel is available.
+
+- **The draft is one object**, built by `emptyJobDraft(now)` or `jobDraftFrom(job, now)` in
+  `features/clients/lib/jobForm.ts` and turned into the request by `jobInputFrom`. It is
+  checked against `BackupJobSchema`; `jobRules` adds what the schema leaves open, since the
+  backend parses a job with every key optional: a name, at least one archive, a repository,
+  a start for an enabled schedule, a key for enabled encryption.
+- **Which panel is open is the page's state** (`JobEditorView` in `JobEditorPage`): the form,
+  the client list, the repository list, the archive editor or the exclusion editor. It sits
+  there because the page decides what <kbd>Esc</kbd> closes -- an open panel first, the page
+  after.
+- **A panel's own entry is its own state.** `JobArchiveEditor` and `JobExcludeEditor` keep the
+  path, the name or the pattern and the directory the browser stands in, list that directory
+  themselves (`useClientFiles`), and write into the draft only on confirm.
 
 - **`JobExcludeList` / `JobExcludeEditor`** — the job's `--exclude` patterns. The CLI reads a
   pattern relative to each archive's root, so a directory picked in the file browser is
@@ -610,7 +710,7 @@ repository, archives, exclusions, encryption, tunnel, schedule.
   not offered rather than rejected by the backend afterwards. A job already set to use the
   tunnel keeps the switch usable even without a client row in the cache, or the setting could
   be seen but never turned off.
-- `useJobForm` always sends `tunnel`, including as `false`: omitting it on an update would
+- `jobInputFrom` always sends `tunnel`, including as `false`: omitting it on an update would
   leave the stored route standing, and switching the tunnel off would silently not take.
 
 ### Restore Flow
