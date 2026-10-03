@@ -7,6 +7,7 @@ import { Badge, Card } from '@stefgo/react-ui-components';
 import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
+import { runSummary } from '../lib/runSummary';
 
 // The status maps to a role, not to a colour -- Badge owns what each role
 // looks like, in both themes. "neutral" covers idle, queued, skipped and
@@ -132,6 +133,8 @@ export const BaseHistoryList = ({
                 const isExpanded = expandedIds.has(item.id);
                 // The kind a webhook filter and `{{event.kind}}` know this run by, once it has ended.
                 const eventKind = jobRunEventKind(item.status);
+                const { duration, size } = runSummary(item);
+                const facts = [duration, size].filter((fact) => fact !== null);
                 return (
                     <div className="w-full">
                         <div className="group">
@@ -163,20 +166,26 @@ export const BaseHistoryList = ({
                                     </Badge>
                                 </div>
                             </div>
-                            <div className="flex justify-between text-xs text-text-muted font-mono mt-0.5 pl-6">
+                            <div className="flex justify-between gap-3 text-xs text-text-muted mt-0.5 pl-6">
                                 <span className="flex items-center gap-2 min-w-0">
-                                    {item.id}
                                     {eventKind && (
-                                        <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded font-sans">
+                                        <span className="inline-flex items-center gap-1 text-[11px] bg-hover px-1.5 py-0.5 rounded">
                                             <Tag size={10} /> {eventKind}
                                         </span>
                                     )}
+                                    {/* What the run came to, where the eye already is. */}
+                                    {facts.length > 0 && <span>{facts.join(' · ')}</span>}
                                 </span>
-                                <span>{formatDate(item.startTime)}</span>
+                                <span className="font-mono shrink-0">{formatDate(item.startTime)}</span>
                             </div>
                         </div>
                         {isExpanded && (
                             <div onClick={(e) => e.stopPropagation()}>
+                                {/* The id is what a log line or a webhook names the run by:
+                                    looked up, not scanned, so it waits here. */}
+                                <div className="mt-2 text-xs text-text-muted font-mono pl-4 ml-6 cursor-text break-all">
+                                    Run {item.id}
+                                </div>
                                 {renderOutput(runOutput(item, liveLogs[item.id]))}
                             </div>
                         )}
