@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { JOB_STATUS } from '@pbcm/shared';
+import { GlobalHistorySchema, JOB_STATUS } from '@pbcm/shared';
 import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { useResyncKey } from '../../app/context/WebSocketContext';
 import { BaseHistoryList, BaseHistoryItem } from './BaseHistoryList';
-import { apiFetch } from '../../../lib/apiFetch';
+import { api, ApiError } from '../../../lib/api';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE } from '../../../components/listDefaults';
@@ -37,18 +37,10 @@ export const HistoryOverview = () => {
         const fetchHistory = async () => {
             if (!isAuthenticated) return;
             try {
-                const response = await apiFetch('/api/v1/history?limit=1000', {
-                    headers: {
-                    },
-                });
-                const result = await response.json();
-                if (result.success) {
-                    setHistory(result.data);
-                } else {
-                    setError('Failed to fetch history');
-                }
-            } catch {
-                setError('An error occurred while fetching history');
+                setHistory(await api.get('/api/v1/history?limit=1000', GlobalHistorySchema));
+            } catch (e) {
+                // A refusal is the server's answer; anything else never got one.
+                setError(e instanceof ApiError ? 'Failed to fetch history' : 'An error occurred while fetching history');
             } finally {
                 setLoading(false);
             }

@@ -14,7 +14,8 @@ import {
     WEBHOOK_METHODS,
 } from "./constants.js";
 import {
-    ClientSchema,
+    ClientViewSchema,
+    TunnelStateSchema,
     BackupJobSchema,
     JobSchema,
     RestoreJobSchema,
@@ -53,7 +54,6 @@ import {
     SyncHistoryPayloadSchema,
     HistoryAckSchema,
     GlobalHistoryEntrySchema,
-    GlobalHistoryResponseSchema,
     JobNextRunUpdatePayloadSchema,
     TunnelModeSchema,
     TunnelConfigSchema,
@@ -103,26 +103,8 @@ export type Repository = z.infer<typeof RepositorySchema>;
  */
 export type RepositoryInput = Partial<Repository>;
 
-/**
- * A repository as `GET /repositories` returns it: without the secret, which is written
- * but never read back (see RepositoryController.list).
- */
-export interface ManagedRepository extends Omit<Repository, "secret"> {
-    id: string | number;
-    status: RepositoryStatus;
-    /** Last fingerprint a client reported for this repository. Informational only. */
-    observed?: {
-        fingerprint: string;
-        caValid: boolean;
-        clientId: string;
-        at: string;
-    };
-}
-
-export type Client = z.infer<typeof ClientSchema> & {
-    /** Runtime tunnel state, present when SSH credentials are stored. Never persisted. */
-    tunnel?: TunnelState;
-};
+/** A client as the server sends it; see `ClientViewSchema` for why that is not `ClientSchema`. */
+export type Client = z.infer<typeof ClientViewSchema>;
 
 export type Token = z.infer<typeof TokenSchema>;
 export type CreatedToken = z.infer<typeof CreatedTokenSchema>;
@@ -177,7 +159,6 @@ export type HistoryResponse = z.infer<typeof HistoryResponseSchema>;
 export type SyncHistoryPayload = z.infer<typeof SyncHistoryPayloadSchema>;
 export type HistoryAck = z.infer<typeof HistoryAckSchema>;
 export type GlobalHistoryEntry = z.infer<typeof GlobalHistoryEntrySchema>;
-export type GlobalHistoryResponse = z.infer<typeof GlobalHistoryResponseSchema>;
 export type HistorySeen = z.infer<typeof HistorySeenSchema>;
 export type JobNextRunUpdatePayload = z.infer<
     typeof JobNextRunUpdatePayloadSchema
@@ -193,14 +174,7 @@ export type FingerprintObserved = z.infer<typeof FingerprintObservedSchema>;
 export type TunnelRelease = z.infer<typeof TunnelReleaseSchema>;
 
 /** Tunnel runtime state as broadcast to the dashboard (never persisted). */
-export interface TunnelState {
-    clientId: string;
-    status: TunnelStatus;
-    activeLeases: number;
-    forwards: { target: string; port: number }[];
-    lastUsedAt?: string | null;
-    lastError?: string | null;
-}
+export type TunnelState = z.infer<typeof TunnelStateSchema>;
 
 // The `any` default is read by every dispatch site that switches on `type` and then
 // reaches into `payload`; with `unknown` each of those needs a cast, which is the same
@@ -222,18 +196,6 @@ export type WebhookInput = z.input<typeof WebhookInputSchema>;
 /** A webhook's configuration once `WebhookInputSchema` has checked it and filled in the defaults. */
 export type WebhookFields = z.infer<typeof WebhookInputSchema>;
 export type Webhook = z.infer<typeof WebhookSchema>;
-
-/** One test delivery: what was sent, and what came back. */
-export interface WebhookTestResult {
-    ok: boolean;
-    /** The target's HTTP status; null when nothing answered. */
-    status: number | null;
-    error: string | null;
-    /** The body as rendered and sent. */
-    body: unknown;
-    /** The start of what the target answered. */
-    response: string | null;
-}
 
 export interface ProtocolMap {
     AUTH: {

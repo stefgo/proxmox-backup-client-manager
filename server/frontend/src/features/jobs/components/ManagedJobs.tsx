@@ -12,7 +12,7 @@ import { GlobalJob, jobIdOf } from '../../../stores/useGlobalJobsStore';
 import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
 import { getErrorMessage } from '../../../utils';
 import { describeDeleteJob } from '../confirmations';
-import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { api } from '../../../lib/api';
 import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 
 export const ManagedJobs = () => {
@@ -74,13 +74,9 @@ export const ManagedJobs = () => {
         // Before the request: a run that is skipped at once can report before it returns.
         markJobRunAsked(clientId, jobId);
         try {
-            const res = await apiFetch(
-                `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
-                {
-                    method: 'POST',
-                },
-            );
-            await throwIfNotOk(res, 'Failed to trigger job');
+            await api.post(`/api/v1/clients/${clientId}/jobs/${jobId}/run`, undefined, undefined, {
+                fallback: 'Failed to trigger job',
+            });
             show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
             forgetJobRunAsked(clientId, jobId);
@@ -103,10 +99,9 @@ export const ManagedJobs = () => {
         confirm({
             ...describeDeleteJob(job.name, getClientName(job.clientId)),
             onConfirm: async () => {
-                const res = await apiFetch(`/api/v1/clients/${job.clientId}/jobs/${job.id}`, {
-                    method: 'DELETE',
+                await api.delete(`/api/v1/clients/${job.clientId}/jobs/${job.id}`, {
+                    fallback: 'Failed to delete job',
                 });
-                await throwIfNotOk(res, 'Failed to delete job');
                 handleRefresh();
             },
         });

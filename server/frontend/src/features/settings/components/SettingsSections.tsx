@@ -1,14 +1,15 @@
-import { apiFetch } from '../../../lib/apiFetch';
+import { CleanupResultSchema } from '@pbcm/shared';
+import { api } from '../../../lib/api';
 import type { SectionProps } from '../sections';
 import { ManualRun, NumberField, SectionHeader } from './SettingsParts';
 import { SchedulerBox } from './SchedulerBox';
 
 /** Starts a cleanup and returns what the button shows afterwards; throws when the server refuses. */
 async function runCleanup(url: string): Promise<string> {
-    const response = await apiFetch(url, { method: 'POST' });
-    if (!response.ok) throw new Error('The server refused to start the cleanup');
-    const data = (await response.json()) as { removed?: number };
-    return typeof data.removed === 'number' ? `Removed ${data.removed}` : 'Done';
+    const { removed } = await api.post(url, undefined, CleanupResultSchema, {
+        fallback: 'The server refused to start the cleanup',
+    });
+    return `Removed ${removed}`;
 }
 
 const INTERVAL_HINT = 'Hours between two automatic runs. Set to 0 to disable the timer; Run Now still works.';

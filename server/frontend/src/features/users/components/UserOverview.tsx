@@ -4,7 +4,8 @@ import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteUser, describeLastUser } from '../confirmations';
-import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { UserListSchema } from '@pbcm/shared';
+import { api } from '../../../lib/api';
 import { getErrorMessage } from '../../../utils';
 
 export const UserOverview = () => {
@@ -24,9 +25,7 @@ export const UserOverview = () => {
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await apiFetch('/api/v1/users');
-                await throwIfNotOk(res, 'Failed to load users');
-                setUsers(await res.json());
+                setUsers(await api.get('/api/v1/users', UserListSchema, { fallback: 'Failed to load users' }));
             } catch (e) {
                 console.error(e);
                 show({ variant: 'error', title: 'Could not load the users', description: getErrorMessage(e) });
@@ -69,32 +68,16 @@ export const UserOverview = () => {
         confirm({
             ...describeDeleteUser(user.username),
             onConfirm: async () => {
-                const res = await apiFetch(`/api/v1/users/${user.id}`, { method: 'DELETE' });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.error || 'Failed to delete user');
-                }
+                await api.delete(`/api/v1/users/${user.id}`, { fallback: 'Failed to delete user' });
                 fetchUsers();
             },
         });
     };
 
     const handleSaveUser = async (data: { username: string; password?: string; auth_methods?: string }) => {
-        const url = editingUser ? `/api/v1/users/${editingUser.id}` : '/api/v1/users';
-        const method = editingUser ? 'PUT' : 'POST';
-
-        const res = await apiFetch(url, {
-            method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || 'Failed to save user');
-        }
+        const options = { fallback: 'Failed to save user' };
+        if (editingUser) await api.put(`/api/v1/users/${editingUser.id}`, data, undefined, options);
+        else await api.post('/api/v1/users', data, undefined, options);
 
         fetchUsers();
     };

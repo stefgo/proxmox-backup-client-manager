@@ -7,6 +7,8 @@ import {
     WsMessage,
     ProtocolMap,
     BackupJob,
+    Client,
+    DashboardMessage,
     WS_REQUEST_TIMEOUT_MS,
     WS_REQUEST_TIMEOUT_DEFAULT_MS,
 } from "@pbcm/shared";
@@ -263,14 +265,14 @@ export class ProxyService {
         return this.connectedClients.get(clientId);
     }
 
-    static getClientsWithStatus() {
+    static getClientsWithStatus(): Client[] {
         const clients = ClientRepository.findAll();
         // Read once for the whole list rather than per client: this runs on every
         // dashboard broadcast.
         const configured = new Set(ClientTunnelRepository.findAllClientIds());
         return clients.map((client) => ({
             id: client.id,
-            hostname: client.hostname,
+            hostname: client.hostname ?? "",
             displayName: client.display_name,
             status: this.connectedClients.has(client.id)
                 ? CLIENT_STATUS.ONLINE
@@ -351,23 +353,23 @@ export class ProxyService {
      */
     static broadcastClientUpdate() {
         try {
-            // Serialised once. This used to stringify, parse the result straight back,
-            // and hand the object to broadcastToDashboard — which stringified it again:
-            // three passes over the full client list on every connect and disconnect.
-            this.broadcastToDashboard(
-                JSON.stringify({
-                    type: "CLIENTS_UPDATE",
-                    payload: this.getClientsWithStatus(),
-                }),
-            );
+            this.broadcastToDashboard({
+                type: "CLIENTS_UPDATE",
+                payload: this.getClientsWithStatus(),
+            });
         } catch (e) {
             logger.error({ err: e }, "Broadcast error");
         }
     }
 
-    static broadcastToDashboard(message: unknown) {
-        const msgStr =
-            typeof message === "string" ? message : JSON.stringify(message);
+    /**
+     * Sends one message to every dashboard. The parameter type is the contract: a shape
+     * that is not a member of `DashboardMessage` does not compile, and the dashboard
+     * parses against the same union (see shared/src/dashboardMessages.ts).
+     */
+    static broadcastToDashboard(message: DashboardMessage) {
+        // Serialised once, for all recipients.
+        const msgStr = JSON.stringify(message);
         // Multicast message to all connected dashboard sessions
         for (const client of this.dashboardClients.keys()) {
             if (client.readyState === client.OPEN) {

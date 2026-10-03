@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Webhook } from '@pbcm/shared';
+import { WebhookListSchema, type Webhook } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
+import { api } from '../lib/api';
 
 /**
  * The webhooks the server reports runs and client connections to, with their last delivery.
@@ -29,9 +29,9 @@ export const useWebhookStore = create<WebhookStoreState>((set) => ({
     fetchWebhooks: async () => {
         const fetchId = ++latestFetch;
         try {
-            const res = await apiFetch('/api/v1/webhooks');
-            if (!res.ok) throw new Error('Failed to fetch webhooks');
-            const webhooks = (await res.json()) as Webhook[];
+            const webhooks = await api.get('/api/v1/webhooks', WebhookListSchema, {
+                fallback: 'Failed to fetch webhooks',
+            });
             if (fetchId === latestFetch) set({ webhooks, error: null });
         } catch (e: unknown) {
             if (fetchId === latestFetch) set({ error: getErrorMessage(e) });

@@ -7,7 +7,7 @@ interface UserDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: { username: string; password?: string; auth_methods?: string }) => Promise<void>;
-    editingUser: { id: number; username: string; auth_methods?: string } | null;
+    editingUser: { id: number; username: string; auth_methods?: string | null } | null;
 }
 
 export const UserDialog = ({ isOpen, onClose, onSave, editingUser }: UserDialogProps) => {

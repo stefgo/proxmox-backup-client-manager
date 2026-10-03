@@ -4,6 +4,10 @@ import {
     CONNECTION_MODE,
     DEFAULT_AGENT_PORT,
     JOB_PHASE,
+    SCHEDULER_IDS,
+    SCHEDULER_RUN_STATUSES,
+    SCHEDULER_TRIGGERS,
+    TUNNEL_STATUS,
     WEBHOOK_LEVELS,
     WEBHOOK_METHODS,
 } from "./constants.js";
@@ -375,7 +379,8 @@ export const TokenSchema = z.object({
     tokenHash: z.string(),
     createdAt: z.string(),
     expiresAt: z.string(),
-    usedAt: z.string().optional(),
+    /** Null for a token nobody has redeemed yet. */
+    usedAt: z.string().nullish(),
     /** Applied to the client this token registers. */
     displayName: z.string().optional(),
     /** Where the token may be redeemed from, and what the client is pinned to afterwards. */
@@ -651,12 +656,6 @@ export const GlobalHistoryEntrySchema = z.object({
     hostname: z.string().nullable(),
     displayName: z.string().nullable(),
     ...runSnapshotFields,
-});
-
-export const GlobalHistoryResponseSchema = z.object({
-    success: z.boolean(),
-    count: z.number().optional(),
-    data: z.array(GlobalHistoryEntrySchema),
 });
 
 export const SyncHistoryPayloadSchema = z.object({
@@ -1079,4 +1078,103 @@ export const WebhookSchema = WebhookInputSchema.extend({
     lastAttemptAt: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string().nullable(),
+});
+
+// ── What the server sends a browser ──────────────────────────────────────────
+//
+// The schemas above this line guard what comes *in*: a request body, an agent's message.
+// The ones below describe what goes *out* to the dashboard, and they are looser on purpose.
+// A response is checked for its shape, not for the rules an operator's input has to meet --
+// a job stored by an older agent may carry an archive name today's editor would refuse, and
+// rejecting it here would take the whole list off the screen with it.
+
+/** Tunnel runtime state as broadcast to the dashboard (never persisted). */
+export const TunnelStateSchema = z.object({
+    clientId: z.string(),
+    status: z.enum(TUNNEL_STATUS),
+    activeLeases: z.number(),
+    forwards: z.array(z.object({ target: z.string(), port: z.number() })),
+    lastUsedAt: z.string().nullish(),
+    lastError: z.string().nullish(),
+});
+
+/**
+ * A client as `GET /api/v1/clients` and `CLIENTS_UPDATE` carry it. Not `ClientSchema`:
+ * that one is what `PUT /clients/:id` accepts, while this is a row read out of SQLite --
+ * every column that is nullable there arrives as `null`, not as a missing key.
+ */
+export const ClientViewSchema = ClientSchema.extend({
+    id: z.string(),
+    /** Empty for a row without one; the column is nullable, a registered client never is. */
+    hostname: z.string(),
+    displayName: z.string().nullish(),
+    /** Null until the agent has connected once. */
+    lastSeen: z.string().nullable(),
+    version: z.string().nullish(),
+    outboundTargetAddress: z.string().nullish(),
+    inboundAllowedIp: z.string().nullish(),
+    ipAddress: z.string().nullish(),
+    /** Runtime tunnel state, present when SSH credentials are stored. Never persisted. */
+    tunnel: TunnelStateSchema.optional(),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().nullish(),
+});
+
+/**
+ * A backup job as a browser receives it -- `GET /jobs`, `GET /clients/:id/jobs` and
+ * `JOBS_UPDATE`. The shape of `BackupJobSchema` without its input rules, see above.
+ */
+export const BackupJobViewSchema = z.object({
+    id: z.string().nullable(),
+    name: z.string(),
+    schedule: z
+        .object({
+            interval: z.number(),
+            unit: z.enum(["seconds", "minutes", "hours", "days", "weeks"]),
+            weekdays: z.array(z.string()).default([]),
+        })
+        .nullable(),
+    scheduleEnabled: z.coerce.boolean(),
+    createdAt: z.string().optional(),
+    nextRunAt: z.string().optional(),
+    lastRunAt: z.string().optional(),
+    archives: z.array(z.object({ path: z.string(), name: z.string() })),
+    excludes: z.array(z.string()).default([]),
+    repository: z.object({
+        repositoryId: z.string().optional(),
+        baseUrl: z.string(),
+        datastore: z.string(),
+        fingerprint: z.string().optional(),
+        username: z.string(),
+        tokenname: z.string().optional(),
+        /** Always empty: a job reaches a browser without its secret (see JobSecrets). */
+        secret: z.string(),
+    }),
+    encryption: EncryptionConfigSchema.optional(),
+    tunnel: TunnelModeSchema.optional(),
+});
+
+/** What every scheduler reports as the result of a run. */
+const SchedulerRunResultSchema = z.object({ removed: z.number() });
+
+/** One scheduler's state; `SchedulerStatus` in types.ts is the same shape, per scheduler. */
+export const SchedulerStatusSchema = z.object({
+    isRunning: z.boolean(),
+    nextRun: z.string().nullable(),
+    lastRun: z
+        .object({
+            trigger: z.enum(SCHEDULER_TRIGGERS),
+            status: z.enum(SCHEDULER_RUN_STATUSES),
+            startedAt: z.string(),
+            finishedAt: z.string().nullable(),
+            result: SchedulerRunResultSchema.nullable(),
+            error: z.string().nullable(),
+        })
+        .nullable(),
+});
+
+/** The payload of `SCHEDULER_STATUS_UPDATE`: one scheduler, whenever a run starts or ends. */
+export const SchedulerStatusUpdateSchema = z.object({
+    scheduler: z.enum(SCHEDULER_IDS),
+    status: SchedulerStatusSchema,
 });

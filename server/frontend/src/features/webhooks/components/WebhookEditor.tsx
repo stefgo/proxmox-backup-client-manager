@@ -4,6 +4,7 @@ import { Send, Webhook as WebhookIcon, X } from 'lucide-react';
 import {
     WEBHOOK_LEVELS,
     WEBHOOK_METHODS,
+    WebhookTestResultSchema,
     type Webhook,
     type WebhookTestResult,
 } from '@pbcm/shared';
@@ -19,26 +20,12 @@ import {
     Textarea,
     useConfirm,
 } from '@stefgo/react-ui-components';
-import { apiFetch } from '../../../lib/apiFetch';
+import { api } from '../../../lib/api';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { NotFoundCard } from '../../../components/NotFoundCard';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { describeDiscardWebhookChanges } from '../confirmations';
 import { EMPTY_DRAFT, PLACEHOLDERS, draftFrom, inputFrom, previewBody, type WebhookDraft } from '../lib/webhookForm';
-
-/** Sends a request and throws with the server's reason when it refuses. */
-async function send(url: string, method: string, body: unknown): Promise<Response> {
-    const response = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `The server answered ${response.status}`);
-    }
-    return response;
-}
 
 /**
  * `/webhooks/new` and `/webhooks/:webhookId`. The webhook is read from the list -- there is no
@@ -121,8 +108,8 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
         setError(null);
         try {
             const input = inputFrom(draft);
-            if (webhook) await send(`/api/v1/webhooks/${webhook.id}`, 'PUT', input);
-            else await send('/api/v1/webhooks', 'POST', input);
+            if (webhook) await api.put(`/api/v1/webhooks/${webhook.id}`, input);
+            else await api.post('/api/v1/webhooks', input);
             navigate(back);
         } catch (err: unknown) {
             setError(getErrorMessage(err));
@@ -135,8 +122,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
         setError(null);
         setTestResult(null);
         try {
-            const response = await send('/api/v1/webhooks/test', 'POST', inputFrom(draft));
-            setTestResult((await response.json()) as WebhookTestResult);
+            setTestResult(await api.post('/api/v1/webhooks/test', inputFrom(draft), WebhookTestResultSchema));
         } catch (err: unknown) {
             setError(getErrorMessage(err));
         } finally {

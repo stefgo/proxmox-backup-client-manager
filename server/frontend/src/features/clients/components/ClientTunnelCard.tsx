@@ -1,12 +1,19 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { TunnelState, TunnelStatus, TUNNEL_STATUS } from '@pbcm/shared';
+import {
+    TUNNEL_STATUS,
+    TunnelInfoSchema,
+    TunnelTestResultSchema,
+    type TunnelInfo,
+    type TunnelState,
+    type TunnelStatus,
+} from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
-import { apiFetch } from '../../../lib/apiFetch';
+import { api, ApiError } from '../../../lib/api';
 import { formatDate } from '../../../utils';
 import { describeRemoveTunnel } from '../confirmations';
 
@@ -29,22 +36,6 @@ interface ClientTunnelCardProps {
      * placeholder included, so a stuck request never traps the operator on the page.
      */
     action?: ReactNode;
-}
-
-/** Stored tunnel configuration. The private key is write-only and never part of this. */
-interface TunnelInfo {
-    sshHost: string;
-    sshPort: number;
-    sshUser: string;
-    hostKeySha256: string;
-    remoteBindHost: string;
-}
-
-interface TestResult {
-    ok: boolean;
-    hostKeySha256?: string;
-    boundPort?: number;
-    error?: string;
 }
 
 /**
@@ -110,22 +101,22 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`);
-                // Not an error: a client without a tunnel is an ordinary state now, and
-                // the card offers to set one up instead of reporting a failure.
-                if (res.status === 404) {
-                    setInfo(null);
-                    setKeyMode('generate');
-                    return;
-                }
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || `Could not load the tunnel configuration (HTTP ${res.status})`);
+                const data = await api.get(`/api/v1/clients/${clientId}/tunnel`, TunnelInfoSchema, {
+                    fallback: 'Could not load the tunnel configuration',
+                });
                 setInfo(data);
                 setSshHost(data.sshHost);
                 setSshPort(String(data.sshPort));
                 setSshUser(data.sshUser);
                 setKeyMode('keep');
             } catch (e) {
+                // Not an error: a client without a tunnel is an ordinary state now, and
+                // the card offers to set one up instead of reporting a failure.
+                if (e instanceof ApiError && e.status === 404) {
+                    setInfo(null);
+                    setKeyMode('generate');
+                    return;
+                }
                 setLoadError(e instanceof Error ? e.message : String(e));
             } finally {
                 setLoadedKey(loadKey);
@@ -178,29 +169,24 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         resetFeedback();
         try {
             const usesNewKey = keyMode !== 'keep' && !!privateKey.trim();
-            const res = usesNewKey
-                ? await apiFetch('/api/v1/tunnel/test', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
+            const data = usesNewKey
+                ? await api.post(
+                      '/api/v1/tunnel/test',
+                      {
                           sshHost,
                           sshPort: Number(sshPort) || 22,
                           sshUser,
                           privateKey: privateKey.trim(),
                           passphrase: passphrase || undefined,
                           expectedHostKeySha256: info?.hostKeySha256,
-                      }),
-                  })
-                : await apiFetch(`/api/v1/clients/${clientId}/tunnel/test`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                          sshHost,
-                          sshPort: Number(sshPort) || 22,
-                          sshUser,
-                      }),
-                  });
-            const data: TestResult = await res.json();
+                      },
+                      TunnelTestResultSchema,
+                  )
+                : await api.post(
+                      `/api/v1/clients/${clientId}/tunnel/test`,
+                      { sshHost, sshPort: Number(sshPort) || 22, sshUser },
+                      TunnelTestResultSchema,
+                  );
             if (data.ok) {
                 setMessage(
                     `Connection succeeded${data.boundPort ? ` (test port ${data.boundPort})` : ''}`,
@@ -220,15 +206,10 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         }
     };
 
-    const saveTunnel = async (body: Record<string, unknown>) => {
-        const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+    const saveTunnel = (body: Record<string, unknown>) =>
+        api.put(`/api/v1/clients/${clientId}/tunnel`, body, undefined, {
+            fallback: 'Failed to save the tunnel configuration',
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to save the tunnel configuration');
-    };
 
     /**
      * Sets up a tunnel for a client that has none — test and create in one action, the
@@ -240,36 +221,35 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         setBusy(true);
         resetFeedback();
         try {
-            const testRes = await apiFetch('/api/v1/tunnel/test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const test = await api.post(
+                '/api/v1/tunnel/test',
+                {
                     sshHost,
                     sshPort: Number(sshPort) || 22,
                     sshUser,
                     privateKey: privateKey.trim(),
                     passphrase: passphrase || undefined,
-                }),
-            });
-            const test: TestResult = await testRes.json();
+                },
+                TunnelTestResultSchema,
+                { fallback: 'Tunnel test failed' },
+            );
             if (!test.ok || !test.hostKeySha256) {
                 throw new Error(test.error || 'Tunnel test failed');
             }
 
-            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            await api.post(
+                `/api/v1/clients/${clientId}/tunnel`,
+                {
                     sshHost,
                     sshPort: Number(sshPort) || 22,
                     sshUser,
                     privateKey: privateKey.trim(),
                     passphrase: keyMode === 'manual' && passphrase ? passphrase : undefined,
                     hostKeySha256: test.hostKeySha256,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to set up the tunnel');
+                },
+                undefined,
+                { fallback: 'Failed to set up the tunnel' },
+            );
 
             setInfo({
                 sshHost,
@@ -295,11 +275,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         setBusy(true);
         resetFeedback();
         try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}/tunnel`, {
-                method: 'DELETE',
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to remove the tunnel');
+            await api.delete(`/api/v1/clients/${clientId}/tunnel`, { fallback: 'Failed to remove the tunnel' });
             setInfo(null);
             setSshHost('');
             setSshPort('22');

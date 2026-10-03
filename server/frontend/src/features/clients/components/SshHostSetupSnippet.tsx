@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
 import { Button, cn, FOCUS_RING_INSET } from '@stefgo/react-ui-components';
-import { apiFetch } from '../../../lib/apiFetch';
+import { DerivedPublicKeySchema } from '@pbcm/shared';
+import { api } from '../../../lib/api';
 
 interface SshHostSetupSnippetProps {
     privateKey: string;
@@ -34,16 +35,13 @@ export const SshHostSetupSnippet = ({
         setBusy(true);
         setError(null);
         try {
-            const res = await apiFetch('/api/v1/tunnel/pubkey', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ privateKey, passphrase: passphrase || undefined }),
-            });
-            const raw = await res.text();
-            if (!raw) throw new Error(`Server not reachable (HTTP ${res.status})`);
-            const data = JSON.parse(raw);
-            if (!res.ok) throw new Error(data.error || 'Could not derive the public key');
-            setPublicKey(data.publicKey);
+            const derived = await api.post(
+                '/api/v1/tunnel/pubkey',
+                { privateKey, passphrase: passphrase || undefined },
+                DerivedPublicKeySchema,
+                { fallback: 'Could not derive the public key' },
+            );
+            setPublicKey(derived.publicKey);
             setDerivedFor(privateKey);
         } catch (e) {
             setPublicKey('');

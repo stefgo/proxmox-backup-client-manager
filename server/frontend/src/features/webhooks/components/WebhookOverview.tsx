@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Webhook } from '@pbcm/shared';
 import { useConfirm } from '@stefgo/react-ui-components';
-import { apiFetch } from '../../../lib/apiFetch';
+import { api } from '../../../lib/api';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { describeDeleteWebhook } from '../confirmations';
 import { WebhookList } from './WebhookList';
@@ -28,11 +28,7 @@ export const WebhookOverview = () => {
         confirm({
             ...describeDeleteWebhook(webhook.name),
             onConfirm: async () => {
-                const res = await apiFetch(`/api/v1/webhooks/${webhook.id}`, { method: 'DELETE' });
-                if (!res.ok) {
-                    const data = await res.json().catch(() => ({}));
-                    throw new Error(data.error || 'Failed to delete the webhook');
-                }
+                await api.delete(`/api/v1/webhooks/${webhook.id}`, { fallback: 'Failed to delete the webhook' });
                 await fetchWebhooks();
             },
         });
@@ -42,15 +38,7 @@ export const WebhookOverview = () => {
     const toggleEnabled = async (webhook: Webhook, enabled: boolean) => {
         setPendingEnabled((p) => ({ ...p, [webhook.id]: enabled }));
         try {
-            const res = await apiFetch(`/api/v1/webhooks/${webhook.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...webhook, enabled }),
-            });
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                console.error(data.error || `The server answered ${res.status}`);
-            }
+            await api.put(`/api/v1/webhooks/${webhook.id}`, { ...webhook, enabled });
         } catch (e) {
             console.error(e);
         } finally {

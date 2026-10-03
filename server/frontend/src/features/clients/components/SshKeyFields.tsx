@@ -1,7 +1,8 @@
 import { useId, useState } from 'react';
 import { KeyRound, Check } from 'lucide-react';
 import { Button, Input, RadioGroup, Radio, Textarea } from '@stefgo/react-ui-components';
-import { apiFetch } from '../../../lib/apiFetch';
+import { GeneratedKeyPairSchema } from '@pbcm/shared';
+import { api } from '../../../lib/api';
 
 export type SshKeyMode = 'keep' | 'generate' | 'manual';
 
@@ -41,16 +42,10 @@ export const SshKeyFields = ({
         setBusy(true);
         setError(null);
         try {
-            const res = await apiFetch('/api/v1/tunnel/keypair', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+            const pair = await api.post('/api/v1/tunnel/keypair', {}, GeneratedKeyPairSchema, {
+                fallback: 'Could not generate key pair',
             });
-            const raw = await res.text();
-            if (!raw) throw new Error(`Server not reachable (HTTP ${res.status})`);
-            const data = JSON.parse(raw);
-            if (!res.ok) throw new Error(data.error || 'Could not generate key pair');
-            onPrivateKeyChange(data.privateKey);
+            onPrivateKeyChange(pair.privateKey);
             onPassphraseChange('');
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));

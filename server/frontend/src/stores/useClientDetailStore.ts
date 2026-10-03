@@ -1,12 +1,30 @@
 import { create } from 'zustand';
 import {
-    BackupJob,
-    HistoryEntry,
-    ManagedRepository,
-    Snapshot,
+    ClientHistorySchema,
+    ClientJobListSchema,
+    SnapshotListSchema,
+    type BackupJob,
+    type HistoryEntry,
+    type ManagedRepository,
+    type Snapshot,
 } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
+import { api } from '../lib/api';
+import { SessionExpiredError } from '../lib/apiFetch';
+
+/**
+ * The list, or an empty one when the request is refused -- an offline client answers its
+ * history and its jobs with an error, and the page then shows it without either rather
+ * than failing as a whole. An expired session is not that case and is passed on.
+ */
+async function listOrEmpty<T>(request: Promise<T[]>): Promise<T[]> {
+    try {
+        return await request;
+    } catch (e) {
+        if (e instanceof SessionExpiredError) throw e;
+        return [];
+    }
+}
 
 /**
  * The snapshot endpoint is per repository, so the repository a snapshot came from
@@ -66,15 +84,10 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
     fetchClientData: async (clientId: string) => {
         set({ isLoading: true, error: null, lastHistory: [] });
         try {
-            const [historyRes, backupJobsRes] = await Promise.all([
-                apiFetch(`/api/v1/clients/${clientId}/history`),
-                apiFetch(`/api/v1/clients/${clientId}/jobs`),
+            const [history, backupJobs] = await Promise.all([
+                listOrEmpty(api.get(`/api/v1/clients/${clientId}/history`, ClientHistorySchema)),
+                listOrEmpty(api.get(`/api/v1/clients/${clientId}/jobs`, ClientJobListSchema)),
             ]);
-
-            const history: HistoryEntry[] = historyRes.ok ? await historyRes.json() : [];
-            const backupJobs = backupJobsRes.ok
-                ? await backupJobsRes.json()
-                : [];
 
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const initLastHistory = history
@@ -108,9 +121,10 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         const results = await Promise.all(
             repositories.map(async (repo): Promise<SnapshotWithRepository[]> => {
                 try {
-                    const res = await apiFetch(`/api/v1/repositories/${repo.id}/snapshots`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const snaps = (await res.json()) as Snapshot[];
+                    const snaps = await api.get(
+                        `/api/v1/repositories/${repo.id}/snapshots`,
+                        SnapshotListSchema,
+                    );
                     return snaps.map((s) => ({ ...s, repository: repo }));
                 } catch (e) {
                     console.error('Failed to fetch client snapshots', repo.id, e);
@@ -140,18 +154,10 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         jobId: string | null,
     ) => {
         try {
-            const res = await apiFetch(
-                `/api/v1/clients/${clientId}/jobs/${jobId}`,
-                {
-                    method: 'DELETE',
-                },
-            );
-            if (res.ok) {
-                get().removeBackupJob(jobId);
-            } else {
-                const data = await res.json();
-                throw new Error(data.error || 'Failed to delete job');
-            }
+            await api.delete(`/api/v1/clients/${clientId}/jobs/${jobId}`, {
+                fallback: 'Failed to delete job',
+            });
+            get().removeBackupJob(jobId);
         } catch (e: unknown) {
             console.error(e);
             throw e;
@@ -163,20 +169,9 @@ export const useClientDetailStore = create<ClientDataState>((set, get) => ({
         jobId: string | null,
     ) => {
         try {
-            const res = await apiFetch(
-                `/api/v1/clients/${clientId}/jobs/${jobId}/run`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({}),
-                },
-            );
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || 'Failed to trigger job');
-            }
+            await api.post(`/api/v1/clients/${clientId}/jobs/${jobId}/run`, {}, undefined, {
+                fallback: 'Failed to trigger job',
+            });
         } catch (e: unknown) {
             console.error(e);
             throw e;

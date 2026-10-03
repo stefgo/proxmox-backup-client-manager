@@ -7,6 +7,7 @@ import {
     ClientSchema,
     CreateOutboundClientSchema,
     normaliseTargetAddress,
+    type ReconnectResult,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnectionWatch } from "../services/ClientConnectionWatch.js";
@@ -98,7 +99,7 @@ export class ClientController {
         }
 
         const connected = await ClientConnector.reconnectNow(clientId);
-        return { connected };
+        return { connected } satisfies ReconnectResult;
     }
     /**
      * Retrieves a list of all clients combined with their live WebSocket connection status.

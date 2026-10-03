@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Token } from '@pbcm/shared';
+import { TokenListSchema, type Token } from '@pbcm/shared';
 import { TokenList } from './TokenList';
 import { useAuth } from '../../auth/AuthContext';
-import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { api } from '../../../lib/api';
 import { useToast } from '@stefgo/react-ui-components';
 import { getErrorMessage } from '../../../utils';
 
@@ -19,9 +19,7 @@ export const TokenOverview = () => {
     // arrived after `token` changed.
     const loadTokens = useCallback(async (): Promise<Token[] | null> => {
         try {
-            const res = await apiFetch('/api/v1/tokens');
-            await throwIfNotOk(res, 'Failed to load tokens');
-            return await res.json();
+            return await api.get('/api/v1/tokens', TokenListSchema, { fallback: 'Failed to load tokens' });
         } catch (e) {
             console.error(e);
             show({ variant: 'error', title: 'Could not load the tokens', description: getErrorMessage(e) });
@@ -49,9 +47,7 @@ export const TokenOverview = () => {
     // used to stay where it was without a word.
     const deleteToken = async (tokenHash: string) => {
         try {
-            const res = await apiFetch(`/api/v1/tokens/${tokenHash}`, {
-                method: 'DELETE'});
-            await throwIfNotOk(res, 'The server refused the request.');
+            await api.delete(`/api/v1/tokens/${tokenHash}`, { fallback: 'The server refused the request.' });
         } catch (e) {
             console.error(e);
             show({ variant: 'error', title: 'Could not delete the token', description: getErrorMessage(e) });

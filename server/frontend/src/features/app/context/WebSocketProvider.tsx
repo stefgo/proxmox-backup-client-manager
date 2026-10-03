@@ -7,6 +7,7 @@ import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
 import { WebSocketContext } from './WebSocketContext';
 import { emit } from '../../../lib/realtimeEvents';
+import { assertNever, createDashboardMessageReader, historyUpdateFrom } from '../lib/dashboardMessages';
 
 /**
  * How long the socket may be down before the page says so. A reconnect is scheduled 3 s
@@ -14,6 +15,9 @@ import { emit } from '../../../lib/realtimeEvents';
  * the banner at every deploy.
  */
 const LOST_AFTER_MS = 5000;
+
+/** Module scope, so "reported once" holds across reconnects and not per socket. */
+const readMessage = createDashboardMessageReader();
 
 interface WebSocketProviderProps {
     children: ReactNode;
@@ -78,65 +82,70 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             };
 
             socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
+                // Parsed against the contract in @pbcm/shared; what does not match is
+                // dropped and reported once per type (see lib/dashboardMessages.ts).
+                const message = readMessage(event.data);
+                if (!message) return;
 
-                    if (data.type === 'CLIENTS_UPDATE') {
-                        setClients(data.payload);
-                    }
+                switch (message.type) {
+                    case 'CLIENTS_UPDATE':
+                        setClients(message.payload);
+                        break;
 
                     // The server caches an agent's jobs only while it is connected, so
                     // this is what tells an already-open dashboard that a client came
                     // online (or dropped) and its job list changed with it.
-                    if (data.type === 'JOBS_UPDATE') {
+                    case 'JOBS_UPDATE':
                         useGlobalJobsStore
                             .getState()
-                            .setClientJobs(data.payload.clientId, data.payload.jobs);
-                    }
+                            .setClientJobs(message.payload.clientId, message.payload.jobs);
+                        break;
 
                     // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
-                    if (data.type === 'TUNNEL_UPDATE') {
-                        useClientStore.getState().setTunnelState(data.payload);
-                    }
+                    case 'TUNNEL_UPDATE':
+                        useClientStore.getState().setTunnelState(message.payload);
+                        break;
 
                     // Streamed rather than stored: these arrive many times a second for
                     // one visible component, and a store would re-render every
                     // subscriber per chunk. See lib/realtimeEvents.ts.
-                    if (data.type === 'JOB_UPDATE') {
-                        emit('jobUpdate', data.payload);
-                    }
+                    case 'JOB_UPDATE':
+                        emit('jobUpdate', {
+                            clientId: message.payload.clientId,
+                            job: historyUpdateFrom(message.payload.job),
+                        });
+                        break;
 
-                    if (data.type === 'LOG_UPDATE') {
-                        emit('logUpdate', data.payload);
-                    }
+                    case 'LOG_UPDATE':
+                        emit('logUpdate', message.payload);
+                        break;
 
-                    if (data.type === 'JOB_NEXT_RUN_UPDATE') {
-                        emit('jobNextRunUpdate', data.payload);
-                    }
+                    case 'JOB_NEXT_RUN_UPDATE':
+                        emit('jobNextRunUpdate', message.payload);
+                        break;
 
                     // Every dashboard receives every user's; only this user's own concerns this tab.
-                    if (data.type === 'HISTORY_SEEN') {
-                        if (data.payload?.username === usernameRef.current) {
-                            useHistorySeenStore.getState().applySeen(data.payload);
+                    case 'HISTORY_SEEN':
+                        if (message.payload.username === usernameRef.current) {
+                            useHistorySeenStore.getState().applySeen(message.payload);
                         }
-                    }
+                        break;
 
                     // No payload: the list changed, and only a page that has loaded it re-reads it.
-                    if (data.type === 'WEBHOOKS_UPDATE') {
+                    case 'WEBHOOKS_UPDATE':
                         if (useWebhookStore.getState().loaded) {
                             useWebhookStore.getState().fetchWebhooks();
                         }
-                    }
+                        break;
 
                     // One scheduler at a time, whenever a run starts or ends or its timer moves.
-                    if (data.type === 'SCHEDULER_STATUS_UPDATE') {
-                        if (typeof data.payload?.scheduler === 'string' && data.payload.status) {
-                            useSchedulerStore.getState().applyUpdate(data.payload);
-                        }
-                    }
+                    case 'SCHEDULER_STATUS_UPDATE':
+                        useSchedulerStore.getState().applyUpdate(message.payload);
+                        break;
 
-                } catch (e) {
-                    console.error('Failed to parse WS message', e);
+                    // Does not compile while a member of DashboardMessage has no case above.
+                    default:
+                        assertNever(message);
                 }
             };
 

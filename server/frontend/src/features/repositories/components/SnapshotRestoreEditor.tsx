@@ -7,7 +7,7 @@ import { FileBrowser, Button, Checkbox, ActionButton } from '@stefgo/react-ui-co
 import { useAuth } from '../../auth/AuthContext';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { formatDate, getErrorMessage } from '../../../utils';
-import { apiFetch } from '../../../lib/apiFetch';
+import { api, ApiError } from '../../../lib/api';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -117,12 +117,9 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
             // Remove .didx, .fidx, .blob suffix
             const sanitizedArchives = selectedArchives.map(a => a.replace(/\.(didx|fidx|blob)$/, ''));
 
-            const res = await apiFetch(`/api/v1/clients/${selectedClientId}/restore`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
+            await api.post(
+                `/api/v1/clients/${selectedClientId}/restore`,
+                {
                     snapshot: snapshotId,
                     targetPath: selectedTarget,
                     // Named, not described: the server builds the repository, secret
@@ -132,21 +129,18 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
                     // Only when it is actually on offer: a client without credentials
                     // would have the request refused for a box it was never shown.
                     tunnel: tunnelAvailable ? { required: useTunnel } : undefined
-                })
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                setError('Failed to start restore: ' + (data.error || 'Unknown error'));
-                return;
-            }
+                },
+                undefined,
+                { fallback: 'Unknown error' },
+            );
 
             setMessage(
                 `Restore of ${sanitizedArchives.length} archive(s) started — follow it in the client's job history.`,
             );
         } catch (e: unknown) {
             console.error(e);
-            setError('Error triggering restore: ' + getErrorMessage(e));
+            // A refusal is the server's answer; anything else never got one.
+            setError((e instanceof ApiError ? 'Failed to start restore: ' : 'Error triggering restore: ') + getErrorMessage(e));
         }
     };
 

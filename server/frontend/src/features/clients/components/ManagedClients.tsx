@@ -1,7 +1,7 @@
-import { Client } from '@pbcm/shared';
+import { ReconnectResultSchema, type Client } from '@pbcm/shared';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { ClientList } from './ClientList';
-import { apiFetch, throwIfNotOk } from '../../../lib/apiFetch';
+import { api } from '../../../lib/api';
 import { getErrorMessage } from '../../../utils';
 import { describeDeleteClient } from '../confirmations';
 
@@ -49,12 +49,13 @@ export const ManagedClients = ({
     /** Immediate reconnect attempt for an outbound client, bypassing the backoff. */
     const handleReconnect = async (client: Client) => {
         try {
-            const res = await apiFetch(`/api/v1/clients/${client.id}/reconnect`, {
-                method: 'POST',
-            });
-            await throwIfNotOk(res, 'Failed to reconnect');
-            const data = await res.json();
-            if (data.connected) {
+            const { connected } = await api.post(
+                `/api/v1/clients/${client.id}/reconnect`,
+                undefined,
+                ReconnectResultSchema,
+                { fallback: 'Failed to reconnect' },
+            );
+            if (connected) {
                 show({ variant: 'success', title: 'Client reconnected' });
             } else {
                 show({

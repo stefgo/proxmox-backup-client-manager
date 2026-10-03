@@ -9,6 +9,8 @@ import {
     PbsSnapshotListSchema,
     normalizeFingerprint,
     firstIssue,
+    type CertificateCheck,
+    type DistributeResult,
 } from "@pbcm/shared";
 import { probeCertificate, logger } from "@pbcm/shared/node";
 import {
@@ -89,7 +91,7 @@ export class RepositoryController {
             reachable: probe.reachable,
             notAfter: probe.notAfter || null,
             error: probe.error || null,
-        };
+        } satisfies CertificateCheck;
     }
 
     /**
@@ -200,7 +202,7 @@ export class RepositoryController {
             "Repository credentials distributed to connected clients",
         );
 
-        return { updated, failed, skippedOffline };
+        return { updated, failed, skippedOffline } satisfies DistributeResult;
     }
 
     static async getStatus(request: FastifyRequest, reply: FastifyReply) {

@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import {
-    BackupJob,
-    GlobalHistoryEntry,
-    GlobalHistoryResponseSchema,
-    HistoryEntry,
+    GlobalHistorySchema,
+    GlobalJobListSchema,
+    type BackupJob,
+    type GlobalHistoryEntry,
+    type HistoryEntry,
 } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
+import { api } from '../lib/api';
 import { useClientStore } from './useClientStore';
 
 export interface GlobalJob extends BackupJob {
@@ -68,32 +69,12 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
     fetchAllJobs: async () => {
         set({ isLoading: true, error: null });
         try {
-            const [jobsRes, historyRes] = await Promise.all([
-                apiFetch('/api/v1/jobs'),
-                apiFetch('/api/v1/history/latest'),
+            const [data, latestPerJob] = await Promise.all([
+                api.get('/api/v1/jobs', GlobalJobListSchema, { fallback: 'Failed to fetch jobs' }),
+                api.get('/api/v1/history/latest', GlobalHistorySchema, {
+                    fallback: 'Failed to fetch history',
+                }),
             ]);
-
-            if (!jobsRes.ok) throw new Error('Failed to fetch jobs');
-            if (!historyRes.ok) throw new Error('Failed to fetch history');
-
-            const data: { clientId: string; jobs: BackupJob[] }[] =
-                await jobsRes.json();
-
-            // res.json() is any, so the rows are validated here rather than being
-            // asserted downstream. A shape change is reported once and degrades to
-            // an empty list instead of throwing inside the store.
-            const parsedHistory = GlobalHistoryResponseSchema.safeParse(
-                await historyRes.json(),
-            );
-            if (!parsedHistory.success) {
-                console.error(
-                    'Unexpected /api/v1/history/latest payload:',
-                    parsedHistory.error.issues,
-                );
-            }
-            const latestPerJob: GlobalHistoryEntry[] = parsedHistory.success
-                ? parsedHistory.data.data
-                : [];
 
             // Flatten the array of { clientId, jobs[] } into GlobalJob[]
             const flattenedJobs: GlobalJob[] = [];

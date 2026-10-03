@@ -4,7 +4,6 @@ import {
     type SchedulerId,
     type SchedulerRunResults,
     type SchedulerStatus,
-    type SchedulerStatusUpdate,
     type SchedulerTrigger,
 } from "@pbcm/shared";
 import { SchedulerStateRepository } from "../repositories/SchedulerStateRepository.js";
@@ -122,7 +121,7 @@ export class ScheduledJob<Id extends SchedulerId> {
     broadcast(): void {
         ProxyService.broadcastToDashboard({
             type: WS_EVENTS.SCHEDULER_STATUS_UPDATE,
-            payload: { scheduler: this.options.id, status: this.status() } as SchedulerStatusUpdate,
+            payload: { scheduler: this.options.id, status: this.status() },
         });
     }
 

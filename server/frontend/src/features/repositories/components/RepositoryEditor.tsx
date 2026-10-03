@@ -1,11 +1,17 @@
 import { useCallback, useState, useEffect } from 'react';
 import { X, Save, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
-import { ManagedRepository as Repository, normalizeFingerprint, RepositoryInput } from '@pbcm/shared';
+import {
+    normalizeFingerprint,
+    type CertificateCheck,
+    type DistributeResult,
+    type ManagedRepository as Repository,
+    type RepositoryInput,
+} from '@pbcm/shared';
 import { Card, Button, Input, ActionButton, useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
 import { describeDistribute } from '../confirmations';
 import { useAuth } from '../../auth/AuthContext';
-import { useRepositoryStore, CertificateCheck, DistributeResult } from '../../../stores/useRepositoryStore';
+import { useRepositoryStore } from '../../../stores/useRepositoryStore';
 
 interface RepositoryEditorProps {
     repository?: Repository | null;

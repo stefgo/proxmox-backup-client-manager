@@ -1094,11 +1094,23 @@ _Same structure as [List Client Jobs](#list-client-jobs)._
 
 `GET /v1/history`
 
-**Description:** Retrieves the execution history of all jobs across all clients.
+**Description:** Retrieves the execution history of all jobs across all clients, newest
+first. Takes `limit` (1–1000, default 100) and `offset` as query parameters.
 
 #### Response
 
-_Same structure as [Get Client History](#get-client-history)._
+A bare array, like every other list endpoint. Each entry has the fields of
+[Get Client History](#get-client-history), with two differences: the job is named `jobId`
+instead of `jobConfigId`, and the row carries its client -- `clientId`, plus `hostname` and
+`displayName`, which are `null` once a history row has outlived its client.
+
+A failure answers with `{ "error": "…" }` and the matching status, as everywhere else.
+
+!!! note "Changed after 1.6"
+    This endpoint and [Get Latest History per Job](#get-latest-history-per-job) used to
+    wrap the array as `{ "success": true, "count": n, "data": [...] }` and report failures
+    as `{ "success": false, "error": "…" }`. They were the only two that did. A caller
+    reading `.data` now reads the response itself; `count` was always `data.length`.
 
 ### Get Latest History per Job
 
@@ -1832,14 +1844,21 @@ A connection without a valid session is closed with `4001 Unauthorized`
 
 | Event                | Payload Structure                                                     | Description                              |
 | :------------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
-| `CLIENTS_UPDATE`     | `Client[]`                                                            | Full list of clients and statuses.       |
+| `CLIENTS_UPDATE`     | `Client[]`                                                            | Full list of clients and statuses. Also the first message after the handshake. |
 | `JOBS_UPDATE`        | `{ clientId: string, jobs: BackupJob[] }`                             | One client's job configs; the cache only exists while its agent is connected, so this fires on connect, on disconnect (empty list) and after every job change. |
+| `TUNNEL_UPDATE`      | `TunnelState`                                                         | One client's tunnel runtime state: status, active leases, forwards, last error. |
 | `JOB_UPDATE`         | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.                |
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
-| `JOB_NEXT_RUN_UPDATE`| `{ jobId: string, nextRunAt: string \| null }`                        | Updated next scheduled run time for a job. |
+| `JOB_NEXT_RUN_UPDATE`| `{ clientId: string, jobId: string, nextRunAt: string \| null }`      | Updated next scheduled run time for a job. |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler: SchedulerId, status: SchedulerStatus }`            | One server scheduler, whenever a run starts or ends or its timer moves. Same shape as one entry of [Scheduler Status](#scheduler-status). |
 | `HISTORY_SEEN`       | `{ username: string, seenAt: string \| null, unseenFailed: number }`  | A user opened the history ([Mark History Seen](#mark-history-seen)). Sent to every dashboard; each keeps only its own user's. |
 | `WEBHOOKS_UPDATE`    | —                                                                     | A webhook changed, or a delivery went out. The dashboard fetches [List Webhooks](#list-webhooks) again. |
+
+These nine are the whole vocabulary, and it is written down once: `DashboardMessageSchema`
+in [`shared/src/dashboardMessages.ts`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/shared/src/dashboardMessages.ts),
+a discriminated union on `type`. The server can only broadcast a member of it, and the
+dashboard parses every message against it -- one that does not match is dropped and
+reported once per type in the browser console, never half-applied.
 
 ### Agent Connection
 

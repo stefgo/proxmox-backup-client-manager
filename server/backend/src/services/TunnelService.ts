@@ -1,7 +1,7 @@
 import net from "net";
 import crypto, { randomUUID } from "crypto";
 import { Client as SshClient } from "ssh2";
-import type { TunnelState, TunnelStatus } from "@pbcm/shared";
+import type { TunnelState, TunnelStatus, TunnelTestResult } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { appConfig } from "../config/AppConfig.js";
 import {
@@ -26,12 +26,8 @@ export interface SshTestParams {
     remoteBindHost?: string;
 }
 
-export interface SshTestResult {
-    ok: boolean;
-    hostKeySha256?: string;
-    boundPort?: number;
-    error?: string;
-}
+/** What both tunnel test endpoints answer with; the dashboard parses the same schema. */
+export type SshTestResult = TunnelTestResult;
 
 interface Forward {
     /** Port the sshd allocated on the client host — only valid for this connection. */

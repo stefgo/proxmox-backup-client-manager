@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { HistorySeen } from '@pbcm/shared';
-import { apiFetch } from '../lib/apiFetch';
+import { HistorySeenSchema, type HistorySeen } from '@pbcm/shared';
+import { api } from '../lib/api';
 
 interface HistorySeenState {
     /** When this user last opened the history, by the server's record; null if never. */
@@ -31,8 +31,7 @@ export const useHistorySeenStore = create<HistorySeenState>((set, get) => ({
     // history page itself still shows every failure.
     fetchSeen: async () => {
         try {
-            const res = await apiFetch('/api/v1/history/seen');
-            if (res.ok) get().applySeen(await res.json());
+            get().applySeen(await api.get('/api/v1/history/seen', HistorySeenSchema));
         } catch (e) {
             console.error('Failed to fetch the history seen state', e);
         }
@@ -43,8 +42,7 @@ export const useHistorySeenStore = create<HistorySeenState>((set, get) => ({
         // request makes of it.
         set({ unseenFailed: 0 });
         try {
-            const res = await apiFetch('/api/v1/history/seen', { method: 'PUT' });
-            if (res.ok) get().applySeen(await res.json());
+            get().applySeen(await api.put('/api/v1/history/seen', undefined, HistorySeenSchema));
         } catch (e) {
             console.error('Failed to mark the history as seen', e);
         }

@@ -1,5 +1,10 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { HistoryQuerySchema, HistorySeen, firstIssue } from "@pbcm/shared";
+import {
+    HistoryQuerySchema,
+    firstIssue,
+    type GlobalHistoryEntry,
+    type HistorySeen,
+} from "@pbcm/shared";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { HistorySeenRepository } from "../repositories/HistorySeenRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
@@ -27,50 +32,35 @@ export class HistoryController {
             // returned the whole table.
             const parsed = HistoryQuerySchema.safeParse(req.query);
             if (!parsed.success) {
-                // This endpoint answers with a `success` flag, unlike the others -- kept
-                // so the frontend's existing error handling still recognises the shape.
-                return reply.code(400).send({
-                    success: false,
-                    error: firstIssue(parsed.error),
-                });
+                return reply.code(400).send({ error: firstIssue(parsed.error) });
             }
             const { limit, offset } = parsed.data;
 
-            const records = JobHistoryRepository.findGlobal(limit, offset);
-
-            return reply.send({
-                success: true,
-                count: records.length,
-                data: records,
-            });
+            // The bare array, like every other list endpoint. This one used to wrap it in
+            // `{ success, count, data }`, which made it the single response a caller had
+            // to unpack -- and `count` was only ever `data.length`.
+            const records: GlobalHistoryEntry[] = JobHistoryRepository.findGlobal(limit, offset);
+            return reply.send(records);
         } catch (error) {
             req.log.error({
                 msg: "Failed to fetch global history",
                 err: error,
             });
-            return reply
-                .code(500)
-                .send({ success: false, error: "Internal Server Error" });
+            return reply.code(500).send({ error: "Internal Server Error" });
         }
     }
 
     /** The newest history row of every job, newest first. Same shape as getGlobalHistory. */
     static async getLatestPerJob(req: FastifyRequest, reply: FastifyReply) {
         try {
-            const records = JobHistoryRepository.findLatestPerJob();
-            return reply.send({
-                success: true,
-                count: records.length,
-                data: records,
-            });
+            const records: GlobalHistoryEntry[] = JobHistoryRepository.findLatestPerJob();
+            return reply.send(records);
         } catch (error) {
             req.log.error({
                 msg: "Failed to fetch latest history per job",
                 err: error,
             });
-            return reply
-                .code(500)
-                .send({ success: false, error: "Internal Server Error" });
+            return reply.code(500).send({ error: "Internal Server Error" });
         }
     }
 

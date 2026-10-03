@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useConfirm } from '@stefgo/react-ui-components';
-import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
-import { apiFetch } from '../../../lib/apiFetch';
+import {
+    GeneratedEncryptionKeySchema,
+    type Archive,
+    type BackupJob,
+    type Repository,
+    type ScheduleConfig,
+} from '@pbcm/shared';
+import { api, ApiError } from '../../../lib/api';
 import { useClientStore } from '../../../stores/useClientStore';
 import { describeFailure, toLocalDateInput, toLocalTimeInput } from '../../../utils';
 import {
@@ -362,30 +368,20 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
                 tunnel: { required: tunnelRequired && tunnelAvailable },
             };
 
-            const res = await apiFetch(`/api/v1/clients/${clientId}/jobs`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
+            await api.post(`/api/v1/clients/${clientId}/jobs`, payload, undefined, {
+                fallback: 'Failed to save job',
             });
 
-            if (res.ok) {
-                // What is on screen is now what is stored, so the form is pristine again
-                // and the exit has nothing left to ask about.
-                setBaseline(snapshot);
-                setJustSaved(true);
-                if (onSaveSuccess) onSaveSuccess(!!editingJobId);
-            } else {
-                // The backend refuses a job whose route the client cannot serve, and that
-                // message names the setting that has to change. Dropping it left the
-                // operator with a failure and no cause.
-                const err = await res.json().catch(() => ({}));
-                console.error('Failed to save backup job:', res.status, res.statusText, err);
-                setSaveError(err.error || res.statusText || 'Failed to save job');
-            }
+            // What is on screen is now what is stored, so the form is pristine again
+            // and the exit has nothing left to ask about.
+            setBaseline(snapshot);
+            setJustSaved(true);
+            if (onSaveSuccess) onSaveSuccess(!!editingJobId);
         } catch (e) {
-            console.error(e);
+            // The backend refuses a job whose route the client cannot serve, and that
+            // message names the setting that has to change. `api` carries it in the
+            // error; dropping it left the operator with a failure and no cause.
+            console.error('Failed to save backup job:', e);
             setSaveError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsSaving(false);
@@ -395,22 +391,14 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     const generateKey = async (): Promise<boolean> => {
         if (!clientId) return false;
         try {
-            const res = await apiFetch(`/api/v1/clients/${clientId}/key`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setEncryptionKeyContent(data.keyContent || null);
-                return true;
-            } else {
-                const err = await res.json().catch(() => ({}));
-                alert(describeFailure('Could not generate the key', err.error || res.statusText));
-                return false;
-            }
+            const data = await api.post(`/api/v1/clients/${clientId}/key`, {}, GeneratedEncryptionKeySchema);
+            setEncryptionKeyContent(data.keyContent || null);
+            return true;
         } catch (e) {
             console.error(e);
+            // A refusal is explained; a request that never reached the server only fails,
+            // as it always has.
+            if (e instanceof ApiError) alert(describeFailure('Could not generate the key', e.message));
             return false;
         }
     };

@@ -3,7 +3,10 @@ import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
 import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
-const RepositoryInfo = ({ repo }: { repo: Omit<JobRepository, 'secret'> }) => (
+/** What the panel shows -- of a job's own copy or of a managed repository, whose empty columns are null. */
+type RepositoryDetails = Pick<Repository, 'baseUrl' | 'datastore' | 'username' | 'fingerprint' | 'tokenname'>;
+
+const RepositoryInfo = ({ repo }: { repo: RepositoryDetails }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">
         <div className="grid grid-cols-[80px_1fr] gap-2">
             <span className="text-text-muted">Base URL:</span>
@@ -53,9 +56,11 @@ export const JobRepositorySelect = ({
             repositoryId: String(repo.id),
             baseUrl: repo.baseUrl,
             datastore: repo.datastore,
-            fingerprint: repo.fingerprint,
+            // `?? undefined`: an empty column arrives as null, and a job's repository
+            // carries the key or leaves it out -- the server refuses a null there.
+            fingerprint: repo.fingerprint ?? undefined,
             username: repo.username,
-            tokenname: repo.tokenname,
+            tokenname: repo.tokenname ?? undefined,
             // Not known here: the server fills it in from the repository on save.
             secret: ''
         });

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { FsFile } from '@stefgo/react-ui-components';
+import { FsFileListSchema } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
+import { api } from '../lib/api';
 
 interface ClientFileSystemState {
     fileList: FsFile[];
@@ -32,31 +33,23 @@ export const useClientFileSystemStore = create<ClientFileSystemState>(
             const request = ++latestRequest;
             set({ isLoadingFiles: true, error: null });
             try {
-                const res = await apiFetch(
+                const files = await api.get(
                     `/api/v1/clients/${clientId}/fs?path=${encodeURIComponent(path)}`,
-                    {
-                    },
+                    FsFileListSchema,
+                    { fallback: 'Directory could not be listed' },
                 );
-                const body = await res.json().catch(() => null);
                 if (request !== latestRequest) return;
-                if (res.ok && Array.isArray(body)) {
-                    set({
-                        fileList: body.sort((a: FsFile, b: FsFile) => {
-                            if (a.isDirectory === b.isDirectory)
-                                return a.name.localeCompare(b.name);
-                            return a.isDirectory ? -1 : 1;
-                        }),
-                    });
-                } else {
-                    // Emptied, not kept: the old listing belongs to a different directory
-                    // than the one the browser now names.
-                    set({
-                        fileList: [],
-                        error: body?.error || res.statusText || 'Directory could not be listed',
-                    });
-                }
+                set({
+                    fileList: files.sort((a, b) => {
+                        if (a.isDirectory === b.isDirectory)
+                            return a.name.localeCompare(b.name);
+                        return a.isDirectory ? -1 : 1;
+                    }),
+                });
             } catch (e: unknown) {
                 if (request !== latestRequest) return;
+                // Emptied, not kept: the old listing belongs to a different directory
+                // than the one the browser now names.
                 set({ fileList: [], error: getErrorMessage(e) });
             } finally {
                 if (request === latestRequest) set({ isLoadingFiles: false });

@@ -4,6 +4,7 @@ import {
     CONNECTION_MODE,
     isIpAllowed,
     isIpInNetworks,
+    type DashboardMessage,
 } from "@pbcm/shared";
 import { ProxyService } from "../services/ProxyService.js";
 import { appConfig } from "../config/AppConfig.js";
@@ -66,10 +67,11 @@ export class WebSocketController {
         ProxyService.addDashboardClient(socket, userId);
 
         // Send initial state
-        const clients = ProxyService.getClientsWithStatus();
-        socket.send(
-            JSON.stringify({ type: "CLIENTS_UPDATE", payload: clients }),
-        );
+        const initial: DashboardMessage = {
+            type: "CLIENTS_UPDATE",
+            payload: ProxyService.getClientsWithStatus(),
+        };
+        socket.send(JSON.stringify(initial));
 
         socket.on("close", () => {
             ProxyService.removeDashboardClient(socket);

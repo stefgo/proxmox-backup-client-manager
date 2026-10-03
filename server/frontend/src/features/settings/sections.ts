@@ -42,6 +42,21 @@ export const DEFAULT_SETTINGS: SettingsValues = {
     job_history_cleanup_interval_hours: '24',
 };
 
+/**
+ * The settings as the form holds them, from the block as config.yaml carries it. A value
+ * an operator wrote into the file by hand is a number there; the form edits text. What is
+ * neither -- the `security` block travels in the same answer -- is not a setting of this
+ * page and is left out.
+ */
+export const settingsFrom = (block: Record<string, unknown>): SettingsValues => {
+    const values: SettingsValues = {};
+    for (const [key, value] of Object.entries(block)) {
+        if (typeof value === 'string') values[key] = value;
+        else if (typeof value === 'number') values[key] = String(value);
+    }
+    return values;
+};
+
 /** Whether the draft differs from what the server holds in any of the section's keys. */
 export const isDirty = (section: SectionDef, draft: SettingsValues, saved: SettingsValues): boolean =>
     section.keys.some((key) => (draft[key] ?? '') !== (saved[key] ?? ''));

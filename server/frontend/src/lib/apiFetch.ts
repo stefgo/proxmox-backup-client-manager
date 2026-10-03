@@ -1,5 +1,7 @@
 /**
- * Single entry point for authenticated calls to /api/v1.
+ * The session half of every authenticated call to /api/v1: the cookie and the one central
+ * reaction to a 401. Callers do not use this directly -- `lib/api.ts` sits on top of it and
+ * is where a response is read and checked.
  *
  * Before this existed, every caller built its own Authorization header and checked
  * only `res.ok`. Nothing anywhere looked at 401, so once the JWT expired the app kept
@@ -69,17 +71,4 @@ export async function apiFetch(
     }
 
     return res;
-}
-
-/**
- * Throws on a response that is not `ok`, with the server's own `error` text when the body
- * carries one and `fallback` otherwise.
- *
- * Callers used to throw a fixed "Failed to ..." of their own and drop the body, so a refusal
- * the server had explained ("client is offline") reached the user as a guess.
- */
-export async function throwIfNotOk(res: Response, fallback: string): Promise<void> {
-    if (res.ok) return;
-    const data: { error?: unknown } = await res.json().catch(() => ({}));
-    throw new Error(typeof data.error === 'string' && data.error ? data.error : fallback);
 }

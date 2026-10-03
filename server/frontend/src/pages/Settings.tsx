@@ -15,7 +15,7 @@ import {
 import { useAuth } from '../features/auth/AuthContext';
 import { useSearchQueryParam } from '../hooks/useSearchQueryParam';
 import { describeFailure } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
+import { api } from '../lib/api';
 import {
     DEFAULT_SETTINGS,
     SECTIONS,
@@ -24,11 +24,12 @@ import {
     type SectionDef,
     type SectionId,
     type SettingsValues,
+    settingsFrom,
 } from '../features/settings/sections';
 import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
 import { useSchedulerStore } from '../stores/useSchedulerStore';
 import { useResyncKey } from '../features/app/context/WebSocketContext';
-import type { SchedulerStatuses } from '@pbcm/shared';
+import { SchedulerStatusResponseSchema, SettingsResponseSchema, type SchedulerStatuses } from '@pbcm/shared';
 
 interface SchedulerStatusResponse {
     schedulers?: Partial<SchedulerStatuses>;
@@ -37,8 +38,7 @@ interface SchedulerStatusResponse {
 /** Loads the scheduler status without touching state; null when it cannot be read. */
 async function requestSchedulerStatus(): Promise<SchedulerStatusResponse | null> {
     try {
-        const response = await apiFetch('/api/v1/settings/scheduler-status');
-        return response.ok ? await response.json() : null;
+        return await api.get('/api/v1/settings/scheduler-status', SchedulerStatusResponseSchema);
     } catch (e) {
         console.error('Failed to fetch scheduler status:', e);
         return null;
@@ -100,14 +100,11 @@ export default function Settings() {
         let cancelled = false;
         const loadSettings = async () => {
             try {
-                const response = await apiFetch('/api/v1/settings/cleanup');
-                if (response.ok) {
-                    const data = (await response.json()) as SettingsValues;
-                    if (!cancelled) {
-                        const loaded = { ...DEFAULT_SETTINGS, ...data };
-                        setSaved(loaded);
-                        setDraft(loaded);
-                    }
+                const data = await api.get('/api/v1/settings/cleanup', SettingsResponseSchema);
+                if (!cancelled) {
+                    const loaded = { ...DEFAULT_SETTINGS, ...settingsFrom(data) };
+                    setSaved(loaded);
+                    setDraft(loaded);
                 }
             } catch (e) {
                 console.error('Failed to fetch settings:', e);
@@ -144,16 +141,8 @@ export default function Settings() {
         const body = Object.fromEntries(section.keys.map((key) => [key, draft[key] ?? '']));
         setSavingSection(section.id);
         try {
-            const response = await apiFetch('/api/v1/settings/cleanup', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            if (!response.ok) {
-                // The endpoint validates the body and names the offending field.
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Failed to save settings');
-            }
+            // The endpoint validates the body and names the offending field.
+            await api.put('/api/v1/settings/cleanup', body, undefined, { fallback: 'Failed to save settings' });
             setSaved((prev) => ({ ...prev, ...body }));
             show({ variant: 'success', title: `${section.label} saved` });
             // A changed interval moves the next scheduled run.

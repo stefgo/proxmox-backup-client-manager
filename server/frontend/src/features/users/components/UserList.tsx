@@ -10,15 +10,12 @@ import {
     DataTableDef,
 } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
+import type { User as UserRow } from '@pbcm/shared';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 
-export interface UserData {
-    id: number;
-    username: string;
-    auth_methods?: string;
-    created_at: string;
-}
+/** One row of `GET /api/v1/users`. */
+export type UserData = UserRow;
 
 interface UserListProps {
     users: UserData[];
@@ -28,7 +25,7 @@ interface UserListProps {
     onCreateUser: () => void;
 }
 
-const AuthBadges = ({ methods: methodsStr }: { methods?: string }) => {
+const AuthBadges = ({ methods: methodsStr }: { methods?: string | null }) => {
     const methods = methodsStr ? methodsStr.split(',') : ['local'];
     return (
         <div className="flex gap-1">

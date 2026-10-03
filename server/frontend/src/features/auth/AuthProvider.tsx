@@ -1,5 +1,7 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react';
-import { setUnauthorizedHandler, hasSessionFlag, apiFetch } from '../../lib/apiFetch';
+import { SessionUserSchema } from '@pbcm/shared';
+import { setUnauthorizedHandler, hasSessionFlag } from '../../lib/apiFetch';
+import { api, publicApi } from '../../lib/api';
 import { AuthContext } from './AuthContext';
 
 interface AuthProviderProps {
@@ -31,10 +33,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // The session cookie is httpOnly, so only the server can remove it. Fired and
         // not awaited: the UI must return to the login form either way, and a failed
         // call would otherwise leave the user staring at a page they cannot use.
-        void fetch('/api/auth/logout', {
-            method: 'POST',
-            credentials: 'same-origin',
-        }).catch(() => undefined);
+        void publicApi.post('/api/auth/logout').catch(() => undefined);
     }, []);
 
     // apiFetch is a plain module and cannot read this context, so it gets handed the
@@ -53,10 +52,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (!isAuthenticated) return;
 
         let cancelled = false;
-        apiFetch('/api/v1/me')
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                if (!cancelled && data) setUsername(data.username ?? null);
+        api.get('/api/v1/me', SessionUserSchema)
+            .then((user) => {
+                if (!cancelled) setUsername(user.username);
             })
             .catch(() => {
                 // A 401 already triggered the logout through apiFetch; anything else

@@ -1,27 +1,17 @@
 import { create } from 'zustand';
 import {
-    ManagedRepository as Repository,
+    CertificateCheckSchema,
+    DistributeResultSchema,
+    ManagedRepositoryListSchema,
     REPOSITORY_STATUS,
-    RepositoryInput,
+    RepositoryStatusResponseSchema,
+    type CertificateCheck,
+    type DistributeResult,
+    type ManagedRepository as Repository,
+    type RepositoryInput,
 } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
-import { apiFetch } from '../lib/apiFetch';
-
-export interface CertificateCheck {
-    storedFingerprint: string | null;
-    measuredFingerprint: string | null;
-    matches: boolean;
-    caValid: boolean;
-    reachable: boolean;
-    notAfter: string | null;
-    error: string | null;
-}
-
-export interface DistributeResult {
-    updated: { clientId: string; jobId: string; jobName: string }[];
-    failed: { clientId: string; jobId: string; error: string }[];
-    skippedOffline: { clientId: string; hostname: string }[];
-}
+import { api } from '../lib/api';
 
 interface RepositoriesState {
     repositories: Repository[];
@@ -62,18 +52,15 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
     fetchRepositories: async () => {
         set({ isLoading: true, error: null });
         try {
-            const res = await apiFetch('/api/v1/repositories');
-            if (res.ok) {
-                const data = await res.json();
-                set({ repositories: data });
+            const data = await api.get('/api/v1/repositories', ManagedRepositoryListSchema, {
+                fallback: 'Failed to fetch repositories',
+            });
+            set({ repositories: data });
 
-                // Check status for all
-                data.forEach((repo: Repository) => {
-                    get().checkRepositoryStatus(repo.id);
-                });
-            } else {
-                throw new Error('Failed to fetch repositories');
-            }
+            // Check status for all
+            data.forEach((repo) => {
+                get().checkRepositoryStatus(repo.id);
+            });
         } catch (e: unknown) {
             set({ error: getErrorMessage(e) });
         } finally {
@@ -89,23 +76,17 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         }));
 
         try {
-            const res = await apiFetch(`/api/v1/repositories/${id}/status`);
-
-            if (res.ok) {
-                const { status } = await res.json();
-                set((state) => ({
-                    repositories: state.repositories.map((r) =>
-                        r.id === id ? { ...r, status } : r,
-                    ),
-                }));
-            } else {
-                set((state) => ({
-                    repositories: state.repositories.map((r) =>
-                        r.id === id ? { ...r, status: REPOSITORY_STATUS.OFFLINE } : r,
-                    ),
-                }));
-            }
+            const { status } = await api.get(
+                `/api/v1/repositories/${id}/status`,
+                RepositoryStatusResponseSchema,
+            );
+            set((state) => ({
+                repositories: state.repositories.map((r) =>
+                    r.id === id ? { ...r, status } : r,
+                ),
+            }));
         } catch {
+            // A refusal and an unreachable server read the same here: not online.
             set((state) => ({
                 repositories: state.repositories.map((r) =>
                     r.id === id ? { ...r, status: REPOSITORY_STATUS.OFFLINE } : r,
@@ -114,87 +95,37 @@ export const useRepositoryStore = create<RepositoriesState>((set, get) => ({
         }
     },
 
-    probeCertificate: async (id) => {
-        const res = await apiFetch(`/api/v1/repositories/${id}/certificate`);
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Certificate check failed');
-        }
-        return (await res.json()) as CertificateCheck;
-    },
+    probeCertificate: (id) =>
+        api.get(`/api/v1/repositories/${id}/certificate`, CertificateCheckSchema, {
+            fallback: 'Certificate check failed',
+        }),
 
-    distribute: async (id) => {
-        const res = await apiFetch(`/api/v1/repositories/${id}/distribute`, {
-            method: 'POST',
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || 'Distribution failed');
-        }
-        return (await res.json()) as DistributeResult;
-    },
+    distribute: (id) =>
+        api.post(`/api/v1/repositories/${id}/distribute`, undefined, DistributeResultSchema, {
+            fallback: 'Distribution failed',
+        }),
 
     addRepository: async (repo) => {
-        try {
-            const res = await apiFetch('/api/v1/repositories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(repo),
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to add repository');
-            }
-
-            // Refresh
-            await get().fetchRepositories();
-        } catch (e: unknown) {
-            throw e;
-        }
+        await api.post('/api/v1/repositories', repo, undefined, {
+            fallback: 'Failed to add repository',
+        });
+        // Refresh
+        await get().fetchRepositories();
     },
 
     updateRepository: async (id, repo) => {
-        try {
-            const res = await apiFetch(`/api/v1/repositories/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(repo),
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to update repository');
-            }
-
-            // Refresh
-            await get().fetchRepositories();
-        } catch (e: unknown) {
-            throw e;
-        }
+        await api.put(`/api/v1/repositories/${id}`, repo, undefined, {
+            fallback: 'Failed to update repository',
+        });
+        // Refresh
+        await get().fetchRepositories();
     },
 
     deleteRepository: async (id) => {
-        try {
-            const res = await apiFetch(`/api/v1/repositories/${id}`, {
-                method: 'DELETE',
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Failed to delete repository');
-            }
-
-            // Removed once the server confirmed it, not before: nothing to roll back.
-            set((state) => ({
-                repositories: state.repositories.filter((r) => r.id !== id),
-            }));
-        } catch (e: unknown) {
-            throw e;
-        }
+        await api.delete(`/api/v1/repositories/${id}`, { fallback: 'Failed to delete repository' });
+        // Removed once the server confirmed it, not before: nothing to roll back.
+        set((state) => ({
+            repositories: state.repositories.filter((r) => r.id !== id),
+        }));
     },
 }));

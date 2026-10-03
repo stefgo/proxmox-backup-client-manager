@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, X } from 'lucide-react';
 import { ActionButton, Card, Wizard, WizardStep } from '@stefgo/react-ui-components';
-import { CONNECTION_MODE } from '@pbcm/shared';
-import { apiFetch } from '../../../../lib/apiFetch';
+import { CONNECTION_MODE, CreatedTokenSchema } from '@pbcm/shared';
+import { api } from '../../../../lib/api';
 import { useAddClientForm, isAllowedIpValid, isTargetAddressInvalid } from './useAddClientForm';
 import { StepConnectionMode } from './steps/StepConnectionMode';
 import { StepInboundDetails } from './steps/StepInboundDetails';
@@ -53,16 +53,15 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
         setCreating(true);
         setError(null);
         try {
-            const res = await apiFetch('/api/v1/tokens', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const data = await api.post(
+                '/api/v1/tokens',
+                {
                     displayName: inbound.displayName.trim() || undefined,
                     allowedIp: inbound.allowedIp.trim() || undefined,
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Could not create a token');
+                },
+                CreatedTokenSchema,
+                { fallback: 'Could not create a token' },
+            );
             patchInbound({ token: data.token, expiresAt: data.expiresAt });
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
@@ -79,17 +78,16 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
         setCreating(true);
         setError(null);
         try {
-            const res = await apiFetch('/api/v1/clients/outbound', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            await api.post(
+                '/api/v1/clients/outbound',
+                {
                     hostname: outbound.hostname.trim() || undefined,
                     outboundTargetAddress: outbound.targetAddress.trim(),
                     registrationSecret: outbound.registrationSecret.trim(),
-                }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to create client');
+                },
+                undefined,
+                { fallback: 'Failed to create client' },
+            );
             onCreated();
             onClose();
         } catch (e) {

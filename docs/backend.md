@@ -86,6 +86,10 @@ All protected routes require a valid JWT. The browser sends it as the `pbcm_sess
 Real-time communication is handled via WebSockets (using `@fastify/websocket`).
 The `WebSocketController` acts as the entry point, while `ProxyService` manages the lifecycle of these connections.
 
+`ProxyService.broadcastToDashboard(message: DashboardMessage)` is the only way a message reaches a dashboard, and its parameter type is the contract: `DashboardMessage` is the union in `shared/src/dashboardMessages.ts`, so a shape that is not a member does not compile. Nothing is parsed here at runtime -- the server is the sender; the dashboard parses against the same schema. A new message type is added to that union first, and the dashboard's build then fails until it handles it.
+
+The same holds for REST, more loosely: the response schemas in `shared/src/responses.ts` are what the frontend parses, and a controller that returns one of those shapes says so (`satisfies CertificateCheck`). `ProxyService.getClientsWithStatus()` returns `Client[]`, which feeds both `GET /clients` and `CLIENTS_UPDATE`.
+
 `WebSocketController.ts` holds only the entry points its callers use — the two handshakes for `index.ts`, `handleOutboundAgentConnection` for `ClientConnector`. The rest sits under `controllers/websocket/`:
 
 | Module                  | Responsibility                                                                 |

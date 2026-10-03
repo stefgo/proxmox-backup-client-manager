@@ -106,6 +106,25 @@ State is split across Zustand stores in `server/frontend/src/stores/`:
 
 WebSocket updates from `/ws/dashboard` flow into these stores; the frontend does not poll.
 
+### The contract between server and dashboard
+
+Both directions are described once, as Zod schemas in `shared`, and both ends hang on them:
+
+- **REST**: `shared/src/responses.ts` holds one schema per response shape. The frontend
+  reaches the server only through `lib/api.ts` -- `api.get(path, schema)` -- which parses
+  every answer and throws `ApiError` with the server's `error` text. **No `.json()`
+  outside `lib/api.ts`, no `as` on response data.** `publicApi` is the same client for the
+  unauthenticated endpoints, where a 401 must not log out.
+- **WebSocket**: `DashboardMessageSchema` in `shared/src/dashboardMessages.ts` is a
+  discriminated union of every `/ws/dashboard` message. `ProxyService.broadcastToDashboard`
+  takes only a member of it; `WebSocketProvider` dispatches in a `switch` ending in
+  `assertNever`. **A new message type goes into the union first** -- the frontend's
+  `typecheck` then fails until it has a case.
+- **A response schema describes what the server sends, not what an editor accepts.** A
+  nullable SQLite column arrives as `null` (`ClientViewSchema`, not `ClientSchema`), and a
+  job is checked for its shape only (`BackupJobViewSchema`), so one stored by an older
+  agent does not take the whole list off the screen.
+
 ### Shared Library
 
 Any type, schema, or constant used across workspaces lives in `shared/`. After modifying `shared/src/`, run `npm run build -w shared` (or the root `npm run build`) before the other workspaces will pick up the changes.

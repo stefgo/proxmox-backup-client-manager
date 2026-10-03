@@ -33,7 +33,8 @@ src/
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
 ├── hooks/            # Global Custom Hooks (WebSocket subscriptions)
 ├── lib/              # Non-React modules
-│   ├── apiFetch.ts        # The one entry point for authenticated /api/v1 calls
+│   ├── api.ts             # The one place a response is read: api.get(path, schema), …
+│   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
 │   └── realtimeEvents.ts  # Typed emitter for the high-frequency WS stream
 ├── index.css         # Global CSS layers (glass-card, field-label)
 ├── Main.tsx          # Entry point (mounts App)
@@ -110,8 +111,8 @@ The session is a cookie the browser manages, and `AuthProvider`
   the server has already set the cookies. `username` comes from `GET /api/v1/me`, because
   the page can no longer read it out of the JWT.
 - **Local login**: `POST /api/login` with `credentials: 'same-origin'` → server sets both
-  cookies → `login()`. `Login.tsx` is the one page using plain `fetch` rather than
-  `apiFetch`, so a wrong password does not get turned into a logout.
+  cookies → `login()`. `Login.tsx` is the one page using `publicApi` rather than `api`,
+  so a wrong password does not get turned into a logout.
 - **OIDC**: redirect to the provider → `/api/auth/callback` → the server sets the same two
   cookies and redirects to `/`. The token used to ride back as `/login?token=<JWT>`; a
   query parameter lands in browser history and server logs, which is the reason it moved
@@ -169,7 +170,46 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
 
 Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows them).
 
+### Talking to the server (`lib/api.ts`)
+
+Every request goes through `api`, and every response is parsed against a Zod schema from
+`@pbcm/shared` before a component or a store sees it:
+
+```ts
+const clients = await api.get('/api/v1/clients', ClientListSchema);
+await api.put(`/api/v1/clients/${id}`, { displayName }, undefined, { fallback: 'Failed to update client' });
+```
+
+- **`api.get(path, schema)`**, **`api.post(path, body?, schema?)`**, **`api.put(…)`**,
+  **`api.delete(path)`**. A call without a schema expects no body and resolves to `void`.
+- **A refused request throws `ApiError`**, carrying the server's own `error` text and the
+  HTTP `status`. `fallback` is what it says when the body has no text. A caller that
+  treats a status as an ordinary state branches on it -- `ClientTunnelCard` reads a 404 as
+  "no tunnel yet".
+- **An answer that does not match its schema throws `ApiError` too**
+  (`Unexpected response from GET …`); the Zod issues go to the console.
+- **A 401 is not an `ApiError`**: `apiFetch` underneath logs out and throws
+  `SessionExpiredError`.
+- **`publicApi`** is the same client over plain `fetch`, for the three unauthenticated
+  endpoints (`/api/login`, `/api/auth/logout`, `/api/auth/config`), where a 401 is a
+  refusal like any other.
+
+**There is no `.json()` outside `lib/api.ts` and no `as` on response data.** The schemas
+live in `shared/src/responses.ts`, one per shape, and describe what the server *sends* --
+for a row read out of SQLite that is `null`, not a missing key. They are deliberately
+looser than the schemas that guard input: `BackupJobViewSchema` checks a job's shape, not
+the editor's rules, so a job saved by an older agent still shows.
+
+A new endpoint needs its schema there first. Adding a field to a response without adding
+it to the schema is harmless but useless: Zod strips what a schema does not name.
+
 ### Two realtime channels, and why
+
+Every message is first read by `features/app/lib/dashboardMessages.ts`, which parses it
+against `DashboardMessageSchema` from `@pbcm/shared`; one that does not match is dropped
+and reported once per type. `WebSocketProvider` then dispatches in a `switch` over
+`message.type` that ends in `assertNever` -- a message type added to the schema without a
+case there fails `npm run typecheck -w server/frontend`.
 
 Updates from `/ws/dashboard` reach the app on two paths, and the split is deliberate.
 
@@ -187,7 +227,9 @@ component, and holding them in a store would re-render every subscriber on every
 
 The emitter carries a typed event map, its payload types taken from `@pbcm/shared` — the
 same contracts the WebSocket messages are validated against, so the channel cannot drift
-from the socket that feeds it. `subscribe(type, handler)` returns the unsubscribe
+from the socket that feeds it. One payload is converted on the way in: `JOB_UPDATE` carries
+the agent's `StatusUpdatePayload`, and `historyUpdateFrom` turns it into the history row
+the lists hold (`jobConfigId` for `jobId`, `null` for what a running job has not reported). `subscribe(type, handler)` returns the unsubscribe
 function, which a `useEffect` can return directly.
 
 Underneath sits **`mitt`** (~200 bytes), not a hand-written registry. The first version of
