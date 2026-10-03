@@ -84,6 +84,11 @@ export interface BaseJobListProps<T extends BaseJobItem> {
      * "Last Run" column -- whether the backup ran is answered in the row of the job.
      */
     getLastRun?: (job: T) => LastRun | undefined;
+    /**
+     * What an empty list says instead of "No jobs configured yet" -- for a caller that
+     * knows why it is empty, and that this is not the same as having no jobs.
+     */
+    emptyMessage?: ReactNode;
     /** Storage key for the remembered view toggle; the scope is always the browser. */
     viewModePersistKey?: string;
     /**
@@ -108,6 +113,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     getClientStatus,
     getClientName,
     getLastRun,
+    emptyMessage,
     viewModePersistKey = 'jobViewMode',
     searchParamKey = 'search',
     pageSize = PAGE_SIZE.embedded,
@@ -347,10 +353,12 @@ export const BaseJobList = <T extends BaseJobItem>({
             searchFilter={matchesSearch}
             noResultsMessage={`No jobs match “${searchQuery}”.`}
             emptyMessage={
-                <EmptyState
-                    title="No jobs configured yet"
-                    action={newJobButton || undefined}
-                />
+                emptyMessage ?? (
+                    <EmptyState
+                        title="No jobs configured yet"
+                        action={newJobButton || undefined}
+                    />
+                )
             }
             rowClassName={(job) =>
                 getStatus(job) === CLIENT_STATUS.ONLINE

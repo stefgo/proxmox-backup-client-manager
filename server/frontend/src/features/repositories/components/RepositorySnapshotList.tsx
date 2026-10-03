@@ -15,6 +15,11 @@ interface RepositorySnapshotListProps<T extends Snapshot> {
     getClientStatus?: (clientId: string) => ClientStatus;
     getClientName?: (clientId: string) => string | null;
     /**
+     * Why no snapshot of this list can be restored right now, as the tooltip of the
+     * disabled action. The snapshots themselves stay readable: they are the repository's.
+     */
+    restoreDisabledReason?: string;
+    /**
      * The query parameter this list's search is kept in. The caller namespaces it where
      * several lists share a route, so each tab remembers its own search instead of
      * inheriting the one next door.
@@ -30,6 +35,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
     showClientColumn = false,
     getClientStatus,
     getClientName,
+    restoreDisabledReason,
     searchParamKey = 'search',
 }: RepositorySnapshotListProps<T>) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam(searchParamKey);
@@ -77,8 +83,9 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                 {
                     icon: ArchiveRestore,
                     onClick: () => onRestore(snap),
+                    disabled: !!restoreDisabledReason,
                     color: 'blue',
-                    tooltip: 'Restore Snapshot',
+                    tooltip: { enabled: 'Restore Snapshot', disabled: restoreDisabledReason ?? '' },
                 },
             ]}
         />

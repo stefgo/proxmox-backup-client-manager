@@ -13,6 +13,7 @@ import { SessionExpiredError } from '../lib/apiFetch';
 import { recentRuns } from '../lib/cacheUpdates';
 import { queryKeys } from '../lib/queryKeys';
 import { backupSnapshotsOptions } from './repositories';
+import { globalHistoryOptions } from './history';
 
 const NO_RUNS: HistoryEntry[] = [];
 const NO_JOBS: BackupJob[] = [];
@@ -60,6 +61,18 @@ export function useClientHistory(clientId: string) {
     const { data: history = NO_RUNS, dataUpdatedAt } = useQuery(clientHistoryOptions(clientId));
     const lastHistory = useMemo(() => recentRuns(history, dataUpdatedAt), [history, dataUpdatedAt]);
     return { history, lastHistory };
+}
+
+/**
+ * A client's runs as the server stored them, one page at a time -- the history an offline
+ * client still has. `clientHistoryOptions` asks the agent, which answers only while it is
+ * connected; this reads the same `GET /api/v1/history` the history page does, filtered to
+ * the client, and so the same cache entries `JOB_UPDATE` marks stale.
+ *
+ * `enabled` keeps the request away while the agent's own list is the one on screen.
+ */
+export function useStoredClientHistory(clientId: string, page: number, pageSize: number, enabled: boolean) {
+    return useQuery({ ...globalHistoryOptions({ clientId, page, pageSize }), enabled });
 }
 
 export function useClientJobs(clientId: string) {
