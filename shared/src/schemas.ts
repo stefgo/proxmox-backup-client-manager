@@ -637,6 +637,26 @@ export const JobDeleteResponseSchema = z.object({
     error: z.string().optional(),
 });
 
+/**
+ * Asks the agent to end a run that is under way -- a backup, a restore, or a backup
+ * waiting in the job's queue. A request with an answer rather than a push: whether the
+ * run could still be stopped is something only the agent knows, and the dashboard says it.
+ */
+export const AbortRunRequestSchema = z.object({
+    requestId: z.string(),
+    runId: z.string(),
+});
+
+/**
+ * `success` says the run was told to stop, not that it has: it ends through its own
+ * `STATUS_UPDATE`, as `abort`. `error` names why there was nothing to stop.
+ */
+export const AbortRunResponseSchema = z.object({
+    requestId: z.string(),
+    success: z.boolean(),
+    error: z.string().optional(),
+});
+
 export const GenerateKeyRequestSchema = z.object({
     requestId: z.string(),
 });

@@ -16,6 +16,7 @@ import {
     JobListRequestSchema,
     JobSaveRequestSchema,
     JobDeleteRequestSchema,
+    AbortRunRequestSchema,
     GenerateKeyRequestSchema,
     HistoryRequestSchema,
     HistoryAckSchema,
@@ -46,6 +47,7 @@ const TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const INBOUND_SCHEMAS: Partial<Record<string, ZodType>> = {
     [WS_EVENTS.RUN_BACKUP]: RunJobPayloadSchema,
     [WS_EVENTS.RUN_RESTORE]: RestoreSnapshotPayloadSchema,
+    [WS_EVENTS.ABORT_RUN]: AbortRunRequestSchema,
     [WS_EVENTS.FS_LIST]: FsListRequestSchema,
     [WS_EVENTS.GET_VERSION]: GetVersionRequestSchema,
     [WS_EVENTS.JOB_LIST_CONFIG]: JobListRequestSchema,
@@ -394,6 +396,9 @@ export class Connection {
                         break;
                     case WS_EVENTS.RUN_RESTORE:
                         Handlers.handleRestoreSnapshot(message.payload);
+                        break;
+                    case WS_EVENTS.ABORT_RUN:
+                        Handlers.handleAbortRun(message.payload);
                         break;
                     case WS_EVENTS.TUNNEL_ACQUIRE_RESULT:
                         Connection.resolvePending(message.payload);

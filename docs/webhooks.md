@@ -33,7 +33,7 @@ events of all clients. There are two kinds of event.
 | :--- | :------- | :---- |
 | `job.succeeded` | finished successfully — for a backup, once the agent has read back the snapshot it created, so the event carries it | `info` |
 | `job.failed` | failed — the backup itself, or before it started: a job whose configuration does not resolve, a failed pre-script, a tunnel that could not be opened | `error` |
-| `job.aborted` | was cut short, e.g. because the agent restarted while it ran; reported when the agent comes back. A backup whose snapshot the agent then finds finished on the PBS is reported as `job.succeeded` instead | `warning` |
+| `job.aborted` | was cut short: aborted from the dashboard, or because the agent restarted while it ran — the latter reported when the agent comes back. A backup whose snapshot the agent then finds finished on the PBS is reported as `job.succeeded` instead | `warning` |
 | `job.skipped` | did not start because the same job was already running and another run already queued | `warning` |
 
 **A client lost its connection:**

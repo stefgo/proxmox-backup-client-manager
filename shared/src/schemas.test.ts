@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    AbortRunRequestSchema,
     ClientUpdateSchema,
     HistoryQuerySchema,
     RepositoryInputSchema,
@@ -132,5 +133,18 @@ describe("RestoreRequestSchema", () => {
 
     it("refuses a snapshot that would be read as an option", () => {
         expect(RestoreRequestSchema.safeParse({ ...request, snapshot: "--repository=x" }).success).toBe(false);
+    });
+});
+
+describe("AbortRunRequestSchema", () => {
+    it("names the run to stop", () => {
+        expect(AbortRunRequestSchema.parse({ requestId: "r1", runId: "run-1" })).toEqual({
+            requestId: "r1",
+            runId: "run-1",
+        });
+    });
+
+    it("refuses a request that names no run", () => {
+        expect(AbortRunRequestSchema.safeParse({ requestId: "r1" }).success).toBe(false);
     });
 });

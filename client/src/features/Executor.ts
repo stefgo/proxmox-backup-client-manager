@@ -273,6 +273,50 @@ export class Executor {
     }
 
     /**
+     * Ends a run on the operator's request. Returns why it could not, or null when the run
+     * was told to stop -- it then reports its own end, as `abort`, like any other run.
+     *
+     * A run can be in two places. Under way, it is the ProcessRunner's: signalled if its
+     * CLI is running, marked if it is still waiting for a pre-script or a tunnel. Queued
+     * behind another run of its job, it is this class's, and ends here -- nothing was
+     * started that could report it.
+     *
+     * Not reachable is the run between those two: taken out of the queue, and waiting out
+     * `queueDelaySeconds` before it starts. It is answered as "not running", and can be
+     * aborted a few seconds later, once it is.
+     */
+    static abortRun(runId: string): string | null {
+        if (ProcessRunner.abort(runId)) return null;
+
+        for (const [jobId, queuedRunId] of this.pendingJobs) {
+            if (queuedRunId !== runId) continue;
+            this.pendingJobs.delete(jobId);
+
+            const queued = JobHistoryRepository.findQueuedJobs().find((run) => run.id === runId);
+            const endTime = new Date().toISOString();
+            const note = "Aborted on request while queued.";
+            try {
+                JobHistoryRepository.finishJob(runId, JOB_STATUS.ABORTED, endTime, null, null, note);
+            } catch (e) {
+                logger.error({ err: e }, "DB Update Error (abort while queued)");
+            }
+            Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                id: runId,
+                jobId,
+                name: queued?.name || "Unknown Backup",
+                startTime: queued?.start_time ?? endTime,
+                endTime,
+                status: JOB_STATUS.ABORTED,
+                stderr: note,
+                type: "backup",
+            });
+            return null;
+        }
+
+        return "This run is not under way on the client any more.";
+    }
+
+    /**
      * Executes a backup job. Resolves the job configuration from the local jobs.json,
      * mounts repository credentials and processes encryption keys, then hands the
      * finished command line to runProxmoxClient.
@@ -394,6 +438,8 @@ export class Executor {
         }
 
         this.runningJobs.add(jobId);
+        // Known to an abort from here on, also while the pre-script below is running.
+        ProcessRunner.expect(runId);
 
         const jobType = "backup";
         const displayName = jobName || "Unknown Backup";
@@ -464,6 +510,7 @@ export class Executor {
                     (e instanceof Error ? e.message : String(e)),
             );
             removeTempKeyfile(tempKeyfilePath);
+            ProcessRunner.forget(runId);
             this.releaseJobSlot(jobId);
             return;
         }
@@ -487,6 +534,7 @@ export class Executor {
                     "Pre-execution script failed. Operation aborted.",
                 );
                 removeTempKeyfile(tempKeyfilePath);
+                ProcessRunner.forget(runId);
                 this.releaseJobSlot(jobId);
                 return;
             }

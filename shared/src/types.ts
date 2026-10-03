@@ -46,6 +46,8 @@ import {
     JobSaveResponseSchema,
     JobDeleteRequestSchema,
     JobDeleteResponseSchema,
+    AbortRunRequestSchema,
+    AbortRunResponseSchema,
     GenerateKeyRequestSchema,
     GenerateKeyResponseSchema,
     GetVersionRequestSchema,
@@ -152,6 +154,8 @@ export type JobSaveRequest = z.infer<typeof JobSaveRequestSchema>;
 export type JobSaveResponse = z.infer<typeof JobSaveResponseSchema>;
 export type JobDeleteRequest = z.infer<typeof JobDeleteRequestSchema>;
 export type JobDeleteResponse = z.infer<typeof JobDeleteResponseSchema>;
+export type AbortRunRequest = z.infer<typeof AbortRunRequestSchema>;
+export type AbortRunResponse = z.infer<typeof AbortRunResponseSchema>;
 export type GenerateKeyRequest = z.infer<typeof GenerateKeyRequestSchema>;
 export type GenerateKeyResponse = z.infer<typeof GenerateKeyResponseSchema>;
 export type GetVersionRequest = z.infer<typeof GetVersionRequestSchema>;
@@ -245,6 +249,10 @@ export interface ProtocolMap {
     RUN_RESTORE: {
         req: RestoreSnapshotPayload;
         res: void;
+    };
+    ABORT_RUN: {
+        req: AbortRunRequest;
+        res: AbortRunResponse;
     };
     FS_LIST: {
         req: FsListRequest;

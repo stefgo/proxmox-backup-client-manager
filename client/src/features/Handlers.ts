@@ -28,6 +28,25 @@ export class Handlers {
         Executor.executeRestore(payload.runId, payload);
     }
 
+    /**
+     * Answered either way: the dashboard asked about one run, and "there is nothing to
+     * stop" is an answer it shows -- a run that ended a moment ago is the usual reason.
+     */
+    static handleAbortRun(payload: ProtocolMap["ABORT_RUN"]["req"]) {
+        const { requestId, runId } = payload;
+        let error: string | null;
+        try {
+            error = Executor.abortRun(runId);
+        } catch (err: unknown) {
+            logger.error({ err: err }, "Abort Run Error");
+            error = err instanceof Error ? err.message : String(err);
+        }
+        Connection.respond(
+            WS_EVENTS.ABORT_RUN,
+            error === null ? { requestId, success: true } : { requestId, success: false, error },
+        );
+    }
+
     static handleFsList(payload: ProtocolMap["FS_LIST"]["req"]) {
         const { path: reqPath, requestId } = payload;
         logger.info(`Listing directory: ${reqPath}`);

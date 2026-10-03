@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import type { Writable } from "stream";
 import {
     Repository,
@@ -21,6 +21,35 @@ import { querySnapshot, type SnapshotQueryResult } from "./SnapshotQuery.js";
 import { requireClientId } from "../../core/Identity.js";
 
 /**
+ * How long a run that was asked to stop is given to do so. `proxmox-backup-client` ends on
+ * SIGTERM at once; this is for the one that does not -- stuck in a read on a dead link --
+ * so an abort is never a request the operator has to repeat.
+ */
+const ABORT_KILL_AFTER_MS = 10_000;
+
+/** What the operator's abort leaves in the run's log. */
+const ABORTED_NOTE = "Aborted on request.";
+
+/** A run this process knows about: accepted, and not yet over. */
+interface LiveRun {
+    /** Absent until the CLI is started: the run is still waiting for a script or a tunnel. */
+    child?: ChildProcess;
+    abortRequested: boolean;
+    killTimer?: NodeJS.Timeout;
+}
+
+/**
+ * The status a run ends with, from how its process ended.
+ *
+ * An abort that came too late does not rewrite the outcome: a CLI that still exited with
+ * 0 has finished its work, and a backup that is in the repository is not an aborted one.
+ */
+export function runEndStatus(code: number | null, abortRequested: boolean): string {
+    if (code === 0) return JOB_STATUS.SUCCESS;
+    return abortRequested ? JOB_STATUS.ABORTED : JOB_STATUS.FAILED;
+}
+
+/**
  * Everything that starts a child process and reports what became of it.
  *
  * Split out of Executor so that class keeps only the queue and the orchestration. The
@@ -29,6 +58,55 @@ import { requireClientId } from "../../core/Identity.js";
  * cleanup lives in one place now instead of two.
  */
 export class ProcessRunner {
+    /**
+     * The runs that can be aborted, by run id: from the moment one is accepted until its
+     * CLI has exited. A run reading back its snapshot is no longer among them -- its backup
+     * is done and in the repository, and "aborted" would be the wrong thing to call it.
+     */
+    private static live = new Map<string, LiveRun>();
+
+    /**
+     * Makes a run known before its CLI exists, so an abort that arrives while a pre-script
+     * runs or a tunnel is being opened is kept and acted on before the spawn.
+     */
+    static expect(runId: string): void {
+        if (!this.live.has(runId)) this.live.set(runId, { abortRequested: false });
+    }
+
+    /** The run ended without ever reaching the spawn. */
+    static forget(runId: string): void {
+        const run = this.live.get(runId);
+        if (run?.killTimer) clearTimeout(run.killTimer);
+        this.live.delete(runId);
+    }
+
+    /**
+     * Asks a run to stop. False when this process has no such run under way.
+     *
+     * The run is not ended here: the CLI is signalled and the run ends where every run
+     * ends, in its `close` handler -- so the keyfile, the tunnel lease and the job's slot
+     * are given back by the same code as after any other exit.
+     */
+    static abort(runId: string): boolean {
+        const run = this.live.get(runId);
+        if (!run) return false;
+        if (run.abortRequested) return true;
+        run.abortRequested = true;
+
+        const child = run.child;
+        if (child) {
+            logger.info(`Aborting run ${runId} on request`);
+            child.kill("SIGTERM");
+            run.killTimer = setTimeout(() => {
+                logger.warn(`Run ${runId} did not stop on SIGTERM; killing it`);
+                child.kill("SIGKILL");
+            }, ABORT_KILL_AFTER_MS);
+            // Must not keep the agent alive on its own.
+            run.killTimer.unref();
+        }
+        return true;
+    }
+
     /**
      * Runs a pre- or post-execution script if configured.
      * The script is executed with two arguments: the operation type (backup/restore) and the job name.
@@ -221,6 +299,9 @@ export class ProcessRunner {
 
         const releaseSlotIfHeld = () => onSlotRelease?.();
 
+        // A restore enters here; a backup was announced by the Executor before its pre-script.
+        ProcessRunner.expect(runId);
+
         logger.info(
             `Starting ${jobType} ${runId}: ${command} ${args.join(" ")}`,
         );
@@ -257,6 +338,45 @@ export class ProcessRunner {
         // requested here, immediately before the spawn, and released again in every exit
         // path below — a lease that is never released blocks the tunnel until maxLeaseMs.
         let lease: TunnelLease | undefined;
+
+        /**
+         * Ends the run as aborted if that was asked for before the CLI exists. Asked twice:
+         * after the pre-script, so no tunnel is opened for a run that will not start, and
+         * after the tunnel, which can take as long as the SSH handshake does.
+         */
+        const abortedBeforeStart = (): boolean => {
+            if (!ProcessRunner.live.get(runId)?.abortRequested) return false;
+            ProcessRunner.forget(runId);
+            TunnelClient.release(lease);
+            lease = undefined;
+            releaseSlotIfHeld();
+            removeTempKeyfile(keyfilePath);
+            logger.info(`${jobType} ${runId} aborted on request before it started`);
+
+            const endTime = new Date().toISOString();
+            try {
+                JobHistoryRepository.finishJob(
+                    runId,
+                    JOB_STATUS.ABORTED,
+                    endTime,
+                    null,
+                    null,
+                    ABORTED_NOTE,
+                );
+            } catch (e) {
+                logger.error({ err: e }, "DB Update Error (abort before start)");
+            }
+            Connection.send(WS_EVENTS.STATUS_UPDATE, {
+                ...runningPayload,
+                status: JOB_STATUS.ABORTED,
+                endTime,
+                stderr: ABORTED_NOTE,
+                phase: null,
+            });
+            return true;
+        };
+        if (abortedBeforeStart()) return;
+
         try {
             if (tunnelRequired && repository) {
                 lease = await TunnelClient.acquire(runId, jobId);
@@ -273,6 +393,7 @@ export class ProcessRunner {
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             logger.error({ err: e }, `Tunnel acquisition failed (${jobType})`);
+            ProcessRunner.forget(runId);
             releaseSlotIfHeld();
             removeTempKeyfile(keyfilePath);
             ProcessRunner.finishFailedRun(
@@ -285,6 +406,8 @@ export class ProcessRunner {
             );
             return;
         }
+
+        if (abortedBeforeStart()) return;
 
         // A backup names its snapshot itself: `--backup-time` is fixed here, after the
         // queue and the tunnel lease, because the PBS refuses a time that is not after the
@@ -308,6 +431,9 @@ export class ProcessRunner {
             // Standard IO pipes: [stdin, stdout, stderr, pipe3 (repository password)]
             stdio: ["pipe", "pipe", "pipe", "pipe"],
         });
+        // Nothing awaits between the check above and here, so no abort can fall between.
+        const liveRun = ProcessRunner.live.get(runId);
+        if (liveRun) liveRun.child = child;
 
         if (password) {
             // `stdio` is typed as possibly-null per slot because the shape depends on the
@@ -346,7 +472,12 @@ export class ProcessRunner {
             // but they must not arrive after the message that says the run is over.
             logStream.close();
 
-            const status = code === 0 ? JOB_STATUS.SUCCESS : JOB_STATUS.FAILED;
+            // From here on the run cannot be aborted any more: its CLI is gone.
+            const abortRequested = !!ProcessRunner.live.get(runId)?.abortRequested;
+            ProcessRunner.forget(runId);
+
+            const status = runEndStatus(code, abortRequested);
+            if (status === JOB_STATUS.ABORTED) stderrLog.append(`\n${ABORTED_NOTE}`);
             logger.info(`${jobType} ${runId} finished with code ${code}`);
 
             // The last step of a successful backup: read back what it created. The run is
@@ -461,6 +592,7 @@ export class ProcessRunner {
         });
 
         child.on("error", (err: Error) => {
+            ProcessRunner.forget(runId);
             TunnelClient.release(lease);
             lease = undefined;
             releaseSlotIfHeld();
