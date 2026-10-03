@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
-import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+    queryOptions,
+    useMutation,
+    useQueries,
+    useQuery,
+    useQueryClient,
+    type UseQueryResult,
+} from '@tanstack/react-query';
 import {
     CertificateCheckSchema,
     DistributeResultSchema,
@@ -38,6 +45,16 @@ const repositoryStatusOptions = (id: RepositoryId) =>
             (await api.get(`/api/v1/repositories/${id}/status`, RepositoryStatusResponseSchema)).status,
     });
 
+/**
+ * At module scope, so its identity never changes: `useQueries` runs `combine` again only
+ * when it or a result changes, and an inline one would be new on every render.
+ */
+const statusesOf = (results: UseQueryResult<Repository['status']>[]) =>
+    results.map((result) => {
+        if (result.data) return result.data;
+        return result.isError ? REPOSITORY_STATUS.OFFLINE : REPOSITORY_STATUS.LOADING;
+    });
+
 /** A repository's snapshots, newest first. Shared by the repository page and the client page. */
 export const repositorySnapshotsOptions = (id: RepositoryId) =>
     queryOptions({
@@ -62,11 +79,7 @@ export function useRepositories() {
 
     const statuses = useQueries({
         queries: data.map((repo) => repositoryStatusOptions(repo.id)),
-        combine: (results) =>
-            results.map((result) => {
-                if (result.data) return result.data;
-                return result.isError ? REPOSITORY_STATUS.OFFLINE : REPOSITORY_STATUS.LOADING;
-            }),
+        combine: statusesOf,
     });
 
     const repositories = useMemo(

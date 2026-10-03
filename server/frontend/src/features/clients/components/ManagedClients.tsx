@@ -40,7 +40,7 @@ export const ManagedClients = ({
     const { confirm } = useConfirm();
     const { show } = useToast();
 
-    // A failed delete keeps the dialog open with the message in it: the store reverts its
+    // A failed delete keeps the dialog open with the message in it: the mutation reverts its
     // optimistic removal, so the row comes back, and closing would hide both the failure
     // and the button that retries it.
     const requestDelete = (client: Client) =>

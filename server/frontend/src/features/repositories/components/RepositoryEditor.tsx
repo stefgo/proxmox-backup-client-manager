@@ -88,7 +88,7 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
 
     // Reseeded while rendering when another repository is opened, rather than in an effect:
     // the fields never paint a frame with the previous repository's values.
-    // Keyed on the id, not the object: the store hands out a fresh object after every
+    // Keyed on the id, not the object: the cache hands out a fresh object after every
     // save, and reseeding on that would wipe the "saved" note it just produced.
     const [seededId, setSeededId] = useState(repository?.id);
     if (repository?.id !== seededId) {

@@ -150,7 +150,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         <Badge variant="info">{isInbound ? 'Inbound' : 'Outbound'}</Badge>
                         {!isOnline && <Badge variant="warning">Offline</Badge>}
                         {/*
-                          * The same badge the list shows. `client` comes from the store
+                          * The same badge the list shows. `client` comes from the cache
                           * via the route, so the tunnel state here follows the socket
                           * rather than freezing at the moment the page opened.
                           */}

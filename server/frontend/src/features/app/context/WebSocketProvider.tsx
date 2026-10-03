@@ -145,8 +145,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         );
                         // A finished backup left a snapshot behind. Whatever shows
                         // snapshots reads them again; what does not is only marked stale.
+                        // A read already under way is left to finish: an agent that
+                        // reconnects re-sends every run it had not synced, and each of
+                        // those would otherwise start the same requests over.
                         if (job.status === JOB_STATUS.SUCCESS) {
-                            queryClient.invalidateQueries({ queryKey: queryKeys.repositories.allSnapshots() });
+                            queryClient.invalidateQueries(
+                                { queryKey: queryKeys.repositories.allSnapshots() },
+                                { cancelRefetch: false },
+                            );
                         }
                         emit('jobUpdate', { clientId, job });
                         break;

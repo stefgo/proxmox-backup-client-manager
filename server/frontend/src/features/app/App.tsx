@@ -26,7 +26,7 @@ import { WebSocketProvider } from './context/WebSocketProvider';
 import { useWebSocket } from './context/WebSocketContext';
 import { queryClient } from '../../lib/queryClient';
 
-// Hooks & Stores
+// Hooks, queries & stores
 import { useClient, useClients, useDeleteClient, useUpdateClient } from '../../queries/clients';
 import { queryKeys } from '../../lib/queryKeys';
 import { useAddRepository, useDeleteRepository, useRepositories, useUpdateRepository } from '../../queries/repositories';

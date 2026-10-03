@@ -26,7 +26,7 @@ interface ClientTunnelCardProps {
      * form scrolls.
      */
     clientName?: string;
-    /** Live state from the client store — kept current by TUNNEL_UPDATE over the socket. */
+    /** Live state from the cached client list — kept current by TUNNEL_UPDATE over the socket. */
     state?: TunnelState;
     /** Reported upwards so the page can ask before the operator leaves with unsaved work. */
     onDirtyChange?: (dirty: boolean) => void;
