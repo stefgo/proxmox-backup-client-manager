@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { BackupJobSchema, type BackupJob } from '@pbcm/shared';
 import { checkDraft } from '../../../lib/entityForm';
 import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
-import { WEEKDAYS, emptyJobDraft, jobDraftFrom, jobFieldOf, jobInputFrom, jobRules, type JobDraft } from './jobForm';
+import {
+    WEEKDAYS,
+    emptyJobDraft,
+    jobDraftFrom,
+    jobFieldOf,
+    jobInputFrom,
+    jobRules,
+    previewRuns,
+    type JobDraft,
+} from './jobForm';
 
 const NOW = new Date(2026, 9, 3, 14, 30);
 const JOB_ID = '33333333-3333-4333-8333-333333333333';
@@ -46,7 +55,7 @@ describe('emptyJobDraft', () => {
     it('starts now, daily, on every weekday, with the schedule off', () => {
         expect(emptyJobDraft(NOW)).toMatchObject({
             scheduleEnabled: false,
-            interval: 1,
+            interval: '1',
             unit: 'days',
             weekdays: [...WEEKDAYS],
             startDate: '2026-10-03',
@@ -64,7 +73,7 @@ describe('jobDraftFrom', () => {
         const next = new Date(2026, 9, 4, 2, 0);
         expect(jobDraftFrom(job(), NOW)).toMatchObject({
             scheduleEnabled: true,
-            interval: 2,
+            interval: '2',
             unit: 'hours',
             weekdays: ['mon', 'fri'],
             startDate: toLocalDateInput(next),
@@ -82,7 +91,7 @@ describe('jobDraftFrom', () => {
     it('starts a job without a schedule today at midnight, daily, schedule off', () => {
         expect(jobDraftFrom(job({ schedule: null, scheduleEnabled: true }), NOW)).toMatchObject({
             scheduleEnabled: false,
-            interval: 1,
+            interval: '1',
             unit: 'days',
             weekdays: [...WEEKDAYS],
             startDate: '2026-10-03',
@@ -178,7 +187,22 @@ describe('the job draft, checked', () => {
     });
 
     it('refuses an interval below one at the interval', () => {
-        expect(check(complete({ interval: 0 })).errors).toEqual({ interval: 'At least 1.' });
+        expect(check(complete({ interval: '0' })).errors).toEqual({ interval: 'At least 1.' });
+        expect(check(complete({ interval: '-3' })).errors).toEqual({ interval: 'At least 1.' });
+    });
+
+    it('lets the interval be emptied, and says so at the field instead of putting a 1 back', () => {
+        expect(check(complete({ interval: '' })).errors).toEqual({ interval: 'At least 1.' });
+        expect(check(complete({ interval: '  ' })).errors).toEqual({ interval: 'At least 1.' });
+    });
+
+    it('refuses an interval that is no whole number', () => {
+        expect(check(complete({ interval: '1.5' })).errors).toEqual({ interval: 'A whole number.' });
+        expect(check(complete({ interval: 'two' })).errors).toEqual({ interval: 'At least 1.' });
+    });
+
+    it('sends the interval as the number that was typed', () => {
+        expect(check(complete({ interval: ' 12 ' })).input?.schedule).toMatchObject({ interval: 12 });
     });
 
     it('refuses encryption without a key', () => {
@@ -196,5 +220,29 @@ describe('the job draft, checked', () => {
         expect(check(complete({ startDate: 'tomorrow', startTime: '02:00' })).errors).toEqual({
             startDate: 'Not a date and time.',
         });
+    });
+});
+
+describe('previewRuns', () => {
+    const scheduled = (changes: Partial<JobDraft> = {}) =>
+        complete({ scheduleEnabled: true, startDate: '2026-10-04', startTime: '02:00', ...changes });
+    const starts = (draft: JobDraft) =>
+        previewRuns(draft, NOW, 3).map((run) => `${toLocalDateInput(run)} ${toLocalTimeInput(run)}`);
+
+    it('starts with the first run and repeats it by the interval', () => {
+        expect(starts(scheduled({ interval: '2' }))).toEqual([
+            '2026-10-04 02:00',
+            '2026-10-06 02:00',
+            '2026-10-08 02:00',
+        ]);
+    });
+
+    it('has nothing to show while the schedule is off', () => {
+        expect(starts(scheduled({ scheduleEnabled: false }))).toEqual([]);
+    });
+
+    it('has nothing to show while the interval or the start cannot be read', () => {
+        expect(starts(scheduled({ interval: '' }))).toEqual([]);
+        expect(starts(scheduled({ startTime: '' }))).toEqual([]);
     });
 });

@@ -1,4 +1,11 @@
-import { type Archive, type BackupJob, type BackupJobSchema, type Repository, type ScheduleConfig } from '@pbcm/shared';
+import {
+    upcomingRuns,
+    type Archive,
+    type BackupJob,
+    type BackupJobSchema,
+    type Repository,
+    type ScheduleConfig,
+} from '@pbcm/shared';
 import type { z } from 'zod';
 import { DraftFieldError, type FieldErrors, type FieldOf } from '../../../lib/entityForm';
 import { toLocalDateInput, toLocalTimeInput } from '../../../utils';
@@ -15,7 +22,8 @@ export interface JobDraft {
     excludes: string[];
     repository: Repository | null;
     scheduleEnabled: boolean;
-    interval: number;
+    /** As typed, so the field can be emptied on the way to another number. */
+    interval: string;
     unit: ScheduleConfig['unit'];
     weekdays: string[];
     /** The first run, as the date and time inputs hold it: local, `YYYY-MM-DD` and `HH:MM`. */
@@ -49,7 +57,7 @@ export function emptyJobDraft(now: Date): JobDraft {
         excludes: [],
         repository: null,
         scheduleEnabled: false,
-        interval: 1,
+        interval: '1',
         unit: 'days',
         weekdays: [...WEEKDAYS],
         startDate: toLocalDateInput(now),
@@ -74,7 +82,7 @@ export function jobDraftFrom(job: BackupJob, now: Date): JobDraft {
         excludes: job.excludes || [],
         repository: job.repository || null,
         scheduleEnabled: !!job.schedule && !!job.scheduleEnabled,
-        interval: job.schedule?.interval ?? 1,
+        interval: String(job.schedule?.interval ?? 1),
         unit: job.schedule?.unit ?? 'days',
         weekdays: job.schedule?.weekdays ?? [...WEEKDAYS],
         startDate: toLocalDateInput(start),
@@ -88,6 +96,37 @@ export function jobDraftFrom(job: BackupJob, now: Date): JobDraft {
     };
 }
 
+/** The interval as a number, or what keeps it from being one. */
+function intervalOf(draft: JobDraft): number | string {
+    const text = draft.interval.trim();
+    const interval = text === '' ? NaN : Number(text);
+    if (!Number.isFinite(interval) || interval < 1) return 'At least 1.';
+    if (!Number.isInteger(interval)) return 'A whole number.';
+    return interval;
+}
+
+/** The first run as the two inputs hold it, read as local time -- the clock they show. */
+function startOf(draft: JobDraft): Date | null {
+    if (!draft.startDate || !draft.startTime) return null;
+    const start = new Date(`${draft.startDate}T${draft.startTime}`);
+    return Number.isNaN(start.getTime()) ? null : start;
+}
+
+/**
+ * The next `count` runs the schedule in the draft leads to, for the preview below it. None
+ * while the schedule is off or cannot be read yet -- the fields say why, the preview does
+ * not have to.
+ *
+ * Calculated on the browser's clock, as the start is entered on it. The agent repeats on
+ * its own, so the two agree only where both keep the same time zone.
+ */
+export function previewRuns(draft: JobDraft, now: Date, count: number): Date[] {
+    const interval = intervalOf(draft);
+    const start = startOf(draft);
+    if (!draft.scheduleEnabled || typeof interval !== 'number' || !start) return [];
+    return upcomingRuns({ interval, unit: draft.unit, weekdays: draft.weekdays }, start, now, count);
+}
+
 /**
  * The draft as `POST /api/v1/clients/:clientId/jobs` takes it; `jobId` is `null` for a
  * job that does not exist yet. Throws at the field that keeps a request from being built.
@@ -97,11 +136,13 @@ export function jobInputFrom(draft: JobDraft, jobId: string | null): BackupJobIn
 
     let nextRunAt: string | undefined;
     if (draft.startDate && draft.startTime) {
-        // Read as local time, the clock the two inputs show.
-        const start = new Date(`${draft.startDate}T${draft.startTime}`);
-        if (Number.isNaN(start.getTime())) throw new DraftFieldError<JobDraft>('startDate', 'Not a date and time.');
+        const start = startOf(draft);
+        if (!start) throw new DraftFieldError<JobDraft>('startDate', 'Not a date and time.');
         nextRunAt = start.toISOString();
     }
+
+    const interval = intervalOf(draft);
+    if (typeof interval !== 'number') throw new DraftFieldError<JobDraft>('interval', interval);
 
     return {
         id: jobId,
@@ -113,7 +154,7 @@ export function jobInputFrom(draft: JobDraft, jobId: string | null): BackupJobIn
         // A real boolean: the 1/0 sent once only survived because the schema coerces it.
         scheduleEnabled: draft.scheduleEnabled,
         nextRunAt,
-        schedule: { interval: draft.interval, unit: draft.unit, weekdays: draft.weekdays },
+        schedule: { interval, unit: draft.unit, weekdays: draft.weekdays },
         repository: draft.repository,
         encryption: draft.encryptionEnabled ? { enabled: true, keyContent: draft.keyContent || undefined } : undefined,
         // Always sent, including as `false`: leaving it out of an update would let the
@@ -136,7 +177,8 @@ export function jobRules(draft: JobDraft): FieldErrors<JobDraft> {
     if (draft.scheduleEnabled && (!draft.startDate || !draft.startTime)) {
         errors.startDate = 'A schedule needs the date and time of its first run.';
     }
-    if (!Number.isFinite(draft.interval) || draft.interval < 1) errors.interval = 'At least 1.';
+    const interval = intervalOf(draft);
+    if (typeof interval !== 'number') errors.interval = interval;
     if (draft.encryptionEnabled && !draft.keyContent && !draft.hasStoredKey) {
         errors.encryptionEnabled = 'Encryption needs a key.';
     }
