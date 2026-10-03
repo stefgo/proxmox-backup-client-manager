@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClientListSchema, type Client } from '@pbcm/shared';
-import { api } from '../lib/api';
+import { ClientListSchema, TunnelInfoSchema, type Client, type TunnelInfo } from '@pbcm/shared';
+import { api, ApiError } from '../lib/api';
 import { queryClient } from '../lib/queryClient';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -86,3 +86,28 @@ export function useDeleteClient() {
         (clients, clientId) => clients.filter((c) => c.id !== clientId),
     );
 }
+
+/**
+ * The SSH credentials stored for a client's tunnel, without the secret. `null` when the
+ * client has none: a 404 is an answer here, not a failure -- a client without a tunnel is
+ * an ordinary state, and the card offers to set one up.
+ *
+ * Dropped as soon as nothing shows it: the tunnel card seeds a form from the first
+ * answer, and one left over from an earlier visit would seed it with what may have
+ * changed since.
+ */
+export const clientTunnelOptions = (clientId: string) =>
+    queryOptions({
+        queryKey: queryKeys.clients.tunnel(clientId),
+        queryFn: async (): Promise<TunnelInfo | null> => {
+            try {
+                return await api.get(`/api/v1/clients/${clientId}/tunnel`, TunnelInfoSchema, {
+                    fallback: 'Could not load the tunnel configuration',
+                });
+            } catch (e) {
+                if (e instanceof ApiError && e.status === 404) return null;
+                throw e;
+            }
+        },
+        gcTime: 0,
+    });

@@ -1,7 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import {
     TUNNEL_STATUS,
-    TunnelInfoSchema,
     TunnelTestResultSchema,
     type TunnelInfo,
     type TunnelState,
@@ -9,12 +8,13 @@ import {
 } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
-import { useAuth } from '../../auth/AuthContext';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { clientTunnelOptions } from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 import { SshKeyFields, SshKeyMode } from './SshKeyFields';
 import { SshHostSetupSnippet } from './SshHostSetupSnippet';
-import { api, ApiError } from '../../../lib/api';
-import { formatDate } from '../../../utils';
+import { api } from '../../../lib/api';
+import { formatDate, getErrorMessage } from '../../../utils';
 import { describeRemoveTunnel } from '../confirmations';
 
 interface ClientTunnelCardProps {
@@ -72,18 +72,19 @@ const COPY_FEEDBACK_MS = 2000;
  * describes what is on screen.
  */
 export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, action }: ClientTunnelCardProps) => {
-    const { isAuthenticated } = useAuth();
-    const [info, setInfo] = useState<TunnelInfo | null>(null);
+    const queryClient = useQueryClient();
+    const tunnelOptions = clientTunnelOptions(clientId);
     /**
-     * Distinguishes "not loaded yet" from "this client has no tunnel" — 404 is an answer.
-     * Stored as the request it answers rather than a flag: switching clients makes it false
-     * on that same render, without an effect resetting it, and a response that arrives for
-     * the previous client cannot mark the new one as loaded.
+     * `isPending` distinguishes "no answer yet" from "this client has no tunnel", which
+     * arrives as `null`. The key carries the client, so switching clients is pending again
+     * on that same render and an answer for the previous client cannot pass for this one.
      */
-    const loadKey = `${clientId}:${isAuthenticated}`;
-    const [loadedKey, setLoadedKey] = useState<string | null>(null);
-    const loaded = loadedKey === loadKey;
-    const [loadError, setLoadError] = useState<string | null>(null);
+    const { data, isPending, error: tunnelError } = useQuery(tunnelOptions);
+    const info = data ?? null;
+    const loadError = tunnelError ? getErrorMessage(tunnelError) : null;
+    /** What a save, a removal or a newly pinned host key leaves the server holding. */
+    const setInfo = (update: (prev: TunnelInfo | null) => TunnelInfo | null) =>
+        queryClient.setQueryData(tunnelOptions.queryKey, (prev) => update(prev ?? null));
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
     const [sshUser, setSshUser] = useState('');
@@ -98,35 +99,24 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
     const [unknownHostKey, setUnknownHostKey] = useState<string | null>(null);
     const { confirm } = useConfirm();
 
-    useEffect(() => {
-        const load = async () => {
-            try {
-                const data = await api.get(`/api/v1/clients/${clientId}/tunnel`, TunnelInfoSchema, {
-                    fallback: 'Could not load the tunnel configuration',
-                });
-                setInfo(data);
-                setSshHost(data.sshHost);
-                setSshPort(String(data.sshPort));
-                setSshUser(data.sshUser);
-                setKeyMode('keep');
-            } catch (e) {
-                // Not an error: a client without a tunnel is an ordinary state now, and
-                // the card offers to set one up instead of reporting a failure.
-                if (e instanceof ApiError && e.status === 404) {
-                    setInfo(null);
-                    setKeyMode('generate');
-                    return;
-                }
-                setLoadError(e instanceof Error ? e.message : String(e));
-            } finally {
-                setLoadedKey(loadKey);
-            }
-        };
-        load();
-    }, [clientId, isAuthenticated, loadKey]);
+    // The first answer for a client fills the form; a later one -- the cache is read again
+    // after a reconnect -- must not, or it would overwrite what is being typed. Done while
+    // rendering rather than in an effect, so no frame shows the previous client's fields.
+    const [seededFor, setSeededFor] = useState<string | null>(null);
+    if (data !== undefined && seededFor !== clientId) {
+        setSeededFor(clientId);
+        if (data) {
+            setSshHost(data.sshHost);
+            setSshPort(String(data.sshPort));
+            setSshUser(data.sshUser);
+            setKeyMode('keep');
+        } else {
+            setKeyMode('generate');
+        }
+    }
 
-    /** Loaded, no configuration, nothing broken: the card is a setup form. */
-    const isNew = loaded && !info && !loadError;
+    /** Answered, no configuration, nothing broken: the card is a setup form. */
+    const isNew = !isPending && !info && !loadError;
 
     const isDirty = info
         ? sshHost !== info.sshHost ||
@@ -251,13 +241,14 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
                 { fallback: 'Failed to set up the tunnel' },
             );
 
-            setInfo({
+            const hostKeySha256 = test.hostKeySha256;
+            setInfo(() => ({
                 sshHost,
                 sshPort: Number(sshPort) || 22,
                 sshUser,
-                hostKeySha256: test.hostKeySha256,
+                hostKeySha256,
                 remoteBindHost: '127.0.0.1',
-            });
+            }));
             setKeyMode('keep');
             setPrivateKey('');
             setPassphrase('');
@@ -276,7 +267,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
         resetFeedback();
         try {
             await api.delete(`/api/v1/clients/${clientId}/tunnel`, { fallback: 'Failed to remove the tunnel' });
-            setInfo(null);
+            setInfo(() => null);
             setSshHost('');
             setSshPort('22');
             setSshUser('');
@@ -393,7 +384,7 @@ export const ClientTunnelCard = ({ clientId, clientName, state, onDirtyChange, a
 
     // A short, silent gap would read as an empty card; the one loading indicator says
     // what is on its way without inventing a second loading idiom.
-    if (!loaded) {
+    if (isPending) {
         return (
             <Card title={title} titleAs="h3" action={action} classNames={{ header: 'py-5 px-7' }}>
                 <div className="px-7 py-6 bg-card" aria-busy>
