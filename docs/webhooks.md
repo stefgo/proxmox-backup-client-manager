@@ -35,6 +35,7 @@ events of all clients. There are two kinds of event.
 | `job.failed` | failed — the backup itself, or before it started: a job whose configuration does not resolve, a failed pre-script, a tunnel that could not be opened | `error` |
 | `job.aborted` | was cut short: aborted from the dashboard, or because the agent restarted while it ran — the latter reported when the agent comes back. A backup whose snapshot the agent then finds finished on the PBS is reported as `job.succeeded` instead | `warning` |
 | `job.skipped` | did not start because the same job was already running and another run already queued | `warning` |
+| `job.missed` | did not start at its scheduled time: the agent found it more than five minutes late, because it was stopped or the machine was asleep. Sent before the catch-up run, which is reported by its own event when it ends | `warning` |
 
 **A client lost its connection:**
 
@@ -96,7 +97,7 @@ webhook is saved, as is a template that is not valid JSON or longer than 64 KiB.
 shows a live preview rendered with a sample event — the preview uses the same code the server
 sends with — and **Send Test** has the server deliver that sample to the target. The sample
 follows the webhook's event kinds: the first of `job.failed`, `job.succeeded`, `job.aborted`,
-`job.skipped`, `client.disconnected` and `client.reconnected` one of them matches,
+`job.skipped`, `job.missed`, `client.disconnected` and `client.reconnected` one of them matches,
 `job.failed` when none does.
 
 ### What a template can read
@@ -105,7 +106,7 @@ follows the webhook's event kinds: the first of `job.failed`, `job.succeeded`, `
 | :---------- | :------ |
 | `event.message` | A sentence to lead with, e.g. `Backup "Daily /home" failed`, `Client has been disconnected for 120 s` |
 | `event.detail` | The last line of the run's error output — for proxmox-backup-client the `Error: …` line; `null` for a successful run, one without output, and client events |
-| `event.kind` | `job.succeeded`, `job.failed`, `job.aborted`, `job.skipped`, `client.disconnected`, `client.reconnected` |
+| `event.kind` | `job.succeeded`, `job.failed`, `job.aborted`, `job.skipped`, `job.missed`, `client.disconnected`, `client.reconnected` |
 | `event.level` | `info`, `warning` or `error` |
 | `event.occurredAt` | Runs: when the run ended, on the client's clock. Clients: when the connection closed (`client.disconnected`) or was back (`client.reconnected`), on the server's clock. ISO 8601 |
 | `event.id` | The id of the run, or of the client event |

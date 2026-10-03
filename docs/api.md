@@ -38,6 +38,7 @@
     - [Get Latest History per Job](#get-latest-history-per-job)
     - [Get History Seen State](#get-history-seen-state)
     - [Mark History Seen](#mark-history-seen)
+    - [Mark Run Seen](#mark-run-seen)
 - [Repositories](#-repositories)
     - [List Repositories](#list-repositories)
     - [Get Repository Status](#get-repository-status)
@@ -1138,9 +1139,10 @@ newest first.
 | :--------- | :----- | :-------------------------------------------------------------------------- |
 | `limit`    | number | Rows per page, 1–1000. Default 100.                                         |
 | `offset`   | number | Rows to skip. Default 0.                                                    |
-| `status`   | string | Only runs in this status (`success`, `failed`, `abort`, `running`, …). An unknown status answers with 400. |
+| `status`   | string | Only runs in this status (`success`, `failed`, `abort`, `missed`, `running`, …). An unknown status answers with 400. |
 | `clientId` | string | Only runs of this client.                                                   |
 | `search`   | string | Only runs this text occurs in: the job's name or id, the run's id, or the client's hostname or display name. Case-insensitive for ASCII letters, 1–200 characters; `%` and `_` are taken literally. |
+| `unseen`   | string | `true`: only the runs the session's user has yet to mark as seen (see [Get History Seen State](#get-history-seen-state)). `true` or `false`; anything else answers with 400. |
 
 #### Response
 
@@ -1149,10 +1151,12 @@ newest first.
 | `items` | array  | The page.                                                          |
 | `total` | number | How many runs the filter matches in all, across every page.        |
 
-Each entry of `items` has the fields of [Get Client History](#get-client-history), with two
-differences: the job is named `jobId` instead of `jobConfigId`, and the row carries its
+Each entry of `items` has the fields of [Get Client History](#get-client-history), with
+three differences: the job is named `jobId` instead of `jobConfigId`; the row carries its
 client -- `clientId`, plus `hostname` and `displayName`, which are `null` once a history
-row has outlived its client.
+row has outlived its client; and it carries `unseen` (boolean), whether the session's user
+has yet to mark the run as seen. `unseen` is a statement about the user asking, so two
+users get different answers for the same run, and only this endpoint carries it.
 
 This is the one list with an envelope. A list the server delivers whole is a bare array;
 this one is delivered in pages, and `total` is what no page can tell.
@@ -1183,20 +1187,32 @@ A bare array of the entries [Get Global History](#get-global-history) returns in
 
 `GET /v1/history/seen`
 
-**Description:** How far the session's user has looked at the job history. The frontend marks
-the History entry in the sidebar while `unseenFailed` is above zero.
+**Description:** What the session's user has yet to mark as seen. The dashboard shows the
+two counts on its "Errors / Warnings" card and lists the runs below it; the History entry
+in the sidebar carries a dot while either is above zero.
+
+A run is **unseen** for a user when all of this holds:
+
+- its status is `failed` or `missed`,
+- it ended after the user's `seenAt`, and
+- the user has not marked it with [Mark Run Seen](#mark-run-seen).
+
+Nothing is marked by opening a page. A user starts with `seenAt` set to the moment they
+were created, so what failed before their time is not new to them.
 
 #### Response
 
 | Field          | Type           | Description                                                                 |
 | :------------- | :------------- | :-------------------------------------------------------------------------- |
-| `seenAt`       | string \| null | When the user last opened the history (ISO 8601), `null` if never.         |
-| `unseenFailed` | number         | Failed runs whose `endTime` lies after `seenAt` -- all failed runs if `null`. |
+| `seenAt`       | string \| null | The point up to which everything counts as seen (ISO 8601): when the user was created, or their last [Mark History Seen](#mark-history-seen). `null` only for a session whose user has none, which then counts every run. |
+| `unseenFailed` | number         | Unseen runs in the status `failed`. |
+| `unseenMissed` | number         | Unseen runs in the status `missed`. |
 
 ```json
 {
     "seenAt": "2026-09-26T08:14:02.311Z",
-    "unseenFailed": 2
+    "unseenFailed": 2,
+    "unseenMissed": 1
 }
 ```
 
@@ -1204,10 +1220,18 @@ the History entry in the sidebar while `unseenFailed` is above zero.
 
 `PUT /v1/history/seen`
 
-**Description:** Records that the session's user has looked at the history now. No request body.
-Answers with the new state (same shape as [Get History Seen State](#get-history-seen-state),
-`unseenFailed` then `0`) and broadcasts it as [`HISTORY_SEEN`](#dashboard-connection), so the
-user's other tabs clear the mark too. Stored per username, so it works for OIDC users as well.
+**Description:** Marks everything that has happened up to now as seen for the session's
+user: `seenAt` becomes the current time. No request body. Answers with the new state (same
+shape as [Get History Seen State](#get-history-seen-state)) and broadcasts it as
+[`HISTORY_SEEN`](#dashboard-connection), so the user's other tabs follow.
+
+### Mark Run Seen
+
+`PUT /v1/history/:historyId/seen`
+
+**Description:** Marks one run as seen for the session's user. No request body. Marking a
+run twice is the same as once. Answers and broadcasts like
+[Mark History Seen](#mark-history-seen); `404` if there is no such run.
 
 ---
 
@@ -1911,7 +1935,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
 | `JOB_NEXT_RUN_UPDATE`| `{ clientId: string, jobId: string, nextRunAt: string \| null }`      | Updated next scheduled run time for a job. |
 | `SCHEDULER_STATUS_UPDATE` | `{ scheduler: SchedulerId, status: SchedulerStatus }`            | One server scheduler, whenever a run starts or ends or its timer moves. Same shape as one entry of [Scheduler Status](#scheduler-status). |
-| `HISTORY_SEEN`       | `{ username: string, seenAt: string \| null, unseenFailed: number }`  | A user opened the history ([Mark History Seen](#mark-history-seen)). Sent to every dashboard; each keeps only its own user's. |
+| `HISTORY_SEEN`       | `{ username: string, seenAt: string \| null, unseenFailed: number, unseenMissed: number }` | A user marked runs as seen ([Mark History Seen](#mark-history-seen), [Mark Run Seen](#mark-run-seen)). Sent to every dashboard; each keeps only its own user's. |
 | `WEBHOOKS_UPDATE`    | —                                                                     | A webhook changed, or a delivery went out. The dashboard fetches [List Webhooks](#list-webhooks) again. |
 
 These nine are the whole vocabulary, and it is written down once: `DashboardMessageSchema`

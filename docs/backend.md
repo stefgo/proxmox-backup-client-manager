@@ -34,7 +34,7 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |
 | `SettingsController.ts`     | Cleanup settings read/write, manual cleanup runs, scheduler status.         |
-| `HistoryController.ts`      | Global job history across all clients; per-user "seen" state of the history. |
+| `HistoryController.ts`      | Global job history across all clients; what each user has marked as seen. |
 | `TunnelController.ts`       | SSH tunnel credentials per client (CRUD), key pair generation, connection tests against form values and against stored credentials. |
 | `WebSocketController.ts`    | Entry point for WebSocket connections (agents and dashboards).               |
 
@@ -151,20 +151,44 @@ row after the write, so it has them whichever write ended the run. A `STATUS_UPD
 `phase: "snapshot"` (the run is still `running`) is only broadcast, like every running
 update.
 
-#### `history_seen`
+#### `history_seen` and `history_seen_runs`
 
-When each user last opened the job history (`HistorySeenRepository`, migration 14). One
-timestamp per user rather than a flag per run: the sidebar only asks "has anything failed
-since I last looked", and `JobHistoryRepository.countFailedSince()` answers that from
-`job_history.end_time`. Keyed by username, because an OIDC user has no row in `users`.
+What each user has marked as seen (`HistorySeenRepository`, migrations 14 and 20). Two
+parts, because neither alone is enough: a timestamp per user answers "mark all" with one
+row, and a row per run is what marking a single one needs.
+
+A run is unseen for a user when its status is `failed` or `missed`, its `end_time` lies
+after the user's `seen_at`, and it has no row in `history_seen_runs`. That is one SQL
+expression in `JobHistoryRepository` (`UNSEEN`), used for the `unseen` column of a history
+page, for the `unseen` filter and for `countUnseen()` -- so the list and the count cannot
+describe different runs.
+
+`history_seen`:
 
 | Column | Meaning |
 | :----- | :------ |
 | `username` | Primary key: the `username` claim of the session. |
-| `seen_at` | ISO 8601 timestamp of the last `PUT /api/v1/history/seen`. |
+| `seen_at` | ISO 8601 timestamp up to which everything counts as seen. |
 
-A failed run an agent syncs late (after an offline stretch) counts by its own `end_time`,
-so it does not mark the history if the user has looked since it ended.
+`history_seen_runs`:
+
+| Column | Meaning |
+| :----- | :------ |
+| `username` | The user who marked the run. |
+| `history_id` | The run, `job_history.id`, `ON DELETE CASCADE`: the history cleanup takes the marks along. |
+
+- **Nothing raises `seen_at` by itself.** Only `PUT /api/v1/history/seen` ("mark all") does,
+  and it deletes the user's rows in `history_seen_runs`, which then all lie below it. The
+  table holds what was picked out since the last "mark all", not a row per run ever seen.
+- **A new user starts at the moment they are created.** `UserRepository.create` writes the
+  user and their `seen_at` in one transaction, so the failures from before their time are
+  not new to them. Migration 20 gave every existing user without a row the same: their
+  `users.created_at`.
+- **Deleting a user deletes both**, so a user created under the same name later starts
+  from their own moment.
+
+A run an agent syncs late (after an offline stretch) counts by its own `end_time`, so it
+is already seen if the user has marked everything since it ended.
 
 ## 🔐 Authentication Flow
 

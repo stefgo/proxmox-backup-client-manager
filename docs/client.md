@@ -92,6 +92,20 @@ The Scheduler is responsible for evaluating and triggering scheduled backup jobs
   had to move because its time did not exist that night does not shift every run after it.
   Hours, minutes and seconds stay fixed intervals. Weekdays are checked in the same zone.
 - After execution, it records the last and next run times in `schedule.json`, and emits a `JOB_NEXT_RUN_UPDATE` event to the server (if connected).
+- **A run that starts late is reported as missed.** When the scheduler finds a run more than
+  five minutes past its time (`MISSED_AFTER_MS` in `shared/src/schedule.ts`) -- the agent was
+  stopped, the machine asleep -- it first writes a history entry with the status `missed`
+  and then starts the one catch-up run as before. The entry says when the run was due, how
+  late it started and how many scheduled runs the catch-up stands for:
+  `Scheduled for 2026-10-03T02:00:00.000Z, started 7 h 12 min late. 3 scheduled runs were due; they are caught up by one.`
+  It is a run like any other: kept under `history/` until the server has acknowledged it,
+  reported as the webhook event `job.missed`, and listed on the dashboard until a user marks
+  it as seen. Up to a minute of delay is the scheduler's own; the rest of the five lets an
+  agent be restarted or updated across a scheduled time without a warning.
+- **A time that had already passed when the schedule was saved is not a missed one.** A start
+  entered in the past means "run at once", and a schedule switched back on finds the time it
+  was switched off at. `schedule.json` keeps when the schedule was last saved as `enteredAt`
+  for this; the rule is `isMissedRun` in `shared`, tested there.
 
 ### 3. Job Executor (`src/features/Executor.ts`)
 
@@ -270,7 +284,7 @@ the agent run its scheduled backups with no server in reach.
 | :-------------------- | :-------------------------------------------------------------------- |
 | `identity.json`       | `clientId` and `authToken`, issued by the server at registration. Without it the agent is unregistered. An older agent's pair is moved here out of `config.yaml` on the first start. |
 | `jobs.json`           | The job configurations. The **only copy** there is: the server lists, saves and deletes jobs through the agent and keeps none of them. |
-| `schedule.json`       | Last and next run time per job, plus the entered start (`anchor`) the time of day is taken from. Written on every scheduled run, so it is kept apart from `jobs.json`. |
+| `schedule.json`       | Last and next run time per job, plus the entered start (`anchor`) the time of day is taken from and when the schedule was last saved (`enteredAt`). Written on every scheduled run, so it is kept apart from `jobs.json`. |
 | `history/<run>.json`  | One file per run: status, timing, exit code, output, the snapshot of a backup (`snapshot`, `snapshotDetails`, `snapshotError`), and the sync revisions. |
 
 - **Atomic writes**: every file is written to a temporary file, synced, and renamed over the

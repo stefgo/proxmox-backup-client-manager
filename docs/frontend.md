@@ -26,7 +26,7 @@ src/
 │   ├── clientDetail.ts   # A client's jobs, history and snapshots
 │   ├── jobs.ts           # Jobs across all clients, their latest runs, start and delete
 │   ├── repositories.ts   # Repositories, their status, their snapshots
-│   ├── history.ts        # The history list and the "seen" state behind the dot
+│   ├── history.ts        # The history list, what is unseen, and marking it as seen
 │   ├── webhooks.ts, scheduler.ts, fileSystem.ts, tokens.ts, users.ts
 ├── stores/           # Client-only state (Zustand)
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
@@ -131,7 +131,7 @@ A page whose query is its own leaves with `useBackPath({ keepSearch: false })`.
 
 An area of the tree that carries `handle: { nav }` is a sidebar entry; `navEntries` in
 `routes.tsx` reads them off in order. `AppLayout` adds what only the running application
-knows — the counts and the dot for unseen failures, by `id` — and marks the entry whose
+knows — the counts and the dot for unseen runs, by `id` — and marks the entry whose
 area the innermost match belongs to (`useMatches()`). No list of the routes below an entry
 exists: a route added under `/clients` is marked as *Clients* by being there.
 
@@ -243,14 +243,15 @@ read them again and overwrite what is typed and not yet saved.
 
 **The rules a socket message applies to an entry are pure functions** in
 `lib/cacheUpdates.ts` -- replace one client's jobs, merge a run into the latest-per-job
-list, raise the unseen-failure count. They take what is cached and what arrived and
+list. They take what is cached and what arrived and
 return what is cached now, which is why they are tested without a socket or a component.
 
 ### Job result toasts
 
 `hooks/useJobResultToasts.ts`, mounted once in `AppLayout`, turns finished runs from `jobUpdate`
 into toasts on whatever page is open. A **failure** is always reported and stays until
-dismissed. A **success** or an **abort** only for a job started from this browser
+dismissed, and so is a **missed schedule**, as a warning. Dismissing a toast marks nothing
+as seen. A **success** or an **abort** only for a job started from this browser
 (`markJobRunAsked` at "Run now"): with many clients, every scheduled run would otherwise raise
 one. A run is reported once (an agent re-sends finished runs after a reconnect), and not at
 all if it ended before the page was loaded.
@@ -325,31 +326,40 @@ anyway, plus one page of the history.
   `AppLayout` builds the sidebar's badges from the same functions, so a card and its
   badge cannot disagree. "Jobs active" is the jobs on online clients; there is no total,
   because the server knows a client's jobs only while its agent is connected.
-- A fourth card, **"Errors / Warnings"**, counts the missed jobs plus the failed runs
-  (`problemSummary` says below it what the number is made of). The section of the same
-  name is rendered only while it has something to show -- or after a click on the card,
-  which with nothing wrong opens it to say so and closes it again; with something wrong
-  the click scrolls down to it. The card carries `aria-expanded` for the section.
-- **Errors / Warnings**, the section, which holds only what needs attention. It has no
-  heading of its own -- the lists below carry their titles -- and takes its name from
-  `aria-label`:
-    - **Missed Jobs** -- `missedJobs`: the schedule is on, `nextRunAt` is past by more
-      than `MISSED_GRACE_MS` (a minute; the agent starts a due job on its next tick), the
-      client is online, and no run of the job is under way or queued. The rows the job
-      list shows as "Pending". Rendered with `BaseJobList`, so a missed job can be started
-      or opened from here; the card is absent while there is none. The page moves its
-      "now" every 30 seconds -- a job turns missed by the clock, with no message to say so.
-    - **Failed Runs** -- `useGlobalHistory` with `status=failed`, in `BaseHistoryList`,
-      paged by the server. Its key lies below `queryKeys.history.lists()`, which every
-      `JOB_UPDATE` marks stale, so a new failure appears without a rule of its own.
-    - Neither: one `EmptyState`, "No errors or warnings".
+- A fourth card, **"Errors / Warnings"**, counts what the user has yet to mark as seen:
+  the failed runs and the missed ones, from `useUnseen` (`problemSummary` says below the
+  number what it is made of). The section of the same name is rendered only while it has
+  something to show -- or after a click on the card, which with nothing left opens it to
+  say so and closes it again; with something left the click scrolls down to it. The card
+  carries `aria-expanded` for the section.
+- **Errors / Warnings**, the section: one `BaseHistoryList` of the unseen runs --
+  `useGlobalHistory` with `unseen: true`, paged by the server. Its key lies below
+  `queryKeys.history.lists()`, which every `JOB_UPDATE` marks stale, so a new failure
+  appears without a rule of its own. With nothing to list: one `EmptyState`.
 
-Opening the dashboard does not mark the failures as seen; the dot on "History" stays
-until the history itself was opened.
+**A run leaves that list when the user marks it as seen, and by nothing else** -- not by
+opening a page, and not because a later run of the same job went well. Every row has
+"Mark as seen", the list's header "Mark all as seen"; the history page offers the same two.
+Both are mutations in `queries/history.ts` (`useMarkRunSeen`, `useMarkAllSeen`), reached
+through `features/history/hooks/useMarkSeen.ts`, which also says when a mark did not reach
+the server. The answer to a mark is the new count, and the history lists are read again,
+since they carry `unseen` per run.
+
+The mark is the user's own and lives on the server, so the card, the list and the dot on
+"History" in the sidebar count the same runs in every browser -- and what one user has
+seen is still new to another. A new user starts with everything so far marked as seen.
+
+The count is never raised in the browser. A run that fails or is missed invalidates it
+(`refreshUnseen`, called by the result toasts): an agent that reconnects sends a run again,
+and a count kept here would say two for what the server holds as one.
+
+**Missed runs come from the agent**, as history entries with the status `missed` (see
+[client.md](client.md)). The dashboard used to work them out itself from `nextRunAt`; that
+is gone, so a missed run is an event that can be marked, not a state that disappears when
+the job next runs.
 
 `useGlobalJobActions` (`features/jobs/hooks`) holds what a row of jobs across all clients
-can do -- start, delete after asking, name its client -- for the job page and the
-dashboard's list alike.
+can do -- start, delete after asking, name its client -- for the job page.
 
 ### Aborting a run (`hooks/useAbortRunAction.ts`)
 
