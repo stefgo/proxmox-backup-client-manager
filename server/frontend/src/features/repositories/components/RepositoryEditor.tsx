@@ -1,6 +1,7 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Save, ShieldCheck, ShieldAlert, Send } from 'lucide-react';
 import {
+    RepositoryInputSchema,
     normalizeFingerprint,
     type CertificateCheck,
     type DistributeResult,
@@ -8,71 +9,149 @@ import {
     type RepositoryInput,
 } from '@pbcm/shared';
 import { Card, Button, Input, ActionButton, useConfirm } from '@stefgo/react-ui-components';
-import { describeDiscardChanges } from '../../../components/confirmations';
 import { describeDistribute } from '../confirmations';
-import { useAuth } from '../../auth/AuthContext';
 import { distributeRepository, probeCertificate } from '../../../queries/repositories';
+import { useEntityForm } from '../../../hooks/useEntityForm';
+import { useUnsavedChangesGuard } from '../../../hooks/useUnsavedChangesGuard';
+import { getErrorMessage } from '../../../utils';
+import {
+    repositoryDraftFrom,
+    repositoryFieldOf,
+    repositoryInputFrom,
+    repositoryRules,
+    storedRepositoryDraft,
+    type RepositoryDraft,
+} from '../lib/repositoryForm';
 
 interface RepositoryEditorProps {
+    /** The repository to edit. Absent for a new one. The route keys the editor by its id. */
     repository?: Repository | null;
     /** Must reject on failure — the footer below is where the error is shown. */
-    onSave: (repo: RepositoryInput) => Promise<void>;
-    onCancel: () => void;
+    onSave: (repo: RepositoryInput) => Promise<unknown>;
 }
 
 /**
- * The same arrangement the client editor uses: leaving is the X in the card header, saving
- * is the one button under the fields it submits, and both report where they stand in the
- * footer instead of in a browser dialog. Unsaved work is asked about rather than dropped --
- * the way out sits a few pixels from the fields it would throw away.
+ * Asks the PBS for the certificate it serves and compares it with the stored fingerprint.
+ * Asked on request and shown where it was asked; the answer is no part of the form, only
+ * the fingerprint it offers to adopt is.
  */
-export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEditorProps) => {
-    const [baseUrl, setBaseUrl] = useState(repository?.baseUrl || '');
-    const [datastore, setDatastore] = useState(repository?.datastore || '');
-    const [fingerprint, setFingerprint] = useState(repository?.fingerprint || '');
-    const [username, setUsername] = useState(repository?.username || '');
-    const [tokenName, setTokenName] = useState(repository?.tokenname || '');
-    // Always starts empty: the secret is never sent to the browser. Typed in, it replaces
-    // the stored one; left empty on an existing repository, it keeps it.
-    const [secret, setSecret] = useState('');
-
-    const { isAuthenticated } = useAuth();
-
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [saved, setSaved] = useState(false);
-    const { confirm } = useConfirm();
-
+const CertificateCheckPanel = ({
+    repository,
+    onAdopt,
+}: {
+    repository: Repository;
+    onAdopt: (fingerprint: string) => void;
+}) => {
     const [check, setCheck] = useState<CertificateCheck | null>(null);
     const [isChecking, setIsChecking] = useState(false);
     const [checkError, setCheckError] = useState<string | null>(null);
-    const [distribution, setDistribution] = useState<DistributeResult | null>(null);
-    const [isDistributing, setIsDistributing] = useState(false);
-    const [distributeError, setDistributeError] = useState<string | null>(null);
-
-    // Distribution always rolls out the *saved* values. Offering it while a field differs
-    // would push something other than what is on screen -- for the secret, anything typed
-    // in is unsaved by definition.
-    const credentialsDifferFromSaved =
-        normalizeFingerprint(fingerprint) !== normalizeFingerprint(repository?.fingerprint) ||
-        secret !== '';
 
     const handleCheckCertificate = async () => {
-        if (!repository || !isAuthenticated) return;
         setIsChecking(true);
         setCheckError(null);
         try {
             setCheck(await probeCertificate(repository.id));
         } catch (e) {
             setCheck(null);
-            setCheckError(e instanceof Error ? e.message : String(e));
+            setCheckError(getErrorMessage(e));
         } finally {
             setIsChecking(false);
         }
     };
 
+    return (
+        <>
+            <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={handleCheckCertificate} disabled={isChecking}>
+                    {isChecking ? 'Checking...' : 'Check certificate'}
+                </Button>
+            </div>
+
+            {repository.observed && (
+                <div className="text-xs text-text-muted break-all">
+                    Last reported by a client: <span className="font-mono">{repository.observed.fingerprint}</span>
+                    {repository.observed.caValid ? ' (CA-validated)' : ' (not CA-validated)'}
+                </div>
+            )}
+
+            {checkError && (
+                <div className="text-sm text-error break-words">{checkError}</div>
+            )}
+
+            {check && (
+                <div className="rounded border border-border p-4 space-y-3 text-sm">
+                    {!check.reachable && (
+                        <div className="text-text-muted">
+                            PBS not reachable — the stored fingerprint was left untouched.
+                            {check.error ? ` (${check.error})` : ''}
+                        </div>
+                    )}
+
+                    {check.reachable && check.matches && (
+                        <div className="flex items-center gap-2 text-success">
+                            <ShieldCheck size={16} />
+                            Fingerprint is up to date
+                            {check.notAfter ? ` — certificate valid until ${check.notAfter}` : ''}
+                        </div>
+                    )}
+
+                    {check.reachable && !check.matches && (
+                        <>
+                            <div className="flex items-center gap-2 text-warning">
+                                <ShieldAlert size={16} />
+                                The served certificate differs from the stored fingerprint
+                            </div>
+                            <div>
+                                <div className="text-xs text-text-muted mb-1">
+                                    Measured (SHA256)
+                                </div>
+                                <div className="font-mono text-xs break-all text-text-primary">
+                                    {check.measuredFingerprint}
+                                </div>
+                            </div>
+                            {check.caValid ? (
+                                <div className="text-xs text-text-muted">
+                                    The certificate passed regular CA validation for this hostname, so it is
+                                    genuine — most likely a renewal.
+                                </div>
+                            ) : (
+                                <div className="text-xs text-warning">
+                                    CA validation failed, so this certificate could not be confirmed as
+                                    genuine. Verify it out of band first
+                                    (<span className="font-mono">proxmox-backup-manager cert info</span>)
+                                    before adopting it.
+                                </div>
+                            )}
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => onAdopt(check.measuredFingerprint || '')}
+                                disabled={!check.measuredFingerprint}
+                            >
+                                Adopt measured fingerprint
+                            </Button>
+                        </>
+                    )}
+                </div>
+            )}
+        </>
+    );
+};
+
+/**
+ * Pushes the stored fingerprint and secret to the jobs on connected clients, which keep
+ * their own copy of both.
+ *
+ * Distribution always rolls out the *saved* values. Offering it while a field differs
+ * would push something other than what is on screen, so the editor switches it off then.
+ */
+const DistributePanel = ({ repository, unsaved }: { repository: Repository; unsaved: boolean }) => {
+    const { confirm } = useConfirm();
+    const [distribution, setDistribution] = useState<DistributeResult | null>(null);
+    const [isDistributing, setIsDistributing] = useState(false);
+    const [distributeError, setDistributeError] = useState<string | null>(null);
+
     const handleDistribute = async () => {
-        if (!repository || !isAuthenticated) return;
         if (!(await confirm(describeDistribute()))) return;
         setIsDistributing(true);
         setDistribution(null);
@@ -80,109 +159,90 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
         try {
             setDistribution(await distributeRepository(repository.id));
         } catch (e) {
-            setDistributeError(e instanceof Error ? e.message : String(e));
+            setDistributeError(getErrorMessage(e));
         } finally {
             setIsDistributing(false);
         }
     };
 
-    // Reseeded while rendering when another repository is opened, rather than in an effect:
-    // the fields never paint a frame with the previous repository's values.
-    // Keyed on the id, not the object: the cache hands out a fresh object after every
-    // save, and reseeding on that would wipe the "saved" note it just produced.
-    const [seededId, setSeededId] = useState(repository?.id);
-    if (repository?.id !== seededId) {
-        setSeededId(repository?.id);
-        setBaseUrl(repository?.baseUrl || '');
-        setDatastore(repository?.datastore || '');
-        setFingerprint(repository?.fingerprint || '');
-        setUsername(repository?.username || '');
-        setTokenName(repository?.tokenname || '');
-        setSecret('');
-        setCheck(null);
-        setCheckError(null);
-        setDistribution(null);
-        setDistributeError(null);
-        setError(null);
-        setSaved(false);
-    }
+    return (
+        <div className="space-y-2">
+            <Button
+                type="button"
+                variant="secondary"
+                onClick={handleDistribute}
+                disabled={isDistributing || unsaved}
+                title={
+                    unsaved
+                        ? 'Save the repository first — distribution rolls out the stored values.'
+                        : 'Push the stored fingerprint and secret to the jobs on all connected clients'
+                }
+            >
+                <Send size={14} className="mr-1 inline" />
+                {isDistributing ? 'Distributing...' : 'Distribute to clients'}
+            </Button>
 
-    // Compared against the stored repository, or against empty fields while creating one --
-    // in both cases the question is the same: is there anything here worth keeping?
-    const isDirty =
-        baseUrl !== (repository?.baseUrl || '') ||
-        datastore !== (repository?.datastore || '') ||
-        fingerprint !== (repository?.fingerprint || '') ||
-        username !== (repository?.username || '') ||
-        tokenName !== (repository?.tokenname || '') ||
-        secret !== '';
+            {distributeError && (
+                <div className="text-sm text-error break-words">{distributeError}</div>
+            )}
 
-    // The required fields decide it here rather than an alert on submit: a button that
-    // cannot do anything says so before it is pressed.
-    const canSave =
-        isDirty &&
-        !!baseUrl.trim() &&
-        !!datastore.trim() &&
-        !!username.trim() &&
-        // Required only when creating: an existing repository keeps its stored secret.
-        (!!repository || !!secret.trim());
+            {distribution && (
+                <div className="rounded border border-border p-4 space-y-1 text-xs">
+                    <div className="text-text-primary">
+                        {distribution.updated.length} job(s) updated
+                        {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
+                    </div>
+                    {distribution.skippedOffline.length > 0 && (
+                        <div className="text-text-muted">
+                            Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
 
-    /**
-     * Leaving with unsaved fields asks first, the way the client editor does. The check
-     * sits here and not in the callers so both surfaces that open this form -- the list
-     * and the detail page -- behave the same.
-     */
-    const requestClose = useCallback(async () => {
-        if (isDirty && !(await confirm(describeDiscardChanges('repository')))) return;
-        onCancel();
-    }, [isDirty, confirm, onCancel]);
+/**
+ * The same arrangement the client editor uses: leaving is the X in the card header, saving
+ * is the one button under the fields it submits, and both report where they stand in the
+ * footer instead of in a browser dialog. Unsaved work is asked about on every way out.
+ *
+ * A new repository leaves once it is saved -- a form that has produced its repository would
+ * only produce a second one. Editing stays and says "Repository saved"; the operator
+ * decides when to leave.
+ */
+export const RepositoryEditor = ({ repository, onSave }: RepositoryEditorProps) => {
+    const isNew = !repository;
+    const form = useEntityForm({
+        schema: RepositoryInputSchema,
+        initial: () => repositoryDraftFrom(repository),
+        toInput: repositoryInputFrom,
+        fieldOf: repositoryFieldOf,
+        rules: (draft: RepositoryDraft) => repositoryRules(draft, isNew),
+    });
+    const { draft, set, errors, isSaving } = form;
+    const { close, leave } = useUnsavedChangesGuard(form.isDirty, 'repository');
 
-    // Escape does exactly what the header's button does -- including asking first.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return;
-            // Not while a select, a dialog or an autocomplete is using Escape for itself --
-            // this includes the discard confirmation, which closes on its own Escape.
-            if (e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [requestClose]);
+    // For the secret, anything typed in is unsaved by definition.
+    const credentialsDifferFromSaved =
+        normalizeFingerprint(draft.fingerprint) !== normalizeFingerprint(repository?.fingerprint) ||
+        draft.secret !== '';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!canSave) return;
-        setIsSaving(true);
-        setError(null);
-        setSaved(false);
-        try {
-            await onSave({
-                baseUrl,
-                datastore,
-                fingerprint,
-                username,
-                tokenname: tokenName,
-                // Empty means "keep the stored one" -- see RepositoryController.update.
-                secret: secret.trim() || undefined
-            });
-            // Saved, so nothing is pending any more; the field goes back to "unchanged".
-            setSecret('');
-            setSaved(true);
-        } catch (e) {
-            console.error(e);
-            setError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setIsSaving(false);
-        }
+        const stored = await form.submit(onSave, { rebase: storedRepositoryDraft });
+        if (stored && isNew) leave();
     };
+
+    const footerError = form.saveError ?? form.formError;
 
     return (
         <Card
             className="flex flex-col"
             title={repository ? 'Edit Repository' : 'Add Repository'}
             action={
-                <ActionButton icon={X} tooltip="Close" onClick={requestClose} />
+                <ActionButton icon={X} tooltip="Close" onClick={close} />
             }
             classNames={{ headerTitle: 'text-xl font-bold' }}
         >
@@ -194,8 +254,9 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                             required
                             type="text"
                             placeholder="https://pbs.example.com:8007"
-                            value={baseUrl}
-                            onChange={(e) => { setBaseUrl(e.target.value); setSaved(false); }}
+                            value={draft.baseUrl}
+                            onChange={(e) => set('baseUrl', e.target.value)}
+                            error={errors.baseUrl}
                             disabled={isSaving}
                         />
                         <Input
@@ -203,8 +264,9 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                             required
                             type="text"
                             placeholder="Datastore Name"
-                            value={datastore}
-                            onChange={(e) => { setDatastore(e.target.value); setSaved(false); }}
+                            value={draft.datastore}
+                            onChange={(e) => set('datastore', e.target.value)}
+                            error={errors.datastore}
                             disabled={isSaving}
                         />
                         <div className="space-y-2">
@@ -212,84 +274,16 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                                 label="Fingerprint"
                                 type="text"
                                 placeholder="Optional Fingerprint"
-                                value={fingerprint}
-                                onChange={(e) => { setFingerprint(e.target.value); setSaved(false); }}
+                                value={draft.fingerprint}
+                                onChange={(e) => set('fingerprint', e.target.value)}
+                                error={errors.fingerprint}
                                 disabled={isSaving}
                             />
                             {repository && (
-                                <div className="flex flex-wrap gap-2">
-                                    <Button type="button" variant="secondary" onClick={handleCheckCertificate} disabled={isChecking}>
-                                        {isChecking ? 'Checking...' : 'Check certificate'}
-                                    </Button>
-                                </div>
-                            )}
-
-                            {repository?.observed && (
-                                <div className="text-xs text-text-muted break-all">
-                                    Last reported by a client: <span className="font-mono">{repository.observed.fingerprint}</span>
-                                    {repository.observed.caValid ? ' (CA-validated)' : ' (not CA-validated)'}
-                                </div>
-                            )}
-
-                            {checkError && (
-                                <div className="text-sm text-error break-words">{checkError}</div>
-                            )}
-
-                            {check && (
-                                <div className="rounded border border-border p-4 space-y-3 text-sm">
-                                    {!check.reachable && (
-                                        <div className="text-text-muted">
-                                            PBS not reachable — the stored fingerprint was left untouched.
-                                            {check.error ? ` (${check.error})` : ''}
-                                        </div>
-                                    )}
-
-                                    {check.reachable && check.matches && (
-                                        <div className="flex items-center gap-2 text-success">
-                                            <ShieldCheck size={16} />
-                                            Fingerprint is up to date
-                                            {check.notAfter ? ` — certificate valid until ${check.notAfter}` : ''}
-                                        </div>
-                                    )}
-
-                                    {check.reachable && !check.matches && (
-                                        <>
-                                            <div className="flex items-center gap-2 text-warning">
-                                                <ShieldAlert size={16} />
-                                                The served certificate differs from the stored fingerprint
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-text-muted mb-1">
-                                                    Measured (SHA256)
-                                                </div>
-                                                <div className="font-mono text-xs break-all text-text-primary">
-                                                    {check.measuredFingerprint}
-                                                </div>
-                                            </div>
-                                            {check.caValid ? (
-                                                <div className="text-xs text-text-muted">
-                                                    The certificate passed regular CA validation for this hostname, so it is
-                                                    genuine — most likely a renewal.
-                                                </div>
-                                            ) : (
-                                                <div className="text-xs text-warning">
-                                                    CA validation failed, so this certificate could not be confirmed as
-                                                    genuine. Verify it out of band first
-                                                    (<span className="font-mono">proxmox-backup-manager cert info</span>)
-                                                    before adopting it.
-                                                </div>
-                                            )}
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                onClick={() => setFingerprint(check.measuredFingerprint || '')}
-                                                disabled={!check.measuredFingerprint}
-                                            >
-                                                Adopt measured fingerprint
-                                            </Button>
-                                        </>
-                                    )}
-                                </div>
+                                <CertificateCheckPanel
+                                    repository={repository}
+                                    onAdopt={(fingerprint) => set('fingerprint', fingerprint)}
+                                />
                             )}
                         </div>
                         <Input
@@ -297,16 +291,18 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                             required
                             type="text"
                             placeholder="root@pam"
-                            value={username}
-                            onChange={(e) => { setUsername(e.target.value); setSaved(false); }}
+                            value={draft.username}
+                            onChange={(e) => set('username', e.target.value)}
+                            error={errors.username}
                             disabled={isSaving}
                         />
                         <Input
                             label="Token Name"
                             type="text"
                             placeholder="mytoken (Optional)"
-                            value={tokenName}
-                            onChange={(e) => { setTokenName(e.target.value); setSaved(false); }}
+                            value={draft.tokenName}
+                            onChange={(e) => set('tokenName', e.target.value)}
+                            error={errors.tokenName}
                             disabled={isSaving}
                         />
                         <Input
@@ -315,60 +311,28 @@ export const RepositoryEditor = ({ repository, onSave, onCancel }: RepositoryEdi
                             type="password"
                             placeholder={repository ? 'Unchanged — leave empty to keep it' : 'PBS Token Secret'}
                             autoComplete="new-password"
-                            value={secret}
-                            onChange={(e) => { setSecret(e.target.value); setSaved(false); }}
+                            value={draft.secret}
+                            onChange={(e) => set('secret', e.target.value)}
+                            error={errors.secret}
                             disabled={isSaving}
                         />
 
                         {/* Below the fields it rolls out: jobs keep their own copy of the
                             fingerprint and the secret, and this pushes both. */}
                         {repository && (
-                            <div className="space-y-2">
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={handleDistribute}
-                                    disabled={isDistributing || credentialsDifferFromSaved}
-                                    title={
-                                        credentialsDifferFromSaved
-                                            ? 'Save the repository first — distribution rolls out the stored values.'
-                                            : 'Push the stored fingerprint and secret to the jobs on all connected clients'
-                                    }
-                                >
-                                    <Send size={14} className="mr-1 inline" />
-                                    {isDistributing ? 'Distributing...' : 'Distribute to clients'}
-                                </Button>
-
-                                {distributeError && (
-                                    <div className="text-sm text-error break-words">{distributeError}</div>
-                                )}
-
-                                {distribution && (
-                                    <div className="rounded border border-border p-4 space-y-1 text-xs">
-                                        <div className="text-text-primary">
-                                            {distribution.updated.length} job(s) updated
-                                            {distribution.failed.length > 0 ? `, ${distribution.failed.length} failed` : ''}
-                                        </div>
-                                        {distribution.skippedOffline.length > 0 && (
-                                            <div className="text-text-muted">
-                                                Skipped (offline): {distribution.skippedOffline.map((c) => c.hostname).join(', ')}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                            <DistributePanel repository={repository} unsaved={credentialsDifferFromSaved} />
                         )}
                     </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-4 border-t border-border px-6 py-5">
-                    {error && <span className="text-sm text-error mr-auto">{error}</span>}
-                    {!error && saved && <span className="text-sm text-success mr-auto">Repository saved</span>}
+                    {footerError && <span className="text-sm text-error mr-auto">{footerError}</span>}
+                    {!footerError && form.saved && <span className="text-sm text-success mr-auto">Repository saved</span>}
                     <Button
                         type="submit"
                         variant="primary"
                         isLoading={isSaving}
-                        disabled={!canSave}
+                        disabled={!form.canSave}
                         icon={Save}
                         className="shadow-glow-accent"
                     >

@@ -210,43 +210,27 @@ export function RepositoryDetailRoute() {
     return <RepositoryOverview repo={useRouteRepository()} />;
 }
 
-/**
- * A new repository leaves once it is saved -- a form that has produced its repository
- * would only produce a second one. Errors are not caught here: the form stays open and
- * reports in its own footer.
- */
+/** Errors are not caught here: the form stays open and reports in its own footer. */
 export function RepositoryNewRoute() {
-    const navigate = useNavigate();
-    const back = useBackPath();
     const { mutateAsync: addRepository } = useAddRepository();
 
-    return (
-        <RepositoryEditor
-            onSave={async (data: RepositoryInput) => {
-                await addRepository(data);
-                navigate(back);
-            }}
-            onCancel={() => navigate(back)}
-        />
-    );
+    return <RepositoryEditor onSave={addRepository} />;
 }
 
 /**
  * The one way into the repository form for an existing repository, from the list and from
- * the detail page alike. Saving does not navigate away -- the page says "Repository saved"
- * and the operator decides when to leave, like the client editor.
+ * the detail page alike. Keyed, so pointing the route at another repository starts the
+ * form over instead of carrying the previous one's fields along.
  */
 export function RepositoryEditRoute() {
     const repo = useRouteRepository();
-    const navigate = useNavigate();
-    const back = useBackPath();
     const { mutateAsync: updateRepository } = useUpdateRepository();
 
     return (
         <RepositoryEditor
+            key={repo.id}
             repository={repo}
             onSave={(data: RepositoryInput) => updateRepository({ id: repo.id, repo: data })}
-            onCancel={() => navigate(back)}
         />
     );
 }
