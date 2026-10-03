@@ -387,6 +387,22 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
 
 Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows them).
 
+The log itself is `RunLog`: as high as its text up to a limit, scrolling beyond it. While
+a run is writing it stays at its end, unless the operator scrolled up -- `isAtEnd` in
+`lib/logScroll.ts` decides that. Its copy button selects the text where the clipboard API
+is missing, which is every dashboard reached over plain HTTP.
+
+### Dates and distances (`utils.ts`, `lib/time.ts`)
+
+- **A date follows the browser's locale** -- `formatDate`. It takes a `locale` only so a
+  test does not depend on where it runs.
+- **"Last seen" and "Next run" are distances**: `formatRelativeDate` writes `3 minutes ago`
+  and `in 5 hours`, in English whatever the browser's language, because it is a phrase
+  inside English labels. Everything that is looked up rather than glanced at -- a run's
+  start, a snapshot, a token's expiry -- stays a date.
+- **A distance needs `useNow()`**, which renews once a minute. The dashboard does not poll,
+  so nothing else would re-render it.
+
 ### Talking to the server (`lib/api.ts`)
 
 Every request goes through `api`, and every response is parsed against a Zod schema from
@@ -845,6 +861,12 @@ tunnel is available.
   not offered rather than rejected by the backend afterwards. A job already set to use the
   tunnel keeps the switch usable even without a client row in the cache, or the setting could
   be seen but never turned off.
+- **`JobScheduleSettings`** — the interval is held as typed (`JobDraft.interval` is a
+  string), so the field can be emptied on the way to another number; `jobInputFrom` builds
+  the number and `jobRules` says "At least 1." at the field. Below the weekdays the next
+  three runs are listed: `previewRuns` calls `upcomingRuns` from `shared`, the calculation
+  the agent's scheduler runs. It is made on the browser's clock; where the agent keeps
+  another time zone the preview says so.
 - `jobInputFrom` always sends `tunnel`, including as `false`: omitting it on an update would
   leave the stored route standing, and switching the tunnel off would silently not take.
 
@@ -935,7 +957,7 @@ Project-level reusable classes defined via `@layer components`:
 
 All forms use the `Input` and `Select` components from the library, which provide consistent label, hint, error, disabled, and dark mode styling out of the box. Native `<input>` elements are only used for checkboxes.
 
-Modal dialogs (UserDialog, TokenModal) and detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
+`UserDialog` is the library's `Modal` and holds its draft through `useEntityForm` (`features/users/lib/userForm.ts`); `TokenModal` and the detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
 
 - **Dark Mode**: `ThemeProvider` toggles the `dark` class on `<html>`. There is **no `dark:`
   variant anywhere in `src/`** — and that is the point: every role is defined once in the
