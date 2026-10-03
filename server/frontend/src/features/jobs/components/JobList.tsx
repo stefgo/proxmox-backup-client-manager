@@ -1,5 +1,5 @@
 import { ClientStatus } from '@pbcm/shared';
-import { GlobalJob } from '../../../stores/useGlobalJobsStore';
+import type { GlobalJob } from '../../../lib/cacheUpdates';
 import { BaseJobList } from './BaseJobList';
 import { PAGE_SIZE } from '../../../components/listDefaults';
 

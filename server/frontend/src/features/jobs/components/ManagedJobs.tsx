@@ -1,34 +1,25 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CLIENT_STATUS } from '@pbcm/shared';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
-import { useAuth } from '../../auth/AuthContext';
-import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
+import { useDeleteJob, useGlobalJobs, useLatestPerJob, useTriggerJob } from '../../../queries/jobs';
 import { useClients } from '../../../queries/clients';
 import { JobList } from './JobList';
 import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
-import { GlobalJob, jobIdOf } from '../../../stores/useGlobalJobsStore';
-import { useGlobalSubscription } from '../../../hooks/useGlobalSubscription';
+import { jobIdOf, type GlobalJob } from '../../../lib/cacheUpdates';
 import { getErrorMessage } from '../../../utils';
 import { describeDeleteJob } from '../confirmations';
-import { api } from '../../../lib/api';
-import { markJobRunAsked, forgetJobRunAsked } from '../../../hooks/useJobResultToasts';
 
 export const ManagedJobs = () => {
-    const { isAuthenticated } = useAuth();
     const navigate = useNavigate();
-    const { globalJobs, latestPerJob, fetchAllJobs, isLoading, error } =
-        useGlobalJobsStore();
+    const { jobs: globalJobs, isPending, error: jobsError } = useGlobalJobs();
+    const { latestPerJob, error: latestError } = useLatestPerJob();
+    const error = jobsError ?? latestError;
+    const { mutateAsync: triggerJob } = useTriggerJob();
+    const { mutateAsync: deleteJob } = useDeleteJob();
     const { clients } = useClients();
     const { confirm } = useConfirm();
     const { show } = useToast();
-
-    useEffect(() => {
-        if (!isAuthenticated) return;
-        fetchAllJobs();
-    }, [isAuthenticated, fetchAllJobs]);
-
-    useGlobalSubscription();
 
     /**
      * Leaves out the rows of deleted jobs -- as far as that can be told. The server knows a
@@ -55,20 +46,11 @@ export const ManagedJobs = () => {
         });
     }, [latestPerJob, globalJobs, clients]);
 
-    const handleRefresh = () => {
-        fetchAllJobs();
-    };
-
     const handleTriggerJob = async (clientId: string, jobId: string) => {
-        // Before the request: a run that is skipped at once can report before it returns.
-        markJobRunAsked(clientId, jobId);
         try {
-            await api.post(`/api/v1/clients/${clientId}/jobs/${jobId}/run`, undefined, undefined, {
-                fallback: 'Failed to trigger job',
-            });
+            await triggerJob({ clientId, jobId });
             show({ variant: 'success', title: 'Job started' });
         } catch (e: unknown) {
-            forgetJobRunAsked(clientId, jobId);
             show({ variant: 'error', title: 'Could not start the job', description: getErrorMessage(e) });
         }
     };
@@ -85,14 +67,11 @@ export const ManagedJobs = () => {
 
     // The dialog stays open on failure, so the retry is one click away.
     const requestDeleteJob = (job: GlobalJob) => {
+        if (!job.id) return;
+        const jobId = job.id;
         confirm({
             ...describeDeleteJob(job.name, getClientName(job.clientId)),
-            onConfirm: async () => {
-                await api.delete(`/api/v1/clients/${job.clientId}/jobs/${job.id}`, {
-                    fallback: 'Failed to delete job',
-                });
-                handleRefresh();
-            },
+            onConfirm: () => deleteJob({ clientId: job.clientId, jobId }),
         });
     };
 
@@ -107,7 +86,7 @@ export const ManagedJobs = () => {
         });
     };
 
-    if (isLoading && globalJobs.length === 0) {
+    if (isPending) {
         return (
             <div className="p-8 text-center text-text-muted">Loading jobs...</div>
         );
@@ -115,7 +94,7 @@ export const ManagedJobs = () => {
 
     if (error) {
         return (
-            <div className="p-8 text-center text-error">Error: {error}</div>
+            <div className="p-8 text-center text-error">Error: {getErrorMessage(error)}</div>
         );
     }
 

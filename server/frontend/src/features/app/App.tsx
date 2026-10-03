@@ -1,4 +1,4 @@
-import { ReactNode, Suspense, lazy, useMemo, useEffect, useState } from 'react';
+import { ReactNode, Suspense, lazy, useMemo, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
@@ -30,7 +30,7 @@ import { queryClient } from '../../lib/queryClient';
 import { useClient, useClients, useDeleteClient, useUpdateClient } from '../../queries/clients';
 import { queryKeys } from '../../lib/queryKeys';
 import { useAddRepository, useDeleteRepository, useRepositories, useUpdateRepository } from '../../queries/repositories';
-import { useGlobalJobsStore } from '../../stores/useGlobalJobsStore';
+import { useGlobalJobs } from '../../queries/jobs';
 import { useUIStore } from '../../stores/useUIStore';
 import { useHistorySeenStore } from '../../stores/useHistorySeenStore';
 import { useJobResultToasts } from '../../hooks/useJobResultToasts';
@@ -177,31 +177,19 @@ function NewJobRoute() {
 }
 
 /**
- * Resolves the job to edit from the global store, which holds every client's jobs.
+ * Resolves the job to edit from the list that holds every client's jobs.
  *
- * It fetches once itself rather than trusting AppLayout's initial load: a directly opened
- * URL can arrive before that returns, and "the list is empty" alone cannot tell a pending
- * fetch from a deleted job. Only once this fetch has settled is a missing job really gone.
+ * A directly opened URL renders before that list has answered, and "the list is empty"
+ * alone cannot tell a pending fetch from a deleted job. Only once it is no longer pending
+ * is a missing job really gone.
  */
 function EditJobRoute({ fallback }: { fallback: (clientId: string) => string }) {
     const { clientId, jobId } = useParams();
-    const globalJobs = useGlobalJobsStore((s) => s.globalJobs);
-    const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);
-    const [resolved, setResolved] = useState(false);
-
-    useEffect(() => {
-        let active = true;
-        fetchAllJobs().finally(() => {
-            if (active) setResolved(true);
-        });
-        return () => {
-            active = false;
-        };
-    }, [fetchAllJobs]);
+    const { jobs: globalJobs, isPending } = useGlobalJobs();
 
     const job = globalJobs.find((j) => j.clientId === clientId && j.id === jobId);
     if (!job) {
-        if (!resolved) return <LoadingIndicator label="Loading job…" />;
+        if (isPending) return <LoadingIndicator label="Loading job…" />;
 
         return (
             <NotFoundCard title="Job not found" backTo="/jobs" backLabel="Back to jobs">
@@ -308,7 +296,7 @@ function AppLayout() {
 
     const { clients } = useClients();
     const { repositories: repos } = useRepositories();
-    const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
+    const { jobs: globalJobs } = useGlobalJobs();
     const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
     // Not on the history page itself: what fails there is in view as it arrives.
     const unseenFailures = useHistorySeenStore((s) => s.unseenFailed > 0) && path !== '/history';
@@ -320,10 +308,9 @@ function AppLayout() {
     // was down is lost, and only CLIENTS_UPDATE is sent again on connect.
     useEffect(() => {
         if (isAuthenticated) {
-            fetchAllJobs();
             fetchSeen();
         }
-    }, [isAuthenticated, resyncKey, fetchAllJobs, fetchSeen]);
+    }, [isAuthenticated, resyncKey, fetchSeen]);
 
     // Stats
     const stats = useMemo(

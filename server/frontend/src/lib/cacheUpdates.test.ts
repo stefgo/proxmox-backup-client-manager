@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Client, GlobalHistoryEntry, HistoryEntry } from '@pbcm/shared';
-import { jobIdOf, useGlobalJobsStore } from './useGlobalJobsStore';
-import { queryClient } from '../lib/queryClient';
-import { clientListOptions } from '../queries/clients';
+import { applyRunToLatest, jobIdOf, type SessionHistoryItem } from './cacheUpdates';
 
 const CLIENT_A = '11111111-1111-4111-8111-111111111111';
 const CLIENT_B = '22222222-2222-4222-8222-222222222222';
@@ -48,17 +46,25 @@ const client = (id: string, hostname: string, displayName?: string): Client => (
     lastSeen: '2026-09-28T02:00:00.000Z',
 });
 
-const rows = () => useGlobalJobsStore.getState().latestPerJob;
-const updateSession = (clientId: string, job: HistoryEntry) =>
-    useGlobalJobsStore.getState().updateSession(clientId, job);
+/**
+ * The list and the clients the caller knows, as the cache would hold them: each test
+ * applies its updates one after the other, the way the socket delivers them.
+ */
+let latest: SessionHistoryItem[];
+let clients: Client[];
+
+const rows = () => latest;
+const updateSession = (clientId: string, job: HistoryEntry) => {
+    latest = applyRunToLatest(latest, clientId, job, clients.find((c) => c.id === clientId));
+};
 
 beforeEach(() => {
-    useGlobalJobsStore.setState({ globalJobs: [], latestPerJob: [], isLoading: false, error: null });
-    queryClient.setQueryData(clientListOptions.queryKey, [client(CLIENT_A, 'web01', 'Web 01'), client(CLIENT_B, 'db01')]);
+    latest = [];
+    clients = [client(CLIENT_A, 'web01', 'Web 01'), client(CLIENT_B, 'db01')];
 });
 
-describe('updateSession', () => {
-    it('adds the first run of a job, with the client columns from the client store', () => {
+describe('applyRunToLatest', () => {
+    it('adds the first run of a job, with the client columns of the client it is handed', () => {
         updateSession(CLIENT_A, run());
         expect(rows()).toEqual([{ ...run(), clientId: CLIENT_A, hostname: 'web01', displayName: 'Web 01' }]);
     });
@@ -76,7 +82,7 @@ describe('updateSession', () => {
     });
 
     it('updates a row that came from the REST fetch', () => {
-        useGlobalJobsStore.setState({ latestPerJob: [restRow({ status: 'running', endTime: null })] });
+        latest = [restRow({ status: 'running', endTime: null })];
         updateSession(CLIENT_A, run({ status: 'failed', exitCode: 255 }));
         expect(rows()).toHaveLength(1);
         expect(rows()[0]).toMatchObject({ status: 'failed', exitCode: 255, hostname: 'web01' });
@@ -90,7 +96,7 @@ describe('updateSession', () => {
     });
 
     it('replaces a REST row with a newer run of the same job', () => {
-        useGlobalJobsStore.setState({ latestPerJob: [restRow()] });
+        latest = [restRow()];
         updateSession(CLIENT_A, run({ id: 'run-2', startTime: '2026-09-29T02:00:00.000Z' }));
         expect(rows().map((row) => row.id)).toEqual(['run-2']);
     });
@@ -128,9 +134,17 @@ describe('updateSession', () => {
         expect(rows()).toEqual([]);
     });
 
-    describe('for a client the client store does not know', () => {
+    it('hands back the same list when an update changes nothing', () => {
+        updateSession(CLIENT_A, run({ id: 'run-2', startTime: '2026-09-29T02:00:00.000Z' }));
+        const before = rows();
+        updateSession(CLIENT_A, run({ id: 'run-1' }));
+        updateSession(CLIENT_A, run({ id: 'run-3', jobConfigId: null }));
+        expect(rows()).toBe(before);
+    });
+
+    describe('for a client the caller does not know', () => {
         beforeEach(() => {
-            queryClient.setQueryData(clientListOptions.queryKey, []);
+            clients = [];
         });
 
         it('adds the row without client columns', () => {
@@ -139,21 +153,21 @@ describe('updateSession', () => {
         });
 
         it('does not blank out the names on an update of the same run', () => {
-            useGlobalJobsStore.setState({ latestPerJob: [restRow({ status: 'running' })] });
+            latest = [restRow({ status: 'running' })];
             updateSession(CLIENT_A, run({ status: 'success' }));
             expect(rows()[0]).toMatchObject({ status: 'success', hostname: 'web01', displayName: 'Web 01' });
         });
 
         it('does not blank out the names when a newer run replaces the row', () => {
-            useGlobalJobsStore.setState({ latestPerJob: [restRow()] });
+            latest = [restRow()];
             updateSession(CLIENT_A, run({ id: 'run-2', startTime: '2026-09-29T02:00:00.000Z' }));
             expect(rows()).toHaveLength(1);
             expect(rows()[0]).toMatchObject({ id: 'run-2', hostname: 'web01', displayName: 'Web 01' });
         });
     });
 
-    it('prefers the names the client store resolves over the ones on the row', () => {
-        useGlobalJobsStore.setState({ latestPerJob: [restRow({ hostname: 'old', displayName: 'Old' })] });
+    it('prefers the names of the client it is handed over the ones on the row', () => {
+        latest = [restRow({ hostname: 'old', displayName: 'Old' })];
         updateSession(CLIENT_A, run({ status: 'success' }));
         expect(rows()[0]).toMatchObject({ hostname: 'web01', displayName: 'Web 01' });
     });

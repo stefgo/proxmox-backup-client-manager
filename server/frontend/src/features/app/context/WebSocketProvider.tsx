@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { queryClient } from '../../../lib/queryClient';
-import { mergeTunnelState } from '../../../lib/cacheUpdates';
-import { clientListOptions } from '../../../queries/clients';
-import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
+import { applyRunToLatest, mergeTunnelState, replaceClientJobs, setJobNextRun } from '../../../lib/cacheUpdates';
+import { clientListOptions, getCachedClient } from '../../../queries/clients';
+import { globalJobsOptions, latestPerJobOptions } from '../../../queries/jobs';
 import { useSchedulerStore } from '../../../stores/useSchedulerStore';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
 import { useWebhookStore } from '../../../stores/useWebhookStore';
@@ -97,11 +97,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // The server caches an agent's jobs only while it is connected, so
                     // this is what tells an already-open dashboard that a client came
                     // online (or dropped) and its job list changed with it.
-                    case 'JOBS_UPDATE':
-                        useGlobalJobsStore
-                            .getState()
-                            .setClientJobs(message.payload.clientId, message.payload.jobs);
+                    case 'JOBS_UPDATE': {
+                        const { clientId, jobs } = message.payload;
+                        queryClient.setQueryData(
+                            globalJobsOptions.queryKey,
+                            (all) => all && replaceClientJobs(all, clientId, jobs),
+                        );
                         break;
+                    }
 
                     // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
                     case 'TUNNEL_UPDATE':
@@ -111,23 +114,35 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         );
                         break;
 
-                    // Streamed rather than stored: these arrive many times a second for
-                    // one visible component, and a store would re-render every
-                    // subscriber per chunk. See lib/realtimeEvents.ts.
-                    case 'JOB_UPDATE':
-                        emit('jobUpdate', {
-                            clientId: message.payload.clientId,
-                            job: historyUpdateFrom(message.payload.job),
-                        });
+                    // Both state and a moment: the cache takes the run as the new state of
+                    // its row, and the event is for whoever reacts to it happening -- the
+                    // result toasts, a page that reloads its snapshots after a backup.
+                    case 'JOB_UPDATE': {
+                        const { clientId } = message.payload;
+                        const job = historyUpdateFrom(message.payload.job);
+                        queryClient.setQueryData(
+                            latestPerJobOptions.queryKey,
+                            (latest) => latest && applyRunToLatest(latest, clientId, job, getCachedClient(clientId)),
+                        );
+                        emit('jobUpdate', { clientId, job });
                         break;
+                    }
 
+                    // Streamed rather than stored: these arrive many times a second for
+                    // one visible component, and a cache entry would re-render every
+                    // subscriber per chunk. See lib/realtimeEvents.ts.
                     case 'LOG_UPDATE':
                         emit('logUpdate', message.payload);
                         break;
 
-                    case 'JOB_NEXT_RUN_UPDATE':
-                        emit('jobNextRunUpdate', message.payload);
+                    case 'JOB_NEXT_RUN_UPDATE': {
+                        const { clientId, jobId, nextRunAt } = message.payload;
+                        queryClient.setQueryData(
+                            globalJobsOptions.queryKey,
+                            (all) => all && setJobNextRun(all, clientId, jobId, nextRunAt),
+                        );
                         break;
+                    }
 
                     // Every dashboard receives every user's; only this user's own concerns this tab.
                     case 'HISTORY_SEEN':

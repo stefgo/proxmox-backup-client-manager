@@ -10,7 +10,8 @@ import { useJobForm } from '../../clients/hooks/useJobForm';
 import { useClients } from '../../../queries/clients';
 import { useClientDetailStore } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
-import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../lib/queryKeys';
 import { useRepositories } from '../../../queries/repositories';
 
 interface JobEditorPageProps {
@@ -47,7 +48,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     const { clients } = useClients();
     const { repositories } = useRepositories();
     const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
-    const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);
+    const queryClient = useQueryClient();
     const fetchClientData = useClientDetailStore((s) => s.fetchClientData);
 
     const [selectedClientId, setSelectedClientId] = useState(lockedClientId ?? '');
@@ -55,18 +56,18 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     const { confirm } = useConfirm();
 
     /**
-     * Both lists this page returns to are fed from stores, and neither is mounted while
-     * the editor is. Refreshing them here is what makes the saved job visible on arrival.
+     * Both lists this page returns to read the cache, and neither is mounted while the
+     * editor is. Invalidating them here is what makes the saved job visible on arrival.
      *
      * Only a newly created job leaves afterwards -- there is nothing left to do with a
      * form that has already produced its job. Editing stays put and says so in the
      * footer, the way the client and repository editors do.
      */
     const handleSaveSuccess = useCallback((wasEditing: boolean) => {
-        fetchAllJobs();
+        queryClient.invalidateQueries({ queryKey: queryKeys.jobs.list() });
         if (selectedClientId) fetchClientData(selectedClientId);
         if (!wasEditing) navigate(back);
-    }, [fetchAllJobs, fetchClientData, selectedClientId, navigate, back]);
+    }, [queryClient, fetchClientData, selectedClientId, navigate, back]);
 
     const jobForm = useJobForm({
         clientId: selectedClientId || null,

@@ -2,12 +2,14 @@ import mitt from 'mitt';
 import { HistoryEntry, StatusUpdatePayload } from '@pbcm/shared';
 
 /**
- * The second realtime channel, alongside the Zustand stores.
+ * The second realtime channel, alongside the query cache.
  *
- * `CLIENTS_UPDATE` and `TUNNEL_UPDATE` go into stores, because they are state: a handful
- * of updates describing something the whole app reads. The three events here are a stream
- * — log lines arrive many times a second for exactly one visible component, and putting
- * them in a store would re-render every subscriber on every chunk.
+ * `CLIENTS_UPDATE`, `JOBS_UPDATE` and the like go into the cache, because they are state:
+ * a handful of updates describing something the whole app reads. The events here are a
+ * stream — log lines arrive many times a second for exactly one visible component, and
+ * putting them in the cache would re-render every subscriber on every chunk. A job's
+ * status update is both: the cache takes it as the new state of a row, and it is emitted
+ * here for whoever reacts to the moment itself, such as the result toasts.
  *
  * That reasoning was sound; what was wrong was the delivery. This used to be
  * `window.dispatchEvent(new CustomEvent('pbcm:log_update', …))`, so the payload type was
@@ -52,13 +54,6 @@ export type RealtimeEvents = {
         jobId: string;
         output: string;
         stream: 'stdout' | 'stderr';
-    };
-
-    /** The agent recalculated when a scheduled job runs next. */
-    jobNextRunUpdate: {
-        clientId: string;
-        jobId: string;
-        nextRunAt: string | null;
     };
 };
 
