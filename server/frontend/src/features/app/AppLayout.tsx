@@ -21,6 +21,9 @@ import { useJobResultToasts } from '../../hooks/useJobResultToasts';
 type PageNav = NonNullable<DashboardPage['nav']>;
 
 const NAV_GROUPS: DashboardNavGroup[] = [
+    // The dashboard alone, set off from the lists below it. No title: a heading over a
+    // single entry would only say "Dashboard" twice.
+    { id: 'overview' },
     { id: 'resources', title: 'Resources' },
     { id: 'administration', title: 'Administration' },
 ];

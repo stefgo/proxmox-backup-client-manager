@@ -88,7 +88,7 @@ const JOB: RouteHandle = { subject: 'job', title: 'Job' };
 export const shellRoutes: RouteObject[] = [
     {
         path: ROUTES.dashboard,
-        handle: nav({ id: 'dashboard', groupId: 'resources', label: 'Dashboard', icon: LayoutDashboard }),
+        handle: nav({ id: 'dashboard', groupId: 'overview', label: 'Dashboard', icon: LayoutDashboard }),
         errorElement: <RouteError />,
         element: <DashboardOverview />,
     },

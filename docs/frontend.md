@@ -72,7 +72,7 @@ shell.
 | Path                                    | Component               | Description                                     |
 | :-------------------------------------- | :---------------------- | :---------------------------------------------- |
 | `/login`                                | `Login`                 | Authentication page (local & OIDC).             |
-| `/`                                     | `DashboardOverview`     | The dashboard: three counts and what needs attention. First in the sidebar, and where the login lands. |
+| `/`                                     | `DashboardOverview`     | The dashboard: three counts and what needs attention. First in the sidebar, in a group of its own without a title, and where the login lands. |
 | `/clients`                              | `ManagedClients`        | Client list.                                    |
 | `/clients/new`                          | `AddClientWizard`       | Adds a client, starting with the connection mode. |
 | `/clients/:clientId`                    | `ClientOverview`        | Detail view of a client; `?tab=` names the open tab. |
