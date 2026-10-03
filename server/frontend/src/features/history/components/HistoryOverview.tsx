@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { JOB_STATUS } from '@pbcm/shared';
-import { Select, Switch, LoadingIndicator } from '@stefgo/react-ui-components';
+import { Switch, LoadingIndicator } from '@stefgo/react-ui-components';
 import { BaseHistoryList } from './BaseHistoryList';
 import { QueryError } from '../../../components/QueryError';
 import { markHistorySeen, useGlobalHistory } from '../../../queries/history';
-import { useClients } from '../../../queries/clients';
 import { PAGE_SIZE } from '../../../components/listDefaults';
-import { lastPage, readHistoryView, writeHistoryView, type HistoryView } from '../lib/historyView';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { lastPage, readHistoryView, requestedView, writeHistoryView, type HistoryView } from '../lib/historyView';
 
 const PAGE_SIZES = [10, 20, 50];
-const ALL_CLIENTS = '';
+/** How long the search field has to rest before the server is asked. */
+const SEARCH_DELAY_MS = 300;
 
 export const HistoryOverview = () => {
     // In the URL, so a link from the failure dot or a colleague lands on the same view.
@@ -28,12 +29,14 @@ export const HistoryOverview = () => {
         [setSearchParams],
     );
     /** A filter describes another list, so its first page is what is shown. */
-    const setFilter = (filter: Pick<HistoryView, 'status' | 'clientId'>) => setView({ ...view, ...filter, page: 1 });
+    const setFilter = (filter: Pick<HistoryView, 'status' | 'search'>) => setView({ ...view, ...filter, page: 1 });
+
+    // The field and the URL follow every key; the request waits for the pause after them.
+    const requested = requestedView(view, useDebouncedValue(view, SEARCH_DELAY_MS));
 
     // Read again after a reconnect like everything else in the cache: runs that ended
     // while the socket was down never arrived.
-    const { data, isPending, isPlaceholderData, error } = useGlobalHistory(view);
-    const { clients } = useClients();
+    const { data, isPending, isPlaceholderData, error } = useGlobalHistory(requested);
 
     // Seen on the way in and again on the way out: a failure that arrives while the page
     // is open appears in it, so it has been seen as well.
@@ -51,18 +54,6 @@ export const HistoryOverview = () => {
         if (pastTheEnd) setView({ ...view, page: lastPage(data.total, view.pageSize) });
     }, [pastTheEnd, data, view, setView]);
 
-    const clientOptions = useMemo(() => {
-        const options = clients
-            .map((c) => ({ value: c.id, label: c.displayName || c.hostname }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-        // A run outlives its client, and a link can name one that is gone: it stays
-        // selected under its id rather than silently reading as "all".
-        if (view.clientId && !options.some((o) => o.value === view.clientId)) {
-            options.push({ value: view.clientId, label: view.clientId });
-        }
-        return [{ value: ALL_CLIENTS, label: 'All clients' }, ...options];
-    }, [clients, view.clientId]);
-
     if (isPending) {
         return <LoadingIndicator label="Loading history…" />;
     }
@@ -73,13 +64,19 @@ export const HistoryOverview = () => {
 
     const failedOnly = view.status === JOB_STATUS.FAILED;
     // Any status counts, not only the one the switch sets: a link can name another.
-    const filtered = !!view.status || !!view.clientId;
+    // Named after what was asked for, not what is in the field: the rows are the answer to that.
+    const searched = requested.search?.trim();
+    const emptyMessage = searched
+        ? `No runs match “${searched}”.`
+        : requested.status
+            ? 'No runs match the filter'
+            : undefined;
 
     return (
         <BaseHistoryList
             items={data.items}
             showClientName={true}
-            emptyMessage={filtered ? 'No runs match the filter' : undefined}
+            emptyMessage={emptyMessage}
             paging={{
                 mode: 'server',
                 value: { page: view.page, pageSize: view.pageSize },
@@ -90,21 +87,17 @@ export const HistoryOverview = () => {
                 // also where a size picked too large is taken back.
                 hideOnSinglePage: data.total <= PAGE_SIZES[0],
             }}
-            action={
-                <div className="flex items-center gap-4">
-                    <Select
-                        aria-label="Client"
-                        fullWidth={false}
-                        value={view.clientId ?? ALL_CLIENTS}
-                        options={clientOptions}
-                        onChange={(e) => setFilter({ status: view.status, clientId: e.target.value || undefined })}
-                    />
-                    <Switch
-                        label="Failures only"
-                        value={failedOnly}
-                        onChange={(on) => setFilter({ status: on ? JOB_STATUS.FAILED : undefined, clientId: view.clientId })}
-                    />
-                </div>
+            searchPlaceholder="Search runs…"
+            search={{
+                value: view.search ?? '',
+                onChange: (query) => setFilter({ status: view.status, search: query || undefined }),
+            }}
+            searchActions={
+                <Switch
+                    label="Failures only"
+                    value={failedOnly}
+                    onChange={(on) => setFilter({ status: on ? JOB_STATUS.FAILED : undefined, search: view.search })}
+                />
             }
         />
     );

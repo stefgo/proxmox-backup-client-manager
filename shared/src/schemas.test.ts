@@ -93,6 +93,18 @@ describe("HistoryQuerySchema", () => {
     it("refuses an empty client id, which would match no run", () => {
         expect(HistoryQuerySchema.safeParse({ clientId: "" }).success).toBe(false);
     });
+
+    it("takes a text to search for, without the blanks around it", () => {
+        expect(HistoryQuerySchema.parse({ search: "  nightly " })).toMatchObject({ search: "nightly" });
+    });
+
+    it("refuses a search for nothing but blanks, which would match every run", () => {
+        expect(HistoryQuerySchema.safeParse({ search: "   " }).success).toBe(false);
+    });
+
+    it("refuses a search text longer than a name can be", () => {
+        expect(HistoryQuerySchema.safeParse({ search: "x".repeat(201) }).success).toBe(false);
+    });
 });
 
 describe("SnapshotQuerySchema", () => {

@@ -1140,6 +1140,7 @@ newest first.
 | `offset`   | number | Rows to skip. Default 0.                                                    |
 | `status`   | string | Only runs in this status (`success`, `failed`, `abort`, `running`, …). An unknown status answers with 400. |
 | `clientId` | string | Only runs of this client.                                                   |
+| `search`   | string | Only runs this text occurs in: the job's name or id, the run's id, or the client's hostname or display name. Case-insensitive for ASCII letters, 1–200 characters; `%` and `_` are taken literally. |
 
 #### Response
 

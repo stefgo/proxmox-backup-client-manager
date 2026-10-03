@@ -24,7 +24,7 @@ function seenState(username: string): HistorySeen {
 export class HistoryController {
     /**
      * One page of the global history, sorted by start_time descending, and how many runs
-     * the filter matches in all. Takes limit/offset and the filters status and clientId.
+     * the filter matches in all. Takes limit/offset and the filters status, clientId and search.
      */
     static async getGlobalHistory(req: FastifyRequest, reply: FastifyReply) {
         try {

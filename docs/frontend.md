@@ -258,15 +258,23 @@ all if it ended before the page was loaded.
 ### The history page asks for one page (`features/history`)
 
 The History page is the one list the server filters and pages. `GET /api/v1/history` takes
-`limit`, `offset`, `status` and `clientId` and answers with `{ items, total }`; the page holds
-the rows on screen and no more.
+`limit`, `offset`, `status`, `clientId` and `search` and answers with `{ items, total }`; the
+page holds the rows on screen and no more.
 
 - **The view is the URL.** `lib/historyView.ts` reads `page`, `pageSize`, `status` and
-  `clientId` out of the query string and writes them back, so a reload and a shared link land
+  `search` out of the query string and writes them back, so a reload and a shared link land
   on the same rows. A value that does not parse falls back to the default instead of reaching
   the server. All four are written through one setter: the router's `setSearchParams` does not
   queue, so a filter and the page it resets, written by two setters, would be the second alone.
-- **A filter shows its first page.** Changing "Failures only" or the client resets `page`.
+- **The search is the server's.** The page has the search bar the other lists have --
+  `DataMultiView`'s, which `BaseHistoryList` shows once it is handed `search` -- but passes no
+  `searchFilter`: that would filter the one page on screen. The text goes into the request,
+  and the server looks for it in the job's name and id, the run's id and the client's names.
+  It replaced a client select; `clientId` is still what the client page's History tab asks with.
+- **A search waits for a pause.** The field and the URL follow every key; the request is
+  built from the view as it stood 300 ms ago while the search differs (`requestedView`,
+  `hooks/useDebouncedValue`). A page or "Failures only" is asked for at once.
+- **A filter shows its first page.** Changing "Failures only" or the search resets `page`.
 - **The page before stays up** while the next one loads (`placeholderData: keepPreviousData`),
   so paging does not flash the loading state between two full lists.
 - **A page past the end** -- from a link, or because the cleanup removed what was on it --

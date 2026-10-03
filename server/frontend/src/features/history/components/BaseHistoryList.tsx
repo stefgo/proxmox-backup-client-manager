@@ -3,8 +3,8 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
-import { Badge, Button, Card } from '@stefgo/react-ui-components';
-import { DataList, DataListDef, type PaginationProps } from '@stefgo/react-ui-components';
+import { Badge, Button, DataMultiView } from '@stefgo/react-ui-components';
+import { DataListDef, type Controllable, type PaginationProps } from '@stefgo/react-ui-components';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
@@ -97,6 +97,15 @@ export interface BaseHistoryListProps {
      * the server cut: it passes `mode: 'server'`, the page and the total.
      */
     paging?: PaginationProps;
+    /**
+     * The search field, for a caller that searches: without it the list has no search
+     * bar. The query is the caller's to act on -- the rows are not filtered here, since
+     * a list in pages holds one page and the server has the rest.
+     */
+    search?: Controllable<string>;
+    searchPlaceholder?: string;
+    /** Controls at the right end of the search bar, which narrow the same list. */
+    searchActions?: ReactNode;
 }
 
 export const BaseHistoryList = ({
@@ -108,6 +117,9 @@ export const BaseHistoryList = ({
     action,
     pageSize = PAGE_SIZE.embedded,
     paging,
+    search,
+    searchPlaceholder,
+    searchActions,
 }: BaseHistoryListProps) => {
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [liveLogs, setLiveLogs] = useState<Record<string, string[]>>({});
@@ -227,27 +239,27 @@ export const BaseHistoryList = ({
     ];
 
     return (
-        <Card
-            className="h-full flex flex-col"
+        <DataMultiView
             title={
                 <div className="flex items-center gap-2">
                     <Activity size={18} className="text-text-muted" />
                     {title}
                 </div>
             }
-            action={action}
-        >
-            <DataList
-                data={items}
-                keyField="id"
-                columns={[{ fields: itemDef }]}
-                onRowClick={(item) => toggleExpand(item.id)}
-                className="rounded-b-xl border-0 shadow-none flex-1"
-                emptyMessage={emptyMessage}
-                rowClassName="!px-5 !py-3"
-                pagination={paging ?? pagination(pageSize)}
-            />
-        </Card>
+            extraActions={action}
+            data={items}
+            keyField="id"
+            // A list only: a run is a row that opens onto its log, which a table has no place for.
+            listColumns={[{ fields: itemDef }]}
+            onRowClick={(item) => toggleExpand(item.id)}
+            emptyMessage={emptyMessage}
+            rowClassName="!px-5 !py-3"
+            pagination={paging ?? pagination(pageSize)}
+            searchable={!!search}
+            search={search}
+            searchPlaceholder={searchPlaceholder}
+            searchActions={searchActions}
+        />
     );
 };
 

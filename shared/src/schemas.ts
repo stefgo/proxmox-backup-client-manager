@@ -888,6 +888,11 @@ export const HistoryQuerySchema = z.object({
     status: z.enum(JOB_STATUS).optional(),
     /** Only the runs of this client. */
     clientId: z.string().min(1).optional(),
+    /**
+     * Only the runs this text occurs in: the job's name or id, the run's id, or the
+     * client's hostname or display name. Bounded, as it ends up in a LIKE pattern.
+     */
+    search: z.string().trim().min(1).max(200).optional(),
 });
 
 /**

@@ -10,6 +10,13 @@ export interface HistoryView {
     page: number;
     pageSize: number;
     status?: JobStatus;
+    /**
+     * What the search field holds, as typed: the server looks for it in the job, the run
+     * and the client. Not trimmed here, or a blank between two words could not be typed --
+     * the field is filled from this.
+     */
+    search?: string;
+    /** Only this client's runs. Never in the URL: the client's own page sets it. */
     clientId?: string;
 }
 
@@ -41,7 +48,7 @@ export function readHistoryView(
         // Only a size the bar offers: the server would take any up to its own limit.
         pageSize: pageSizes.includes(pageSize) ? pageSize : defaultPageSize,
         status: isJobStatus(status) ? status : undefined,
-        clientId: params.get('clientId') || undefined,
+        search: params.get('search') || undefined,
     };
 }
 
@@ -62,7 +69,10 @@ export function writeHistoryView(
     put('page', view.page > 1 ? String(view.page) : undefined);
     put('pageSize', view.pageSize !== defaultPageSize ? String(view.pageSize) : undefined);
     put('status', view.status);
-    put('clientId', view.clientId);
+    put('search', view.search);
+    // What the page filtered by before it had a search: a link from then names a filter
+    // nothing shows any more.
+    next.delete('clientId');
     return next;
 }
 
@@ -74,7 +84,20 @@ export function historyQueryString(view: HistoryView): string {
     });
     if (view.status) query.set('status', view.status);
     if (view.clientId) query.set('clientId', view.clientId);
+    // Without the blanks around it, and not at all if that is all it holds: the server
+    // refuses an empty search.
+    const search = view.search?.trim();
+    if (search) query.set('search', search);
     return query.toString();
+}
+
+/**
+ * The view to ask the server for, given the one in the URL and the one that has stood
+ * still for a moment. Only a search waits: it changes with every key, while a page or a
+ * filter is one click and is asked for at once.
+ */
+export function requestedView(view: HistoryView, settled: HistoryView): HistoryView {
+    return view.search === settled.search ? view : settled;
 }
 
 /** The last page that holds a row; 1 for an empty history. */

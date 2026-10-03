@@ -69,12 +69,24 @@ function detailsColumn(details: RunSnapshotDetails | null | undefined): string |
  * post-script that turns a success into a failure sends its update without them, and an
  * agent of an older build never sends any. Details that arrive clear an earlier error.
  */
-/** What narrows the global history; both are optional and combine with AND. */
-export type HistoryFilter = Pick<HistoryQuery, "status" | "clientId">;
+/** What narrows the global history; each is optional and they combine with AND. */
+export type HistoryFilter = Pick<HistoryQuery, "status" | "clientId" | "search">;
+
+/** The columns a search reads: what a row of the history shows, and the id it is named by. */
+const SEARCH_COLUMNS = ["h.name", "h.job_id", "h.id", "c.hostname", "c.display_name"];
 
 /**
- * The WHERE clause for a filter, over `job_history h`. One function for the page and for
- * its count, so the total cannot describe a different set than the rows.
+ * A search text as a LIKE pattern that matches it anywhere. `%` and `_` are escaped, so
+ * a job named `db_backup` is found by its name and not by `dbXbackup` as well.
+ */
+function likePattern(text: string): string {
+    return `%${text.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+/**
+ * The WHERE clause for a filter, over `job_history h` joined to `clients c`. One function
+ * for the page and for its count, so the total cannot describe a different set than the
+ * rows.
  */
 function historyWhere(filter: HistoryFilter): { where: string; params: string[] } {
     const conditions: string[] = [];
@@ -86,6 +98,11 @@ function historyWhere(filter: HistoryFilter): { where: string; params: string[] 
     if (filter.clientId) {
         conditions.push("h.client_id = ?");
         params.push(filter.clientId);
+    }
+    if (filter.search) {
+        const pattern = likePattern(filter.search);
+        conditions.push(`(${SEARCH_COLUMNS.map((column) => `${column} LIKE ? ESCAPE '\\'`).join(" OR ")})`);
+        params.push(...SEARCH_COLUMNS.map(() => pattern));
     }
     return { where: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", params };
 }
@@ -149,7 +166,8 @@ export class JobHistoryRepository {
     static countGlobal(filter: HistoryFilter = {}): number {
         const { where, params } = historyWhere(filter);
         const row = db
-            .prepare(`SELECT COUNT(*) as n FROM job_history h ${where}`)
+            // The join the page has: a search reads the client's names.
+            .prepare(`SELECT COUNT(*) as n FROM job_history h LEFT JOIN clients c ON h.client_id = c.id ${where}`)
             .get(...params) as { n: number };
         return row.n;
     }
