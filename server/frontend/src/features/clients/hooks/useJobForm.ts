@@ -4,6 +4,11 @@ import { Archive, BackupJob, Repository, ScheduleConfig } from '@pbcm/shared';
 import { apiFetch } from '../../../lib/apiFetch';
 import { useClientStore } from '../../../stores/useClientStore';
 import { describeFailure, toLocalDateInput, toLocalTimeInput } from '../../../utils';
+import {
+    excludePatternFromPath,
+    getDefaultNameFromPath,
+    sanitizeArchiveName,
+} from '../lib/archivePaths';
 
 interface UseJobFormProps {
     clientId: string | null;
@@ -175,18 +180,6 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         setJustSaved(false);
     };
 
-    // What ArchiveSchema accepts, minus the dot (`.pxar` is appended): no spaces, and no
-    // leading `-`, which the CLI would read as an option.
-    const sanitizeArchiveName = (name: string) =>
-        name.replace(/[^a-zA-Z0-9\-_]/g, '').replace(/^-+/, '');
-
-    const getDefaultNameFromPath = (path: string) => {
-        if (!path || path === '' || path === '.') return 'current';
-        if (path === '/') return 'root';
-        const basename = path.split('/').filter(Boolean).pop();
-        return (basename && sanitizeArchiveName(basename)) || 'archive';
-    };
-
     const addArchiveItem = () => {
         if (!newItemPath) return;
 
@@ -234,27 +227,6 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         if (!newItemName) {
             setNewItemName(getDefaultNameFromPath(path));
         }
-    };
-
-    /**
-     * The pattern that excludes `path` from the archive it lies in, or `null` if it lies
-     * in none. The CLI reads an exclusion relative to the archive root, not to `/`, so a
-     * path picked in the file browser has to be rebased -- `/home/stefan/.cache` in an
-     * archive of `/home` is `/stefan/.cache`. The leading slash anchors it at the root, so
-     * it does not also match a `.cache` further down. The deepest archive wins, which is
-     * the one the path actually ends up in when archives are nested.
-     */
-    const excludePatternFromPath = (path: string): string | null => {
-        const clean = '/' + path.split('/').filter(Boolean).join('/');
-        let best: string | null = null;
-        for (const archive of jobArchives) {
-            const root = '/' + archive.path.split('/').filter(Boolean).join('/');
-            const prefix = root === '/' ? '/' : root + '/';
-            if (clean === root || !clean.startsWith(prefix)) continue;
-            if (best === null || root.length > best.length) best = root;
-        }
-        if (best === null) return null;
-        return best === '/' ? clean : clean.slice(best.length);
     };
 
     const startAddExclude = () => {
@@ -486,7 +458,7 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
         startAddExclude,
         handleEditExcludeItem,
         addExcludeItem,
-        excludePatternFromPath,
+        excludePatternFromPath: (path: string) => excludePatternFromPath(path, jobArchives),
         selectPath,
         saveBackupJob,
         parentPath: getParentPath
