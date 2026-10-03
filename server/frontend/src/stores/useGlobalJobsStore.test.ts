@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Client, GlobalHistoryEntry, HistoryEntry } from '@pbcm/shared';
 import { jobIdOf, useGlobalJobsStore } from './useGlobalJobsStore';
-import { useClientStore } from './useClientStore';
+import { queryClient } from '../lib/queryClient';
+import { clientListOptions } from '../queries/clients';
 
 const CLIENT_A = '11111111-1111-4111-8111-111111111111';
 const CLIENT_B = '22222222-2222-4222-8222-222222222222';
@@ -53,7 +54,7 @@ const updateSession = (clientId: string, job: HistoryEntry) =>
 
 beforeEach(() => {
     useGlobalJobsStore.setState({ globalJobs: [], latestPerJob: [], isLoading: false, error: null });
-    useClientStore.setState({ clients: [client(CLIENT_A, 'web01', 'Web 01'), client(CLIENT_B, 'db01')] });
+    queryClient.setQueryData(clientListOptions.queryKey, [client(CLIENT_A, 'web01', 'Web 01'), client(CLIENT_B, 'db01')]);
 });
 
 describe('updateSession', () => {
@@ -129,7 +130,7 @@ describe('updateSession', () => {
 
     describe('for a client the client store does not know', () => {
         beforeEach(() => {
-            useClientStore.setState({ clients: [] });
+            queryClient.setQueryData(clientListOptions.queryKey, []);
         });
 
         it('adds the row without client columns', () => {

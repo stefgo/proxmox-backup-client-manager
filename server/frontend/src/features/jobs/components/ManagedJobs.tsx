@@ -4,7 +4,7 @@ import { CLIENT_STATUS } from '@pbcm/shared';
 import { useConfirm, useToast } from '@stefgo/react-ui-components';
 import { useAuth } from '../../auth/AuthContext';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
-import { useClientStore } from '../../../stores/useClientStore';
+import { useClients } from '../../../queries/clients';
 import { JobList } from './JobList';
 import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
 import { GlobalJob, jobIdOf } from '../../../stores/useGlobalJobsStore';
@@ -19,18 +19,14 @@ export const ManagedJobs = () => {
     const navigate = useNavigate();
     const { globalJobs, latestPerJob, fetchAllJobs, isLoading, error } =
         useGlobalJobsStore();
-    const { clients, fetchClients } = useClientStore();
+    const { clients } = useClients();
     const { confirm } = useConfirm();
     const { show } = useToast();
 
     useEffect(() => {
         if (!isAuthenticated) return;
         fetchAllJobs();
-        // Read the store through getState() rather than the subscribed value:
-        // this only fills it if it is still empty, and depending on its
-        // contents would re-run fetchAllJobs the moment they arrive.
-        if (useClientStore.getState().clients.length === 0) fetchClients();
-    }, [isAuthenticated, fetchAllJobs, fetchClients]);
+    }, [isAuthenticated, fetchAllJobs]);
 
     useGlobalSubscription();
 

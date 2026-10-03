@@ -7,7 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { ClientJobEditor } from '../../clients/components/ClientJobEditor';
 import { ClientSelect } from '../../clients/components/ClientSelect';
 import { useJobForm } from '../../clients/hooks/useJobForm';
-import { useClientStore } from '../../../stores/useClientStore';
+import { useClients } from '../../../queries/clients';
 import { useClientDetailStore } from '../../../stores/useClientDetailStore';
 import { useClientFileSystemStore } from '../../../stores/useClientFileSystemStore';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
@@ -44,7 +44,7 @@ export const JobEditorPage = ({ lockedClientId, job, fallbackBack }: JobEditorPa
     const back = (location.state as { from?: string } | null)?.from ?? fallbackBack;
 
     const { isAuthenticated } = useAuth();
-    const { clients } = useClientStore();
+    const { clients } = useClients();
     const { repositories } = useRepositories();
     const { fileList, isLoadingFiles, error: fileListError, fetchFileList } = useClientFileSystemStore();
     const fetchAllJobs = useGlobalJobsStore((s) => s.fetchAllJobs);

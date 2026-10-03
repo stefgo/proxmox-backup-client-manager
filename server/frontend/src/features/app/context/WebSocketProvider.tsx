@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { useClientStore } from '../../../stores/useClientStore';
+import { queryClient } from '../../../lib/queryClient';
+import { mergeTunnelState } from '../../../lib/cacheUpdates';
+import { clientListOptions } from '../../../queries/clients';
 import { useGlobalJobsStore } from '../../../stores/useGlobalJobsStore';
 import { useSchedulerStore } from '../../../stores/useSchedulerStore';
 import { useHistorySeenStore } from '../../../stores/useHistorySeenStore';
@@ -25,7 +27,6 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
     const { isAuthenticated, username } = useAuth();
-    const { setClients } = useClientStore();
     // Read by the socket's handler, which must not reconnect when the name arrives.
     const usernameRef = useRef(username);
     useEffect(() => {
@@ -88,8 +89,9 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 if (!message) return;
 
                 switch (message.type) {
+                    // The whole list, so it may also be what fills the entry first.
                     case 'CLIENTS_UPDATE':
-                        setClients(message.payload);
+                        queryClient.setQueryData(clientListOptions.queryKey, message.payload);
                         break;
 
                     // The server caches an agent's jobs only while it is connected, so
@@ -103,7 +105,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
                     case 'TUNNEL_UPDATE':
-                        useClientStore.getState().setTunnelState(message.payload);
+                        queryClient.setQueryData(
+                            clientListOptions.queryKey,
+                            (clients) => clients && mergeTunnelState(clients, message.payload),
+                        );
                         break;
 
                     // Streamed rather than stored: these arrive many times a second for
@@ -198,7 +203,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                 clearTimeout(reconnectTimeoutRef.current);
             }
         };
-    }, [isAuthenticated, setClients]);
+    }, [isAuthenticated]);
 
     return (
         <WebSocketContext.Provider value={{ isConnected, isLost, resyncKey }}>

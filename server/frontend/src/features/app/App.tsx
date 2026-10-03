@@ -1,6 +1,6 @@
 import { ReactNode, Suspense, lazy, useMemo, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
     Monitor,
     HardDrive,
@@ -27,7 +27,8 @@ import { useWebSocket } from './context/WebSocketContext';
 import { queryClient } from '../../lib/queryClient';
 
 // Hooks & Stores
-import { useClientStore } from '../../stores/useClientStore';
+import { useClient, useClients, useDeleteClient, useUpdateClient } from '../../queries/clients';
+import { queryKeys } from '../../lib/queryKeys';
 import { useAddRepository, useDeleteRepository, useRepositories, useUpdateRepository } from '../../queries/repositories';
 import { useGlobalJobsStore } from '../../stores/useGlobalJobsStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -75,7 +76,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 function ClientsRoute() {
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { clients, fetchClients, deleteClient } = useClientStore();
+    const { clients, refetch } = useClients();
+    const { mutateAsync: deleteClient } = useDeleteClient();
 
     // Every editor route knows where back is because the surface that opened it says so.
     const open = (to: string) => navigate(to, { state: { from: pathname } });
@@ -84,7 +86,7 @@ function ClientsRoute() {
         <ManagedClients
             clients={clients}
             onSelect={(c) => (c ? navigate(`/client/${c.id}`) : navigate('/'))}
-            onRefresh={fetchClients}
+            onRefresh={refetch}
             onDelete={deleteClient}
             onAdd={() => open('/clients/new')}
             onEdit={(c) => open(`/client/${c.id}/edit`)}
@@ -96,30 +98,33 @@ function ClientsRoute() {
 function AddClientRoute() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { fetchClients } = useClientStore();
+    const queryClient = useQueryClient();
     const back = (location.state as { from?: string } | null)?.from ?? '/clients';
 
     return (
-        <AddClientWizard onClose={() => navigate(back)} onCreated={fetchClients} />
+        <AddClientWizard
+            onClose={() => navigate(back)}
+            onCreated={() => queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() })}
+        />
     );
 }
 
 /**
- * The client routes below resolve the client from the store. Until the list has arrived
- * once they show the spinner: a reloaded or shared URL renders before `AppLayout`'s first
- * fetch returns, and an empty list then says nothing about whether the client exists. Only
- * after that is a missing client really gone -- a stale bookmark or a deleted client gets
- * the not-found card, and the URL stays where it was.
+ * The client routes below resolve the client from the cached list. While that is pending
+ * they show the spinner: a reloaded or shared URL renders before the first fetch returns,
+ * and an empty list then says nothing about whether the client exists. Only after that is
+ * a missing client really gone -- a stale bookmark or a deleted client gets the not-found
+ * card, and the URL stays where it was.
  */
 function useRouteClient() {
     const { clientId } = useParams();
-    const client = useClientStore((s) => s.clients.find((c) => c.id === clientId));
-    const loaded = useClientStore((s) => s.loaded);
-    return { client, loaded };
+    const { isPending } = useClients();
+    const client = useClient(clientId);
+    return { client, isPending };
 }
 
-function ClientMissing({ loaded }: { loaded: boolean }) {
-    if (!loaded) return <LoadingIndicator label="Loading client…" />;
+function ClientMissing({ isPending }: { isPending: boolean }) {
+    if (isPending) return <LoadingIndicator label="Loading client…" />;
 
     return (
         <NotFoundCard title="Client not found" backTo="/clients" backLabel="Back to clients">
@@ -129,23 +134,23 @@ function ClientMissing({ loaded }: { loaded: boolean }) {
 }
 
 function ClientDetailRoute() {
-    const { client, loaded } = useRouteClient();
-    if (!client) return <ClientMissing loaded={loaded} />;
+    const { client, isPending } = useRouteClient();
+    if (!client) return <ClientMissing isPending={isPending} />;
 
     return <ClientOverview client={client} />;
 }
 
 function ClientEditRoute() {
-    const { client, loaded } = useRouteClient();
-    const { updateClient } = useClientStore();
-    if (!client) return <ClientMissing loaded={loaded} />;
+    const { client, isPending } = useRouteClient();
+    const { mutateAsync: updateClient } = useUpdateClient();
+    if (!client) return <ClientMissing isPending={isPending} />;
 
-    return <ClientEditor client={client} onSave={updateClient} />;
+    return <ClientEditor client={client} onSave={(clientId, data) => updateClient({ clientId, data })} />;
 }
 
 function ClientTunnelRoute() {
-    const { client, loaded } = useRouteClient();
-    if (!client) return <ClientMissing loaded={loaded} />;
+    const { client, isPending } = useRouteClient();
+    if (!client) return <ClientMissing isPending={isPending} />;
 
     return <ClientTunnelEditor client={client} />;
 }
@@ -161,8 +166,8 @@ function ClientTunnelRoute() {
  * change hands, and one started from a client already has its answer.
  */
 function NewClientJobRoute() {
-    const { client, loaded } = useRouteClient();
-    if (!client) return <ClientMissing loaded={loaded} />;
+    const { client, isPending } = useRouteClient();
+    if (!client) return <ClientMissing isPending={isPending} />;
 
     return <JobEditorPage lockedClientId={client.id} fallbackBack={`/client/${client.id}`} />;
 }
@@ -301,7 +306,7 @@ function AppLayout() {
 
     const path = location.pathname;
 
-    const { clients, fetchClients } = useClientStore();
+    const { clients } = useClients();
     const { repositories: repos } = useRepositories();
     const { globalJobs, fetchAllJobs } = useGlobalJobsStore();
     const fetchSeen = useHistorySeenStore((s) => s.fetchSeen);
@@ -315,11 +320,10 @@ function AppLayout() {
     // was down is lost, and only CLIENTS_UPDATE is sent again on connect.
     useEffect(() => {
         if (isAuthenticated) {
-            fetchClients();
             fetchAllJobs();
             fetchSeen();
         }
-    }, [isAuthenticated, resyncKey, fetchClients, fetchAllJobs, fetchSeen]);
+    }, [isAuthenticated, resyncKey, fetchAllJobs, fetchSeen]);
 
     // Stats
     const stats = useMemo(

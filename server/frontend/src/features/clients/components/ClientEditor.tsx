@@ -4,7 +4,7 @@ import { Client } from '@pbcm/shared';
 import { X } from 'lucide-react';
 import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
-import { useClientStore } from '../../../stores/useClientStore';
+import { useClient } from '../../../queries/clients';
 import { ClientIdentityCard } from './ClientIdentityCard';
 
 interface ClientEditorProps {
@@ -38,8 +38,8 @@ export const ClientEditor = ({ client, onSave }: ClientEditorProps) => {
     const back = (location.state as { from?: string } | null)?.from ?? '/clients';
 
     // The caller may hold a snapshot from when the editor opened; the tunnel state arrives
-    // over the socket afterwards, so read it from the store instead of the prop.
-    const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
+    // over the socket afterwards, so read it from the cache instead of the prop.
+    const live = useClient(client.id) ?? client;
     // `useState` setters are referentially stable, so the card can list it in an effect's
     // dependencies without re-running it on every render of this component.
     const [dirty, setDirty] = useState(false);

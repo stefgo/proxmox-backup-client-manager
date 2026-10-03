@@ -8,7 +8,7 @@ import {
 } from '@pbcm/shared';
 import { getErrorMessage } from '../utils';
 import { api } from '../lib/api';
-import { useClientStore } from './useClientStore';
+import { getCachedClient } from '../queries/clients';
 
 export interface GlobalJob extends BackupJob {
     clientId: string;
@@ -115,9 +115,7 @@ export const useGlobalJobsStore = create<GlobalJobsState>((set) => ({
 
     updateSession: (clientId: string, job: HistoryEntry) =>
         set((state) => {
-            const client = useClientStore
-                .getState()
-                .clients.find((c) => c.id === clientId);
+            const client = getCachedClient(clientId);
             const entry: SessionHistoryItem = {
                 ...job,
                 clientId,

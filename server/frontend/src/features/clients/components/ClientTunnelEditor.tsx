@@ -4,7 +4,9 @@ import { Client } from '@pbcm/shared';
 import { X } from 'lucide-react';
 import { ActionButton, useConfirm } from '@stefgo/react-ui-components';
 import { describeDiscardChanges } from '../../../components/confirmations';
-import { useClientStore } from '../../../stores/useClientStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { useClient } from '../../../queries/clients';
+import { queryKeys } from '../../../lib/queryKeys';
 import { ClientTunnelCard } from './ClientTunnelCard';
 
 interface ClientTunnelEditorProps {
@@ -40,18 +42,18 @@ export const ClientTunnelEditor = ({ client }: ClientTunnelEditorProps) => {
     const back = (location.state as { from?: string } | null)?.from ?? '/clients';
 
     // The caller holds a snapshot from when the editor opened; the tunnel state arrives
-    // over the socket afterwards, so read it from the store instead of the prop.
-    const live = useClientStore((s) => s.clients.find((c) => c.id === client.id)) ?? client;
+    // over the socket afterwards, so read it from the cache instead of the prop.
+    const live = useClient(client.id) ?? client;
     // Whether a tunnel exists is part of the client row (`tunnelConfigured`), and the
     // list's action label reads it — so leaving refetches.
-    const fetchClients = useClientStore((s) => s.fetchClients);
+    const queryClient = useQueryClient();
     const [dirty, setDirty] = useState(false);
     const { confirm } = useConfirm();
 
     const leave = useCallback(() => {
-        fetchClients();
+        queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() });
         navigate(back);
-    }, [fetchClients, navigate, back]);
+    }, [queryClient, navigate, back]);
 
     /**
      * Leaving used to discard silently under a warning label. It asks now: a half-pasted

@@ -8,7 +8,7 @@ import {
     type ScheduleConfig,
 } from '@pbcm/shared';
 import { api, ApiError } from '../../../lib/api';
-import { useClientStore } from '../../../stores/useClientStore';
+import { useClient } from '../../../queries/clients';
 import { describeFailure, toLocalDateInput, toLocalTimeInput } from '../../../utils';
 import {
     excludePatternFromPath,
@@ -53,20 +53,17 @@ export const useJobForm = ({ clientId, onSaveSuccess }: UseJobFormProps) => {
     // another only through the detour.
     const [tunnelRequired, setTunnelRequired] = useState(false);
 
-    // Whether the client has SSH credentials at all. Read from the store rather than
+    // Whether the client has SSH credentials at all. Read from the cache rather than
     // passed in: both callers already have the client id and nothing else to add. A job
-    // that is already set to use the tunnel keeps the control usable even if the store
+    // that is already set to use the tunnel keeps the control usable even if the cache
     // has no client row yet — otherwise the setting could be seen but never turned off.
-    const tunnelConfigured = useClientStore(
-        (s) => !!s.clients.find((c) => c.id === clientId)?.tunnelConfigured,
-    );
+    const client = useClient(clientId);
+    const tunnelConfigured = !!client?.tunnelConfigured;
     const tunnelAvailable = tunnelConfigured || tunnelRequired;
 
     // The clock the agent repeats the schedule on, shown next to it. `null` until the agent
     // has reported one.
-    const agentTimezone = useClientStore(
-        (s) => s.clients.find((c) => c.id === clientId)?.timezone ?? null,
-    );
+    const agentTimezone = client?.timezone ?? null;
 
     // Encryption State
     const [encryptionEnabled, setEncryptionEnabled] = useState(false);

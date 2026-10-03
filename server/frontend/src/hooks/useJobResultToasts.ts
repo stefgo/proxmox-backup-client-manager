@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { JOB_STATUS } from '@pbcm/shared';
 import { useToast } from '@stefgo/react-ui-components';
 import { subscribe } from '../lib/realtimeEvents';
-import { useClientStore } from '../stores/useClientStore';
+import { getCachedClient } from '../queries/clients';
 import { useHistorySeenStore } from '../stores/useHistorySeenStore';
 
 /** The states a run ends in. `skipped` is left out: nothing ran, so there is nothing to report. */
@@ -61,7 +61,7 @@ export function useJobResultToasts(): void {
             const asked = pendingRuns.delete(key);
             if (job.status !== JOB_STATUS.FAILED && !asked) return;
 
-            const client = useClientStore.getState().clients.find((c) => c.id === clientId);
+            const client = getCachedClient(clientId);
             const subject = `${client?.displayName || client?.hostname || 'Unknown client'}: ${job.name || 'Job'}`;
 
             if (job.status === JOB_STATUS.FAILED) {

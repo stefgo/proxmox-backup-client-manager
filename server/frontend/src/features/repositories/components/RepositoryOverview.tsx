@@ -6,7 +6,7 @@ import {
     REPOSITORY_STATUS,
 } from '@pbcm/shared';
 import { Snapshot } from '@pbcm/shared';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { SnapshotRestoreEditor } from './SnapshotRestoreEditor';
 import { RepositorySnapshotList } from './RepositorySnapshotList';
 import {
@@ -22,8 +22,7 @@ import {
 } from '@stefgo/react-ui-components';
 import { useRepositorySnapshots } from '../../../queries/repositories';
 import { getErrorMessage } from '../../../utils';
-import { useClientStore } from '../../../stores/useClientStore';
-import { useAuth } from '../../auth/AuthContext';
+import { useClients } from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { NotFoundCard } from '../../../components/NotFoundCard';
 
@@ -38,7 +37,6 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
 
     const navigate = useNavigate();
     const { pathname } = useLocation();
-    const { isAuthenticated } = useAuth();
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
     const [restoreSnapshot, setRestoreSnapshot] = useState<Snapshot | null>(null);
 
@@ -47,16 +45,8 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     const snapshots = snapshotQuery.data ?? NO_SNAPSHOTS;
     const isLoading = snapshotQuery.isPending;
     const error = snapshotQuery.error ? getErrorMessage(snapshotQuery.error) : null;
-    const { clients, fetchClients } = useClientStore();
-    // const { fetchClients } = useClientActions();
-
-
-    // Fetch Clients needed for restore if not already loaded
-    useEffect(() => {
-        if (clients.length === 0 && isAuthenticated) {
-            fetchClients();
-        }
-    }, [clients.length, isAuthenticated, fetchClients]);
+    // Needed for the restore: which client a snapshot belongs to, and whether it is online.
+    const { clients } = useClients();
 
     // A fetch in flight reads as "connecting" -- the same amber the list uses for `loading`.
     const statusTone = isLoading
