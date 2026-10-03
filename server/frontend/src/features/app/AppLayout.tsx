@@ -8,7 +8,14 @@ import { useWebSocket } from './context/WebSocketContext';
 import { navEntries, type RouteHandle } from './routes';
 import { ROUTES } from '../../lib/paths';
 import { APP_NAME, routeTitle, type TitleSubject } from '../../lib/pageTitle';
-import { activeJobCount, clientCount, formatOnlineCount, repositoryCount } from '../dashboard/lib/dashboard';
+import {
+    activeJobCount,
+    clientCount,
+    describeActiveJobs,
+    describeOnlineCount,
+    formatOnlineCount,
+    repositoryCount,
+} from '../dashboard/lib/dashboard';
 
 // Hooks, queries & stores
 import { useClients } from '../../queries/clients';
@@ -86,17 +93,20 @@ export function AppLayout() {
         };
     }, [title]);
 
-    // The same counts the dashboard's cards show, from the same functions.
-    const stats = useMemo(
-        () => ({
-            clients: formatOnlineCount(clientCount(clients)),
-            repositories: formatOnlineCount(repositoryCount(repos)),
-            // Only the active count: the total counted the same cache, so on an
-            // offline client both halves read the same number and said nothing.
-            jobs: String(activeJobCount(globalJobs, clients)),
-        }),
-        [clients, repos, globalJobs],
-    );
+    // The same counts the dashboard's cards show, from the same functions. Each with what
+    // it says in words: a bare "3 / 5" explains itself to nobody who cannot see the cards.
+    const stats = useMemo(() => {
+        const clientsOnline = clientCount(clients);
+        const reposOnline = repositoryCount(repos);
+        // Only the active count: the total counted the same cache, so on an
+        // offline client both halves read the same number and said nothing.
+        const jobsActive = activeJobCount(globalJobs, clients);
+        return {
+            clients: { badge: formatOnlineCount(clientsOnline), badgeLabel: describeOnlineCount(clientsOnline) },
+            repositories: { badge: formatOnlineCount(reposOnline), badgeLabel: describeOnlineCount(reposOnline) },
+            jobs: { badge: String(jobsActive), badgeLabel: describeActiveJobs(jobsActive) },
+        };
+    }, [clients, repos, globalJobs]);
 
     // Comes from /api/v1/me now. It used to be base64-decoded out of the JWT here, which
     // the page cannot do any more — and should not: the name belongs to the server that
@@ -129,9 +139,9 @@ export function AppLayout() {
     // What is added here is what only the running application knows.
     const pages: DashboardPage[] = useMemo(() => {
         const live: Record<string, Partial<PageNav>> = {
-            clients: { badge: stats.clients },
-            repositories: { badge: stats.repositories },
-            jobs: { badge: stats.jobs },
+            clients: stats.clients,
+            repositories: stats.repositories,
+            jobs: stats.jobs,
             history: { badgeDot: unseenFailures, badgeTone: unseenFailures ? 'error' : undefined },
         };
 
