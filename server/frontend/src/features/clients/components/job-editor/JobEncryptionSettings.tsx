@@ -1,17 +1,31 @@
 import React, { useState } from 'react';
 import { useJobFormContext } from '../../context/JobFormContext';
 import { Download, Trash2 } from 'lucide-react';
-import { Switch, Button, ActionButton } from '@stefgo/react-ui-components';
+import { Switch, Button, ActionButton, useConfirm } from '@stefgo/react-ui-components';
+import { ApiError } from '../../../../lib/api';
+import { generateEncryptionKey } from '../../../../queries/jobs';
+import { describeFailure } from '../../../../utils';
 
 export const JobEncryptionSettings: React.FC = () => {
-    const {
-        encryptionEnabled, setEncryptionEnabled,
-        encryptionKeyContent, setEncryptionKeyContent,
-        hasStoredKey, setHasStoredKey,
-        generateKey,
-    } = useJobFormContext();
+    const { form, clientId } = useJobFormContext();
+    const { encryptionEnabled, keyContent: encryptionKeyContent, hasStoredKey } = form.draft;
+    const { alert } = useConfirm();
 
     const [isGenerating, setIsGenerating] = useState(false);
+
+    /** The key the agent made, or `null` when it made none -- with the reason said, if there is one. */
+    const generateKey = async (): Promise<string | null> => {
+        if (!clientId) return null;
+        try {
+            return (await generateEncryptionKey(clientId)).keyContent || null;
+        } catch (e) {
+            console.error(e);
+            // A refusal is explained; a request that never reached the server only fails,
+            // as it always has.
+            if (e instanceof ApiError) alert(describeFailure('Could not generate the key', e.message));
+            return null;
+        }
+    };
 
     const handleDownloadKey = () => {
 
@@ -28,9 +42,7 @@ export const JobEncryptionSettings: React.FC = () => {
     };
 
     const handleDropKey = () => {
-        setEncryptionKeyContent(null);
-        setHasStoredKey(false);
-        setEncryptionEnabled(false);
+        form.patch({ keyContent: null, hasStoredKey: false, encryptionEnabled: false });
     };
 
     const showKeyActions = Boolean(encryptionKeyContent || hasStoredKey) && encryptionEnabled;
@@ -40,7 +52,7 @@ export const JobEncryptionSettings: React.FC = () => {
     const handleToggle = async () => {
         if (isGenerating) return;
         if (encryptionEnabled) {
-            setEncryptionEnabled(false);
+            form.set('encryptionEnabled', false);
             return;
         }
 
@@ -48,11 +60,14 @@ export const JobEncryptionSettings: React.FC = () => {
         // key generated.
         if (!encryptionKeyContent && !hasStoredKey) {
             setIsGenerating(true);
-            const success = await generateKey();
+            const keyContent = await generateKey();
             setIsGenerating(false);
-            if (!success) return;
+            if (!keyContent) return;
+            // In one step: a draft that has encryption on is never without its key.
+            form.patch({ keyContent, encryptionEnabled: true });
+            return;
         }
-        setEncryptionEnabled(true);
+        form.set('encryptionEnabled', true);
     };
 
     return (
@@ -66,6 +81,7 @@ export const JobEncryptionSettings: React.FC = () => {
                         onChange={handleToggle}
                         disabled={isGenerating}
                         label={isGenerating ? 'Generating Key...' : (encryptionEnabled ? 'Enabled' : 'Disabled')}
+                        error={form.errors.encryptionEnabled}
                         classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
                     />
                     {showKeyActions && (

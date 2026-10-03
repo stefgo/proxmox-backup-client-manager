@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Save, X } from 'lucide-react';
+import type { ManagedRepository } from '@pbcm/shared';
 import { JobScheduleSettings } from './job-editor/JobScheduleSettings';
 import { JobRepositorySelect } from './job-editor/JobRepositorySelect';
 import { JobArchiveEditor } from './job-editor/JobArchiveEditor';
@@ -8,62 +9,56 @@ import { JobExcludeEditor } from './job-editor/JobExcludeEditor';
 import { JobExcludeList } from './job-editor/JobExcludeList';
 import { JobEncryptionSettings } from './job-editor/JobEncryptionSettings';
 import { JobTunnelSettings } from './job-editor/JobTunnelSettings';
-import { JobFormProvider, JobFormContextType } from '../context/JobFormContext';
+import { JobFormProvider } from '../context/JobFormContext';
+import type { JobForm } from '../hooks/useJobForm';
+import { JOB_FORM_VIEW, type JobEditorView } from '../lib/jobEditorView';
 import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
 
-export interface ClientJobEditorProps extends JobFormContextType {
+export interface ClientJobEditorProps {
+    jobForm: JobForm;
+    /** Held by the page, which also has to know it: Escape closes a panel before the page. */
+    view: JobEditorView;
+    onViewChange: (view: JobEditorView) => void;
     /**
      * The client this job runs on, rendered above the repository in the same shape.
      * Left out where the surface has no choice to offer.
      */
     clientField?: ReactNode;
-    /** While the client list is open it replaces the form, exactly as the repository list does. */
-    isSelectingClient?: boolean;
-    /** Whether a client is set at all — without one there is no endpoint to save to. */
-    hasClient?: boolean;
-    /** What the X and Cancel do. Closing is a navigation for the routed editor. */
-    onClose?: () => void;
+    repositories: ManagedRepository[];
+    /** What the X does. Closing is a navigation for the routed editor. */
+    onClose: () => void;
+    onSave: () => void;
 }
 
-// ClientJobEditor now accepts the form state and provides it via context
-// It implements the "Compound Component" pattern by using Context
-export const ClientJobEditor = (props: ClientJobEditorProps) => {
+/**
+ * The job form and the panels it opens. The draft reaches the panels through context;
+ * which of them is open is the page's, because the page decides what Escape closes.
+ */
+export const ClientJobEditor = ({
+    jobForm,
+    view,
+    onViewChange,
+    clientField,
+    repositories,
+    onClose,
+    onSave,
+}: ClientJobEditorProps) => {
+    const { form, clientId, jobId, agentTimezone, tunnelAvailable } = jobForm;
+    const { draft, set, errors } = form;
+    const backToForm = () => onViewChange(JOB_FORM_VIEW);
 
-    const {
-        isCreatingJob,
-        setIsCreatingJob,
-        clientField,
-        isSelectingClient = false,
-        hasClient = true,
-        onClose,
-        editingJobId,
-        newJobName,
-        setNewJobName,
-        jobRepository,
-        isAddingArchive,
-        isAddingExclude,
-        isSelectingRepository,
-        setIsSelectingRepository,
-        repositories,
-        setJobRepository,
-        saveBackupJob,
-        isSaving,
-        saveError,
-        saved,
-        canSaveJob,
-    } = props;
-
-    if (!isCreatingJob) return null;
-
-    const close = onClose ?? (() => setIsCreatingJob(false));
+    // Without a client there is no endpoint to save to. Said once the form holds work,
+    // like every other field: before that the button is off because nothing was entered.
+    const clientMissing = !clientId && form.isDirty;
+    const footerError = form.saveError ?? form.formError;
 
     return (
-        <JobFormProvider value={props}>
+        <JobFormProvider value={{ form, clientId, agentTimezone, tunnelAvailable }}>
             <Card
                 className="flex flex-col"
-                title={editingJobId ? 'Edit Job' : 'New Backup Job'}
+                title={jobId ? 'Edit Job' : 'New Backup Job'}
                 action={
-                    <ActionButton icon={X} tooltip="Close" onClick={close} />
+                    <ActionButton icon={X} tooltip="Close" onClick={onClose} />
                 }
                 classNames={{
                     header: 'py-6 px-7',
@@ -75,13 +70,13 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                     {/* The open client list takes the panel for itself, the way the
                         repository list does — the form underneath is not answerable
                         until the client it belongs to is settled. */}
-                    {isSelectingClient ? clientField : (
+                    {view.kind === 'client' ? clientField : (
                         <>
-                            {editingJobId && (
+                            {jobId && (
                                 <div>
                                     <label className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">ID</label>
                                     <div className="bg-hover border rounded-lg px-3 py-2.5 text-text-muted opacity-60 font-mono text-sm">
-                                        {editingJobId}
+                                        {jobId}
                                     </div>
                                 </div>
                             )}
@@ -89,8 +84,9 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                             <Input
                                 label="Name"
                                 required
-                                value={newJobName}
-                                onChange={(e) => setNewJobName(e.target.value)}
+                                value={draft.name}
+                                onChange={(e) => set('name', e.target.value)}
+                                error={errors.name}
                                 placeholder="e.g. Production System"
                                 classNames={{
                                     label: 'mb-2',
@@ -99,27 +95,37 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                             />
 
                             <div className="space-y-6">
-                                {clientField}
+                                {clientField && (
+                                    <div>
+                                        {clientField}
+                                        {clientMissing && (
+                                            <p className="mt-1 ml-1 text-xs text-error">Choose the client the job runs on.</p>
+                                        )}
+                                    </div>
+                                )}
 
                                 <JobRepositorySelect
                                     repositories={repositories}
-                                    selectedRepository={jobRepository}
-                                    onSelect={setJobRepository}
-                                    isSelecting={isSelectingRepository}
-                                    onSetIsSelecting={setIsSelectingRepository}
+                                    selectedRepository={draft.repository}
+                                    onSelect={(repository) => set('repository', repository)}
+                                    isSelecting={view.kind === 'repository'}
+                                    onSetIsSelecting={(selecting) =>
+                                        onViewChange(selecting ? { kind: 'repository' } : JOB_FORM_VIEW)
+                                    }
+                                    error={errors.repository}
                                 />
 
-                                {isSelectingRepository ? null : isAddingArchive ? (
-                                    <JobArchiveEditor />
-                                ) : isAddingExclude ? (
+                                {view.kind === 'repository' ? null : view.kind === 'archive' ? (
+                                    <JobArchiveEditor index={view.index} onDone={backToForm} />
+                                ) : view.kind === 'exclude' ? (
                                     <div className="space-y-6">
                                         <JobArchiveList readOnly />
-                                        <JobExcludeEditor />
+                                        <JobExcludeEditor index={view.index} onDone={backToForm} />
                                     </div>
                                 ) : (
                                     <div className="space-y-6">
-                                        <JobArchiveList />
-                                        <JobExcludeList />
+                                        <JobArchiveList onEdit={(index) => onViewChange({ kind: 'archive', index })} />
+                                        <JobExcludeList onEdit={(index) => onViewChange({ kind: 'exclude', index })} />
                                         <JobEncryptionSettings />
                                         <JobTunnelSettings />
                                         <JobScheduleSettings />
@@ -135,13 +141,13 @@ export const ClientJobEditor = (props: ClientJobEditorProps) => {
                     than in a browser dialog. Leaving is the X in the header, which is in
                     reach from every scroll position. */}
                 <div className="p-6 bg-card flex items-center justify-end gap-4 border-t border-border">
-                    {saveError && <span className="text-sm text-error mr-auto">{saveError}</span>}
-                    {!saveError && saved && <span className="text-sm text-success mr-auto">Job saved</span>}
+                    {footerError && <span className="text-sm text-error mr-auto">{footerError}</span>}
+                    {!footerError && form.saved && <span className="text-sm text-success mr-auto">Job saved</span>}
                     <Button
                         variant="primary"
-                        onClick={saveBackupJob}
-                        isLoading={isSaving}
-                        disabled={!hasClient || !canSaveJob}
+                        onClick={onSave}
+                        isLoading={form.isSaving}
+                        disabled={!clientId || !form.canSave}
                         icon={Save}
                         className="shadow-glow-accent"
                     >

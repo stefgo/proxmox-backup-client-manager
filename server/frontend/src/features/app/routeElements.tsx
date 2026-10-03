@@ -172,7 +172,8 @@ export function EditJobRoute() {
         throw new NotFoundError('job');
     }
 
-    return <JobEditorPage lockedClientId={job.clientId} job={job} />;
+    // Keyed, so pointing the route at another job starts the form over.
+    return <JobEditorPage key={job.id} lockedClientId={job.clientId} job={job} />;
 }
 
 // --- Repositories ----------------------------------------------------------

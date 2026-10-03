@@ -38,3 +38,22 @@ export const excludePatternFromPath = (
     if (best === null) return null;
     return best === '/' ? clean : clean.slice(best.length);
 };
+
+/** The directory above `path`, always absolute. The parent of `/` is `/`. */
+export const parentPath = (path: string): string => {
+    const parts = path.split('/').filter(Boolean);
+    parts.pop();
+    return '/' + parts.join('/');
+};
+
+/**
+ * Where the file browser opens for an exclusion that is edited: the parent of the
+ * directory an anchored, glob-free pattern names in the first archive, else that archive
+ * itself. Only a guess to start browsing from -- the pattern itself is not touched by it.
+ */
+export const excludeBrowseStart = (pattern: string, archives: readonly Pick<Archive, 'path'>[]): string => {
+    const fallback = archives[0]?.path || '/';
+    if (!pattern.startsWith('/') || /[*?[\]]/.test(pattern)) return fallback;
+    const root = '/' + (archives[0]?.path ?? '').split('/').filter(Boolean).join('/');
+    return parentPath((root === '/' ? '' : root) + pattern);
+};

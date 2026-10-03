@@ -1,17 +1,18 @@
 import { Input, Select, Switch, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { ScheduleConfigSchema } from '@pbcm/shared';
 import { useJobFormContext } from '../../context/JobFormContext';
+import { WEEKDAYS } from '../../lib/jobForm';
 
 export const JobScheduleSettings = () => {
-    const {
-        scheduleEnabled, setScheduleEnabled,
-        scheduleInterval, setScheduleInterval,
-        scheduleUnit, setScheduleUnit,
-        scheduleWeekdays, setScheduleWeekdays,
-        scheduleStartDate, setScheduleStartDate,
-        scheduleStartTime, setScheduleStartTime,
-        agentTimezone,
-    } = useJobFormContext();
+    const { form, agentTimezone } = useJobFormContext();
+    const { draft, set, errors } = form;
+    const { scheduleEnabled, weekdays } = draft;
+
+    // The last day cannot be taken out: a schedule that runs on no day never runs.
+    const toggleDay = (day: string) => {
+        if (!weekdays.includes(day)) set('weekdays', [...weekdays, day]);
+        else if (weekdays.length > 1) set('weekdays', weekdays.filter((d) => d !== day));
+    };
 
     const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -21,7 +22,7 @@ export const JobScheduleSettings = () => {
             <div className="p-2 border border-border rounded bg-app-bg">
                 <Switch
                     value={scheduleEnabled}
-                    onChange={setScheduleEnabled}
+                    onChange={(enabled) => set('scheduleEnabled', enabled)}
                     label={scheduleEnabled ? 'Enabled' : 'Disabled'}
                     classNames={{ label: 'text-xs font-bold text-text-muted uppercase cursor-pointer select-none' }}
                 />
@@ -34,14 +35,15 @@ export const JobScheduleSettings = () => {
                             <div className="flex gap-2">
                                 <Input
                                     type="date"
-                                    value={scheduleStartDate}
-                                    onChange={(e) => setScheduleStartDate(e.target.value)}
+                                    value={draft.startDate}
+                                    onChange={(e) => set('startDate', e.target.value)}
+                                    error={errors.startDate}
                                     fullWidth={false}
                                 />
                                 <Input
                                     type="time"
-                                    value={scheduleStartTime}
-                                    onChange={(e) => setScheduleStartTime(e.target.value)}
+                                    value={draft.startTime}
+                                    onChange={(e) => set('startTime', e.target.value)}
                                     fullWidth={false}
                                 />
                             </div>
@@ -58,19 +60,21 @@ export const JobScheduleSettings = () => {
                                 <Input
                                     type="number"
                                     min="1"
-                                    value={scheduleInterval}
-                                    onChange={(e) => setScheduleInterval(parseInt(e.target.value) || 1)}
+                                    value={draft.interval}
+                                    onChange={(e) => set('interval', parseInt(e.target.value) || 1)}
+                                    error={errors.interval}
                                     fullWidth={false}
                                     classNames={{ input: 'w-20' }}
                                 />
                                 <Select
-                                    value={scheduleUnit}
+                                    value={draft.unit}
+                                    error={errors.unit}
                                     onChange={(e) => {
                                         // e.target.value is a plain string; the
                                         // options below are the schema's own values,
                                         // so this narrows without asserting.
                                         const unit = ScheduleConfigSchema.shape.unit.safeParse(e.target.value);
-                                        if (unit.success) setScheduleUnit(unit.data);
+                                        if (unit.success) set('unit', unit.data);
                                     }}
                                     fullWidth={false}
                                     options={[
@@ -86,10 +90,10 @@ export const JobScheduleSettings = () => {
                         <div>
                             <label className="field-label">Detailed Weekdays</label>
                             <div className="flex flex-wrap gap-2">
-                                {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map(day => (
-                                    <button key={day} onClick={() => { if (scheduleWeekdays.includes(day)) { if (scheduleWeekdays.length > 1) setScheduleWeekdays(scheduleWeekdays.filter(d => d !== day)); } else { setScheduleWeekdays([...scheduleWeekdays, day]); } }} className={cn(
+                                {WEEKDAYS.map(day => (
+                                    <button key={day} onClick={() => toggleDay(day)} className={cn(
                                         'px-2 py-1 text-[10px] uppercase font-bold rounded border transition-colors',
-                                        scheduleWeekdays.includes(day)
+                                        weekdays.includes(day)
                                             ? 'bg-primary/20 border-primary text-primary shadow-glow-accent'
                                             : 'bg-card border-border text-text-muted opacity-60',
                                         FOCUS_RING,

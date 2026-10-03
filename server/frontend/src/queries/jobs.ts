@@ -1,5 +1,12 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { GlobalHistorySchema, GlobalJobListSchema, type BackupJob } from '@pbcm/shared';
+import {
+    GeneratedEncryptionKeySchema,
+    GlobalHistorySchema,
+    GlobalJobListSchema,
+    type BackupJob,
+    type BackupJobSchema,
+} from '@pbcm/shared';
+import type { z } from 'zod';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import type { GlobalJob, SessionHistoryItem } from '../lib/cacheUpdates';
@@ -81,3 +88,27 @@ export function useDeleteJob() {
         },
     });
 }
+
+/**
+ * Creates a job on a client, or changes the one the request names by its id. Both job
+ * lists read the cache and neither is mounted while the editor is; invalidating them here
+ * is what makes the saved job visible on arrival.
+ */
+export function useSaveJob() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ clientId, job }: { clientId: string; job: z.input<typeof BackupJobSchema> }) =>
+            api.post(`/api/v1/clients/${clientId}/jobs`, job, undefined, { fallback: 'Failed to save job' }),
+        onSuccess: (_, { clientId }) => {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.list() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.clients.jobs(clientId) });
+        },
+    });
+}
+
+/**
+ * Has the client's agent make an encryption key. Not cached: the answer is the one moment
+ * the key is in the browser, and the job editor holds it until the job is saved.
+ */
+export const generateEncryptionKey = (clientId: string) =>
+    api.post(`/api/v1/clients/${clientId}/key`, {}, GeneratedEncryptionKeySchema);

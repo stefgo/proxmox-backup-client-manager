@@ -1,5 +1,15 @@
+import { useState } from 'react';
 import { FileBrowser, Input, Button, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { useJobFormContext } from '../../context/JobFormContext';
+import { useClientFiles } from '../../../../queries/fileSystem';
+import { excludeBrowseStart, excludePatternFromPath } from '../../lib/archivePaths';
+
+interface JobExcludeEditorProps {
+    /** The exclusion to change, by its place in the job. `null` adds one. */
+    index: number | null;
+    /** Back to the form, with the pattern taken or not. */
+    onDone: () => void;
+}
 
 /**
  * One exclusion, typed as a pattern or taken from the file browser.
@@ -15,25 +25,35 @@ import { useJobFormContext } from '../../context/JobFormContext';
  * an archive and a directory outside every archive have no pattern, and the button says
  * why instead of producing one that would never match.
  */
-export const JobExcludeEditor = () => {
-    const {
-        setIsAddingExclude,
-        newExcludePattern,
-        setNewExcludePattern,
-        fileBrowserPath,
-        setFileBrowserPath,
-        fileList,
-        isLoadingFiles,
-        fileListError,
-        jobArchives,
-        excludePatternFromPath,
-        addExcludeItem,
-    } = useJobFormContext();
+export const JobExcludeEditor = ({ index, onDone }: JobExcludeEditorProps) => {
+    const { form, clientId } = useJobFormContext();
+    const { archives, excludes } = form.draft;
+    const edited = index !== null ? excludes[index] : undefined;
+
+    const [pattern, setPattern] = useState(edited ?? '');
+    // Where to start browsing: near the directory an edited pattern names, else in the
+    // first archive -- an exclusion outside every archive matches nothing.
+    const [browserPath, setBrowserPath] = useState(
+        edited !== undefined ? excludeBrowseStart(edited, archives) : archives[0]?.path || '/',
+    );
+
+    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(clientId, browserPath);
 
     const normalize = (path: string) => '/' + path.split('/').filter(Boolean).join('/');
-    const current = normalize(fileBrowserPath);
-    const candidate = excludePatternFromPath(current);
-    const isArchiveRoot = jobArchives.some((a) => normalize(a.path) === current);
+    const current = normalize(browserPath);
+    const candidate = excludePatternFromPath(current, archives);
+    const isArchiveRoot = archives.some((a) => normalize(a.path) === current);
+
+    const confirm = () => {
+        const trimmed = pattern.trim();
+        if (!trimmed) return;
+        if (index !== null) {
+            form.set('excludes', excludes.map((item, i) => (i === index ? trimmed : item)));
+        } else if (!excludes.includes(trimmed)) {
+            form.set('excludes', [...excludes, trimmed]);
+        }
+        onDone();
+    };
 
     return (
         <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 gap-4">
@@ -41,7 +61,7 @@ export const JobExcludeEditor = () => {
                 <div className="flex items-center justify-between">
                     <label className="field-label">Add Exclusion</label>
                     <button
-                        onClick={() => setIsAddingExclude(false)}
+                        onClick={onDone}
                         className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
@@ -50,8 +70,8 @@ export const JobExcludeEditor = () => {
 
                 <div className="flex flex-col">
                     <FileBrowser
-                        currentPath={fileBrowserPath}
-                        onNavigate={setFileBrowserPath}
+                        currentPath={browserPath}
+                        onNavigate={setBrowserPath}
                         files={fileList}
                         isLoading={isLoadingFiles}
                         // Navigation is not a choice here -- see above.
@@ -82,7 +102,7 @@ export const JobExcludeEditor = () => {
                         disabled={candidate === null}
                         onClick={() => {
                             if (candidate === null) return;
-                            setNewExcludePattern(candidate);
+                            setPattern(candidate);
                         }}
                     >
                         Use
@@ -94,10 +114,8 @@ export const JobExcludeEditor = () => {
                 <Input
                     label="Pattern"
                     type="text"
-                    value={newExcludePattern}
-                    onChange={(e) => {
-                        setNewExcludePattern(e.target.value);
-                    }}
+                    value={pattern}
+                    onChange={(e) => setPattern(e.target.value)}
                     placeholder="e.g. /stefan/.cache or **/node_modules"
                     classNames={{ input: 'font-mono' }}
                 />
@@ -107,7 +125,7 @@ export const JobExcludeEditor = () => {
                     any depth. <code>*</code> and <code>**</code> work as in <code>.gitignore</code>.
                 </p>
 
-                <Button onClick={addExcludeItem} disabled={!newExcludePattern.trim()} className="w-full shadow-glow-accent">
+                <Button onClick={confirm} disabled={!pattern.trim()} className="w-full shadow-glow-accent">
                     Confirm Exclusion
                 </Button>
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
-import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { ActionButton, FormField, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 
 /** What the panel shows -- of a job's own copy or of a managed repository, whose empty columns are null. */
 type RepositoryDetails = Pick<Repository, 'baseUrl' | 'datastore' | 'username' | 'fingerprint' | 'tokenname'>;
@@ -36,6 +36,8 @@ interface JobRepositorySelectProps {
     isSelecting: boolean;
     onSetIsSelecting: (val: boolean) => void;
     label?: string;
+    /** Why the selection as it stands is not enough. Shown under the card, not in the list. */
+    error?: string;
 }
 
 export const JobRepositorySelect = ({
@@ -44,7 +46,8 @@ export const JobRepositorySelect = ({
     onSelect,
     isSelecting,
     onSetIsSelecting,
-    label = 'Repository'
+    label = 'Repository',
+    error,
 }: JobRepositorySelectProps) => {
     const [expandedRepoId, setExpandedRepoId] = useState<string | number | null>(null);
     const [isSelectedRepoExpanded, setIsSelectedRepoExpanded] = useState(false);
@@ -142,7 +145,10 @@ export const JobRepositorySelect = ({
                     </button>
                 </div>
 
-                <div className="flex-1 border border-border rounded-lg bg-app-bg overflow-y-auto p-2 space-y-2">
+                {/* No label of its own: the header above carries it, with the action beside it. */}
+                <FormField error={error}>
+                    {({ describedBy }) => (
+                <div aria-describedby={describedBy} className="flex-1 border border-border rounded-lg bg-app-bg overflow-y-auto p-2 space-y-2">
                     {selectedRepository ? (
                         <div className="bg-card border border-border rounded overflow-hidden transition-all">
                             <div className="flex flex-col">
@@ -178,6 +184,8 @@ export const JobRepositorySelect = ({
                         <div className="px-1 py-2 text-md text-text-muted">No repository selected</div>
                     )}
                 </div>
+                    )}
+                </FormField>
             </div>
         );
     }

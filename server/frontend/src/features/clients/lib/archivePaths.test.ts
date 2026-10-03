@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    excludeBrowseStart,
     excludePatternFromPath,
     getDefaultNameFromPath,
+    parentPath,
     sanitizeArchiveName,
 } from './archivePaths';
 
@@ -106,5 +108,50 @@ describe('excludePatternFromPath', () => {
     it('ignores trailing and doubled slashes on either side', () => {
         expect(excludePatternFromPath('/home//stefan/.cache/', archives('/home/'))).toBe('/stefan/.cache');
         expect(excludePatternFromPath('home/stefan', archives('//home'))).toBe('/stefan');
+    });
+});
+
+describe('parentPath', () => {
+    it('drops the last segment', () => {
+        expect(parentPath('/home/stefan/.cache')).toBe('/home/stefan');
+    });
+
+    it('stays at the root', () => {
+        expect(parentPath('/')).toBe('/');
+        expect(parentPath('/home')).toBe('/');
+    });
+
+    it('answers absolute for a relative path', () => {
+        expect(parentPath('home/stefan')).toBe('/home');
+    });
+});
+
+describe('excludeBrowseStart', () => {
+    const archives = [{ path: '/home' }, { path: '/etc' }];
+
+    it('opens the parent of the directory an anchored pattern names in the first archive', () => {
+        expect(excludeBrowseStart('/stefan/.cache', archives)).toBe('/home/stefan');
+    });
+
+    it('opens the archive itself for a pattern that names a directory right below it', () => {
+        expect(excludeBrowseStart('/stefan', archives)).toBe('/home');
+    });
+
+    it('opens the first archive for a pattern that is not anchored', () => {
+        expect(excludeBrowseStart('node_modules', archives)).toBe('/home');
+    });
+
+    it('opens the first archive for a pattern with a glob', () => {
+        expect(excludeBrowseStart('/stefan/*.log', archives)).toBe('/home');
+        expect(excludeBrowseStart('/stefan/[ab]', archives)).toBe('/home');
+    });
+
+    it('does not double the slash for an archive of the root', () => {
+        expect(excludeBrowseStart('/var/cache', [{ path: '/' }])).toBe('/var');
+    });
+
+    it('opens the root when the job has no archive yet', () => {
+        expect(excludeBrowseStart('**/tmp', [])).toBe('/');
+        expect(excludeBrowseStart('/var/cache', [])).toBe('/var');
     });
 });

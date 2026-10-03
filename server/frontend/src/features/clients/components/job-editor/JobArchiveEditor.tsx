@@ -1,32 +1,54 @@
 import { useState } from 'react';
+import type { Archive } from '@pbcm/shared';
 import { FileBrowser, Input, Button, cn, FOCUS_RING } from '@stefgo/react-ui-components';
 import { useJobFormContext } from '../../context/JobFormContext';
+import { useClientFiles } from '../../../../queries/fileSystem';
+import { getDefaultNameFromPath, parentPath, sanitizeArchiveName } from '../../lib/archivePaths';
 
+interface JobArchiveEditorProps {
+    /** The archive to change, by its place in the job. `null` adds one. */
+    index: number | null;
+    /** Back to the form, with the archive taken or not. */
+    onDone: () => void;
+}
 
-export const JobArchiveEditor = () => {
-    const {
-        setIsAddingArchive,
-        newItemName,
-        setNewItemName,
-        fileBrowserPath,
-        setFileBrowserPath,
-        fileList,
-        isLoadingFiles,
-        fileListError,
-        newItemPath,
-        selectPath,
-        addArchiveItem
-    } = useJobFormContext();
+/**
+ * One archive: a directory picked in the client's file system, and the name it is stored
+ * under. What is typed here belongs to this panel until it is confirmed -- only then does
+ * it become part of the job.
+ */
+export const JobArchiveEditor = ({ index, onDone }: JobArchiveEditorProps) => {
+    const { form, clientId } = useJobFormContext();
+    const { archives } = form.draft;
+    const edited = index !== null ? archives[index] : undefined;
 
-    const [isNameModified, setIsNameModified] = useState(!!newItemName);
+    const [name, setName] = useState(edited?.name ?? '');
+    const [path, setPath] = useState(edited?.path ?? '');
+    // Always absolute. The agent resolves a relative path against its own working
+    // directory, and `.` used to be where an edited job's browser opened.
+    const [browserPath, setBrowserPath] = useState(edited ? parentPath(edited.path) : '/');
+    const [isNameModified, setIsNameModified] = useState(!!edited?.name);
 
-    const handlePathSelect = (path: string) => {
-        selectPath(path);
+    const { fileList, isLoadingFiles, error: fileListError } = useClientFiles(clientId, browserPath);
+
+    // The name follows the directory until the operator has typed one of their own.
+    const handlePathSelect = (selected: string) => {
+        setPath(selected);
         if (!isNameModified) {
-            const parts = path.split('/').filter(Boolean);
-            const name = parts.length > 0 ? parts.pop()! : 'Root';
-            setNewItemName(name);
+            setName(sanitizeArchiveName(selected.split('/').filter(Boolean).pop() ?? 'Root'));
+        } else if (!name) {
+            setName(getDefaultNameFromPath(selected));
         }
+    };
+
+    const confirm = () => {
+        if (!path) return;
+        const archive: Archive = { path, name: name || getDefaultNameFromPath(path) };
+        form.set(
+            'archives',
+            index !== null ? archives.map((item, i) => (i === index ? archive : item)) : [...archives, archive],
+        );
+        onDone();
     };
 
     return (
@@ -35,7 +57,7 @@ export const JobArchiveEditor = () => {
                 <div className="flex items-center justify-between">
                     <label className="field-label">Add Directory</label>
                     <button
-                        onClick={() => setIsAddingArchive(false)}
+                        onClick={onDone}
                         className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
                     >
                         Back
@@ -44,8 +66,8 @@ export const JobArchiveEditor = () => {
 
                 <div className="flex flex-col">
                     <FileBrowser
-                        currentPath={fileBrowserPath}
-                        onNavigate={setFileBrowserPath}
+                        currentPath={browserPath}
+                        onNavigate={setBrowserPath}
                         files={fileList}
                         isLoading={isLoadingFiles}
                         onSelect={handlePathSelect}
@@ -59,15 +81,15 @@ export const JobArchiveEditor = () => {
                 <Input
                     label="Archive Name"
                     type="text"
-                    value={newItemName}
+                    value={name}
                     onChange={(e) => {
-                        setNewItemName(e.target.value);
+                        setName(sanitizeArchiveName(e.target.value));
                         setIsNameModified(true);
                     }}
                     placeholder="e.g. Database Dump"
                 />
 
-                <Button onClick={addArchiveItem} disabled={!newItemPath} className="w-full shadow-glow-accent">
+                <Button onClick={confirm} disabled={!path} className="w-full shadow-glow-accent">
                     Confirm Archive
                 </Button>
             </div>

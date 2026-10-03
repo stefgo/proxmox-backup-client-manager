@@ -15,7 +15,8 @@ import { Switch } from '@stefgo/react-ui-components';
  * fail. The credentials live in the client editor; only the choice lives here.
  */
 export const JobTunnelSettings: React.FC = () => {
-    const { tunnelRequired, setTunnelRequired, tunnelAvailable } = useJobFormContext();
+    const { form, tunnelAvailable } = useJobFormContext();
+    const { tunnelRequired } = form.draft;
 
     return (
         <div className="space-y-1">
@@ -25,7 +26,8 @@ export const JobTunnelSettings: React.FC = () => {
             <div className="p-2 border rounded bg-app-bg">
                 <Switch
                     value={tunnelAvailable && tunnelRequired}
-                    onChange={setTunnelRequired}
+                    onChange={(required) => form.set('tunnelRequired', required)}
+                    error={form.errors.tunnelRequired}
                     disabled={!tunnelAvailable}
                     label={tunnelRequired && tunnelAvailable ? 'Enabled' : 'Disabled'}
                     hint={
