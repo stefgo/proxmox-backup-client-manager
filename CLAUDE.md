@@ -23,6 +23,8 @@ npm run dev:client   # Client agent in watch mode
 npm run clean        # Remove all build artifacts
 npm run lint         # ESLint over shared, client and server/backend
 npm run lint:frontend # ESLint over server/frontend (its own config)
+npm test             # Vitest, once, over shared and server/frontend
+npm run test:watch   # ... in watch mode
 ```
 
 `build` names its workspaces one by one instead of using `--workspaces`, because
@@ -44,14 +46,30 @@ npm run lint -w server/frontend            # ESLint (frontend only)
 npm run typecheck -w server/frontend       # tsc against the installed UI library
 npm run typecheck:local-ui -w server/frontend  # ... against a sibling checkout
 npm run build -w shared                    # Rebuild shared types after changes
+npm run typecheck -w shared                # tsc over shared including its tests
 ```
 
-Since there are no tests, `typecheck` is the primary safety net — run it after any
-change that touches the UI library's API.
+The tests cover logic only, so `typecheck` stays the safety net for everything that
+renders — run it after any change that touches the UI library's API.
 
 ### Testing
 
-There are no automated tests in this project.
+Vitest, configured once in [`vitest.config.mts`](vitest.config.mts) at the root with
+one project per workspace that has tests (`shared`, `frontend`). `npm test` runs both.
+
+- **A test lives next to its module**: `foo.ts` → `foo.test.ts`.
+- **Logic only.** Both projects run in the `node` environment; there is no DOM and
+  no Testing Library. Logic that sits inside a hook or a component is moved into a
+  module of its own first — `features/clients/lib/archivePaths.ts` came out of
+  `useJobForm` that way — and tested there.
+- **The frontend tests read `shared` from source**, through the `development` export
+  condition. They need no `npm run build -w shared` and never see a stale `dist`.
+- **`shared` builds with `tsconfig.build.json`**, which leaves `*.test.ts` out of
+  `dist`. `tsconfig.json` still includes them — it is what the editor and
+  `npm run typecheck -w shared` read. Vitest does not check types, so that script
+  (and the frontend's `typecheck`) is what does.
+- **A comment that describes an edge case is a test that is missing.** Write it.
+- `client` and `server/backend` have no tests yet.
 
 ### Docker (development)
 ```bash

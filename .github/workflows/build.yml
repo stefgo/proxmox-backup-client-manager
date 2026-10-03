@@ -44,7 +44,7 @@ env:
     REGISTRY: ghcr.io
 
 jobs:
-    # Typecheck and lint before anything is published. Reuses ci.yml rather than
+    # Typecheck, lint and test before anything is published. Reuses ci.yml rather than
     # restating the steps, so the release gate cannot drift from the branch checks.
     verify:
         uses: ./.github/workflows/ci.yml

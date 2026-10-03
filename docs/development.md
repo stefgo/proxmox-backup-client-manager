@@ -131,9 +131,11 @@ dark because that is what the application starts in. `capture.mjs` marks those s
 
 ## Review Before the Commit
 
-There is no test suite, so `npm run typecheck -w server/frontend` and a review of the diff are
-the only two gates that exist. Typecheck catches the API drift; the review has to catch
-everything else, and it is worth running at the points below rather than at random.
+Three gates exist: `npm test`, `npm run typecheck -w server/frontend` and a review of the
+diff. The tests cover pure logic in `shared` and the frontend — see [Tests](#tests) — and
+typecheck catches the API drift. Nothing renders a component or starts the backend, so the
+review still has to catch everything else, and it is worth running at the points below
+rather than at random.
 
 Run `/code-review` in Claude Code on the working tree, or `/code-review <PR#>` on a pull
 request. The level decides the breadth: `medium` for a routine change, `high` when the diff
@@ -161,6 +163,37 @@ a review of them finds only what that same lens sees. Do not mistake such a pass
 the files it touched: `ClientEditor` was modified five times after its defects were introduced,
 every time by a sweep of this kind, and none of them was ever going to notice.
 
+## Tests
+
+```bash
+npm test             # once, as CI runs it
+npm run test:watch   # re-runs what a change touches
+```
+
+[Vitest](https://vitest.dev), configured in
+[`vitest.config.mts`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/vitest.config.mts)
+at the root, with one project per workspace that has tests: `shared` and `frontend`.
+`client` and `server/backend` have none yet.
+
+- **A test lives next to its module** — `webhookTemplate.ts` and `webhookTemplate.test.ts`.
+- **Logic only.** Both projects run in the `node` environment. There is no DOM, so logic
+  that sits inside a hook or a component is first moved into a module of its own and tested
+  there: the path helpers of the job editor became `features/clients/lib/archivePaths.ts`
+  that way.
+- **The frontend project reads `shared` from source.** `@pbcm/shared` exports
+  `src/index.ts` under the `development` condition, and the project sets it. The tests
+  therefore need no build and cannot run against a stale `shared/dist`.
+- **The frontend project does not use `server/frontend/vite.config.js`.** That file shells
+  out to git for the version and sets up the dev proxy; a test needs neither.
+- **`shared` builds with `tsconfig.build.json`**, which excludes `*.test.ts`, so no test
+  ends up in `dist` or in an image. `tsconfig.json` still includes them. Vitest strips
+  types without checking them, so `npm run typecheck -w shared` is what checks the tests
+  of `shared`; the frontend's `typecheck` already includes all of `src`.
+
+Where a comment describes an edge case — "an unknown client must not blank out a name that
+was already there" — there is a test for it. The first two bugs the suite found were
+exactly such cases, described in a comment and handled on one of two paths.
+
 ## GitHub Actions
 
 Six workflows. The rule that shapes all of them: **a release is an action, not a
@@ -177,7 +210,7 @@ a topic branch gets.
 
 | Event | What runs |
 | :--- | :--- |
-| Push to a topic branch | `ci.yml` — typecheck and lint |
+| Push to a topic branch | `ci.yml` — typecheck, lint and test |
 | Pull request | `ci.yml`, plus commitlint over the pull request's commit range |
 | Dependabot pull request | the same, and `dependabot-auto-merge.yml` merges it into `dev` once those checks pass |
 | Push to `dev` | `build.yml` (which calls `ci.yml`): images `:dev` and `:sha-<short>`, smoke test. **No version.** |
@@ -203,6 +236,8 @@ every check twice for every push. A single job, `verify`:
 | Pin npm | Node 22 ships npm 10, the lockfile was written by npm 11. The two do not agree about the optional peers of `@commitlint/read`, so `npm ci` fails under the version that did not write the lockfile. The number is read out of `packageManager` in `package.json` — one source, not a second literal. |
 | commitlint | Bound to `pull_request`, and this repository is maintained without pull requests, so in practice the local hook is what fires — see [The hooks](#the-hooks). |
 | `npm run build` | Builds `shared` first, then every workspace. This *is* the typecheck for `shared`, `server/backend` and `client`, and the Vite build for the frontend. |
+| `npm test` | Vitest over `shared` and the frontend — see [Tests](#tests). Reads `shared` from source, so it does not depend on the build before it; it runs second only because a failing build is the cheaper thing to be told first. |
+| `npm run typecheck -w shared` | The build leaves the tests of `shared` out of `dist`, and Vitest does not check types. This does. |
 | `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json`, `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
 | `npm run lint -w server/frontend` | ESLint for the frontend, with the React plugins. |
 | `npm run lint` | The root ESLint config: `shared`, `client` and `server/backend` as Node TypeScript. Two configs rather than one, because a file matched by both would have two truths about it; the root one ignores `server/frontend`. |
@@ -413,7 +448,7 @@ Should a single commit need to stay out of the version calculation, the string
 [`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml)
 rejects every other branch. The rejection is its own `guard` job, ahead of the
 checks: the condition is known the moment the workflow is dispatched, so a
-mis-click costs a second instead of a full typecheck-and-lint cycle. Past the
+mis-click costs a second instead of a full typecheck, lint and test cycle. Past the
 guard, a release is gated by exactly the `ci.yml` checks a pull request gets.
 
 ```
@@ -512,8 +547,9 @@ answer.
 
 **This is the only place in the pipeline where the images are ever executed.**
 Everything before it proves that the code compiles, not that the result runs -- an image
-whose entrypoint died on the first start used to pass every other job. With no test suite
-in this project, it is the single automated statement that an artefact works at all.
+whose entrypoint died on the first start used to pass every other job. The test suite
+covers logic, not a running process, so this is the single automated statement that an
+artefact works at all.
 
 **It is a gate, not a report.** The build jobs push by digest and attach no tag; only
 `publish`, which runs after this job, turns a digest into `dev`, `1.5.0` or `latest`. A

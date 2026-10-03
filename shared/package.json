@@ -23,8 +23,9 @@
     },
     "scripts": {
         "prebuild": "rimraf dist",
-        "build": "tsc",
-        "watch": "tsc -w"
+        "build": "tsc -p tsconfig.build.json",
+        "typecheck": "tsc --noEmit",
+        "watch": "tsc -w -p tsconfig.build.json"
     },
     "devDependencies": {
         "rimraf": "^6.1.3",
