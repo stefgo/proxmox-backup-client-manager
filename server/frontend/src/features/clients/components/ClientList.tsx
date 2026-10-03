@@ -149,7 +149,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             listGroups={listGroups()}
             keyField="id"
             searchable
-            searchPlaceholder="Search Clients ..."
+            searchPlaceholder="Search clients…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No clients match “${searchQuery}”.`}

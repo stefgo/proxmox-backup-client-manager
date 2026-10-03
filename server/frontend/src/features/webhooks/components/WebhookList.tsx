@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback } from 'react';
 import { Edit2, Plus, Trash2, Webhook as WebhookIcon } from 'lucide-react';
 import type { Webhook } from '@pbcm/shared';
 import {
@@ -94,11 +94,12 @@ export const WebhookList = ({
 }: WebhookListProps) => {
     const [searchQuery, setSearchQuery] = useSearchQueryParam();
 
-    const filtered = useMemo(() => {
-        if (!searchQuery) return webhooks;
-        const q = searchQuery.toLowerCase();
-        return webhooks.filter((w) => w.name.toLowerCase().includes(q) || w.url.toLowerCase().includes(q));
-    }, [webhooks, searchQuery]);
+    // Handed to the view instead of applied in front of it: only then can the view tell an
+    // empty search from an empty list, and page through what the search left.
+    const matchesSearch = useCallback((w: Webhook, query: string) => {
+        const q = query.toLowerCase();
+        return w.name.toLowerCase().includes(q) || w.url.toLowerCase().includes(q);
+    }, []);
 
     // One set of actions for both views, so the table and the list cannot drift apart.
     const renderActions = (webhook: Webhook) => (
@@ -181,7 +182,7 @@ export const WebhookList = ({
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
             viewMode={{ persist: { key: 'webhookViewMode', scope: 'local' } }}
-            data={filtered}
+            data={webhooks}
             columns={columns}
             listGroups={listGroups('flex-1 min-w-0')}
             keyField="id"
@@ -190,6 +191,8 @@ export const WebhookList = ({
             searchable
             searchPlaceholder="Search webhooks…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
+            searchFilter={matchesSearch}
+            noResultsMessage={`No webhooks match “${searchQuery}”.`}
             emptyMessage="No webhooks yet. Add one to have the clients report their backup runs to an external service."
             pagination={pagination(PAGE_SIZE.page)}
         />

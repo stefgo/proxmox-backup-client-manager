@@ -398,7 +398,7 @@ export const BaseJobList = <T extends BaseJobItem>({
             listGroups={listGroups()}
             keyField={rowId}
             searchable
-            searchPlaceholder="Search Jobs ..."
+            searchPlaceholder="Search jobs…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No jobs match “${searchQuery}”.`}

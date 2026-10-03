@@ -165,7 +165,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
             viewMode={{ persist: { key: 'snapshotListViewMode', scope: 'local' } }}
             searchable
-            searchPlaceholder="Search Snapshots ..."
+            searchPlaceholder="Search snapshots…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No snapshots match “${searchQuery}”.`}

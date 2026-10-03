@@ -105,7 +105,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             listGroups={listGroups()}
             keyField="id"
             searchable
-            searchPlaceholder="Search Repositories ..."
+            searchPlaceholder="Search repositories…"
             search={{ value: searchQuery, onChange: setSearchQuery }}
             searchFilter={matchesSearch}
             noResultsMessage={`No repositories match “${searchQuery}”.`}
