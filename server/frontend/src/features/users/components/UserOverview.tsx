@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { UserDialog } from './UserDialog';
 import { UserList, UserData } from './UserList';
-import { useConfirm, useToast } from '@stefgo/react-ui-components';
+import { useConfirm } from '@stefgo/react-ui-components';
 import { describeDeleteUser, describeLastUser } from '../confirmations';
 import { userListOptions, useUsers } from '../../../queries/users';
 import { api } from '../../../lib/api';
-import { getErrorMessage } from '../../../utils';
+import { QueryError } from '../../../components/QueryError';
+import type { UserInput } from '../lib/userForm';
 
 const NO_USERS: UserData[] = [];
 
@@ -17,13 +18,6 @@ export const UserOverview = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserData | null>(null);
     const { confirm, alert } = useConfirm();
-    const { show } = useToast();
-
-    useEffect(() => {
-        if (!error) return;
-        console.error(error);
-        show({ variant: 'error', title: 'Could not load the users', description: getErrorMessage(error) });
-    }, [error, show]);
 
     /** Reads the list again after a change. */
     const fetchUsers = () => queryClient.invalidateQueries({ queryKey: userListOptions.queryKey });
@@ -61,13 +55,16 @@ export const UserOverview = () => {
         });
     };
 
-    const handleSaveUser = async (data: { username: string; password?: string; auth_methods?: string }) => {
+    const handleSaveUser = async (data: UserInput) => {
         const options = { fallback: 'Failed to save user' };
         if (editingUser) await api.put(`/api/v1/users/${editingUser.id}`, data, undefined, options);
         else await api.post('/api/v1/users', data, undefined, options);
 
         fetchUsers();
     };
+
+    // Instead of the list: an empty one below a toast said there were no users.
+    if (error) return <QueryError title="Could not load the users" error={error} />;
 
     return (
         <div className="space-y-6">
