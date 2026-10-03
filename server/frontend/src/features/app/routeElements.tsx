@@ -6,6 +6,7 @@ import type { Client, ManagedRepository, RepositoryInput } from '@pbcm/shared';
 
 import Login from '../../pages/Login';
 import { NotFoundCard } from '../../components/NotFoundCard';
+import { QueryError } from '../../components/QueryError';
 import { useAuth } from '../auth/AuthContext';
 import { useBackPath } from '../../hooks/useBackPath';
 import { NotFoundError } from '../../lib/notFound';
@@ -68,8 +69,12 @@ export function NotFound() {
 
 export function ClientsRoute() {
     const navigate = useNavigate();
-    const { clients, refetch } = useClients();
+    const { clients, isPending, error, refetch } = useClients();
     const { mutateAsync: deleteClient } = useDeleteClient();
+
+    // An empty list before the first answer, or after a failed one, is not "no clients".
+    if (isPending) return <LoadingIndicator label="Loading clients…" />;
+    if (error) return <QueryError title="Could not load the clients" error={error} />;
 
     return (
         <ManagedClients
@@ -180,8 +185,11 @@ export function EditJobRoute() {
 
 export function RepositoriesRoute() {
     const navigate = useNavigate();
-    const { repositories } = useRepositories();
+    const { repositories, isPending, error } = useRepositories();
     const { mutateAsync: deleteRepository } = useDeleteRepository();
+
+    if (isPending) return <LoadingIndicator label="Loading repositories…" />;
+    if (error) return <QueryError title="Could not load the repositories" error={error} />;
 
     return (
         <ManagedRepositories
