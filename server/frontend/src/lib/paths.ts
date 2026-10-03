@@ -10,7 +10,10 @@ import { generatePath } from 'react-router-dom';
  */
 export const ROUTES = {
     login: '/login',
-    root: '/',
+
+    // The dashboard is the root itself: the job list across all clients, with each
+    // job's last run. Where the login lands, and where "not found" leads back to.
+    dashboard: '/',
 
     clients: '/clients',
     clientNew: '/clients/new',
@@ -28,9 +31,10 @@ export const ROUTES = {
     repositoryEdit: '/repositories/:repoId/edit',
     repositoryRestore: '/repositories/:repoId/restore/:backupType/:backupId/:backupTime',
 
-    // The job editor a second time, under the list across all clients. Deliberate: the
-    // sidebar keeps marking the place the operator came from.
-    jobs: '/jobs',
+    // The job editor a second time, under the dashboard's list across all clients.
+    // Deliberate: the sidebar keeps marking the place the operator came from. They keep
+    // `/jobs` in their address -- they name a job, and the dashboard has no segment of
+    // its own to put in front. There is no page at `/jobs` itself.
     jobNew: '/jobs/new',
     job: '/jobs/:clientId/:jobId',
 

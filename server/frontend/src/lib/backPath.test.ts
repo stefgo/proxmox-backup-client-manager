@@ -13,8 +13,10 @@ describe('parentPath', () => {
         expect(parentPath(['/', '/clients', '/clients/a', '/clients/a/restore/3/host/17'])).toBe('/clients/a');
     });
 
-    it('follows the tree, not the client, for a job opened from the job list', () => {
-        expect(parentPath(['/', '/jobs', '/jobs/a/job-1'])).toBe('/jobs');
+    it('follows the tree, not the address, for a job opened from the dashboard', () => {
+        // The editor is a child of the dashboard at `/`; there is no `/jobs` to go back to.
+        expect(parentPath(['/', '/', '/jobs/a/job-1'])).toBe('/');
+        expect(parentPath(['/', '/', '/jobs/new'])).toBe('/');
     });
 
     it('looks past an index route, which repeats its parent with a trailing slash', () => {

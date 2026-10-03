@@ -52,14 +52,14 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
 export function LoginRoute() {
     const { isAuthenticated } = useAuth();
-    return isAuthenticated ? <Navigate to={ROUTES.root} /> : <Login />;
+    return isAuthenticated ? <Navigate to={ROUTES.dashboard} /> : <Login />;
 }
 
 export function NotFound() {
     const { pathname } = useLocation();
 
     return (
-        <NotFoundCard title="Page not found" backTo={ROUTES.clients} backLabel="Back to clients">
+        <NotFoundCard title="Page not found" backTo={ROUTES.dashboard} backLabel="Back to dashboard">
             There is nothing at <code className="font-mono text-sm">{pathname}</code>.
         </NotFoundCard>
     );
