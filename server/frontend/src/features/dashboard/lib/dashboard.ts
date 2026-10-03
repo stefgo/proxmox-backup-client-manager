@@ -84,3 +84,14 @@ export function missedJobs<J extends ScheduledJob>(
         return !(run && canAbortRun(run));
     });
 }
+
+/**
+ * What the "Errors / Warnings" card says below its number: what the number is made of.
+ * A part that is zero is left out, and with nothing wrong the card says that instead.
+ */
+export function problemSummary(missed: number, failed: number): string {
+    const parts = [missed > 0 ? `${missed} missed` : null, failed > 0 ? `${failed} failed` : null].filter(
+        (part) => part !== null,
+    );
+    return parts.length > 0 ? parts.join(' · ') : 'Nothing to report';
+}

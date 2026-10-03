@@ -317,7 +317,12 @@ anyway, plus one page of the history.
   `AppLayout` builds the sidebar's badges from the same functions, so a card and its
   badge cannot disagree. "Jobs active" is the jobs on online clients; there is no total,
   because the server knows a client's jobs only while its agent is connected.
-- **Errors / Warnings**, which holds only what needs attention:
+- A fourth card, **"Errors / Warnings"**, counts the missed jobs plus the failed runs
+  (`problemSummary` says below it what the number is made of). The section of the same
+  name is rendered only while it has something to show -- or after a click on the card,
+  which with nothing wrong opens it to say so and closes it again; with something wrong
+  the click scrolls down to it. The card carries `aria-expanded` for the section.
+- **Errors / Warnings**, the section, which holds only what needs attention:
     - **Missed Jobs** -- `missedJobs`: the schedule is on, `nextRunAt` is past by more
       than `MISSED_GRACE_MS` (a minute; the agent starts a due job on its next tick), the
       client is online, and no run of the job is under way or queued. The rows the job

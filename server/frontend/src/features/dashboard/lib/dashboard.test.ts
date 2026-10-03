@@ -5,6 +5,7 @@ import {
     formatOnlineCount,
     MISSED_GRACE_MS,
     missedJobs,
+    problemSummary,
     repositoryCount,
 } from './dashboard';
 
@@ -79,5 +80,20 @@ describe('missedJobs', () => {
     it('keeps a job whose last run is over, however it ended', () => {
         expect(missed(job(), () => ({ status: 'success' }))).toBe(true);
         expect(missed(job(), () => ({ status: 'failed' }))).toBe(true);
+    });
+});
+
+describe('problemSummary', () => {
+    it('names what the count is made of', () => {
+        expect(problemSummary(2, 3)).toBe('2 missed · 3 failed');
+    });
+
+    it('leaves out a part that is zero', () => {
+        expect(problemSummary(0, 3)).toBe('3 failed');
+        expect(problemSummary(2, 0)).toBe('2 missed');
+    });
+
+    it('says so when there is nothing', () => {
+        expect(problemSummary(0, 0)).toBe('Nothing to report');
     });
 });
