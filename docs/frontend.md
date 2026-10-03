@@ -411,6 +411,15 @@ source tree.
 Most data-driven lists utilize a common base to provide consistent loading, error, and empty states. We use a **Base Component Pattern** (e.g., `BaseJobList`, `BaseRepositorySnapshotList`) to share logic across different views.
 
 - **`DataMultiView`**: The standard container that allows switching between `DataTable` and `DataCard` layouts.
+  A list passes it **one `columns` definition** for both views, never `tableDef` next to
+  `listColumns`: two descriptions of the same column drift, and `BaseJobList` asked "is this
+  job's client online" in twelve renderers for six columns.
+    - The heading is also the list label; `list: { label }` renames it, `label: null` drops it.
+    - `table: false` / `list: false` leaves a column out of one view. **A sort's `colIndex`
+      counts the table's columns**, so it skips the ones with `table: false`.
+    - `render(item, view)` serves both views; `view` is for the cell that has to differ.
+    - `components/listColumns.tsx` holds what every list shares: `listGroups()`, the two
+      blocks of a list row, and `actionsColumn(render)`, the last column of every list.
 - **`DataTable`**: A generic, column-based tabular view for structured data.
 - **`DataList`**: A simpler, row-based list view.
 - **`PaginationControls`**: Integrated pagination logic for larger datasets.
