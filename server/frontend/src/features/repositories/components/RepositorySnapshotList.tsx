@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { DataAction, DataMultiView, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
-import { formatDate } from '../../../utils';
+import { formatBytes, formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
@@ -68,7 +68,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
         return getClientStatus(snap.backupId);
     };
 
-    const sizeLabel = (snap: Snapshot) => (snap.size ? (snap.size / (1024 * 1024)).toFixed(2) + ' MB' : '-');
+    const sizeLabel = (snap: Snapshot) => formatBytes(snap.size);
 
     const renderActions = (snap: T) => (
         <DataAction
