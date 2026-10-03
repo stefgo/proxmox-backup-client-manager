@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CLIENT_STATUS } from '@pbcm/shared';
-import { useConfirm, useToast } from '@stefgo/react-ui-components';
+import { LoadingIndicator, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { useDeleteJob, useGlobalJobs, useLatestPerJob, useTriggerJob } from '../../../queries/jobs';
 import { useClients } from '../../../queries/clients';
 import { JobList } from './JobList';
 import { ClientHistoryList } from '../../clients/components/ClientHistoryList';
 import { jobIdOf, type GlobalJob } from '../../../lib/cacheUpdates';
 import { getErrorMessage } from '../../../utils';
+import { QueryError } from '../../../components/QueryError';
 import { describeDeleteJob } from '../confirmations';
 import { ROUTES, paths } from '../../../lib/paths';
 
@@ -88,15 +89,11 @@ export const ManagedJobs = () => {
     };
 
     if (isPending) {
-        return (
-            <div className="p-8 text-center text-text-muted">Loading jobs...</div>
-        );
+        return <LoadingIndicator label="Loading jobs…" />;
     }
 
     if (error) {
-        return (
-            <div className="p-8 text-center text-error">Error: {getErrorMessage(error)}</div>
-        );
+        return <QueryError title="Could not load the jobs" error={error} />;
     }
 
     return (
