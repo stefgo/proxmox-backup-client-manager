@@ -59,6 +59,21 @@ describe('fieldErrorsFrom', () => {
         expect(errors).toEqual({ headers: 'Not a valid header name' });
     });
 
+    it('reads the reason a record refuses a key from the key\'s own issue', () => {
+        const { errors } = fieldErrorsFrom(
+            [
+                {
+                    path: ['headers', 'X Y'],
+                    code: 'invalid_key',
+                    message: 'Invalid key in record',
+                    issues: [{ message: 'Not a valid header name' }],
+                },
+            ],
+            fieldOf,
+        );
+        expect(errors).toEqual({ headers: 'Not a valid header name' });
+    });
+
     it('returns an issue no field shows, with its path', () => {
         const result = fieldErrorsFrom([{ path: ['timeoutMs'], message: 'Too big' }], fieldOf);
         expect(result).toEqual({ errors: {}, unplaced: ['timeoutMs: Too big'] });

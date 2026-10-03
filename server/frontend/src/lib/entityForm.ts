@@ -62,6 +62,18 @@ export function sameNamedField<D extends object>(draft: D): FieldOf<D> {
 interface Issue {
     readonly path: readonly PropertyKey[];
     readonly message: string;
+    readonly code?: string;
+    /** `invalid_key` only: what the key's own schema objected to. */
+    readonly issues?: readonly { readonly message: string }[];
+}
+
+/**
+ * What an issue says. A record refuses a key with "Invalid key in record" and keeps the
+ * reason one level down -- the message the key's schema was given, which is the one worth
+ * reading.
+ */
+function messageOf(issue: Issue): string {
+    return (issue.code === 'invalid_key' && issue.issues?.[0]?.message) || issue.message;
 }
 
 /**
@@ -79,9 +91,9 @@ export function fieldErrorsFrom<D>(
         const field = fieldOf(issue.path);
         if (field === null) {
             const path = issue.path.join('.');
-            unplaced.push(path ? `${path}: ${issue.message}` : issue.message);
+            unplaced.push(path ? `${path}: ${messageOf(issue)}` : messageOf(issue));
         } else if (errors[field] === undefined) {
-            errors[field] = issue.message;
+            errors[field] = messageOf(issue);
         }
     }
     return { errors, unplaced };

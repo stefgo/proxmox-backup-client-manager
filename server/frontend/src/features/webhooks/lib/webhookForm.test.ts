@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_WEBHOOK_TEMPLATE, type Webhook } from '@pbcm/shared';
+import { DEFAULT_WEBHOOK_TEMPLATE, WebhookInputSchema, type Webhook } from '@pbcm/shared';
+import { checkDraft } from '../../../lib/entityForm';
 import {
     EMPTY_DRAFT,
     PLACEHOLDERS,
@@ -7,6 +8,8 @@ import {
     inputFrom,
     parseKinds,
     previewBody,
+    webhookFieldOf,
+    webhookRules,
     type WebhookDraft,
 } from './webhookForm';
 
@@ -185,5 +188,52 @@ describe('PLACEHOLDERS', () => {
         for (const { path } of PLACEHOLDERS) {
             expect(previewBody(`"{{${path}}}"`, 'Chat', '').error, path).toBeUndefined();
         }
+    });
+});
+
+describe('the webhook draft, checked', () => {
+    const check = (changes: Partial<WebhookDraft> = {}) =>
+        checkDraft(
+            { schema: WebhookInputSchema, toInput: inputFrom, fieldOf: webhookFieldOf, rules: webhookRules },
+            draft(changes),
+        );
+
+    it('accepts a draft with a name and a URL', () => {
+        expect(check().isValid).toBe(true);
+    });
+
+    it('asks for the name and the URL of an empty draft, in the schema\'s words', () => {
+        expect(check({ name: '', url: '' }).errors).toEqual({
+            name: 'A name is required',
+            url: 'Must be an http:// or https:// URL',
+        });
+    });
+
+    it('shows a header line without a colon at the headers', () => {
+        expect(check({ headers: 'X-Token abc' }).errors).toEqual({
+            headers: 'Header line 1 is not "Name: value"',
+        });
+    });
+
+    it('shows a header name the schema refuses at the headers', () => {
+        expect(check({ headers: 'X Token: abc' }).errors).toEqual({ headers: 'Not a valid header name' });
+    });
+
+    it('names the timeout\'s range in seconds, not in the milliseconds it is sent in', () => {
+        expect(check({ timeoutSeconds: '90' }).errors).toEqual({ timeoutSeconds: 'Between 1 and 60 seconds.' });
+        expect(check({ timeoutSeconds: '0.5' }).errors).toEqual({ timeoutSeconds: 'Between 1 and 60 seconds.' });
+    });
+
+    it('accepts both ends of the timeout\'s range', () => {
+        expect(check({ timeoutSeconds: '1' }).isValid).toBe(true);
+        expect(check({ timeoutSeconds: '60' }).isValid).toBe(true);
+    });
+
+    it('takes an empty timeout for the default', () => {
+        expect(check({ timeoutSeconds: '' }).isValid).toBe(true);
+    });
+
+    it('shows why a template is refused at the template', () => {
+        expect(check({ bodyTemplate: '{' }).errors.bodyTemplate).toBeTruthy();
     });
 });

@@ -1,5 +1,5 @@
-import { queryOptions, useQuery } from '@tanstack/react-query';
-import { WebhookListSchema, type Webhook } from '@pbcm/shared';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { WebhookListSchema, WebhookTestResultSchema, type Webhook, type WebhookInput } from '@pbcm/shared';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 
@@ -22,3 +22,23 @@ export function useWebhooks() {
     const { data = NO_WEBHOOKS, isPending, error } = useQuery(webhookListOptions);
     return { webhooks: data, isPending, error };
 }
+
+/** Creates a webhook, or changes the one `id` names. */
+export function useSaveWebhook() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, input }: { id?: string; input: WebhookInput }) =>
+            id ? api.put(`/api/v1/webhooks/${id}`, input) : api.post('/api/v1/webhooks', input),
+        onSuccess: () => {
+            // Not awaited: the list the editor returns to reads it again as it mounts.
+            void queryClient.invalidateQueries({ queryKey: webhookListOptions.queryKey });
+        },
+    });
+}
+
+/**
+ * Delivers the sample event with the webhook as it stands in the editor, saved or not.
+ * Not cached: a delivery is made now or not at all.
+ */
+export const testWebhook = (input: WebhookInput) =>
+    api.post('/api/v1/webhooks/test', input, WebhookTestResultSchema);
