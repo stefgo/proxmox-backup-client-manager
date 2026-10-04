@@ -139,6 +139,15 @@ describe("filters", () => {
         expect(render("{{event.data.jobName | lower}}")).toBe("daily /home");
     });
 
+    it("truncate keeps the first characters of a text", () => {
+        expect(render("{{event.kind | truncate(3)}}")).toBe("job");
+        expect(render("{{event.kind | truncate(100)}}")).toBe("job.failed");
+        expect(render("{{event.kind | truncate(3) | upper}}")).toBe("JOB");
+        expect(render("{{event.data.missing | default('📦📦📦') | truncate(2)}}")).toBe("📦📦");
+        expect(render("{{event.data.exitCode | truncate(1)}}")).toBe(255);
+        expect(render("{{event.data.missing | truncate(3)}}")).toBeNull();
+    });
+
     it("passes a value of the wrong type on unchanged", () => {
         expect(render("{{event.data.exitCode | upper}}")).toBe(255);
         expect(render("{{event.data.jobName | join}}")).toBe("Daily /home");
@@ -354,6 +363,10 @@ describe("webhookTemplateError", () => {
     it("refuses what is not a filter", () => {
         expect(webhookTemplateError('"{{event.kind | trim}}"')).toContain("is not a filter");
         expect(webhookTemplateError('"{{event.kind | upper(1)}}"')).toContain("is not a filter");
+        expect(webhookTemplateError('"{{event.kind | truncate}}"')).toContain("truncate(...) takes the number");
+        expect(webhookTemplateError('"{{event.kind | truncate(0)}}"')).toContain("truncate(...) takes the number");
+        expect(webhookTemplateError('"{{event.kind | truncate(1.5)}}"')).toContain("truncate(...) takes the number");
+        expect(webhookTemplateError('"{{event.kind | truncate(\'12\')}}"')).toContain("truncate(...) takes the number");
         expect(webhookTemplateError('"{{event.kind | default()}}"')).toContain("default(...) takes a JSON value");
         expect(webhookTemplateError('"{{event.kind | default(nope)}}"')).toContain("default(...) takes");
         expect(webhookTemplateError('"{{event.kind | join(1)}}"')).toContain("join(...) takes the text");
