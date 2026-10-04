@@ -204,6 +204,10 @@ Two kinds of state, kept apart:
   the one `QueryClient`, `lib/queryKeys.ts` every key.
 - **Client state lives in Zustand.** That is `useUIStore` and nothing else: whether the
   sidebar is collapsed. `stores/` holds no server data and makes no request.
+- **What the browser remembers is named in one place.** The store's key, the theme's and
+  those of every list's view settings live in `lib/storageKeys.ts` (`STORAGE_KEYS`) and
+  nowhere else, as `pbcm.<area>.<what>`. A rename forgets the stored value and is not
+  migrated: each is a preference that is set again with one click.
 
 **The defaults** (`lib/queryClient.ts`) follow from "the frontend does not poll":
 no refetch on window focus, none on the browser's `online` event, no retry. An entry

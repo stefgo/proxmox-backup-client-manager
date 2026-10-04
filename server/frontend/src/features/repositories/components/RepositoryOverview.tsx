@@ -23,6 +23,7 @@ import { getErrorMessage } from '../../../utils';
 import { useClients } from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { paths } from '../../../lib/paths';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 
 const NO_SNAPSHOTS: Snapshot[] = [];
@@ -82,7 +83,7 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
                 }
                 details={details}
                 // Names the view, not the repository: one entry for every repository page.
-                persist={{ key: 'pbcm.repository.details', scope: 'local' }}
+                persist={{ key: STORAGE_KEYS.repositoryDetails, scope: 'local' }}
                 actions={
                     <div className="relative">
                         <ActionButton

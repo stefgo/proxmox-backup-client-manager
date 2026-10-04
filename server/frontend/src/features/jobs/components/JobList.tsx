@@ -6,6 +6,7 @@ import { BaseJobList } from './BaseJobList';
 import type { LastRun } from '../lib/lastRun';
 import type { JobListEmpty } from '../lib/jobListEmpty';
 import { PAGE_SIZE } from '../../../components/listDefaults';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface JobListProps {
     jobs: GlobalJob[];
@@ -73,7 +74,7 @@ export const JobList = ({
             getClientName={getClientName}
             getLastRun={getLastRun}
             emptyMessage={emptyMessage(empty)}
-            viewModePersistKey="globalJobViewMode"
+            viewModePersistKey={STORAGE_KEYS.jobsView}
             pageSize={PAGE_SIZE.page}
         />
     );

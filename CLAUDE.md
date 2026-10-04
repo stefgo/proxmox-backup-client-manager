@@ -104,6 +104,9 @@ Two kinds of state, kept apart:
   gets a query there.
 - **Client state** lives in Zustand: `stores/useUIStore` (sidebar collapsed) and nothing
   else. **`stores/` makes no request.**
+- **Every key in the browser's storage** lives once in `lib/storageKeys.ts` (`STORAGE_KEYS`,
+  `pbcm.<area>.<what>`) -- no key literal anywhere else. A rename forgets the stored value;
+  each is a preference set again with one click, so it needs no migration.
 
 WebSocket updates from `/ws/dashboard` are written into the cache by `WebSocketProvider`;
 the frontend does not poll (no refetch on focus, no retry). The rule each message applies

@@ -3,6 +3,7 @@ import { BackupJob } from '@pbcm/shared';
 import { EmptyState } from '@stefgo/react-ui-components';
 import { BaseJobList } from '../../jobs/components/BaseJobList';
 import type { LastRun } from '../../jobs/lib/lastRun';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface ClientJobListProps {
     jobs: BackupJob[];
@@ -44,7 +45,7 @@ export const ClientJobList = ({ jobs, onEditJob, onTriggerJob, onDeleteJob, onCr
                     />
                 ) : undefined
             }
-            viewModePersistKey="jobViewMode"
+            viewModePersistKey={STORAGE_KEYS.clientJobsView}
             searchParamKey={searchParamKey}
         />
     );

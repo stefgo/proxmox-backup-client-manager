@@ -23,6 +23,7 @@ import { useBackPath } from '../../../hooks/useBackPath';
 import { CLIENT_TABS, paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 
 interface ClientOverviewProps {
@@ -161,7 +162,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 }
                 details={details}
                 // Names the view, not the client: one entry for every client page.
-                persist={{ key: 'pbcm.client.details', scope: 'local' }}
+                persist={{ key: STORAGE_KEYS.clientDetails, scope: 'local' }}
                 actions={
                     <div className="relative">
                         <ActionButton

@@ -6,6 +6,7 @@ import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 /** A probe in flight pulses like a connecting client; anything but `online` reads as down. */
 const repositoryTone = (repo: Repository): StatusTone =>
@@ -99,7 +100,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: 'repositoryViewMode', scope: 'local' } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.repositoriesView, scope: 'local' } }}
             data={sortedRepositories}
             columns={columns}
             listGroups={listGroups()}

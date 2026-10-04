@@ -9,6 +9,7 @@ import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface ClientListProps {
     clients: Client[];
@@ -145,7 +146,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: 'clientViewMode', scope: 'local' } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.clientsView, scope: 'local' } }}
             data={sortedClients}
             columns={columns}
             listGroups={listGroups()}

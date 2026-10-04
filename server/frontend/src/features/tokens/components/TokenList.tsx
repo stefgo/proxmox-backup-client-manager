@@ -12,6 +12,7 @@ import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface TokenListProps {
     tokens: Token[];
@@ -142,7 +143,7 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
             title={<><Key size={18} className="text-text-muted" /> Client Tokens</>}
             // colIndex 2 is "Expires / Used"; the Client column sits before it.
             sort={{ defaultValue: [{ colIndex: 2, direction: 'asc' }] }}
-            viewMode={{ persist: { key: 'tokenViewMode', scope: 'local' } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.tokensView, scope: 'local' } }}
             data={tokens}
             columns={columns}
             listGroups={listGroups('flex-1 min-w-0')}

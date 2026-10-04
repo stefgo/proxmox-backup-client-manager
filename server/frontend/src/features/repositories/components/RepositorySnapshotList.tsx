@@ -9,6 +9,7 @@ import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface RepositorySnapshotListProps<T extends Snapshot> {
     snapshots: T[];
@@ -163,7 +164,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             listGroups={listGroups()}
             keyField={snapshotKey}
             sort={{ defaultValue: [{ colIndex: dateSortColIndex, direction: 'desc' }] }}
-            viewMode={{ persist: { key: 'snapshotListViewMode', scope: 'local' } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.snapshotsView, scope: 'local' } }}
             searchable
             searchPlaceholder="Search snapshots…"
             search={{ value: searchQuery, onChange: setSearchQuery }}

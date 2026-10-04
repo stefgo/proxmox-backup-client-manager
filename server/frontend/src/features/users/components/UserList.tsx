@@ -13,6 +13,7 @@ import type { User as UserRow } from '@pbcm/shared';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
+import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 /** One row of `GET /api/v1/users`. */
 export type UserData = UserRow;
@@ -124,7 +125,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                 </Button>
             }
             sort={{ defaultValue: [{ colIndex: 0, direction: 'asc' }] }}
-            viewMode={{ persist: { key: 'userViewMode', scope: 'local' } }}
+            viewMode={{ persist: { key: STORAGE_KEYS.usersView, scope: 'local' } }}
             data={users}
             columns={columns}
             listGroups={listGroups()}

@@ -33,6 +33,7 @@ import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
+import type { StorageKey } from '../../../lib/storageKeys';
 
 /**
  * The structural contract this list needs -- deliberately closed. An index
@@ -104,7 +105,7 @@ export interface BaseJobListProps<T extends BaseJobItem> {
      */
     emptyMessage?: ReactNode;
     /** Storage key for the remembered view toggle; the scope is always the browser. */
-    viewModePersistKey?: string;
+    viewModePersistKey: StorageKey;
     /**
      * The query parameter this list's search is kept in. The caller namespaces it where
      * several lists share a route, so each tab remembers its own search instead of
@@ -129,7 +130,7 @@ export const BaseJobList = <T extends BaseJobItem>({
     clientId,
     getLastRun,
     emptyMessage,
-    viewModePersistKey = 'jobViewMode',
+    viewModePersistKey,
     searchParamKey = 'search',
     pageSize = PAGE_SIZE.embedded,
 }: BaseJobListProps<T>) => {
