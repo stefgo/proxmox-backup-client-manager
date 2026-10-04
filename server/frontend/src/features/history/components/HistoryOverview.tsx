@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { JOB_STATUS } from '@pbcm/shared';
 import { CheckCheck } from 'lucide-react';
-import { Button, Switch, LoadingIndicator } from '@stefgo/react-ui-components';
+import { Button, Switch, LoadingIndicator, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { BaseHistoryList } from './BaseHistoryList';
 import { QueryError } from '../../../components/QueryError';
 import { useGlobalHistory } from '../../../queries/history';
 import { useMarkSeen } from '../hooks/useMarkSeen';
-import { PAGE_SIZE } from '../../../components/listDefaults';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { lastPage, readHistoryView, requestedView, writeHistoryView, type HistoryView } from '../lib/historyView';
 

@@ -1,7 +1,7 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
 import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { StatCard, ActionButton, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot } from '@stefgo/react-ui-components';
+import { StatCard, ActionButton, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { EMPTY_VALUE, formatRelativeDate, getErrorMessage } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
@@ -12,7 +12,6 @@ import { ClientHistoryList } from './ClientHistoryList';
 import { useClientHistory, useClientJobs, useClientSnapshots, useStoredClientHistory } from '../../../queries/clientDetail';
 import { BaseHistoryList } from '../../history/components/BaseHistoryList';
 import { QueryError } from '../../../components/QueryError';
-import { PAGE_SIZE } from '../../../components/listDefaults';
 import { useDeleteJob, useLatestPerJob, useTriggerJob } from '../../../queries/jobs';
 import { lastRunByJob, lastRunKey } from '../../jobs/lib/lastRun';
 import { useRepositories } from '../../../queries/repositories';

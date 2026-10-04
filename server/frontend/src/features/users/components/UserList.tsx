@@ -7,12 +7,14 @@ import {
     DataMultiView,
     EmptyState,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import type { User as UserRow } from '@pbcm/shared';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 /** One row of `GET /api/v1/users`. */
@@ -144,7 +146,7 @@ export const UserList = ({ users, isLoading, onEditUser, onDeleteUser, onCreateU
                     description="Add a user to give someone access to the dashboard."
                 />
             }
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

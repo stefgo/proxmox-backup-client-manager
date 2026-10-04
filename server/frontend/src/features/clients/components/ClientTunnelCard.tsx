@@ -7,7 +7,7 @@ import {
     type TunnelStatus,
 } from '@pbcm/shared';
 import { Check, Copy, PlugZap, Plus, Save, ShieldAlert, Trash2, X } from 'lucide-react';
-import { ActionButton, Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator } from '@stefgo/react-ui-components';
+import { ActionButton, Badge, Button, Card, Input, useConfirm, StatusDot, LoadingIndicator, useCopyToClipboard } from '@stefgo/react-ui-components';
 import { useQuery } from '@tanstack/react-query';
 import {
     clientTunnelOptions,
@@ -62,8 +62,6 @@ const TUNNEL_STATUS_TONE: Record<TunnelStatus, StatusTone> = {
     [TUNNEL_STATUS.ERROR]: STATUS_TONE.ERROR,
     [TUNNEL_STATUS.IDLE]: STATUS_TONE.OFFLINE,
 };
-
-const COPY_FEEDBACK_MS = 2000;
 
 /**
  * The SSH credentials with which the server opens a reverse tunnel to this client — and
@@ -201,7 +199,7 @@ const TunnelForm = ({ info, ...props }: ClientTunnelCardProps & { info: TunnelIn
     const [acting, setActing] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const { copied, copy } = useCopyToClipboard();
     /** A fingerprint the host actually presented that differs from the stored one. */
     const [unknownHostKey, setUnknownHostKey] = useState<string | null>(null);
 
@@ -322,13 +320,7 @@ const TunnelForm = ({ info, ...props }: ClientTunnelCardProps & { info: TunnelIn
 
     const handleCopyFingerprint = async () => {
         if (!info) return;
-        try {
-            await navigator.clipboard.writeText(info.hostKeySha256);
-            setCopied(true);
-            setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-        } catch {
-            setActionError('Copy failed — select the fingerprint manually');
-        }
+        if (!(await copy(info.hostKeySha256))) setActionError('Copy failed — select the fingerprint manually');
     };
 
     /**

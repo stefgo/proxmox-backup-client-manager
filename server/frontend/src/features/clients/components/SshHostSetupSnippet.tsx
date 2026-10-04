@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Copy } from 'lucide-react';
-import { Button, cn, FOCUS_RING_INSET } from '@stefgo/react-ui-components';
+import { Button, cn, FOCUS_RING_INSET, useCopyToClipboard } from '@stefgo/react-ui-components';
 import { DerivedPublicKeySchema } from '@pbcm/shared';
 import { api } from '../../../lib/api';
 
@@ -9,8 +9,6 @@ interface SshHostSetupSnippetProps {
     passphrase?: string;
     sshUser: string;
 }
-
-const COPY_FEEDBACK_MS = 2000;
 
 /**
  * Optional aid for preparing the client host. Collapsed by default and placed above the
@@ -28,7 +26,7 @@ export const SshHostSetupSnippet = ({
     /** Which private key the shown public key belongs to — avoids re-deriving unchanged input. */
     const [derivedFor, setDerivedFor] = useState('');
     const [busy, setBusy] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const { copied, copy } = useCopyToClipboard();
     const [error, setError] = useState<string | null>(null);
 
     const derive = async () => {
@@ -67,13 +65,7 @@ export const SshHostSetupSnippet = ({
     ].join('\n');
 
     const handleCopy = async () => {
-        try {
-            await navigator.clipboard.writeText(snippet);
-            setCopied(true);
-            setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-        } catch {
-            setError('Copy failed — select the text manually');
-        }
+        if (!(await copy(snippet))) setError('Copy failed — select the text manually');
     };
 
     return (

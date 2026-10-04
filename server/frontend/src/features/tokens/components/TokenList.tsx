@@ -7,11 +7,13 @@ import {
     DataMultiView,
     EmptyState,
     type DataColumnDef,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface TokenListProps {
@@ -162,7 +164,7 @@ export const TokenList = ({ tokens, isLoading, deleteToken }: TokenListProps) =>
                     description="A token is generated when a client is added; its agent registers with it."
                 />
             }
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

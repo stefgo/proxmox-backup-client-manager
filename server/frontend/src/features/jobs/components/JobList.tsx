@@ -1,11 +1,10 @@
 import { Unplug } from 'lucide-react';
 import { ClientStatus } from '@pbcm/shared';
-import { EmptyState } from '@stefgo/react-ui-components';
+import { EmptyState, PAGE_SIZE } from '@stefgo/react-ui-components';
 import type { GlobalJob } from '../../../lib/cacheUpdates';
 import { BaseJobList } from './BaseJobList';
 import type { LastRun } from '../lib/lastRun';
 import type { JobListEmpty } from '../lib/jobListEmpty';
-import { PAGE_SIZE } from '../../../components/listDefaults';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface JobListProps {

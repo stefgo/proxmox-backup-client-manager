@@ -564,8 +564,9 @@ Most data-driven lists utilize a common base to provide consistent loading, erro
     - `table: false` / `list: false` leaves a column out of one view. **A sort's `colIndex`
       counts the table's columns**, so it skips the ones with `table: false`.
     - `render(item, view)` serves both views; `view` is for the cell that has to differ.
-    - `components/listColumns.tsx` holds what every list shares: `listGroups()`, the two
-      blocks of a list row, and `actionsColumn(render)`, the last column of every list.
+    - What every list shares comes from the library as well: `listGroups()`, the two
+      blocks of a list row, `actionsColumn(render)`, the last column of every list, and
+      `listPagination(PAGE_SIZE.…)`, its paging.
 - **`DataTable`**: A generic, column-based tabular view for structured data.
 - **`DataList`**: A simpler, row-based list view.
 - **`PaginationControls`**: Integrated pagination logic for larger datasets.

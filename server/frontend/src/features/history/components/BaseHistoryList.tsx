@@ -3,9 +3,8 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
 import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
-import { Badge, Button, DataMultiView, EmptyState } from '@stefgo/react-ui-components';
+import { Badge, Button, DataMultiView, EmptyState, PAGE_SIZE, listPagination } from '@stefgo/react-ui-components';
 import { DataListDef, type Controllable, type PaginationProps } from '@stefgo/react-ui-components';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
 import { RunLog } from './RunLog';
@@ -284,7 +283,7 @@ export const BaseHistoryList = ({
             onRowClick={(item) => toggleExpand(item.id)}
             emptyMessage={emptyMessage}
             rowClassName="!px-5 !py-3"
-            pagination={paging ?? pagination(pageSize)}
+            pagination={paging ?? listPagination(pageSize)}
             searchable={!!search}
             search={search}
             searchPlaceholder={searchPlaceholder}

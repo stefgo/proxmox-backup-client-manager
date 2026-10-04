@@ -1,11 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { FileBox, ArchiveRestore } from 'lucide-react';
 import { Snapshot, CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
-import { DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
+import { DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
 import { formatBytes, formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
@@ -150,7 +148,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
             render: (snap, view) =>
                 view === 'list' ? sizeLabel(snap) : <div className="text-sm text-text-muted">{sizeLabel(snap)}</div>,
         },
-        { ...actionsColumn(renderActions, 'flex justify-center mt-2'), table: { headerClassName: 'text-right' } },
+        { ...actionsColumn(renderActions, { listClassName: 'flex justify-center mt-2' }), table: { headerClassName: 'text-right' } },
     ];
 
     // Counted among the table's columns: "Snapshot" is a field of the list only.
@@ -177,7 +175,7 @@ export const RepositorySnapshotList = <T extends Snapshot>({
                     description="A snapshot appears here once a backup has finished."
                 />
             }
-            pagination={pagination(PAGE_SIZE.embedded)}
+            pagination={listPagination(PAGE_SIZE.embedded)}
         />
     );
 };

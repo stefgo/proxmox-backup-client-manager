@@ -294,8 +294,8 @@ See `docs/development.md` for the workflow details.
 - **Loading state**: one full-panel spinner, `components/LoadingIndicator`. A second
   hand-built one is how the first two came to look different.
 - **Lists**: a list describes each column once, as `columns` on `DataMultiView` --
-  never as `tableDef` next to `listColumns`. `components/listColumns.tsx` has the row's
-  two blocks (`listGroups`) and the actions column (`actionsColumn`). A sort's `colIndex`
+  never as `tableDef` next to `listColumns`. The library has the row's two blocks
+  (`listGroups`), the actions column (`actionsColumn`) and the paging (`listPagination`). A sort's `colIndex`
   counts the table's columns only.
 - **A read that failed**: `components/QueryError`, with a title that says what could not be
   loaded. It shows the server's message below it.

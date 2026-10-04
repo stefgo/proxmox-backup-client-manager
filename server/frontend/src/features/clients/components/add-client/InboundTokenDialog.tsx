@@ -1,6 +1,4 @@
-import { useRef, useState } from 'react';
-import { Copy, Check } from 'lucide-react';
-import { ActionButton, Button, Modal, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { Button, CopyField, Modal } from '@stefgo/react-ui-components';
 import { formatDate } from '../../../../utils';
 import { InboundForm } from './useAddClientForm';
 
@@ -9,8 +7,6 @@ interface InboundTokenDialogProps {
     /** Acknowledges the token and leaves the wizard. */
     onClose: () => void;
 }
-
-const COPY_FEEDBACK_MS = 2000;
 
 /**
  * Shows the registration token the wizard just issued.
@@ -21,99 +17,57 @@ const COPY_FEEDBACK_MS = 2000;
  * the token is ever shown in full — the token list stores it hashed — which is
  * why neither the backdrop nor Escape dismisses it and the only way out is the button.
  */
-export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) => {
-    const [copied, setCopied] = useState(false);
-
-    const [copyUnavailable, setCopyUnavailable] = useState(false);
-    const tokenField = useRef<HTMLInputElement>(null);
-
-    // The clipboard API exists in a secure context only, and the dashboard is often reached
-    // over plain HTTP in a LAN. There the token is selected instead, one keystroke from copied.
-    const handleCopy = async () => {
-        try {
-            if (!navigator.clipboard) throw new Error('Clipboard API not available');
-            await navigator.clipboard.writeText(form.token);
-        } catch {
-            tokenField.current?.focus();
-            tokenField.current?.select();
-            setCopyUnavailable(true);
-            return;
-        }
-        setCopyUnavailable(false);
-        setCopied(true);
-        setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
-    };
-
-    return (
-        <Modal
-            isOpen
-            onClose={onClose}
-            title="Registration Token"
-            description="Hand this token to the agent — it is shown only once."
-            size="md"
-            closeOnOverlayClick={false}
-            closeOnEscape={false}
-            footer={
-                <div className="flex justify-end">
-                    <Button variant="primary" onClick={onClose}>Done</Button>
-                </div>
-            }
-        >
-            <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <input
-                        ref={tokenField}
-                        type="text"
-                        readOnly
-                        value={form.token}
-                        aria-label="Registration token"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                        className={cn(
-                            'flex-1 bg-app-bg p-3 rounded-lg border border-border font-mono text-sm text-primary',
-                            FOCUS_RING,
-                        )}
-                    />
-                    <ActionButton
-                        icon={copied ? Check : Copy}
-                        size="lg"
-                        variant="solid"
-                        color={copied ? 'green' : 'gray'}
-                        tooltip={copied ? 'Copied!' : 'Copy to clipboard'}
-                        onClick={handleCopy}
-                        className={copied ? 'text-success' : undefined}
-                    />
-                </div>
-
-                {copyUnavailable && (
-                    <p role="status" className="text-xs text-warning">
-                        Copying is not available on this connection — the token is selected, press Ctrl/⌘+C.
-                    </p>
-                )}
-
-                <p className="text-xs text-text-muted">Expires: {formatDate(form.expiresAt)}</p>
-
-                <ol className="space-y-2 text-sm text-text-secondary list-decimal pl-5">
-                    <li>
-                        Open the agent's web interface at{' '}
-                        <span className="font-mono text-text-primary">http://&lt;client&gt;:3001</span>.
-                    </li>
-                    <li>Paste the token there and register. The client then appears in the list.</li>
-                </ol>
-
-                {(form.displayName.trim() || form.allowedIp.trim()) && (
-                    <p className="text-xs text-text-muted">
-                        The token carries
-                        {form.displayName.trim() && (
-                            <> the name <span className="text-text-primary">{form.displayName.trim()}</span></>
-                        )}
-                        {form.displayName.trim() && form.allowedIp.trim() && ' and'}
-                        {form.allowedIp.trim() && (
-                            <> the network <span className="font-mono text-text-primary">{form.allowedIp.trim()}</span></>
-                        )}
-                        {' '}— it can only be redeemed from there.
-                    </p>
-                )}
+export const InboundTokenDialog = ({ form, onClose }: InboundTokenDialogProps) => (
+    <Modal
+        isOpen
+        onClose={onClose}
+        title="Registration Token"
+        description="Hand this token to the agent — it is shown only once."
+        size="md"
+        closeOnOverlayClick={false}
+        closeOnEscape={false}
+        footer={
+            <div className="flex justify-end">
+                <Button variant="primary" onClick={onClose}>Done</Button>
             </div>
-        </Modal>
-    );
-};
+        }
+    >
+        <div className="space-y-4">
+            {/* The clipboard API exists in a secure context only, and the dashboard is often
+                reached over plain HTTP in a LAN. There the field selects the token instead,
+                one keystroke from copied, and says so. */}
+            <CopyField
+                value={form.token}
+                aria-label="Registration token"
+                labels={{
+                    unavailable:
+                        'Copying is not available on this connection — the token is selected, press Ctrl/⌘+C.',
+                }}
+            />
+
+            <p className="text-xs text-text-muted">Expires: {formatDate(form.expiresAt)}</p>
+
+            <ol className="space-y-2 text-sm text-text-secondary list-decimal pl-5">
+                <li>
+                    Open the agent's web interface at{' '}
+                    <span className="font-mono text-text-primary">http://&lt;client&gt;:3001</span>.
+                </li>
+                <li>Paste the token there and register. The client then appears in the list.</li>
+            </ol>
+
+            {(form.displayName.trim() || form.allowedIp.trim()) && (
+                <p className="text-xs text-text-muted">
+                    The token carries
+                    {form.displayName.trim() && (
+                        <> the name <span className="text-text-primary">{form.displayName.trim()}</span></>
+                    )}
+                    {form.displayName.trim() && form.allowedIp.trim() && ' and'}
+                    {form.allowedIp.trim() && (
+                        <> the network <span className="font-mono text-text-primary">{form.allowedIp.trim()}</span></>
+                    )}
+                    {' '}— it can only be redeemed from there.
+                </p>
+            )}
+        </div>
+    </Modal>
+);

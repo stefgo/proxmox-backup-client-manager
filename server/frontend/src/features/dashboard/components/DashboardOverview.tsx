@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCheck, CircleCheck, Database, HardDrive, Monitor, TriangleAlert } from 'lucide-react';
-import { Button, Card, EmptyState, LoadingIndicator, StatCard } from '@stefgo/react-ui-components';
+import { Button, Card, EmptyState, LoadingIndicator, StatCard, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { useClients } from '../../../queries/clients';
 import { useRepositories } from '../../../queries/repositories';
 import { useGlobalJobs } from '../../../queries/jobs';
@@ -10,7 +10,6 @@ import { BaseHistoryList } from '../../history/components/BaseHistoryList';
 import { useMarkSeen } from '../../history/hooks/useMarkSeen';
 import { lastPage } from '../../history/lib/historyView';
 import { QueryError } from '../../../components/QueryError';
-import { PAGE_SIZE } from '../../../components/listDefaults';
 import { ROUTES } from '../../../lib/paths';
 import {
     activeJobCount,

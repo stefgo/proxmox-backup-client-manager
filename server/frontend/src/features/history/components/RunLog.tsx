@@ -1,9 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { Check, Copy } from 'lucide-react';
-import { ActionButton, cn } from '@stefgo/react-ui-components';
+import { ActionButton, cn, useCopyToClipboard } from '@stefgo/react-ui-components';
 import { isAtEnd } from '../lib/logScroll';
-
-const COPY_FEEDBACK_MS = 2000;
 
 const TONE_CLASS = {
     live: 'bg-badge-info-bg text-badge-info-text',
@@ -26,8 +24,7 @@ export const RunLog = ({ text, tone, follow = false }: RunLogProps) => {
     const box = useRef<HTMLDivElement>(null);
     // Whether the operator is reading the end. Starts true: a log opens at its last line.
     const atEnd = useRef(true);
-    const [copied, setCopied] = useState(false);
-    const [copyUnavailable, setCopyUnavailable] = useState(false);
+    const { copied, unavailable: copyUnavailable, copy } = useCopyToClipboard();
 
     useLayoutEffect(() => {
         const el = box.current;
@@ -37,17 +34,8 @@ export const RunLog = ({ text, tone, follow = false }: RunLogProps) => {
     // The clipboard API exists in a secure context only, and the dashboard is often reached
     // over plain HTTP in a LAN. There the log is selected instead, one keystroke from copied.
     const handleCopy = async () => {
-        try {
-            if (!navigator.clipboard) throw new Error('Clipboard API not available');
-            await navigator.clipboard.writeText(text);
-        } catch {
-            if (box.current) window.getSelection()?.selectAllChildren(box.current);
-            setCopyUnavailable(true);
-            return;
-        }
-        setCopyUnavailable(false);
-        setCopied(true);
-        setTimeout(() => setCopied(false), COPY_FEEDBACK_MS);
+        if (await copy(text)) return;
+        if (box.current) window.getSelection()?.selectAllChildren(box.current);
     };
 
     return (

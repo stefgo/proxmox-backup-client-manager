@@ -1,10 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { Plus, Server, Trash2, Edit } from 'lucide-react';
 import { ManagedRepository as Repository, REPOSITORY_STATUS } from '@pbcm/shared';
-import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
+import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE, type StatusTone } from '../../../components/statusTone';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
@@ -119,7 +117,7 @@ export const RepositoryList = ({ repositories, onSelect, onEdit, onDelete, onAdd
             }
             rowClassName="align-top"
             onRowClick={onSelect}
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };

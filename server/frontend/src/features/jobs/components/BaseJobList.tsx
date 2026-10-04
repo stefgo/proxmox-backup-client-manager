@@ -28,10 +28,12 @@ import {
     StatusDot,
     type DataColumnDef,
     type DataColumnView,
+    PAGE_SIZE,
+    listPagination,
+    actionsColumn,
+    listGroups,
 } from '@stefgo/react-ui-components';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import type { StorageKey } from '../../../lib/storageKeys';
 
@@ -404,7 +406,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 );
             },
         },
-        actionsColumn(renderActions, 'flex items-center justify-center gap-3 mt-3'),
+        actionsColumn(renderActions, { listClassName: 'flex items-center justify-center gap-3 mt-3' }),
     ];
 
     const newJobButton = showNewJobButton && onCreateJob && (
@@ -442,7 +444,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     ? 'align-top'
                     : 'bg-app-bg text-text-muted opacity-75'
             }
-            pagination={pagination(pageSize)}
+            pagination={listPagination(pageSize)}
         />
     );
 };

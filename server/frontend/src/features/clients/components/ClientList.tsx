@@ -3,12 +3,10 @@ import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
-import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef } from '@stefgo/react-ui-components';
+import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
-import { PAGE_SIZE, pagination } from '../../../components/listDefaults';
-import { actionsColumn, listGroups } from '../../../components/listColumns';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 interface ClientListProps {
@@ -165,7 +163,7 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             }
             rowClassName="align-top"
             onRowClick={setSelectedClient}
-            pagination={pagination(PAGE_SIZE.page)}
+            pagination={listPagination(PAGE_SIZE.page)}
         />
     );
 };
