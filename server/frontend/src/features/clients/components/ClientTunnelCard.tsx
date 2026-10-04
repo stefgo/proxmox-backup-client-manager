@@ -349,7 +349,7 @@ const TunnelForm = ({ info, ...props }: ClientTunnelCardProps & { info: TunnelIn
                    read left to right, the state comes before the way out. */
                 <span className="flex items-center gap-3">
                     {info && !!state?.activeLeases && (
-                        <Badge variant="info" size="sm">
+                        <Badge variant="info">
                             {state.activeLeases} lease{state.activeLeases === 1 ? '' : 's'}
                         </Badge>
                     )}

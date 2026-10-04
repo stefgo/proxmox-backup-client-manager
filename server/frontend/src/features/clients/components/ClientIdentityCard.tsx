@@ -111,7 +111,7 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                         </FieldLabel>
                         {/* `lg` is text-sm — the size the inputs and the agent version
                             below use, so the read-only value does not read as a footnote. */}
-                        <Badge variant="info" size="lg">
+                        <Badge variant="info">
                             {isOutbound ? 'Outbound' : 'Inbound'}
                         </Badge>
                         <p className="mt-1 text-xs text-text-muted leading-relaxed ml-1">

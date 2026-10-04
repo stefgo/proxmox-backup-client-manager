@@ -121,7 +121,7 @@ export const ClientSelect = ({
                                             <div className="font-medium text-sm text-text-primary truncate">
                                                 {client.displayName || client.hostname}
                                             </div>
-                                            <Badge variant={client.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'} size="sm">
+                                            <Badge variant={client.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'}>
                                                 {client.status}
                                             </Badge>
                                         </div>
@@ -177,7 +177,7 @@ export const ClientSelect = ({
                                     <div className="text-sm text-text-primary truncate font-medium opacity-90">
                                         {selectedClient.displayName || selectedClient.hostname}
                                     </div>
-                                    <Badge variant={selectedClient.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'} size="sm">
+                                    <Badge variant={selectedClient.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'}>
                                         {selectedClient.status}
                                     </Badge>
                                 </div>

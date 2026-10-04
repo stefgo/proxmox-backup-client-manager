@@ -3,7 +3,7 @@ import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
-import { Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
+import { Badge, Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
@@ -115,19 +115,16 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             render: (client) => <span className="text-sm text-text-primary">{client.version}</span>,
         },
         {
-            // The table says when an offline client was last seen and nothing for an online
-            // one -- the dot already does. The list has a labelled field and fills it.
-            header: null,
+            // An online client shows a badge in both views. An offline one says when it was
+            // last seen: the table spells it out, the list has a labelled field for it.
+            header: 'Status',
             table: { cellClassName: 'align-top text-sm text-text-primary' },
-            list: { label: 'Status' },
             render: (client, view) => {
-                const online = client.status === CLIENT_STATUS.ONLINE;
+                if (client.status === CLIENT_STATUS.ONLINE) return <Badge variant="success">Online</Badge>;
                 if (view === 'list') {
-                    return online
-                        ? <span className="text-success text-sm">Online</span>
-                        : <span className="text-sm text-text-muted">{formatRelativeDate(client.lastSeen, now)}</span>;
+                    return <span className="text-sm text-text-muted">{formatRelativeDate(client.lastSeen, now)}</span>;
                 }
-                return online ? null : (
+                return (
                     <div className="whitespace-nowrap opacity-70">Last seen: {formatRelativeDate(client.lastSeen, now)}</div>
                 );
             },

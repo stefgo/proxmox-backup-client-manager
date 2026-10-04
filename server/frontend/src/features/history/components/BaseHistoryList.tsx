@@ -201,13 +201,12 @@ export const BaseHistoryList = ({
                                         </Button>
                                     )}
                                     {lacksSnapshotDetails(item) && (
-                                        <Badge variant="warning" size="sm" className="uppercase font-bold">
+                                        <Badge variant="warning" className="uppercase font-bold">
                                             no snapshot details
                                         </Badge>
                                     )}
                                     <Badge
                                         variant={statusBadgeVariant(item.status)}
-                                        size="sm"
                                         className="uppercase font-bold"
                                     >
                                         {statusLabel(item)}

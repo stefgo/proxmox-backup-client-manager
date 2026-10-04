@@ -337,7 +337,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                 );
             }
             const badge = (
-                <Badge variant={statusBadgeVariant(run.status)} size="sm" className="uppercase font-bold">
+                <Badge variant={statusBadgeVariant(run.status)} className="uppercase font-bold">
                     {run.status}
                 </Badge>
             );
