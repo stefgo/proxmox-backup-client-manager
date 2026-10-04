@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { Client, CLIENT_STATUS } from '@pbcm/shared';
-import { Badge, ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { Badge, ActionButton, cn, FOCUS_RING, FieldLabel } from '@stefgo/react-ui-components';
 
 const ClientInfo = ({ client }: { client: Client }) => (
     <div className="px-12 py-3 bg-app-bg text-xs space-y-2 border-t border-border">
@@ -74,7 +74,7 @@ export const ClientSelect = ({
         return (
             <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-text-muted uppercase">Select Client</label>
+                    <FieldLabel className="mb-0 ml-0">Select Client</FieldLabel>
                     <button
                         // Inside a form a button submits unless it says otherwise.
                         type="button"
@@ -147,9 +147,9 @@ export const ClientSelect = ({
     return (
         <div className="space-y-1">
             <div className="flex justify-between items-center">
-                <label className="block text-xs font-bold text-text-muted uppercase">
-                    {label} <span className="text-error">*</span>
-                </label>
+                <FieldLabel required className="mb-0 ml-0">
+                    {label}
+                </FieldLabel>
                 {!locked && (
                     <button
                         // Inside a form a button submits unless it says otherwise.

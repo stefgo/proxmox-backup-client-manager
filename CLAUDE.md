@@ -299,6 +299,9 @@ See `docs/development.md` for the workflow details.
   counts the table's columns only.
 - **A read that failed**: `components/QueryError`, with a title that says what could not be
   loaded. It shows the server's message below it.
+- **A message that stays in the page** -- a refused save, the result of a test -- is the
+  library's `Alert`, and a caption above something that is no library control its
+  `FieldLabel`. Neither is written out as a class string.
 
 ## Key Docs
 

@@ -987,7 +987,7 @@ All forms use the `Input` and `Select` components from the library, which provid
 
 `UserDialog` is the library's `Modal` and holds its draft through `useEntityForm` (`features/users/lib/userForm.ts`); `TokenModal` and the detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
 
-- **Dark Mode**: `ThemeProvider` toggles the `dark` class on `<html>`. There is **no `dark:`
+- **Dark Mode**: the library's `ThemeProvider`, mounted in `App` with `STORAGE_KEYS.theme`, toggles the `dark` class on `<html>`; `useTheme()` comes from the library as well. There is **no `dark:`
   variant anywhere in `src/`** — and that is the point: every role is defined once in the
   preset and redefined per theme in its `.dark` block, so `bg-card` resolves correctly in
   both. A `dark:` twin in this codebase is a sign that a palette colour was used where a

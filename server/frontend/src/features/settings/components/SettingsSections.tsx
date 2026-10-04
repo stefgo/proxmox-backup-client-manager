@@ -1,7 +1,8 @@
 import { CleanupResultSchema } from '@pbcm/shared';
 import { api } from '../../../lib/api';
 import type { SectionProps } from '../sections';
-import { ManualRun, NumberField, SectionHeader } from './SettingsParts';
+import { NumberField, SectionHeader } from '@stefgo/react-ui-components';
+import { ManualRun } from './SettingsParts';
 import { SchedulerBox } from './SchedulerBox';
 
 /** Starts a cleanup and returns what the button shows afterwards; throws when the server refuses. */

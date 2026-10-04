@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useJobFormContext } from '../../context/JobFormContext';
 import { Download, Trash2 } from 'lucide-react';
-import { Switch, Button, ActionButton, useConfirm } from '@stefgo/react-ui-components';
+import { Switch, Button, ActionButton, useConfirm, FieldLabel } from '@stefgo/react-ui-components';
 import { ApiError } from '../../../../lib/api';
 import { generateEncryptionKey } from '../../../../queries/jobs';
 import { describeFailure } from '../../../../utils';
@@ -72,7 +72,7 @@ export const JobEncryptionSettings: React.FC = () => {
 
     return (
         <div className="space-y-1">
-            <label className="block text-xs font-bold text-text-muted uppercase">Encryption</label>
+            <FieldLabel className="mb-0 ml-0">Encryption</FieldLabel>
             <div className="p-2 border rounded bg-app-bg">
                 {/* Toggle header, with the drop action beside it once there is a key */}
                 <div className="flex items-center justify-between gap-2">

@@ -1,8 +1,7 @@
 import { Suspense, useEffect, useMemo } from 'react';
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router-dom';
-import { ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider } from '@stefgo/react-ui-components';
+import { ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingIndicator, StatusDotProvider, useTheme } from '@stefgo/react-ui-components';
 
-import { useTheme } from './context/ThemeContext';
 import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from './context/WebSocketContext';
 import { navEntries, type RouteHandle } from './routes';

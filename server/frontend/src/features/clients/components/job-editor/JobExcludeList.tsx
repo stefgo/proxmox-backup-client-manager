@@ -1,6 +1,6 @@
 import { Plus, Pencil, Trash2, FolderX } from 'lucide-react';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { ActionButton, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { ActionButton, cn, FOCUS_RING, FieldLabel } from '@stefgo/react-ui-components';
 
 interface JobExcludeListProps {
     /** Opens the exclusion editor: for the pattern at `index`, or for a new one with `null`. */
@@ -18,7 +18,7 @@ export const JobExcludeList = ({ onEdit }: JobExcludeListProps) => {
     return (
         <div className="flex flex-col gap-1">
             <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-text-muted uppercase">Exclusions</label>
+                <FieldLabel className="mb-0 ml-0">Exclusions</FieldLabel>
                 <button onClick={() => onEdit(null)} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                     <Plus size={12} /> Add Exclusion
                 </button>

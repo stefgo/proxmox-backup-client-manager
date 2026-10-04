@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { getErrorMessage } from '../utils';
-import { useTheme } from '../features/app/context/ThemeContext';
-import { LoginPage } from '@stefgo/react-ui-components';
+import { LoginPage, useTheme } from '@stefgo/react-ui-components';
 import { AuthConfigSchema, type AuthConfig } from '@pbcm/shared';
 import { publicApi } from '../lib/api';
 

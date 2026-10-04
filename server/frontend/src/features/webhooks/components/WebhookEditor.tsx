@@ -19,6 +19,7 @@ import {
     Select,
     Switch,
     Textarea,
+    Alert,
 } from '@stefgo/react-ui-components';
 import { formatDate, getErrorMessage } from '../../../utils';
 import { NotFoundError } from '../../../lib/notFound';
@@ -120,7 +121,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
             padding="none"
         >
             <form onSubmit={handleSubmit} className="space-y-4 p-6">
-                {error && <div className="bg-error-bg text-error p-3 rounded-lg text-sm">{error}</div>}
+                {error && <Alert>{error}</Alert>}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
@@ -276,18 +277,16 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                 )}
 
                 {testResult && (
-                    <div
-                        className={`p-3 rounded-lg text-sm ${testResult.ok ? 'bg-success-bg text-success' : 'bg-error-bg text-error'}`}
+                    <Alert
+                        tone={testResult.ok ? 'success' : 'error'}
+                        title={testResult.ok ? `Delivered (HTTP ${testResult.status})` : `Failed: ${testResult.error}`}
                     >
-                        <div className="font-medium">
-                            {testResult.ok ? `Delivered (HTTP ${testResult.status})` : `Failed: ${testResult.error}`}
-                        </div>
                         {testResult.response && (
-                            <pre className="mt-1 whitespace-pre-wrap break-all text-xs font-mono opacity-80">
+                            <pre className="whitespace-pre-wrap break-all text-xs font-mono opacity-80">
                                 {testResult.response}
                             </pre>
                         )}
-                    </div>
+                    </Alert>
                 )}
 
                 <div className="flex flex-wrap items-end justify-between gap-3 pt-4 border-t border-border">

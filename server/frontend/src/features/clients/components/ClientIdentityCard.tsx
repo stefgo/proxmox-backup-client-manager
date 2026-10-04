@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Client, CLIENT_STATUS, DEFAULT_AGENT_PORT, isIpAllowed } from '@pbcm/shared';
 import { Save } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot } from '@stefgo/react-ui-components';
+import { Badge, Button, Card, Checkbox, DescriptionList, Input, StatusDot, FieldLabel } from '@stefgo/react-ui-components';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import type { EntityForm } from '../../../hooks/useEntityForm';
 import { formatRelativeDate } from '../../../utils';
@@ -106,9 +106,9 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                         {/* Not a `FormField`: there is no control to label. The classes are
                             copied from its `stacked` label and hint so a read-only value
                             lines up with the editable fields under it. */}
-                        <div className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">
+                        <FieldLabel as="div">
                             Connection Mode
-                        </div>
+                        </FieldLabel>
                         {/* `lg` is text-sm — the size the inputs and the agent version
                             below use, so the read-only value does not read as a footnote. */}
                         <Badge variant="info" size="lg">
@@ -122,9 +122,9 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                     </div>
 
                     <div>
-                        <div className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">
+                        <FieldLabel as="div">
                             Agent Version
-                        </div>
+                        </FieldLabel>
                         {/* Always rendered, even without a value: a field that vanishes reads
                             as "not applicable", while an agent that has never reported one is
                             a fact worth seeing. */}
@@ -140,9 +140,9 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                     </div>
 
                     <div>
-                        <div className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">
+                        <FieldLabel as="div">
                             Agent Time Zone
-                        </div>
+                        </FieldLabel>
                         <span className="ml-1 text-sm text-text-primary">
                             {client.timezone || 'Unknown'}
                         </span>

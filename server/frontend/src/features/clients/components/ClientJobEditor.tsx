@@ -12,7 +12,7 @@ import { JobTunnelSettings } from './job-editor/JobTunnelSettings';
 import { JobFormProvider } from '../context/JobFormContext';
 import type { JobForm } from '../hooks/useJobForm';
 import { JOB_FORM_VIEW, type JobEditorView } from '../lib/jobEditorView';
-import { Card, Button, Input, ActionButton } from '@stefgo/react-ui-components';
+import { Card, Button, Input, ActionButton, FieldLabel } from '@stefgo/react-ui-components';
 
 export interface ClientJobEditorProps {
     jobForm: JobForm;
@@ -74,7 +74,7 @@ export const ClientJobEditor = ({
                         <>
                             {jobId && (
                                 <div>
-                                    <label className="block text-xs font-bold text-text-muted uppercase mb-1.5 ml-1">ID</label>
+                                    <FieldLabel>ID</FieldLabel>
                                     <div className="bg-hover border rounded-lg px-3 py-2.5 text-text-muted opacity-60 font-mono text-sm">
                                         {jobId}
                                     </div>

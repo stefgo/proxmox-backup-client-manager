@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Trash2, ChevronRight, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 import { ManagedRepository as Repository, Repository as JobRepository } from '@pbcm/shared';
-import { ActionButton, FormField, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { ActionButton, FormField, cn, FOCUS_RING, FieldLabel } from '@stefgo/react-ui-components';
 
 /** What the panel shows -- of a job's own copy or of a managed repository, whose empty columns are null. */
 type RepositoryDetails = Pick<Repository, 'baseUrl' | 'datastore' | 'username' | 'fingerprint' | 'tokenname'>;
@@ -85,7 +85,7 @@ export const JobRepositorySelect = ({
         return (
             <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-text-muted uppercase">Select Repository</label>
+                    <FieldLabel className="mb-0 ml-0">Select Repository</FieldLabel>
                     <button
                         onClick={() => onSetIsSelecting(false)}
                         className={cn('text-xs text-primary font-bold hover:underline rounded-sm', FOCUS_RING)}
@@ -139,7 +139,7 @@ export const JobRepositorySelect = ({
         return (
             <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                    <label className="block text-xs font-bold text-text-muted uppercase">{label} <span className="text-error">*</span></label>
+                    <FieldLabel required className="mb-0 ml-0">{label}</FieldLabel>
                     <button onClick={() => onSetIsSelecting(true)} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                         {selectedRepository ? 'Change Repository' : 'Set Repository'}
                     </button>

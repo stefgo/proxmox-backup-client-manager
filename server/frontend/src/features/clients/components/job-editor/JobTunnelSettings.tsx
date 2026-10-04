@@ -1,6 +1,6 @@
 import React from 'react';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { Switch } from '@stefgo/react-ui-components';
+import { Switch, FieldLabel } from '@stefgo/react-ui-components';
 
 /**
  * Whether this job reaches its repository through the client's SSH reverse tunnel.
@@ -20,9 +20,9 @@ export const JobTunnelSettings: React.FC = () => {
 
     return (
         <div className="space-y-1">
-            <label className="block text-xs font-bold text-text-muted uppercase">
+            <FieldLabel className="mb-0 ml-0">
                 SSH Reverse Tunnel
-            </label>
+            </FieldLabel>
             <div className="p-2 border rounded bg-app-bg">
                 <Switch
                     value={tunnelAvailable && tunnelRequired}

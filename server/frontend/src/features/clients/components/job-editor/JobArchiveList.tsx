@@ -1,6 +1,6 @@
 import { Plus, Pencil, Trash2, Folder } from 'lucide-react';
 import { useJobFormContext } from '../../context/JobFormContext';
-import { ActionButton, FormField, cn, FOCUS_RING } from '@stefgo/react-ui-components';
+import { ActionButton, FormField, cn, FOCUS_RING, FieldLabel } from '@stefgo/react-ui-components';
 
 
 interface JobArchiveListProps {
@@ -21,7 +21,7 @@ export const JobArchiveList = ({ readOnly = false, onEdit }: JobArchiveListProps
     return (
         <div className={cn('flex-1 flex flex-col gap-1', !readOnly && 'min-h-[200px]')}>
             <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-text-muted uppercase">Archives <span className="text-error">*</span></label>
+                <FieldLabel required className="mb-0 ml-0">Archives</FieldLabel>
                 {!readOnly && <button onClick={() => onEdit?.(null)} className={cn('text-xs text-primary font-bold hover:underline flex items-center gap-1 transition-colors rounded-sm', FOCUS_RING)}>
                     <Plus size={12} /> Add Archive
                 </button>}
