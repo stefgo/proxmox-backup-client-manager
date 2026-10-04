@@ -46,7 +46,8 @@ export default {
             // No colours here on purpose: every role is defined once in the
             // library preset and redefined per theme in its .dark block.
             fontFamily: {
-                sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+                // The name `@fontsource-variable/inter` registers, imported in `Main.tsx`.
+                sans: ["Inter Variable", "ui-sans-serif", "system-ui", "sans-serif"],
             },
         },
     },
