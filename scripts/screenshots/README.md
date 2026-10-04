@@ -36,7 +36,7 @@ breaking any of them turns every commit into a fourteen-file image diff:
 - **The timezone** is pinned to UTC and the locale to `en-US`, so the same commit renders
   the same on a laptop in Berlin and a runner in London.
 - **The version** in the header is read from the root `package.json` and passed to the
-  build as `VITE_APP_VERSION`. Left alone, `vite.config.js` appends the commit hash and,
+  build as `VITE_APP_VERSION`. Left alone, `vite.config.ts` appends the commit hash and,
   on a dirty working tree, `-dirty`.
 
 ## Keeping the fixtures honest

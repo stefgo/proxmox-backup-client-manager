@@ -1,15 +1,18 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { execSync } from "child_process";
-import path from "path";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { execSync } from 'child_process';
+import path from 'path';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Node puts the system's error code on the error; the type of a caught one does not say so. */
+const isEpipe = (err: Error): boolean => (err as NodeJS.ErrnoException).code === 'EPIPE';
+
 // --- Ignore EPIPE globally (safe for dev) ---
-process.on("uncaughtException", (err) => {
-    if (err.code === "EPIPE") return;
+process.on('uncaughtException', (err) => {
+    if (isEpipe(err)) return;
     console.error(err);
 });
 
@@ -17,30 +20,32 @@ process.on("uncaughtException", (err) => {
 // Same precedence as scripts/generate-version.sh, so the version the UI shows
 // and the one an agent reports cannot disagree: build argument, then the
 // version semantic-release maintains in the root package.json, then git.
-const getVersion = () => {
+const getVersion = (): string => {
     if (process.env.VITE_APP_VERSION) {
         return process.env.VITE_APP_VERSION;
     }
     try {
-        const rootPackageJson = path.resolve(__dirname, "../../package.json");
-        const { version } = JSON.parse(readFileSync(rootPackageJson, "utf8"));
+        const rootPackageJson = path.resolve(__dirname, '../../package.json');
+        const { version } = JSON.parse(readFileSync(rootPackageJson, 'utf8')) as {
+            version?: string;
+        };
         if (version) {
             try {
-                execSync("git describe --tags --exact-match", { stdio: "pipe" });
+                execSync('git describe --tags --exact-match', { stdio: 'pipe' });
                 return version;
             } catch {
-                const hash = execSync("git rev-parse --short HEAD", {
-                    stdio: "pipe",
+                const hash = execSync('git rev-parse --short HEAD', {
+                    stdio: 'pipe',
                 })
                     .toString()
                     .trim();
-                const dirty = execSync("git status --porcelain", {
-                    stdio: "pipe",
+                const dirty = execSync('git status --porcelain', {
+                    stdio: 'pipe',
                 })
                     .toString()
                     .trim()
-                    ? "-dirty"
-                    : "";
+                    ? '-dirty'
+                    : '';
                 return `${version}+${hash}${dirty}`;
             }
         }
@@ -48,16 +53,16 @@ const getVersion = () => {
         // No readable manifest or no git -- fall through to the branch name.
     }
     try {
-        const branch = execSync("git rev-parse --abbrev-ref HEAD")
+        const branch = execSync('git rev-parse --abbrev-ref HEAD')
             .toString()
             .trim();
-        const hash = execSync("git rev-parse --short HEAD").toString().trim();
-        const dirty = execSync("git status --porcelain").toString().trim()
-            ? "-dirty"
-            : "";
+        const hash = execSync('git rev-parse --short HEAD').toString().trim();
+        const dirty = execSync('git status --porcelain').toString().trim()
+            ? '-dirty'
+            : '';
         return `${branch}-${hash}${dirty}`;
     } catch {
-        return "unknown";
+        return 'unknown';
     }
 };
 
@@ -85,19 +90,19 @@ export default defineConfig(() => ({
         // The local-UI task passes `--port 5174` and gets its own server.
         strictPort: true,
         proxy: {
-            "/api": {
+            '/api': {
                 target: `http://localhost:${BACKEND_PORT}`,
                 changeOrigin: true,
                 ws: false, // kein WebSocket nötig
             },
-            "/ws": {
+            '/ws': {
                 target: `ws://localhost:${BACKEND_PORT}`,
                 changeOrigin: true,
                 ws: true,
                 configure: (proxy) => {
-                    proxy.on("error", (err) => {
-                        if (err.code === "EPIPE") return;
-                        console.log("proxy ws error", err);
+                    proxy.on('error', (err) => {
+                        if (isEpipe(err)) return;
+                        console.log('proxy ws error', err);
                     });
                 },
             },
@@ -113,21 +118,21 @@ export default defineConfig(() => ({
     // the bundler would look at two different versions of the same module.
     resolve: {
         alias: {
-            ...(process.env.VITE_USE_LOCAL_UI === "true"
+            ...(process.env.VITE_USE_LOCAL_UI === 'true'
                 ? {
-                      "@stefgo/react-ui-components": path.resolve(
+                      '@stefgo/react-ui-components': path.resolve(
                           process.env.VITE_UI_COMPONENTS_PATH ||
-                              "../../../react-ui-components",
-                          "src/index.ts",
+                              '../../../react-ui-components',
+                          'src/index.ts',
                       ),
                   }
                 : {}),
         },
-        dedupe: ["react", "react-dom", "lucide-react"],
+        dedupe: ['react', 'react-dom', 'lucide-react'],
     },
 
     build: {
-        outDir: "../dist/public",
+        outDir: '../dist/public',
         emptyOutDir: true,
         // Rolldown, which bundles since Vite 8, takes `manualChunks` only as a function and
         // fails on the object form. Its replacement matches module paths, so a group lists
@@ -138,15 +143,15 @@ export default defineConfig(() => ({
                 codeSplitting: {
                     groups: [
                         {
-                            name: "vendor-react",
+                            name: 'vendor-react',
                             test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,
                         },
                         {
-                            name: "vendor-icons",
+                            name: 'vendor-icons',
                             test: /node_modules[\\/]lucide-react[\\/]/,
                         },
                         {
-                            name: "vendor-utils",
+                            name: 'vendor-utils',
                             test: /node_modules[\\/](date-fns|zustand)[\\/]/,
                         },
                     ],

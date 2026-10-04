@@ -76,7 +76,7 @@ server.addHook("onResponse", async (req, reply) => {
 // origin: false sends no CORS headers at all, because nothing here is ever a
 // cross-origin request: in production this server serves the SPA itself from
 // dist/public, and in development Vite proxies /api and /ws to this port
-// (vite.config.js), so the browser talks to its own origin either way. Registered
+// (vite.config.ts), so the browser talks to its own origin either way. Registered
 // without options it reflected whatever Origin a caller sent.
 await server.register(cors, { origin: false });
 

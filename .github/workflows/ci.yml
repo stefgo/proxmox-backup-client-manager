@@ -32,7 +32,7 @@ jobs:
             packages: read
 
         env:
-            # Without this, vite.config.js aliases @stefgo/react-ui-components to a
+            # Without this, vite.config.ts aliases @stefgo/react-ui-components to a
             # sibling checkout (../../../react-ui-components) that only exists on a
             # developer machine. Same value the Dockerfile passes to its vite build.
             VITE_USE_LOCAL_UI: "false"

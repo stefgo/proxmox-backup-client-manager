@@ -183,7 +183,7 @@ at the root, with one project per workspace that has tests: `shared` and `fronte
 - **The frontend project reads `shared` from source.** `@pbcm/shared` exports
   `src/index.ts` under the `development` condition, and the project sets it. The tests
   therefore need no build and cannot run against a stale `shared/dist`.
-- **The frontend project does not use `server/frontend/vite.config.js`.** That file shells
+- **The frontend project does not use `server/frontend/vite.config.ts`.** That file shells
   out to git for the version and sets up the dev proxy; a test needs neither.
 - **`shared` builds with `tsconfig.build.json`**, which excludes `*.test.ts`, so no test
   ends up in `dist` or in an image. `tsconfig.json` still includes them. Vitest strips
@@ -238,12 +238,12 @@ every check twice for every push. A single job, `verify`:
 | `npm run build` | Builds `shared` first, then every workspace. This *is* the typecheck for `shared`, `server/backend` and `client`, and the Vite build for the frontend. |
 | `npm test` | Vitest over `shared` and the frontend — see [Tests](#tests). Reads `shared` from source, so it does not depend on the build before it; it runs second only because a failing build is the cheaper thing to be told first. |
 | `npm run typecheck -w shared` | The build leaves the tests of `shared` out of `dist`, and Vitest does not check types. This does. |
-| `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json`, `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
+| `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json` and, for the Vite configuration, `tsconfig.node.json`; `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
 | `npm run lint -w server/frontend` | ESLint for the frontend, with the React plugins. |
 | `npm run lint` | The root ESLint config: `shared`, `client` and `server/backend` as Node TypeScript. Two configs rather than one, because a file matched by both would have two truths about it; the root one ignores `server/frontend`. |
 | Cleanup coverage | Compares the image names in `build.yml` with the list in `cleanup-packages.yml` and fails on a name that is only in the first. See [Registry cleanup](#registry-cleanup) for why that list is written out by hand. |
 
-The job sets `VITE_USE_LOCAL_UI: "false"`, because `vite.config.js` would
+The job sets `VITE_USE_LOCAL_UI: "false"`, because `vite.config.ts` would
 otherwise alias `@stefgo/react-ui-components` to `../../../react-ui-components` —
 a checkout that exists on a developer machine and nowhere else. It is the same
 value the Dockerfile passes to its Vite build.

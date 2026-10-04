@@ -43,7 +43,7 @@ own -- to check a production build without the backend -- use
 ### Per-workspace
 ```bash
 npm run lint -w server/frontend            # ESLint (frontend only)
-npm run typecheck -w server/frontend       # tsc against the installed UI library
+npm run typecheck -w server/frontend       # tsc against the installed UI library, and over vite.config.ts
 npm run typecheck:local-ui -w server/frontend  # ... against a sibling checkout
 npm run build -w shared                    # Rebuild shared types after changes
 npm run typecheck -w shared                # tsc over shared including its tests
@@ -259,7 +259,7 @@ last tag, writes `CHANGELOG.md` and the root `package.json`, and pushes the tag.
 - Everything that needs the version string derives it in the same order --
   build argument, then root `package.json`, then git. That order lives in
   [`scripts/generate-version.sh`](scripts/generate-version.sh) and, mirrored, in
-  `server/frontend/vite.config.js`. Only the client agent ships a `dist/VERSION`
+  `server/frontend/vite.config.ts`. Only the client agent ships a `dist/VERSION`
   file; the backend has none, because nothing reads it.
 
 See `docs/development.md` for the workflow details.
