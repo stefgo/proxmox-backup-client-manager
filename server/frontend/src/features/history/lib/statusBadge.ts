@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import type { Badge } from '@stefgo/react-ui-components';
-import { JOB_STATUS } from '@pbcm/shared';
+import { JOB_PHASE, JOB_STATUS } from '@pbcm/shared';
 
 type BadgeVariant = ComponentProps<typeof Badge>['variant'];
 
@@ -19,3 +19,7 @@ const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
  * skipped and anything an older agent might report.
  */
 export const statusBadgeVariant = (status: string): BadgeVariant => STATUS_BADGE_VARIANT[status] ?? 'neutral';
+
+/** The status as the badge names it: a run reading back its snapshot says so. */
+export const runStatusLabel = (status: string, phase?: string | null): string =>
+    status === JOB_STATUS.RUNNING && phase === JOB_PHASE.SNAPSHOT ? 'reading snapshot' : status;

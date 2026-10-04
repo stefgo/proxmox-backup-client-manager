@@ -2,15 +2,15 @@ import { Activity, Check, ChevronRight, Square, Tag } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { formatDate } from '../../../utils';
 import { subscribe } from '../../../lib/realtimeEvents';
-import { JOB_PHASE, JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
+import { JOB_STATUS, jobRunEventKind, type RunSnapshotDetails } from '@pbcm/shared';
 import { Badge, Button, DataMultiView, EmptyState, PAGE_SIZE, listPagination } from '@stefgo/react-ui-components';
 import { DataListDef, type Controllable, type PaginationProps } from '@stefgo/react-ui-components';
 import { runOutput, type RunOutput } from '../lib/runOutput';
 import { runSummary } from '../lib/runSummary';
 import { RunLog } from './RunLog';
+import { RunStatusBadge } from './RunStatusBadge';
 import { canAbortRun } from '../lib/runAbort';
 import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
-import { statusBadgeVariant } from '../lib/statusBadge';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
 
@@ -40,12 +40,6 @@ export interface BaseHistoryItem {
     /** Whether the user has yet to mark the run as seen. Only the paged history says. */
     unseen?: boolean;
 }
-
-/** The status as the badge names it: a run reading back its snapshot says so. */
-const statusLabel = (item: BaseHistoryItem): string =>
-    item.status === JOB_STATUS.RUNNING && item.phase === JOB_PHASE.SNAPSHOT
-        ? 'reading snapshot'
-        : item.status;
 
 const NOTE_CLASS = 'mt-2 text-xs text-text-muted italic pl-4 ml-6 cursor-default';
 
@@ -201,16 +195,11 @@ export const BaseHistoryList = ({
                                         </Button>
                                     )}
                                     {lacksSnapshotDetails(item) && (
-                                        <Badge variant="warning" className="uppercase font-bold">
+                                        <Badge variant="warning" className="uppercase">
                                             no snapshot details
                                         </Badge>
                                     )}
-                                    <Badge
-                                        variant={statusBadgeVariant(item.status)}
-                                        className="uppercase font-bold"
-                                    >
-                                        {statusLabel(item)}
-                                    </Badge>
+                                    <RunStatusBadge status={item.status} phase={item.phase} />
                                 </div>
                             </div>
                             <div className="flex justify-between gap-3 text-xs text-text-muted mt-0.5 pl-6">

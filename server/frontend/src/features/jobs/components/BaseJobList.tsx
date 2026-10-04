@@ -12,7 +12,7 @@ import { CLIENT_STATUS, ClientStatus } from '@pbcm/shared';
 import { EMPTY_VALUE, formatDate, formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
 import { parseTimestamp } from '../../../lib/time';
-import { statusBadgeVariant } from '../../history/lib/statusBadge';
+import { RunStatusBadge } from '../../history/components/RunStatusBadge';
 import { runSummary } from '../../history/lib/runSummary';
 import type { LastRun } from '../lib/lastRun';
 import { canAbortRun } from '../../history/lib/runAbort';
@@ -20,7 +20,6 @@ import { useAbortRunAction } from '../../../hooks/useAbortRunAction';
 import { EntityLink } from '../../../components/EntityLink';
 import { paths } from '../../../lib/paths';
 import {
-    Badge,
     Button,
     DataAction,
     DataMultiView,
@@ -336,11 +335,7 @@ export const BaseJobList = <T extends BaseJobItem>({
                     </Cell>
                 );
             }
-            const badge = (
-                <Badge variant={statusBadgeVariant(run.status)} className="uppercase font-bold">
-                    {run.status}
-                </Badge>
-            );
+            const badge = <RunStatusBadge status={run.status} />;
             // In the table the badge gets a box as tall as a line of the cells beside it
             // (`text-sm`) and sits in its middle. Left inline, it stands on the baseline
             // of the cell's own, taller line and ends up below the text of its row.
