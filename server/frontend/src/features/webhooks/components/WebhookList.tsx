@@ -17,6 +17,8 @@ import {
 import { formatDate } from '../../../utils';
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
+import { deliveryFailed } from '../lib/webhookDelivery';
+import { WebhookDeliveryBadge } from './WebhookDeliveryBadge';
 
 interface WebhookListProps {
     webhooks: Webhook[];
@@ -57,23 +59,15 @@ const Filter = ({ webhook }: { webhook: Webhook }) => (
  * line and is cut there, the tooltip has all of it.
  */
 const LastDelivery = ({ webhook }: { webhook: Webhook }) => {
-    if (!webhook.lastAttemptAt) {
-        return (
-            <Badge variant="neutral">
-                Never sent
-            </Badge>
-        );
-    }
-    const failed = webhook.lastError !== null;
+    if (!webhook.lastAttemptAt) return <WebhookDeliveryBadge webhook={webhook} />;
+    const failed = deliveryFailed(webhook);
     return (
         <div className="flex flex-col items-start gap-1">
             <div className="flex items-center gap-2">
                 <span className="whitespace-nowrap text-sm text-text-primary">
                     {formatDate(webhook.lastAttemptAt)}
                 </span>
-                <Badge variant={failed ? 'error' : 'success'}>
-                    {webhook.lastStatus !== null ? `HTTP ${webhook.lastStatus}` : 'Failed'}
-                </Badge>
+                <WebhookDeliveryBadge webhook={webhook} />
             </div>
             {failed && (
                 <span

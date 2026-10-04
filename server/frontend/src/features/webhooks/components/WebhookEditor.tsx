@@ -10,7 +10,6 @@ import {
 } from '@pbcm/shared';
 import {
     ActionButton,
-    Badge,
     Button,
     Card,
     FormField,
@@ -36,6 +35,7 @@ import {
     webhookRules,
     type WebhookDraft,
 } from '../lib/webhookForm';
+import { WebhookDeliveryBadge } from './WebhookDeliveryBadge';
 
 /**
  * The element of `ROUTES.webhookNew` and `ROUTES.webhook`. The webhook is read from the list --
@@ -265,9 +265,7 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
                             <span className="whitespace-nowrap text-text-primary">
                                 {formatDate(webhook.lastAttemptAt)}
                             </span>
-                            <Badge variant={webhook.lastError ? 'error' : 'success'}>
-                                {webhook.lastStatus !== null ? `HTTP ${webhook.lastStatus}` : 'Failed'}
-                            </Badge>
+                            <WebhookDeliveryBadge webhook={webhook} />
                             {webhook.lastError && (
                                 <span className="min-w-0 flex-1 truncate text-xs text-error" title={webhook.lastError}>
                                     {webhook.lastError}
