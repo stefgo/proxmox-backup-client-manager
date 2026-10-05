@@ -195,7 +195,7 @@ export const BaseHistoryList = ({
                                         </Button>
                                     )}
                                     {lacksSnapshotDetails(item) && (
-                                        <Badge variant="warning" className="uppercase">
+                                        <Badge variant="warning">
                                             no snapshot details
                                         </Badge>
                                     )}
