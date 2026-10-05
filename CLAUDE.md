@@ -23,7 +23,7 @@ npm run dev:client   # Client agent in watch mode
 npm run clean        # Remove all build artifacts
 npm run lint         # ESLint over shared, client and server/backend
 npm run lint:frontend # ESLint over server/frontend (its own config)
-npm test             # Vitest, once, over shared and server/frontend
+npm test             # Vitest, once, over shared, server/frontend, client and server/backend
 npm run test:watch   # ... in watch mode
 ```
 
@@ -47,6 +47,8 @@ npm run typecheck -w server/frontend       # tsc against the installed UI librar
 npm run typecheck:local-ui -w server/frontend  # ... against a sibling checkout
 npm run build -w shared                    # Rebuild shared types after changes
 npm run typecheck -w shared                # tsc over shared including its tests
+npm run typecheck -w client                # ... over the agent including its tests
+npm run typecheck -w server/backend        # ... over the backend including its tests
 ```
 
 The tests cover logic only, so `typecheck` stays the safety net for everything that
@@ -55,21 +57,30 @@ renders — run it after any change that touches the UI library's API.
 ### Testing
 
 Vitest, configured once in [`vitest.config.mts`](vitest.config.mts) at the root with
-one project per workspace that has tests (`shared`, `frontend`). `npm test` runs both.
+one project per workspace (`shared`, `frontend`, `client`, `backend`). `npm test` runs
+all four.
 
 - **A test lives next to its module**: `foo.ts` → `foo.test.ts`.
-- **Logic only.** Both projects run in the `node` environment; there is no DOM and
+- **Logic only.** Every project runs in the `node` environment; there is no DOM and
   no Testing Library. Logic that sits inside a hook or a component is moved into a
   module of its own first — `features/clients/lib/archivePaths.ts` and `jobForm.ts` came
-  out of `useJobForm` that way — and tested there.
-- **The frontend tests read `shared` from source**, through the `development` export
-  condition. They need no `npm run build -w shared` and never see a stale `dist`.
-- **`shared` builds with `tsconfig.build.json`**, which leaves `*.test.ts` out of
-  `dist`. `tsconfig.json` still includes them — it is what the editor and
-  `npm run typecheck -w shared` read. Vitest does not check types, so that script
-  (and the frontend's `typecheck`) is what does.
+  out of `useJobForm` that way — and tested there. The same holds for a class with side
+  effects in `client` or `server/backend`: what `Scheduler` decides lives in
+  `features/SchedulePlan.ts`.
+- **The tests read `shared` from source**, through the `development` export
+  condition, which every project but `shared` sets. They need no
+  `npm run build -w shared` and never see a stale `dist`.
+- **`shared`, `client` and `server/backend` build with `tsconfig.build.json`**, which
+  leaves `*.test.ts` out of `dist`. `tsconfig.json` still includes them — it is what the
+  editor and `npm run typecheck -w <workspace>` read. Vitest does not check types, so
+  that script (and the frontend's `typecheck`) is what does.
+- **A backend test never opens the installation's files.** `core/Database.ts` opens
+  `server/data/server.db` and `config/AppConfig.ts` reads — and may write — `config.yaml`
+  the moment they are imported; the agent's `core/Config.ts` and `core/Identity.ts` do the
+  same on their side. A test of a module that imports one of them replaces it with
+  `vi.mock`. `server/backend/src/testing/memoryDatabase.ts` gives an in-memory database
+  on the current schema; the directory is left out of the build.
 - **A comment that describes an edge case is a test that is missing.** Write it.
-- `client` and `server/backend` have no tests yet.
 
 ### Docker (development)
 ```bash
