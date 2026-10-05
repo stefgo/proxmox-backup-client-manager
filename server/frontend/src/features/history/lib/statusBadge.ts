@@ -20,6 +20,11 @@ const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
  */
 export const statusBadgeVariant = (status: string): BadgeVariant => STATUS_BADGE_VARIANT[status] ?? 'neutral';
 
-/** The status as the badge names it: a run reading back its snapshot says so. */
+/**
+ * The status as the badge names it: a run reading back its snapshot says so. A badge
+ * starts with a capital, so the status is not written the way it travels.
+ */
 export const runStatusLabel = (status: string, phase?: string | null): string =>
-    status === JOB_STATUS.RUNNING && phase === JOB_PHASE.SNAPSHOT ? 'reading snapshot' : status;
+    status === JOB_STATUS.RUNNING && phase === JOB_PHASE.SNAPSHOT
+        ? 'Reading snapshot'
+        : status.charAt(0).toUpperCase() + status.slice(1);

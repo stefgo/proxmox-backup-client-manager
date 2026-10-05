@@ -15,17 +15,22 @@ describe('statusBadgeVariant', () => {
 });
 
 describe('runStatusLabel', () => {
-    it('names a run by its status', () => {
-        expect(runStatusLabel(JOB_STATUS.SUCCESS)).toBe(JOB_STATUS.SUCCESS);
-        expect(runStatusLabel(JOB_STATUS.RUNNING)).toBe(JOB_STATUS.RUNNING);
-        expect(runStatusLabel(JOB_STATUS.RUNNING, null)).toBe(JOB_STATUS.RUNNING);
+    it('names a run by its status, starting with a capital', () => {
+        expect(runStatusLabel(JOB_STATUS.SUCCESS)).toBe('Success');
+        expect(runStatusLabel(JOB_STATUS.RUNNING)).toBe('Running');
+        expect(runStatusLabel(JOB_STATUS.RUNNING, null)).toBe('Running');
+    });
+
+    it('capitalises a status it does not know, and leaves an empty one empty', () => {
+        expect(runStatusLabel('from-a-newer-agent')).toBe('From-a-newer-agent');
+        expect(runStatusLabel('')).toBe('');
     });
 
     it('says so while a running run reads back its snapshot', () => {
-        expect(runStatusLabel(JOB_STATUS.RUNNING, JOB_PHASE.SNAPSHOT)).toBe('reading snapshot');
+        expect(runStatusLabel(JOB_STATUS.RUNNING, JOB_PHASE.SNAPSHOT)).toBe('Reading snapshot');
     });
 
     it('keeps the status of a run that is over, whatever phase it ended in', () => {
-        expect(runStatusLabel(JOB_STATUS.FAILED, JOB_PHASE.SNAPSHOT)).toBe(JOB_STATUS.FAILED);
+        expect(runStatusLabel(JOB_STATUS.FAILED, JOB_PHASE.SNAPSHOT)).toBe('Failed');
     });
 });

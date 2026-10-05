@@ -196,7 +196,7 @@ export const BaseHistoryList = ({
                                     )}
                                     {lacksSnapshotDetails(item) && (
                                         <Badge variant="warning">
-                                            no snapshot details
+                                            No snapshot details
                                         </Badge>
                                     )}
                                     <RunStatusBadge status={item.status} phase={item.phase} />

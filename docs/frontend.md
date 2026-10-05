@@ -398,7 +398,7 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
   links nowhere.
 - **Reading the snapshot.** After a successful backup the agent reads back its snapshot,
   and the run stays `running` meanwhile. The `jobUpdate` for that step carries
-  `phase: "snapshot"`, and the status badge reads *reading snapshot* instead of *running*.
+  `phase: "snapshot"`, and the status badge reads *Reading snapshot* instead of *Running*.
   The final update sends `phase: null` explicitly: the cache merges updates with a spread,
   and a phase left out would stay. `useJobResultToasts` needs nothing for this — it reacts
   to final statuses only.
@@ -409,7 +409,7 @@ Jobs — renders through `BaseHistoryList`, so the following holds in all of the
   out. The details are part of the history row, so nothing is loaded on expand. A run of an
   older agent has no snapshot and shows its log alone.
 - **No details.** A successful backup whose snapshot could not be read gets a warning
-  badge *no snapshot details* next to its status, and the reason in the expanded row. It
+  badge *No snapshot details* next to its status, and the reason in the expanded row. It
   does not count towards the dot on "History", which stays for failed runs.
 
 Sizes go through `formatBytes` in `utils.ts` (binary units, as the PBS shows them).

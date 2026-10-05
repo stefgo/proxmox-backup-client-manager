@@ -122,7 +122,7 @@ export const ClientSelect = ({
                                                 {client.displayName || client.hostname}
                                             </div>
                                             <Badge variant={client.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'}>
-                                                {client.status}
+                                                {client.status === CLIENT_STATUS.ONLINE ? 'Online' : 'Offline'}
                                             </Badge>
                                         </div>
                                     </div>
@@ -178,7 +178,7 @@ export const ClientSelect = ({
                                         {selectedClient.displayName || selectedClient.hostname}
                                     </div>
                                     <Badge variant={selectedClient.status === CLIENT_STATUS.ONLINE ? 'success' : 'neutral'}>
-                                        {selectedClient.status}
+                                        {selectedClient.status === CLIENT_STATUS.ONLINE ? 'Online' : 'Offline'}
                                     </Badge>
                                 </div>
                                 {!locked && (
