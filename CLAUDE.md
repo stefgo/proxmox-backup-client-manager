@@ -273,7 +273,8 @@ See `docs/development.md` for the workflow details.
   `server/backend` as Node TypeScript (typescript-eslint recommended, no type
   information) and ignores `server/frontend`; the frontend's own config adds the
   `react-hooks` and `react-refresh` plugins. A new Node workspace is covered by the
-  root config without another file. `prefer-const` runs with `ignoreReadBeforeAssign`,
+  root config without another file. Errors fail the run; no rule is downgraded to a
+  warning. `prefer-const` runs with `ignoreReadBeforeAssign`,
   for the `let` a closure reads before anything assigns it.
 - **UI components**: `@stefgo/react-ui-components` (4.x) – custom external library,
   published to GitHub Packages; `npm install` needs `NPM_TOKEN` in the environment.
