@@ -58,6 +58,10 @@ jobs:
                       .github/workflows/build.yml | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
                   covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
                       | tr ',' '\n' | tr -d ' ' | grep -E '^pbcm-' | sort -u)
+                  if [ -z "$published" ]; then
+                      echo "::error::No image names found in build.yml -- the pattern above is out of date"
+                      exit 1
+                  fi
                   missing=$(comm -23 <(echo "$published") <(echo "$covered"))
                   if [ -n "$missing" ]; then
                       echo "::error::Published but not pruned by cleanup-packages.yml: $(echo $missing)"
@@ -89,11 +93,10 @@ jobs:
             # without anything going red -- hence this check.
             - name: Commit messages
               if: github.event_name == 'pull_request'
-              run: >
-                  npx commitlint
-                  --from ${{ github.event.pull_request.base.sha }}
-                  --to ${{ github.event.pull_request.head.sha }}
-                  --verbose
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
             # Builds shared first, then every workspace -- this is the typecheck
             # for shared, backend and client, and the vite build for the frontend.
