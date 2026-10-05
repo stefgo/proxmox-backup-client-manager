@@ -38,8 +38,8 @@ concurrency:
 # reference another entry of the same block, and the `env` context is not
 # available in a job's `env` either -- only in a step. `prepare` therefore
 # composes the name in a `run:` step, where REGISTRY is an ordinary environment
-# variable, and the three server jobs take it from `needs` into their own job
-# `env`, which does accept that context.
+# variable, and the jobs below take it from `needs` into their own job `env`,
+# which does accept that context.
 env:
     REGISTRY: ghcr.io
 
@@ -63,7 +63,7 @@ jobs:
             version: ${{ steps.version.outputs.version }}
             # Composed here so that REGISTRY above is the only place the registry
             # host appears. Job-level `env` cannot reach `env.REGISTRY`, but it
-            # can reach `needs`, which is what the server jobs below use.
+            # can reach `needs`, which is what the jobs below use.
             server_image: ${{ steps.version.outputs.server_image }}
             client_image: ${{ steps.version.outputs.client_image }}
             client_image_arm64: ${{ steps.version.outputs.client_image_arm64 }}
@@ -88,12 +88,16 @@ jobs:
                     echo "version=${GITHUB_REF_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
                   fi
 
-    # Client images are published as two separate, single-arch image names.
-    # Each one builds on a native runner for its architecture - no QEMU.
+    # One job builds all four images: server and client, each for amd64 and arm64, each
+    # on a native runner for its architecture -- no QEMU. All of them are pushed **by
+    # digest and without a tag**. Tagging is the publish job's business, and that one
+    # runs after the smoke test.
     #
-    # Like the server, they are pushed **by digest and without a tag**. Tagging is
-    # the publish job's business, and that one runs after the smoke test.
-    build-client:
+    # The server becomes one multi-arch manifest. The client stays two single-arch
+    # image names, because its proxmox-backup-client differs in origin: the Proxmox
+    # repository for amd64, a community package for arm64. Dockerfile.client picks the
+    # source from the platform it is built for, so the two share one file.
+    build:
         needs: prepare
         runs-on: ${{ matrix.runner }}
         permissions:
@@ -103,19 +107,28 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
+                image: [server, client]
+                arch: [amd64, arm64]
                 include:
-                    - id: client
-                      arch: amd64
+                    - arch: amd64
                       runner: ubuntu-latest
-                      image_name: pbcm-client
-                      dockerfile: ./docker/Dockerfile.client
                       platform: linux/amd64
-                    - id: client-arm64
-                      arch: arm64
+                    - arch: arm64
                       runner: ubuntu-24.04-arm
-                      image_name: pbcm-client-arm64
-                      dockerfile: ./docker/Dockerfile.client.arm64
                       platform: linux/arm64
+                    # Which output of prepare names the image this combination
+                    # pushes to. The only place the two client names part ways.
+                    - image: server
+                      image_output: server_image
+                    - image: client
+                      arch: amd64
+                      image_output: client_image
+                    - image: client
+                      arch: arm64
+                      image_output: client_image_arm64
+
+        env:
+            IMAGE: ${{ needs.prepare.outputs[matrix.image_output] }}
 
         steps:
             - name: Checkout repository
@@ -136,14 +149,14 @@ jobs:
               id: meta
               uses: docker/metadata-action@v6
               with:
-                  images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+                  images: ${{ env.IMAGE }}
 
             - name: Build and push by digest
               id: build
               uses: docker/build-push-action@v7
               with:
                   context: .
-                  file: ${{ matrix.dockerfile }}
+                  file: ./docker/Dockerfile.${{ matrix.image }}
                   platforms: ${{ matrix.platform }}
                   # Pass the calculated version as a build argument
                   build-args: |
@@ -152,9 +165,11 @@ jobs:
                   secrets: |
                       npm_token=${{ secrets.GITHUB_TOKEN }}
                   labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha,scope=${{ matrix.id }}
-                  cache-to: type=gha,mode=max,scope=${{ matrix.id }}
-                  outputs: type=image,name=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
+                  # One cache per image and architecture, or the four jobs would
+                  # overwrite each other's layers.
+                  cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+                  outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
             # The file name is the digest; the file itself stays empty. It is the
             # cheapest way to hand a string from a matrix job to a later one --
@@ -168,81 +183,7 @@ jobs:
             - name: Upload digest
               uses: actions/upload-artifact@v7
               with:
-                  name: digests-client-${{ matrix.arch }}
-                  path: /tmp/digests/*
-                  if-no-files-found: error
-                  retention-days: 1
-
-    # The server ships as a real multi-arch manifest. Each architecture is built
-    # natively and pushed by digest only; merge-server assembles the manifest.
-    build-server:
-        needs: prepare
-        runs-on: ${{ matrix.runner }}
-        permissions:
-            contents: read
-            packages: write
-
-        env:
-            SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
-
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - arch: amd64
-                      runner: ubuntu-latest
-                      platform: linux/amd64
-                    - arch: arm64
-                      runner: ubuntu-24.04-arm
-                      platform: linux/arm64
-
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v7
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v4
-
-            - name: Log in to the Container registry
-              uses: docker/login-action@v4
-              with:
-                  registry: ${{ env.REGISTRY }}
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-
-            # Tags are applied by the merge job; here we only need the labels.
-            - name: Extract Docker metadata
-              id: meta
-              uses: docker/metadata-action@v6
-              with:
-                  images: ${{ env.SERVER_IMAGE }}
-
-            - name: Build and push by digest
-              id: build
-              uses: docker/build-push-action@v7
-              with:
-                  context: .
-                  file: ./docker/Dockerfile.server
-                  platforms: ${{ matrix.platform }}
-                  build-args: |
-                      APP_VERSION=${{ needs.prepare.outputs.version }}
-                  secrets: |
-                      npm_token=${{ secrets.GITHUB_TOKEN }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha,scope=server-${{ matrix.arch }}
-                  cache-to: type=gha,mode=max,scope=server-${{ matrix.arch }}
-                  outputs: type=image,name=${{ env.SERVER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-
-            - name: Export digest
-              run: |
-                  mkdir -p /tmp/digests
-                  digest="${{ steps.build.outputs.digest }}"
-                  touch "/tmp/digests/${digest#sha256:}"
-
-            - name: Upload digest
-              uses: actions/upload-artifact@v7
-              with:
-                  name: digests-server-${{ matrix.arch }}
+                  name: digests-${{ matrix.image }}-${{ matrix.arch }}
                   path: /tmp/digests/*
                   if-no-files-found: error
                   retention-days: 1
@@ -260,7 +201,7 @@ jobs:
     # .deb, and they sit on different Debian generations.
     smoke:
         name: Smoke test
-        needs: [prepare, build-client, build-server]
+        needs: [prepare, build]
         runs-on: ${{ matrix.runner }}
         permissions:
             contents: read
@@ -268,6 +209,7 @@ jobs:
 
         env:
             SERVER_IMAGE: ${{ needs.prepare.outputs.server_image }}
+            CLIENT_IMAGE: ${{ needs.prepare.outputs[matrix.client_output] }}
 
         strategy:
             fail-fast: false
@@ -275,10 +217,10 @@ jobs:
                 include:
                     - arch: amd64
                       runner: ubuntu-latest
-                      client_image: pbcm-client
+                      client_output: client_image
                     - arch: arm64
                       runner: ubuntu-24.04-arm
-                      client_image: pbcm-client-arm64
+                      client_output: client_image_arm64
 
         steps:
             - name: Log in to the Container registry
@@ -302,15 +244,25 @@ jobs:
                   server=$(basename /tmp/digests/digests-server-${{ matrix.arch }}/*)
                   client=$(basename /tmp/digests/digests-client-${{ matrix.arch }}/*)
                   echo "SERVER_REF=$SERVER_IMAGE@sha256:$server" >> $GITHUB_ENV
-                  echo "CLIENT_REF=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.client_image }}@sha256:$client" >> $GITHUB_ENV
+                  echo "CLIENT_REF=$CLIENT_IMAGE@sha256:$client" >> $GITHUB_ENV
 
             - name: Start the server image
               run: docker run -d --name pbcm-smoke-server -p 3000:3000 "$SERVER_REF"
 
             # The agent starts unregistered and idles -- exactly the state a fresh
             # installation is in before anyone has pointed it at a server.
+            #
+            # Started the way compose.yaml starts it: the capabilities of a backup and a
+            # restore and no others, a read-only root file system, /tmp in memory and a
+            # volume for the data directory. An image that needs more than that fails
+            # here, before anything is tagged.
             - name: Start the client image
-              run: docker run -d --name pbcm-smoke-client -p 3001:3001 "$CLIENT_REF"
+              run: |
+                  docker run -d --name pbcm-smoke-client -p 3001:3001 \
+                    --cap-drop ALL --cap-add DAC_READ_SEARCH --cap-add DAC_OVERRIDE \
+                    --cap-add CHOWN --cap-add FOWNER --cap-add FSETID --cap-add MKNOD \
+                    --cap-add SETFCAP --security-opt no-new-privileges:true \
+                    --read-only --tmpfs /tmp -v /app/client/data "$CLIENT_REF"
 
             - name: Wait for both to report healthy
               run: |
@@ -343,6 +295,11 @@ jobs:
             # The other half of that rule: from outside the container the route must not
             # answer. Asked only now, once the agent is known to be listening, so a refusal
             # here cannot be a server that has not started yet.
+            # The agent is a wrapper around this program; an image in which it does not
+            # start is healthy and useless.
+            - name: proxmox-backup-client starts in the agent image
+              run: docker exec pbcm-smoke-client proxmox-backup-client version
+
             - name: Agent health route is not reachable from outside
               run: |
                   if curl -sS http://127.0.0.1:3001/api/health | grep -q '"status":"ok"'; then
@@ -360,7 +317,7 @@ jobs:
 
             - name: Clean up
               if: always()
-              run: docker rm -f pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true
+              run: docker rm -fv pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true
 
     # Nothing above carries a tag: every job so far pushed by digest only. This is
     # where a build becomes something a user can pull, and it runs **after** the
@@ -373,7 +330,7 @@ jobs:
     # Registry run sweeps them.
     publish:
         name: Tag and publish
-        needs: [prepare, build-client, build-server, smoke]
+        needs: [prepare, build, smoke]
         runs-on: ubuntu-latest
         permissions:
             contents: read

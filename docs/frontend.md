@@ -32,7 +32,8 @@ src/
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
 ├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters, useBackPath,
-│                     #   useEntityForm, useUnsavedChangesGuard)
+│                     #   useEntityForm, useUnsavedChangesGuard, useEscapeToLeave,
+│                     #   useSearchHotkey, useNow)
 ├── lib/              # Non-React modules
 │   ├── api.ts             # The one place a response is read: api.get(path, schema), …
 │   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
@@ -148,6 +149,38 @@ route gets its title in the tree** — no page sets `document.title`.
 The webhook editor is called *Webhook*, not by the webhook's name: the shell does not read
 the webhook list, and does not start to for a title.
 
+### The breadcrumb
+
+A page below a list shows the way back as its heading: `Clients › web01 › Edit`.
+`breadcrumb` in `lib/breadcrumb.ts` reads the same handles as the title, outermost first,
+and gives each the address of its route. It names a page with `ownName` from
+`lib/pageTitle.ts`, so trail and title cannot disagree. Every link but the last leads
+somewhere; a page with nothing above it (a list, the dashboard) has no trail.
+
+`AppLayout` hands the trail to the pages through `BreadcrumbContext`. The client and
+repository pages and every editor show it as the title of their first card or header
+(`features/app/HeaderBreadcrumb.tsx`), wrapped around the heading the page had before.
+Below the `sm` breakpoint the page keeps that heading, behind a `‹` that leads to the link
+above it (`parentCrumb`). `current` replaces the trail's last word where the heading says
+more: the webhook editor is *Edit nightly-report*, not *Webhook*. The trail has the size of
+a card title; an `EntityHeader` gets it through `ENTITY_HEADER` (`components/entityHeader.ts`).
+
+The links are router links, so leaving a changed editor through one asks like every other
+way out. **A new page below a list wraps its heading in `HeaderBreadcrumb`**; the trail
+itself comes from the route's handle.
+
+### Keys
+
+- **`/` puts the cursor into the search of the list on screen** (`hooks/useSearchHotkey`,
+  mounted once in `AppLayout`). The search field of every `DataMultiView` is a `searchbox`,
+  and the hook focuses the first visible one -- no ref through each list. `isSearchHotkey`
+  (`lib/searchHotkey.ts`) is the rule: a bare slash, not one typed into a field and not one
+  with a modifier. While a dialog is open the key is left to it.
+- **`Escape` on a page that is no editor leads back** (`hooks/useEscapeToLeave`): the
+  client page, the repository page, the restore form. It does nothing while the focus is in
+  a field, so Escape in a list's search box leaves nothing. An editor's Escape belongs to
+  `useUnsavedChangesGuard`, which asks first.
+
 ### Not found
 
 Every route below `/clients/:clientId` gets its client from `ClientBoundary`, the layout
@@ -181,6 +214,11 @@ The session is a cookie the browser manages, and `AuthProvider`
   `username`, `login()`, `logout()`. `login` takes no argument — by the time it is called
   the server has already set the cookies. `username` comes from `GET /api/v1/me`, because
   the page can no longer read it out of the JWT.
+- **Expiry**: `/api/v1/me` also answers `expiresAt`. `AuthProvider` sets a timer for it and
+  logs out when it fires — an open dashboard fed by the WebSocket may not send a request,
+  and so not see a 401, for a long time. `logout()` drops the `pbcm_auth` flag itself
+  (`clearSessionFlag`) as well as asking the server to, so a logout request that does not
+  get through cannot leave a reload looking signed in.
 - **Local login**: `POST /api/login` with `credentials: 'same-origin'` → server sets both
   cookies → `login()`. `Login.tsx` is the one page using `publicApi` rather than `api`,
   so a wrong password does not get turned into a logout.
@@ -428,7 +466,9 @@ is missing, which is every dashboard reached over plain HTTP.
   inside English labels. Everything that is looked up rather than glanced at -- a run's
   start, a snapshot, a token's expiry -- stays a date.
 - **A distance needs `useNow()`**, which renews once a minute. The dashboard does not poll,
-  so nothing else would re-render it.
+  so nothing else would re-render it. It is one clock for the whole page (`lib/clock.ts`,
+  read through `useSyncExternalStore`): every reader gets the same number of milliseconds
+  on the same tick, and the timer runs only while something reads it.
 
 ### Talking to the server (`lib/api.ts`)
 
@@ -484,9 +524,13 @@ list. `CLIENTS_UPDATE` is the one that sets its entry outright: it carries the w
 webhooks reads them again now, any other finds them stale when it opens. A `JOB_UPDATE`
 that reports a successful run does the same to every repository's snapshots.
 
-**After a reconnect the whole cache is invalidated once**, in `socket.onopen`. What the
-server pushed while the socket was down is lost, and only `CLIENTS_UPDATE` is sent again
-on connect. Everything on screen is read again; the rest is read when it is next shown.
+**After a reconnect everything the server does not push on connect is invalidated once**,
+in `socket.onopen`. What the server pushed while the socket was down is lost, and only
+`CLIENTS_UPDATE` is sent again on connect. `isPushedOnConnect` in `lib/queryKeys.ts` names
+that one entry -- `clients.list()`, not `clients.all`, because a client's jobs, history and
+directory listings live below it and are not sent. Everything else on screen is read again;
+the rest is read when it is next shown. A cache area the server starts pushing on connect
+has to be added to `PUSHED_ON_CONNECT`, and `queryKeys.test.ts` holds the list.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
 `GET /api/v1/jobs` returns nothing for an offline client. Without the broadcast, a

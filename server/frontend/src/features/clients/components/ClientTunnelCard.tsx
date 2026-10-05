@@ -37,6 +37,7 @@ import {
     tunnelUpdateInputFrom,
     type TunnelDraft,
 } from '../lib/tunnelForm';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 interface ClientTunnelCardProps {
     clientId: string;
@@ -105,11 +106,12 @@ const TunnelCardShell = ({
                 {/* Only once there is a tunnel: a dot on a card that is a setup form
                     would report the state of something that does not exist. */}
                 {hasTunnel && <StatusDot size="md" {...STATUS_DOT[TUNNEL_STATUS_TONE[state?.status ?? 'idle']]} label={state?.status ?? 'idle'} />}
-                <span>
-                    <span className="block text-xl font-bold">SSH Reverse Tunnel</span>
+                <span className="min-w-0">
+                    <HeaderBreadcrumb current="SSH Reverse Tunnel">SSH Reverse Tunnel</HeaderBreadcrumb>
                     <span className="block text-sm font-normal text-text-muted">
-                        {clientName}
-                        <span className="font-mono text-xs ml-2 opacity-70">{clientId}</span>
+                        {/* The trail names the client where it is shown. */}
+                        <span className="mr-2 sm:hidden">{clientName}</span>
+                        <span className="font-mono text-xs opacity-70">{clientId}</span>
                     </span>
                 </span>
             </span>

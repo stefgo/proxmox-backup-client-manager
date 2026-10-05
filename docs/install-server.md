@@ -140,163 +140,17 @@ With a repository in place, the server can hand out registration tokens and you 
 
 ## Operating it
 
-### Health
-
-The image carries a `HEALTHCHECK`, so `docker ps` shows a state next to the container
-without you adding anything to the Compose file:
-
-```
-STATUS
-Up 4 minutes (healthy)
-```
-
-It calls `GET /api/health`, which answers `200` when the process serves requests and its
-database is reachable, and `503` when it does not. You can call it yourself — it needs no
-login:
-
-```bash
-curl -fsS http://localhost:3000/api/health
-```
-
-**Docker does not restart an unhealthy container.** Restart policies such as
-`restart: unless-stopped` react to a process *exiting*; a process that is still running
-but no longer answering stays where it is, marked `unhealthy`. What the healthcheck gives
-you is a state your monitoring can read, and something `depends_on: condition:
-service_healthy` can wait for. If you want an unhealthy container restarted, that takes
-an extra watchdog alongside Docker.
-
-To change the timings, or to make the check visible in the file you maintain, declare a
-`healthcheck:` block on the service — it overrides the one from the image. The
-[`compose.yaml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/compose.yaml)
-in the repository does exactly that, and is a working example to copy from.
-
-The check does not read `PBCM_SERVER_PORT` or `config.yaml` itself. Once the server listens,
-it writes the address it serves to `/tmp/pbcm-health.json` inside the container, and the
-check asks that address — so a port moved in either place is followed without anything else
-to set. Without that file the check has nothing to ask and reports `unhealthy`: during
-start-up, which `start_period` covers, and when the repository's `compose.yaml` runs an image
-from before the file existed. A `healthcheck:` block of your own should read the same file.
-
-### Logs
-
-```bash
-docker compose logs -f pbcm-server
-```
-
-`LOG_LEVEL` and `LOG_FORMAT` change verbosity and shape; see
-[Configuration](setup.md#logging). In `production` the default is structured JSON, which
-is what you want if the logs go into a collector and not into your terminal.
-
-### Updating
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Migrations run automatically at startup — the server applies its umzug migrations to
-`server.db` before it accepts connections.
+- [Operations](operations.md) — health, logs, updating, and what to back up.
+- [Security](security.md) — the reverse proxy and its `security.trusted_proxies` entry, TLS
+  to an outbound agent, and where agents may connect from.
+- [Upgrade Notes](upgrade-notes.md) — what to do when a release changes behaviour.
 
 !!! danger "Update agents together with the server"
 
     Server and agent speak one protocol version. An agent older than the server is
     refused at `/ws/agent` with close code `4001`. Plan the agent updates in the same
-    window, and check the [release notes](https://github.com/stefgo/proxmox-backup-client-manager/releases)
-    before jumping across a release.
-
-### Backing it up
-
-The two paths from the Compose file are the whole state:
-
-```bash
-docker compose stop pbcm-server
-docker run --rm -v pbcm_server-data:/data -v "$PWD":/backup debian:bookworm-slim \
-    tar czf /backup/pbcm-server-data.tar.gz -C /data .
-cp server-config.yaml pbcm-server-config.yaml.bak
-docker compose start pbcm-server
-```
-
-Stopping first matters: SQLite in WAL mode has state in `-wal` and `-shm` files, and a
-tar of a running database can capture a torn moment between them.
-
-### TLS and reverse proxies
-
-The server speaks plain HTTP. Put it behind a terminating reverse proxy (Caddy, nginx,
-Traefik) for anything that leaves the host, and make sure the proxy forwards WebSocket
-upgrades — the dashboard has no polling fallback, so a proxy that drops `Upgrade`
-produces a UI that loads and then never updates.
-
-**List the proxy in `security.trusted_proxies`** (or `PBCM_TRUSTED_PROXIES`). The server
-believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the addresses listed there.
-Without the entry two things go wrong quietly:
-
-- Every request appears to come from the proxy. The login rate limit then counts all users
-  together, and `security.allowed_networks` and a client's allowed IP are checked against
-  the proxy's address instead of the agent's.
-- The session cookie loses its `Secure` flag, because the server sees the plain-HTTP
-  connection from the proxy rather than the browser's HTTPS one.
-
-```yaml title="server-config.yaml"
-security:
-    # A proxy on the same host:
-    trusted_proxies: ["loopback"]
-    # A proxy container on a Docker network (its address is assigned by Docker):
-    # trusted_proxies: ["uniquelocal"]
-```
-
-!!! warning "Updating an existing installation"
-
-    Earlier versions believed these headers from anyone, which let a caller who reached
-    the port directly choose the address every check ran against. An installation behind a
-    proxy that is updated without adding the entry keeps working, but with the two effects
-    above. Check the startup log: it says which proxies are trusted, or that none are.
-
-Port 3000 can stay published directly — agents connect to it — because without an entry
-the forwarding headers are ignored rather than trusted.
-
-Once TLS is in front of it you can switch on `security.hsts` in the config.
-
-!!! warning "`hsts` is hard to take back"
-
-    The header tells browsers to refuse `http://` for this host, they remember it for
-    months, and turning the header off again does not undo it. On an installation that
-    is still on plain HTTP it locks your users out. Only switch it on behind TLS.
-
-### TLS to an outbound agent
-
-An outbound agent is dialled by the server, and the agent's auth token travels in the
-`/ws/agent` query string. Over plain `ws://` that token is readable by anything on the path.
-The SSH reverse tunnel does not cover this — it carries backup traffic to the PBS, is asked
-for per run and released afterwards, while the agent session stands beside it.
-
-Two settings, one on each side:
-
-1. The agent serves TLS — a `tls` block naming a certificate and key in its `config.yaml`
-   (see [client.md](client.md)), or a reverse proxy terminating TLS in front of it.
-2. The client's **target address** says so: `wss://host:port` instead of `host:port`, set in
-   the client editor or when the client is added.
-
-They have to agree. An address written `wss://` against an agent serving plain HTTP fails to
-connect, and so does a bare address against an agent serving TLS. Addresses stored before
-this existed keep working unchanged — a bare `host:port` still means `ws://`.
-
-By default the server verifies the agent's certificate. An agent on a home network usually
-carries a self-signed one, and running a CA for a handful of hosts is more than that warrants:
-
-```yaml
-security:
-    allow_self_signed_agent_certificates: true
-```
-
-It applies to every outbound agent alike and only where the address is `wss://`. The PBS
-certificate is a different matter and stays pinned by its fingerprint.
-
-### Restricting where agents may connect from
-
-`security.allowed_networks` limits `/ws/agent` to a set of CIDR networks. It is empty by
-default, which allows every address. It is one of three related settings that answer
-different questions — the comparison is in
-[Configuration](setup.md#address-checks-for-agent-connections).
+    window, and read the [upgrade notes](upgrade-notes.md) before jumping across a
+    release.
 
 ## Next steps
 

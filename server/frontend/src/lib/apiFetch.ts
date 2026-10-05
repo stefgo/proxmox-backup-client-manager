@@ -47,6 +47,15 @@ export function hasSessionFlag(): boolean {
     }
 }
 
+/** Drops the flag on this side, for when the logout request does not get through. */
+export function clearSessionFlag(): void {
+    try {
+        document.cookie = `${SESSION_FLAG_COOKIE}=; Max-Age=0; Path=/; SameSite=Strict`;
+    } catch {
+        // Nothing to clear without a document.
+    }
+}
+
 /**
  * fetch() with the session attached and a single, central reaction to 401.
  *

@@ -13,6 +13,7 @@ import { JobFormProvider } from '../context/JobFormContext';
 import type { JobForm } from '../hooks/useJobForm';
 import { JOB_FORM_VIEW, type JobEditorView } from '../lib/jobEditorView';
 import { Card, Button, Input, ActionButton, FieldLabel } from '@stefgo/react-ui-components';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 export interface ClientJobEditorProps {
     jobForm: JobForm;
@@ -56,14 +57,12 @@ export const ClientJobEditor = ({
         <JobFormProvider value={{ form, clientId, agentTimezone, tunnelAvailable }}>
             <Card
                 className="flex flex-col"
-                title={jobId ? 'Edit Job' : 'New Backup Job'}
+                // The trail names the job; a narrow screen keeps the heading.
+                title={<HeaderBreadcrumb>{jobId ? 'Edit Job' : 'New Backup Job'}</HeaderBreadcrumb>}
                 action={
                     <ActionButton icon={X} tooltip="Close" onClick={onClose} />
                 }
-                classNames={{
-                    header: 'py-6 px-7',
-                    headerTitle: 'text-xl font-bold'
-                }}
+                classNames={{ header: 'py-6 px-7' }}
             >
 
                 <div className="p-7 bg-card flex-1 overflow-hidden flex flex-col gap-6">

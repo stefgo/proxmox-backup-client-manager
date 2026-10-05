@@ -33,14 +33,14 @@ export const formatDate = (
  */
 export const formatRelativeDate = (
     date: Date | string | number | null | undefined,
-    now: Date,
+    now: number,
 ): string => {
     if (!date) return 'Never';
 
     const d = parseTimestamp(date);
     if (!d) return 'Invalid Date';
 
-    return formatRelativeTime(d, now);
+    return formatRelativeTime(d, new Date(now));
 };
 
 /**

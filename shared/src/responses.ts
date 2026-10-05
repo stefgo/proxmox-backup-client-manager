@@ -179,10 +179,11 @@ export const UserSchema = z.object({
 
 export const UserListSchema = z.array(UserSchema);
 
-/** `GET /api/v1/me`: who the session belongs to. */
+/** `GET /api/v1/me`: who the session belongs to, and until when. */
 export const SessionUserSchema = z.object({
     username: z.string().nullable(),
     id: z.number().nullable(),
+    expiresAt: z.string().nullish(),
 });
 
 /** `GET /api/auth/config`: which login the form offers. */

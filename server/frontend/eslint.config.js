@@ -59,16 +59,6 @@ export default defineConfig([
                 "error",
                 { varsIgnorePattern: "^[A-Z_]", argsIgnorePattern: "^_" },
             ],
-            // All pre-existing debt across src/, reported so it stays visible but not
-            // blocking. Fixing them is its own pass, not a lint-config change.
-            "react-hooks/exhaustive-deps": "warn",
-            "@typescript-eslint/no-explicit-any": "warn",
-            // React Compiler rules, new in eslint-plugin-react-hooks v7. They flag the
-            // fetch-in-effect-then-setState pattern this app is built on; the report
-            // survives reordering the declaration, so it needs the effect restructured
-            // rather than a quick edit.
-            "react-hooks/set-state-in-effect": "warn",
-            "react-hooks/immutability": "warn",
             // The frontend is single-quoted (see CLAUDE.md); without a formatter nothing
             // held it, and thirteen files had drifted to double quotes. `avoidEscape`
             // keeps "it's" readable. The core rule is deprecated and goes with ESLint 11

@@ -50,7 +50,7 @@ export class AuthService {
     static checkLocalAuth(
         username: string,
         password: string,
-    ): { user: UserRow | null; error?: string } {
+    ): { user: UserRow; error?: undefined } | { user: null; error: string } {
         const user = UserRepository.findByUsername(username);
 
         // password_hash is nullable: an OIDC-only account has none. Handing null to
@@ -78,7 +78,8 @@ export class AuthService {
 
     static async generateOidcUrl() {
         const oidcConfig = getOidcConfig();
-        if (!oidcConfig) throw new Error("OIDC not configured");
+        const oidc = getEnabledOidcSettings();
+        if (!oidcConfig || !oidc) throw new Error("OIDC not configured");
 
         // Generate PKCE code verifier and challenge for secure authorization.
         // This prevents authorization code interception attacks.
@@ -92,7 +93,7 @@ export class AuthService {
 
         return client
             .buildAuthorizationUrl(oidcConfig, {
-                redirect_uri: getEnabledOidcSettings()!.redirect_uri,
+                redirect_uri: oidc.redirect_uri,
                 scope: "openid profile groups email",
                 state,
                 code_challenge,
@@ -103,7 +104,8 @@ export class AuthService {
 
     static async handleOidcCallback(currentUrl: URL) {
         const oidcConfig = getOidcConfig();
-        if (!oidcConfig) throw new Error("OIDC not configured");
+        const oidc = getEnabledOidcSettings();
+        if (!oidcConfig || !oidc) throw new Error("OIDC not configured");
 
         const state = currentUrl.searchParams.get("state");
         if (!state || !authStates.has(state)) {
@@ -121,7 +123,7 @@ export class AuthService {
                 expectedState: state,
             },
             {
-                redirect_uri: getEnabledOidcSettings()!.redirect_uri,
+                redirect_uri: oidc.redirect_uri,
             },
         );
 

@@ -37,7 +37,7 @@ export const JobScheduleSettings = () => {
     };
 
     const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const runs = previewRuns(draft, now, PREVIEW_RUNS);
+    const runs = previewRuns(draft, new Date(now), PREVIEW_RUNS);
 
     return (
         <div className="space-y-1">

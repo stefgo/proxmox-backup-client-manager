@@ -39,8 +39,8 @@ before you deploy:
 
 | | Base | Source of the CLI |
 | :-- | :--- | :---------------- |
-| `pbcm-client` (amd64) | `debian:bookworm-slim` | The official Proxmox repository `download.proxmox.com/debian/pbs-client`, installed with `apt`. |
-| `pbcm-client-arm64` | `debian:trixie-slim` | The community `.deb` from [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64), pinned to release `4.1.4-1`. |
+| `pbcm-client` (amd64) | `node:22-bookworm-slim` | The official Proxmox repository `download.proxmox.com/debian/pbs-client`, installed with `apt`. |
+| `pbcm-client-arm64` | `node:22-trixie-slim` | The community `.deb` from [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64), pinned to release `4.1.4-1`. |
 
 **Proxmox publishes no ARM64 build of `proxmox-backup-client`.** The
 [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64) project
@@ -53,7 +53,7 @@ image installs one of those. It is what makes an agent on a Raspberry Pi possibl
     covered by whatever support arrangement you have for your PBS. Bugs in the CLI itself
     belong in [that project's issue tracker](https://github.com/wofferl/proxmox-backup-arm64/issues),
     not in PBCM's. The version is pinned in
-    [`docker/Dockerfile.client.arm64`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/docker/Dockerfile.client.arm64)
+    [`docker/Dockerfile.client`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/docker/Dockerfile.client)
     and therefore moves only when this project bumps it — it can lag the amd64 image,
     which tracks the Proxmox repository.
 
@@ -88,6 +88,23 @@ services:
         image: ghcr.io/stefgo/pbcm-client:latest
         ports:
             - "3001:3001"
+        # What root in this container may do: a backup and a restore, nothing else.
+        # See "What the agent container may do" below.
+        cap_drop:
+            - ALL
+        cap_add:
+            - DAC_READ_SEARCH # backup: read files of every owner
+            - DAC_OVERRIDE    # restore, as are the five below
+            - CHOWN
+            - FOWNER
+            - FSETID
+            - MKNOD
+            - SETFCAP
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             # Configuration, created in step 1. The agent writes back to it only the
             # serverUrl of a web UI registration.
@@ -126,7 +143,15 @@ Two consequences worth deciding on deliberately:
 
 Unlike the server, the agent runs as **root** in its container, on purpose: a backup has
 to read files whatever their owner, and a restore sets owners and modes back. The mounts
-above are what limits it, not the user it runs as.
+above are what limits it, together with the capabilities below, not the user it runs as.
+
+### What the agent container may do
+
+The Compose file above drops every Linux capability and adds back the seven a backup and a
+restore need, forbids new privileges, and makes the root file system read-only with `/tmp`
+in memory. What each setting is for, what breaks without it, and what it means for a job's
+hook scripts is in [Security](security.md#what-the-agent-container-may-do). **An agent that
+only ever backs up needs `DAC_READ_SEARCH` alone.**
 
 ## 3. Register the agent
 
@@ -233,91 +258,10 @@ reported, and the job editor shows it next to the schedule.
 
 ## Operating it
 
-### Health
-
-Both agent images carry a `HEALTHCHECK`, so `docker ps` shows `(healthy)` next to the
-container without you adding anything to the Compose file. It calls `GET /api/health` on
-the agent's own web UI port (`3001` by default), which needs no login.
-
-The route exists for that check alone: it is served only in the container image and answers
-only requests from loopback, which is where Docker runs the check. From the host you ask it
-inside the container:
-
-```bash
-docker compose exec pbcm-client node -e "fetch('http://127.0.0.1:3001/api/health').then(r => r.text()).then(console.log)"
-```
-
-It is there whatever `config.yaml` disables — with both pages off and no outbound mode, the
-agent still starts its web server for it, bound to `127.0.0.1`.
-
-The check follows the port and scheme the agent actually listens on, whether they come from
-`config.yaml` (`listenPort`, `tls`) or from `PBCM_CLIENT_PORT` — see
-[Health check](client.md#health-check). The command above assumes the defaults; with a moved
-port or TLS, adjust its URL.
-
-**It reports on the agent, not on the connection to the server.** An agent that cannot
-reach the server is still healthy: it keeps its jobs in its own data files and runs them on
-schedule regardless. Whether it is connected is a different question, answered on the
-agent's status page and by `GET /api/status/connection`.
-
-Two consequences worth knowing:
-
-- `curl http://localhost:3001/api/health` from the host gets a `404`. That is the
-  loopback rule above, not a broken agent.
-- **Docker does not restart an unhealthy container.** `restart: unless-stopped` reacts to
-  a process *exiting*, not to its health. An agent that hangs without exiting stays up and
-  marked `unhealthy`, which your monitoring can see but Docker will not act on.
-
-### Logs
-
-```bash
-docker compose logs -f pbcm-client
-```
-
-Live job output also streams to every open dashboard over the WebSocket, so the container
-log is mainly for the things that happen before a job does — connection state, the setup
-PIN, scheduler decisions.
-
-### Updating
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-In the same window as the server update.
-
-An agent that still has its `clientId` and `authToken` in `client-config.yaml` moves them
-into `identity.json` in its data volume on the first start, and removes the two keys and
-their comments from the file only once the new one is written. If the data volume is not
-writable, the identity stays where it is and the log says so.
-
-An agent that still keeps its jobs in the SQLite database of an older version (`client.db`
-in the data volume) imports them into the data files on its first start and renames the
-database to `client.db.migrated`. Only the jobs and their schedule state are taken over,
-not the run history: whatever the server had not received by then stays behind, and the
-log says how many runs that were. Let the agent sync with the server once before the
-update if you want to be sure nothing is left. Should the import fail, the agent does not
-start and says why in the log -- it would otherwise come up without its jobs.
-
-### Re-registering a host
-
-An agent that already holds an identity refuses to register again — its register page is
-closed (`404`), and `/ws/register` closes with `4003 Already registered` in outbound mode. That guard is deliberate; to
-move a host on purpose:
-
-1. Stop the container.
-2. Delete `identity.json` from the data volume, e.g.
-   `docker run --rm -v pbcm-client_client-data:/data alpine rm /data/identity.json`
-   (the volume name depends on your Compose project).
-3. Start it again — a new setup PIN is printed — and register as in step 3.
-4. Delete the old client row in the dashboard.
-
-!!! warning "The `clientId` is the PBS `--backup-id`"
-
-    It decides which snapshots the UI groups under this client. A new id starts a new
-    snapshot group in PBS and orphans everything backed up so far. Never edit it by hand,
-    and re-register only when you mean to.
+- [Operations](operations.md) — health, logs, updating in the same window as the server, and
+  [re-registering a host](operations.md#re-registering-a-host).
+- [Security](security.md) — what the agent container may do, address checks and TLS.
+- [Upgrade Notes](upgrade-notes.md) — what an older installation has to do after an update.
 
 ## Next steps
 

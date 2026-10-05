@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { randomUUID } from "crypto";
-import { WebhookInputSchema, firstIssue } from "@pbcm/shared";
+import { WS_EVENTS, WebhookInputSchema, firstIssue } from "@pbcm/shared";
 import { WebhookRepository } from "../repositories/WebhookRepository.js";
 import { ProxyService } from "../services/ProxyService.js";
 import { WebhookService } from "../services/WebhookService.js";
@@ -65,6 +65,6 @@ export class WebhookController {
 
     /** Has the dashboards fetch the list again. */
     private static changed(): void {
-        ProxyService.broadcastToDashboard({ type: "WEBHOOKS_UPDATE" });
+        ProxyService.broadcastToDashboard({ type: WS_EVENTS.WEBHOOKS_UPDATE });
     }
 }

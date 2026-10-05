@@ -7,6 +7,7 @@ import type { EntityForm } from '../../../hooks/useEntityForm';
 import { formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
 import { isOutbound as isOutboundClient, type ClientDraft, type ClientUpdateInput } from '../lib/clientForm';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 interface ClientIdentityCardProps {
     client: Client;
@@ -70,10 +71,8 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                                 : STATUS_TONE.OFFLINE]}
                         label={client.status}
                     />
-                    <div>
-                        <div className="text-xl font-bold">
-                            {client.displayName || client.hostname}
-                        </div>
+                    <div className="min-w-0">
+                        <HeaderBreadcrumb>{client.displayName || client.hostname}</HeaderBreadcrumb>
                         {/* Only while offline: for a connected client the pulsing dot
                             already says the agent is here, and a timestamp beside it just
                             invites the question whether it is stale. */}

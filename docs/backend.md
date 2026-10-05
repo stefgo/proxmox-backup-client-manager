@@ -51,7 +51,7 @@ Services contain the heavy business logic of the application. They are designed 
 - **`TokenCleanupService.ts`**: Scheduler `token-cleanup`. Removes registration tokens that have been invalid (used or expired) for longer than `token_retention_days`, every `token_cleanup_interval_hours` (`0` switches the timer off).
 - **`JobHistoryCleanupService.ts`**: Scheduler `job-history-cleanup`. Removes job history older than `retention_job_history_days`, always keeping the newest `retention_job_history_count` entries per client (at least one); `0` days means no age limit. Runs every `job_history_cleanup_interval_hours`.
 
-  Both are started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. `SettingsService.updateSettings` restarts the one whose keys changed.
+  Both are started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. After a signal the server closes its connections and exits with code 0; one that does not finish closing is given `SHUTDOWN_TIMEOUT_MS` (5 s), so the process ends before Docker's 10 s grace period would kill it, and a second signal changes nothing. `SettingsService.updateSettings` restarts the one whose keys changed.
 - **`ClientConnector.ts`**: Dials outbound clients — registration through the agent's `/ws/register`, then a session over `/ws/agent`. Its `RECONNECT_DELAYS` ladder is the same one the agent uses in the other direction, because the two ends of one link should not behave differently.
 - **`TunnelService.ts`**: Establishes and tears down the SSH reverse tunnel on a client's request. See [tunnel.md](tunnel.md).
 - **`WebhookService.ts`**: Sends the webhooks — the server is the only sender. `dispatch(clientId, events)` hands events to every enabled webhook whose filters they pass; one queue per webhook keeps a target's events in order, with retries after 1 s and 5 s on no answer, 5xx and 429, and at most 100 waiting. The outcome goes into the webhook's `last_*` columns (migration 15) and `WEBHOOKS_UPDATE` to the dashboards. Runs come from `AgentMessageRouter`: `JobHistoryRepository.upsertStatus` and `upsertHistoryBatch` answer the runs a write gave a final state they did not have before, so a run is reported once whether it arrives live, with the history sync, or both. See [webhooks.md](webhooks.md).
@@ -106,6 +106,102 @@ The same holds for REST, more loosely: the response schemas in `shared/src/respo
 - **Job Caching**: When an agent connects, `ProxyService` automatically refreshes its local job cache to ensure high-speed retrieval of job configurations.
 - **Repository id backfill**: During that refresh, jobs whose embedded repository copy predates `repositoryId` are resolved by base URL plus datastore and stamped with the id (`backfillRepositoryIds`). Ambiguous or unmatched jobs are skipped with a warning rather than guessed. Without the id nothing can tell which managed repository a job belongs to, which is what fingerprint distribution needs.
 - **Broadcasting**: `ProxyService` multicasts events (like job progress or log updates) from agents to all connected dashboards.
+
+## Three Services in Detail
+
+The list above names every service in a sentence. Three of them carry rules that the rest of
+the backend relies on and that are easy to break from outside.
+
+### ProxyService — connections, requests and the job cache
+
+`ProxyService` is the only module that holds a socket. Everything else names a client by its
+id and asks this service to reach it.
+
+| State | Holds | Rule |
+| :---- | :---- | :--- |
+| `connectedClients` | one socket per `clientId` | A new connection replaces the old one. `unregisterClient(clientId, socket)` removes the entry only if `socket` is still the current one and answers whether it was — a socket closed *because* a newer one replaced it is not the agent going away, and `ClientConnectionWatch` must not count it. |
+| `dashboardClients` | each dashboard socket and the user it was opened for | `closeDashboardSessions(userId)` ends that user's dashboards when their password or auth methods change. |
+| `pending` | one entry per outstanding request, keyed by `requestId` | `sendRequest` writes it, `resolvePending` settles it, and a closing socket rejects all of its client's entries at once. |
+| `jobCache` | each connected agent's jobs, **with their secrets** | Refreshed on connect (`refreshJobCache`). See [JobSecrets](#jobsecrets--what-a-browser-may-see-of-a-job). |
+
+Three ways out, and no fourth:
+
+- **`sendRequest(clientId, type, payload)`** — typed by `ProtocolMap` in `shared`, so the
+  payload and the answer follow from the event. It waits `WS_REQUEST_TIMEOUT_MS` for that
+  event and throws when the client is not connected.
+- **`sendFireAndForget(clientId, type, payload)`** — for a trigger whose result arrives later
+  as a message of its own, such as starting a backup.
+- **`broadcastToDashboard(message)`** — the only way a message reaches a browser; its
+  parameter type, `DashboardMessage`, is the contract.
+
+The agents are the store of the jobs, not the server: there is no job table. A job list for a
+browser is the cache, redacted; a job saved in the dashboard goes to the agent and comes back
+into the cache with the next refresh. A client that is offline therefore has no jobs to show,
+which the frontend says instead of calling the list empty.
+
+### TunnelService — the SSH reverse tunnel
+
+A client with no route to the PBS asks the server for one, per run. `TunnelService` opens an
+SSH connection **from the server to the client host**, asks its `sshd` for a reverse forward,
+and pipes what arrives there to the PBS. Setup and the protocol are in [tunnel.md](tunnel.md);
+this is what the code guarantees.
+
+- **The client never names a target.** `acquire(clientId, target, runId)` takes a target the
+  caller resolved on the server: `TunnelLease.handleAcquire` reads it from the
+  repository configured for the job, and only for a job with `tunnel.required`. A restore
+  carries no job id, so `JobController.triggerRestore` pre-authorises its target per `runId`
+  with `registerRunTarget`, valid for `tunnel.maxLeaseMs`. A compromised agent can therefore
+  not turn the server into a forwarder to an address of its choosing.
+- **One connection per client, one forward per target, any number of leases.** Concurrent
+  `acquire` calls share `connectPromise` and `forwardPromises`, so two jobs starting together
+  open one connection and one forward. A lease is what a run holds; `release` gives it back,
+  and a lease that is never released ends after `tunnel.maxLeaseMs`.
+- **`tunnel.maxConcurrentTunnels` is a queue, not a refusal.** Many clients share a cron
+  schedule and would otherwise fail together instead of running a few seconds apart. The slot
+  is reserved before the first `await` (`acquireSlot`), and `holdsSlot` on the entry makes
+  every teardown path — failed connect, lost connection, idle teardown, `closeClient` — give
+  it back exactly once. A waiting caller is handed the slot directly, so a third cannot slip
+  in between.
+- **A lost connection drops every lease.** The next connection gets other ports, so a running
+  job would talk to one that no longer exists (`handleConnectionLost`). The same happens when
+  the agent's WebSocket closes (`dropClientLeases`).
+- **Idle teardown waits `tunnel.idleGraceMs`.** A forward without leases is closed after the
+  grace period and the connection once no forward is left, which avoids opening a new
+  connection for each of several jobs in a row.
+- **The host key is pinned.** A connection whose host key does not match the stored
+  fingerprint is refused. `testConnection` — behind both test endpoints — checks
+  reachability, the credentials and that a reverse forward is permitted, and reports the key
+  it saw. It deliberately touches no PBS: whether the server reaches a backup server is a
+  property of the repository.
+
+The private keys are stored through `SecretCrypto`. Every change of state goes to the
+dashboards as `TUNNEL_UPDATE`, and `shutdown()` closes all connections when the server stops.
+
+### JobSecrets — what a browser may see of a job
+
+A job carries two secrets: the PBS token secret in its repository copy and the encryption
+key. The agent needs both, because it runs its jobs from its own `jobs.json` while the server
+is unreachable. Nobody else does, so they travel **server → agent only**.
+
+| Direction | Function | Does |
+| :-------- | :------- | :--- |
+| job → browser | `redactJob` | Sets `repository.secret` to `""` (the schema requires the field) and reduces `encryption` to `{ enabled }`. Used by `GET /v1/jobs`, `GET /v1/clients/:id/jobs` and `JOBS_UPDATE`. |
+| browser → agent | `completeJobSecrets` | Fills both back in before the job is sent to the agent, and answers `{ error }` when one cannot be found. |
+| restore → agent | `restoreRepository` | Builds the repository from the configured one. The request only names its id. |
+
+Where `completeJobSecrets` takes the values from:
+
+- **The repository secret** comes from the managed repository the job names
+  (`repositoryId`), so saving a job also brings it up to date with the repository. A job from
+  before `repositoryId` keeps the secret the agent already stores — but only when base URL,
+  datastore, user and token name are unchanged, so a job pointed elsewhere never takes a
+  secret that belongs to another PBS.
+- **The encryption key**: an empty key with encryption on means "keep the stored one". A new
+  key is sent only right after it was generated.
+
+Both lookups happen on the server and not on the agent, so they work with agents older than
+the change. The job cache in `ProxyService` is the one place that holds unredacted jobs; a
+new route that hands a job to a browser has to pass it through `redactJob`.
 
 ## 🗄 Database Management
 
@@ -208,7 +304,7 @@ is `tunnel.required` per run: on the individual job for a backup, on the trigger
 restore. Availability is only ever a *check* on that answer, never the answer itself, and both
 `JobController.save` and `JobController.triggerRestore` reject a run asking for a route the
 client has no credentials for. The same `tunnel.required` authorises the lease:
-`resolveTunnelTarget` returns nothing for a job not configured for the tunnel, and a restore
+`TunnelLease.resolveTarget` returns nothing for a job not configured for the tunnel, and a restore
 target is pre-authorised per `runId` only when its request asked for the tunnel.
 
 Credentials are attached only through `/clients/:clientId/tunnel`. `POST /clients/outbound`

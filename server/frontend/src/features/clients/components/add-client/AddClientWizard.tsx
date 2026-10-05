@@ -8,6 +8,8 @@ import { StepConnectionMode } from './steps/StepConnectionMode';
 import { StepInboundDetails } from './steps/StepInboundDetails';
 import { InboundTokenDialog } from './InboundTokenDialog';
 import { StepOutboundDetails } from './steps/StepOutboundDetails';
+import { HeaderBreadcrumb } from '../../../app/HeaderBreadcrumb';
+import { isEditing } from '../../../../hooks/useEscapeToLeave';
 
 interface AddClientWizardProps {
     /** Leaves the flow and hands the work area back to the client list. */
@@ -104,11 +106,12 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
      * It listens on `window`, one step further out than every dialog and menu, which
      * listen on `document` and stop the event there. So an open select closes on its
      * own Escape and the wizard stays; the token dialog, which refuses Escape outright,
-     * swallows it without the wizard closing behind it.
+     * swallows it without the wizard closing behind it. And not from a field, where Escape
+     * ends the typing and not the wizard.
      */
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (e.key !== 'Escape' || e.defaultPrevented || isEditing(e.target)) return;
             onClose();
         };
         window.addEventListener('keydown', onKeyDown);
@@ -164,9 +167,9 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
     return (
         <Card
             className="flex flex-col"
-            title="Add Client"
+            title={<HeaderBreadcrumb current="Add Client">Add Client</HeaderBreadcrumb>}
             action={<ActionButton icon={X} tooltip="Cancel" onClick={onClose} />}
-            classNames={{ header: 'py-6 px-7', headerTitle: 'text-xl font-bold' }}
+            classNames={{ header: 'py-6 px-7' }}
         >
             <Wizard
                 steps={steps}

@@ -161,15 +161,16 @@ export const BaseJobList = <T extends BaseJobItem>({
     const formatNextRun = (nextRunAt: string | undefined, isOnline: boolean) => {
         if (!nextRunAt) return <span className="text-text-muted">not defined</span>;
         const date = new Date(nextRunAt);
+        const isDue = date.getTime() < now;
 
         if (!isOnline) {
             return (
                 <span className="text-text-muted grayscale">
-                    {date < now ? 'Pending' : formatRelativeDate(date, now)}
+                    {isDue ? 'Pending' : formatRelativeDate(date, now)}
                 </span>
             );
         }
-        if (date < now) {
+        if (isDue) {
             // An overdue run on an online client is a warning, and `warning` is the
             // role for it — the palette colour this used to name resolves to the same
             // orange in light mode but has no counterpart in the library's dark block.

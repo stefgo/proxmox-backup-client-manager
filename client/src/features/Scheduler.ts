@@ -3,17 +3,10 @@ import { JobRepository } from "../repositories/JobRepository.js";
 import { JobScheduleStateRepository } from "../repositories/JobScheduleStateRepository.js";
 import { JobHistoryRepository } from "../repositories/JobHistoryRepository.js";
 import { Executor } from "./Executor.js";
-import {
-    JOB_STATUS,
-    ScheduleConfig,
-    ScheduleConfigSchema,
-    WS_EVENTS,
-    isMissedRun,
-    missedRunReason,
-    nextRunPast,
-} from "@pbcm/shared";
+import { JOB_STATUS, ScheduleConfig, WS_EVENTS } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { Connection } from "../core/Connection.js";
+import { parseStoredSchedule, planDueRun } from "./SchedulePlan.js";
 
 export class Scheduler {
     private static interval: NodeJS.Timeout | null = null;
@@ -22,29 +15,15 @@ export class Scheduler {
     private static invalidScheduleWarned = new Set<string>();
 
     /**
-     * Parses the schedule stored in jobs.json against the same schema the API
-     * validates against. An entry that fails here could not have been written by a
-     * current client — it is legacy or corrupt data, and running it would mean
-     * guessing at the interval.
-     *
-     * This also keeps nextRunAfter honest: the schema guarantees a known unit
-     * and a finite interval >= 1, so the step is always positive and next_run always
-     * moves forward. Without it, an unknown unit yields a 0ms step and the job fires
-     * on every single tick, forever.
+     * The job's schedule, or null for one that does not parse (see parseStoredSchedule).
+     * Such a job is skipped, with one warning.
      */
     private static parseSchedule(
         jobId: string,
         jobName: string,
         raw: string,
     ): ScheduleConfig | null {
-        let json: unknown;
-        try {
-            json = JSON.parse(raw);
-        } catch {
-            json = undefined;
-        }
-
-        const parsed = ScheduleConfigSchema.safeParse(json);
+        const parsed = parseStoredSchedule(raw);
         if (parsed.success) {
             this.invalidScheduleWarned.delete(jobId);
             return parsed.data;
@@ -150,23 +129,14 @@ export class Scheduler {
                     return;
                 }
 
-                const nextRun = new Date(state.next_run);
-                if (now >= nextRun) {
-                    const anchor = state.anchor ? new Date(state.anchor) : null;
-                    // The missed runs are triggered exactly once, below; this puts the
-                    // schedule back in sync in one go (see nextRunPast).
-                    const { next: newNextRun, resynced, due } = nextRunPast(
-                        schedule,
-                        nextRun,
-                        now,
-                        anchor && !isNaN(anchor.getTime()) ? anchor : null,
-                    );
+                const due = planDueRun(schedule, { ...state, next_run: state.next_run }, now);
+                if (due) {
+                    const { next: newNextRun, resynced, missedReason } = due;
 
                     // Reported before the catch-up, so the history reads in the order it
                     // happened: the time that was passed over, then the run that made up for it.
-                    const enteredAt = state.entered_at ? new Date(state.entered_at) : null;
-                    if (isMissedRun(nextRun, now, enteredAt && !isNaN(enteredAt.getTime()) ? enteredAt : null)) {
-                        this.reportMissed(job.id, job.name, now, missedRunReason(nextRun, now, due, resynced));
+                    if (missedReason !== null) {
+                        this.reportMissed(job.id, job.name, now, missedReason);
                     }
 
                     logger.info(

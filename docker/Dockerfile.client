@@ -33,34 +33,63 @@ RUN APP_VERSION=${APP_VERSION} bash ./scripts/generate-version.sh ./client/dist/
 RUN npm prune --omit=dev
 
 # Runner Stage
-FROM debian:bookworm-slim AS runner
+# Node comes with the base image; what is installed on top is proxmox-backup-client and the
+# CA certificates it checks a PBS against. The agent runs no other program of its own -- the
+# tunnel of an outbound client is a TCP connection, not an ssh process.
+#
+# Where proxmox-backup-client comes from is the one thing the two architectures do not
+# share: Proxmox publishes a package for amd64 only. Each gets a stage of its own below,
+# and `runner` starts from the one BuildKit's TARGETARCH names -- the platform of the
+# build, so nothing has to be passed in. A stage the build does not reach is not built,
+# so an amd64 build never fetches the arm64 package and the other way round.
+
+# amd64: the package from the Proxmox repository. The Debian release matches that
+# repository.
+FROM node:22-bookworm-slim AS runner-amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# The key of the Proxmox repository. ADD fetches it, so the image needs neither wget nor
+# curl; world-readable, because apt verifies as the unprivileged user _apt.
+ADD --chmod=644 https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg \
+    /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
+
+# Install dependencies (Proxmox Backup Client)
+RUN echo "deb http://download.proxmox.com/debian/pbs-client bookworm main" > /etc/apt/sources.list.d/pbs-client.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    proxmox-backup-client && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# arm64: wofferl's proxmox-backup-client, fetched in a stage of its own: ADD needs neither
+# wget nor curl in the image, and mounting the package from here instead of copying it
+# keeps it out of the runner's layers.
+FROM scratch AS pbs-client-arm64
+ADD https://github.com/wofferl/proxmox-backup-arm64/releases/download/4.1.4-1/proxmox-backup-client_4.1.4-1_arm64.deb \
+    /proxmox-backup-client.deb
+
+# The Debian release is the one the package above is built for.
+FROM node:22-trixie-slim AS runner-arm64
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies (Proxmox Backup Client)
+RUN --mount=type=bind,from=pbs-client-arm64,source=/proxmox-backup-client.deb,target=/tmp/proxmox-backup-client.deb \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    /tmp/proxmox-backup-client.deb && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM runner-${TARGETARCH} AS runner
+
 ENV NODE_ENV=production
 # Tells the agent it runs in this image, which is the only place /api/health is served --
 # see getWebRoutes() in client/src/web/server.ts.
 ENV PBCM_CONTAINER=true
-
-# Install dependencies (Node.js + Proxmox Backup Client)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    wget \
-    ca-certificates \
-    gnupg \
-    curl \
-    lsb-release \
-    && \
-    # Proxmox Repo
-    wget -qO - https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg && \
-    echo "deb http://download.proxmox.com/debian/pbs-client bookworm main" > /etc/apt/sources.list.d/pbs-client.list && \
-    # Node.js Setup
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-    proxmox-backup-client \
-    nodejs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

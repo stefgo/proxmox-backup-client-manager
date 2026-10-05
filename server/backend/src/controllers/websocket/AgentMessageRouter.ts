@@ -93,7 +93,7 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
         }
 
         ProxyService.broadcastToDashboard({
-            type: "JOB_UPDATE",
+            type: WS_EVENTS.JOB_UPDATE,
             payload: { clientId, job: statusPayload },
         });
     },
@@ -104,7 +104,7 @@ const HANDLERS: Partial<Record<string, AgentMessageHandler>> = {
         if (!parsed.success) return;
 
         ProxyService.broadcastToDashboard({
-            type: "LOG_UPDATE",
+            type: WS_EVENTS.LOG_UPDATE,
             payload: { clientId, ...parsed.data },
         });
     },

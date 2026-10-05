@@ -1,5 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import {
+    WS_EVENTS,
     HistoryQuerySchema,
     firstIssue,
     type GlobalHistoryEntry,
@@ -25,7 +26,7 @@ function seenState(username: string): HistorySeen {
 function broadcastSeen(username: string): HistorySeen {
     const state = seenState(username);
     ProxyService.broadcastToDashboard({
-        type: "HISTORY_SEEN",
+        type: WS_EVENTS.HISTORY_SEEN,
         payload: { username, ...state },
     });
     return state;

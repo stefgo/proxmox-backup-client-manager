@@ -54,10 +54,16 @@ jobs:
             # simply never be pruned, and nothing would turn red.
             - name: Cleanup covers every published image
               run: |
-                  published=$(grep -oE '(image_name|client_image): *pbcm-[a-z0-9-]+|/pbcm-[a-z0-9-]+' \
-                      .github/workflows/build.yml | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
+                  # build.yml spells each image name once, in prepare, behind the
+                  # registry and the owner -- hence the leading slash.
+                  published=$(grep -oE '/pbcm-[a-z0-9-]+' .github/workflows/build.yml \
+                      | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
                   covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
                       | tr ',' '\n' | tr -d ' ' | grep -E '^pbcm-' | sort -u)
+                  if [ -z "$published" ]; then
+                      echo "::error::No image names found in build.yml -- the pattern above is out of date"
+                      exit 1
+                  fi
                   missing=$(comm -23 <(echo "$published") <(echo "$covered"))
                   if [ -n "$missing" ]; then
                       echo "::error::Published but not pruned by cleanup-packages.yml: $(echo $missing)"
@@ -89,11 +95,10 @@ jobs:
             # without anything going red -- hence this check.
             - name: Commit messages
               if: github.event_name == 'pull_request'
-              run: >
-                  npx commitlint
-                  --from ${{ github.event.pull_request.base.sha }}
-                  --to ${{ github.event.pull_request.head.sha }}
-                  --verbose
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
 
             # Builds shared first, then every workspace -- this is the typecheck
             # for shared, backend and client, and the vite build for the frontend.
@@ -112,6 +117,14 @@ jobs:
             # below, whose tsconfig includes all of src.
             - name: Typecheck shared tests
               run: npm run typecheck -w shared
+
+            # The same for client and backend: their build leaves the tests and
+            # src/testing out as well, so this is the only place tsc reads them.
+            - name: Typecheck client tests
+              run: npm run typecheck -w client
+
+            - name: Typecheck backend tests
+              run: npm run typecheck -w server/backend
 
             # The workspace script, not a second spelling of it: `typecheck` picks
             # tsconfig.json, while `typecheck:local-ui` picks the sibling-checkout

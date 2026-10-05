@@ -132,7 +132,7 @@ dark because that is what the application starts in. `capture.mjs` marks those s
 ## Review Before the Commit
 
 Three gates exist: `npm test`, `npm run typecheck -w server/frontend` and a review of the
-diff. The tests cover pure logic in `shared` and the frontend — see [Tests](#tests) — and
+diff. The tests cover pure logic in every workspace — see [Tests](#tests) — and
 typecheck catches the API drift. Nothing renders a component or starts the backend, so the
 review still has to catch everything else, and it is worth running at the points below
 rather than at random.
@@ -172,23 +172,31 @@ npm run test:watch   # re-runs what a change touches
 
 [Vitest](https://vitest.dev), configured in
 [`vitest.config.mts`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/vitest.config.mts)
-at the root, with one project per workspace that has tests: `shared` and `frontend`.
-`client` and `server/backend` have none yet.
+at the root, with one project per workspace: `shared`, `frontend`, `client` and `backend`.
 
 - **A test lives next to its module** — `webhookTemplate.ts` and `webhookTemplate.test.ts`.
-- **Logic only.** Both projects run in the `node` environment. There is no DOM, so logic
+- **Logic only.** Every project runs in the `node` environment. There is no DOM, so logic
   that sits inside a hook or a component is first moved into a module of its own and tested
   there: the path helpers of the job editor became `features/clients/lib/archivePaths.ts`
-  that way.
-- **The frontend project reads `shared` from source.** `@pbcm/shared` exports
-  `src/index.ts` under the `development` condition, and the project sets it. The tests
+  that way. The same holds for a class with side effects in `client` or `server/backend`:
+  what the agent's `Scheduler` decides on a tick became `features/SchedulePlan.ts`.
+- **Every project but `shared` reads `shared` from source.** `@pbcm/shared` exports
+  `src/index.ts` under the `development` condition, and the projects set it. The tests
   therefore need no build and cannot run against a stale `shared/dist`.
 - **The frontend project does not use `server/frontend/vite.config.ts`.** That file shells
   out to git for the version and sets up the dev proxy; a test needs neither.
-- **`shared` builds with `tsconfig.build.json`**, which excludes `*.test.ts`, so no test
-  ends up in `dist` or in an image. `tsconfig.json` still includes them. Vitest strips
-  types without checking them, so `npm run typecheck -w shared` is what checks the tests
-  of `shared`; the frontend's `typecheck` already includes all of `src`.
+- **`shared`, `client` and `server/backend` build with `tsconfig.build.json`**, which
+  excludes `*.test.ts`, so no test ends up in `dist` or in an image. `tsconfig.json` still
+  includes them. Vitest strips types without checking them, so
+  `npm run typecheck -w <workspace>` is what checks the tests of these three; the
+  frontend's `typecheck` already includes all of `src`.
+- **A backend test never opens the installation's files.** `core/Database.ts` opens
+  `server/data/server.db` and `config/AppConfig.ts` reads -- and may write -- `config.yaml`
+  as soon as they are imported; the agent's `core/Config.ts` and `core/Identity.ts` do the
+  same on their side. A test of a module that imports one of them replaces it with
+  `vi.mock`. `server/backend/src/testing/memoryDatabase.ts` returns an in-memory database
+  that the real migrations brought to the current schema; the directory is left out of the
+  build.
 
 Where a comment describes an edge case — "an unknown client must not blank out a name that
 was already there" — there is a test for it. The first two bugs the suite found were
@@ -236,8 +244,8 @@ every check twice for every push. A single job, `verify`:
 | Pin npm | Node 22 ships npm 10, the lockfile was written by npm 11. The two do not agree about the optional peers of `@commitlint/read`, so `npm ci` fails under the version that did not write the lockfile. The number is read out of `packageManager` in `package.json` — one source, not a second literal. |
 | commitlint | Bound to `pull_request`, and this repository is maintained without pull requests, so in practice the local hook is what fires — see [The hooks](#the-hooks). |
 | `npm run build` | Builds `shared` first, then every workspace. This *is* the typecheck for `shared`, `server/backend` and `client`, and the Vite build for the frontend. |
-| `npm test` | Vitest over `shared` and the frontend — see [Tests](#tests). Reads `shared` from source, so it does not depend on the build before it; it runs second only because a failing build is the cheaper thing to be told first. |
-| `npm run typecheck -w shared` | The build leaves the tests of `shared` out of `dist`, and Vitest does not check types. This does. |
+| `npm test` | Vitest over every workspace — see [Tests](#tests). Reads `shared` from source, so it does not depend on the build before it; it runs second only because a failing build is the cheaper thing to be told first. |
+| `npm run typecheck -w shared`, `-w client`, `-w server/backend` | The build leaves the tests of these three out of `dist`, and Vitest does not check types. These do. |
 | `npm run typecheck -w server/frontend` | The workspace script, deliberately, and not a second spelling of it: `typecheck` picks `tsconfig.json` and, for the Vite configuration, `tsconfig.node.json`; `typecheck:local-ui` the sibling-checkout variant, and CI has to stay on the first. Calling `tsc` directly here meant the two could drift with nothing noticing. |
 | `npm run lint -w server/frontend` | ESLint for the frontend, with the React plugins. |
 | `npm run lint` | The root ESLint config: `shared`, `client` and `server/backend` as Node TypeScript. Two configs rather than one, because a file matched by both would have two truths about it; the root one ignores `server/frontend`. |
@@ -258,19 +266,17 @@ exempt from the cancellation, exactly as in `build.yml`.
 ### build.yml — the job graph
 
 ```
-verify  ──►  prepare  ──┬──►  build-client   (matrix: amd64 · arm64, native runners)  ──┐
-  │                     │                                                               │
-(ci.yml)                └──►  build-server   (matrix: amd64 · arm64, native runners)  ──┤
-                                                                                        ▼
-                                            everything above pushes by digest,        smoke
-                                            nothing carries a tag yet                   │
-                                                                                        ▼
-                                                                                     publish
-                                                                          (manifest + every tag)
+verify  ──►  prepare  ──►  build   (matrix: server · client × amd64 · arm64, native runners)
+  │                          │
+(ci.yml)                     ▼
+                           smoke     everything above pushes by digest,
+                             │       nothing carries a tag yet
+                             ▼
+                          publish    (manifest + every tag)
 ```
 
 **Nothing is tagged until the smoke test has passed.** That is the shape of this
-workflow: all four build jobs push their layers to GHCR by digest and stop there,
+workflow: all four builds push their layers to GHCR by digest and stop there,
 `smoke` starts those digests, and only `publish` attaches `dev`, `sha-…`, `1.5.0`
 and `latest`. While tagging happened in the build jobs, `latest` moved to an image
 nobody had ever started and the smoke test could only report the fact afterwards.
@@ -286,13 +292,15 @@ nobody had ever started and the smoke test could only report the fact afterwards
   once: an `env` entry cannot reference another entry of the same block, and a
   job's `env` cannot read the `env` context at all. It can read `needs`, which is
   the route taken.
-- **`build-client`** builds the two agent images on native runners
-  (`ubuntu-latest` and `ubuntu-24.04-arm`), no QEMU, under two separate image
-  names. See [Architectures](#architectures-multi-arch) for why they are not one
+- **`build`** is one matrix job over image (`server`, `client`) and architecture
+  (`amd64`, `arm64`), four builds on native runners (`ubuntu-latest` and
+  `ubuntu-24.04-arm`), no QEMU. The Dockerfile follows from the image
+  (`docker/Dockerfile.<image>`); the image name is the one thing the matrix
+  spells out per combination, because the two agent builds go to two separate
+  names while the two server builds later become one multi-arch manifest. See
+  [Architectures](#architectures-multi-arch) for why the agent is not one
   manifest.
-- **`build-server`** builds the same way and is what later becomes a real
-  multi-arch manifest.
-- Both push with `push-by-digest=true`, and both hand their digest on as a
+- Every build pushes with `push-by-digest=true` and hands its digest on as a
   workflow artefact — an empty file whose *name* is the digest, because a matrix
   job cannot set an output of its own.
 - **`smoke`** starts each digest and asks it whether it is alive. See
@@ -362,12 +370,12 @@ The production container images are based on multi-stage builds in the following
 - `docker/Dockerfile.server`
 - `docker/Dockerfile.client`
 
-These files ensure that all TypeScript modules (`shared`, `client`, `server/frontend`, `server/backend`) are built inside a `builder` stage first. The compiled files and production-only dependencies (`npm ci --omit=dev`) are then copied into the final, lightweight `runner` image (based on `debian:bookworm-slim` or `node:22-bookworm-slim`).
+These files ensure that all TypeScript modules (`shared`, `client`, `server/frontend`, `server/backend`) are built inside a `builder` stage first. The compiled files and production-only dependencies (`npm ci --omit=dev`) are then copied into the final, lightweight `runner` image (`node:22-bookworm-slim`; `node:22-trixie-slim` for the ARM64 agent).
 
 ### Architectures (Multi-Arch)
 
 - **Server**: Supports both `linux/amd64` and `linux/arm64`. This is enabled because the server relies solely on Node.js.
-- **Client**: Built per architecture from its own Dockerfile (`Dockerfile.client` for `linux/amd64`, `Dockerfile.client.arm64` for `linux/arm64`) and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package.
+- **Client**: Built per architecture from one `Dockerfile.client` and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package. The Dockerfile holds one stage per architecture (`runner-amd64`, `runner-arm64`) and starts its `runner` stage from the one BuildKit's `TARGETARCH` names, so `docker build --platform linux/arm64 -f docker/Dockerfile.client .` builds the ARM64 image without a further argument.
 
 ## Commits and Versioning
 

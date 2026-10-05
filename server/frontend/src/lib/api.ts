@@ -30,7 +30,7 @@ export interface RequestOptions {
 }
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
-type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * The server's own `error` text when the body carries one, `fallback` otherwise. Callers
@@ -97,12 +97,18 @@ function createClient(fetcher: Fetcher) {
         return request(fetcher, 'PUT', path, body, schema, options);
     }
 
+    function patch(path: string, body?: unknown, schema?: undefined, options?: RequestOptions): Promise<void>;
+    function patch<T>(path: string, body: unknown, schema: z.ZodType<T>, options?: RequestOptions): Promise<T>;
+    function patch<T>(path: string, body?: unknown, schema?: z.ZodType<T>, options?: RequestOptions) {
+        return request(fetcher, 'PATCH', path, body, schema, options);
+    }
+
     function del(path: string, options?: RequestOptions): Promise<void>;
     function del(path: string, options?: RequestOptions) {
         return request(fetcher, 'DELETE', path, undefined, undefined, options);
     }
 
-    return { get, post, put, delete: del };
+    return { get, post, put, patch, delete: del };
 }
 
 /**

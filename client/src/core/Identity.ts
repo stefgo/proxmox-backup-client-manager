@@ -1,6 +1,6 @@
 import { logger } from "@pbcm/shared/node";
 import { AgentIdentitySchema } from "@pbcm/shared";
-import { DATA_DIR, readJsonFile, writeJsonFile } from "./DataStore.js";
+import { DATA_DIR, quarantineFile, readJsonFile, writeJsonFile } from "./DataStore.js";
 import { CONFIG_PATH, rawValue, removeKey, save } from "./ConfigFile.js";
 
 /**
@@ -23,14 +23,20 @@ const IDENTITY_FILE = "identity.json";
  */
 let identity: AgentIdentity | null = null;
 
+/**
+ * A file that is there but is not an identity is set aside rather than discarded: it is the
+ * only copy of the registration, and the next registration would write over it. What went
+ * wrong with it is then still there to be looked at, or to be repaired and put back.
+ */
 function readFromDisk(): AgentIdentity | null {
-    const stored = readJsonFile(IDENTITY_FILE);
+    const stored = readJsonFile(IDENTITY_FILE, { quarantine: true });
     if (stored === null) return null;
     const parsed = AgentIdentitySchema.safeParse(stored);
     if (!parsed.success) {
-        logger.warn(
-            { file: IDENTITY_FILE },
-            "Discarding the stored identity: not a client id and auth token. Register this agent again.",
+        const movedTo = quarantineFile(IDENTITY_FILE);
+        logger.error(
+            { file: IDENTITY_FILE, movedTo },
+            "The stored identity is not a client id and auth token and was set aside. Register this agent again.",
         );
         return null;
     }

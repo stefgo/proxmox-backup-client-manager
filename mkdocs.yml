@@ -115,6 +115,10 @@ nav:
           - Configuration: setup.md
           - SSH Reverse Tunnel: tunnel.md
           - Webhooks: webhooks.md
+    - Operations:
+          - Security: security.md
+          - Operations: operations.md
+          - Upgrade Notes: upgrade-notes.md
     - Architecture:
           - Backend: backend.md
           - Frontend: frontend.md

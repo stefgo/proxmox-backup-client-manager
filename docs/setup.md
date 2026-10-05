@@ -46,7 +46,7 @@ environment:
 
 | Variable            | Description |
 | :------------------ | :---------- |
-| `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check follows the port either way, whether it comes from here or from `config.yaml` (see [Health](install-server.md#health)). |
+| `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check follows the port either way, whether it comes from here or from `config.yaml` (see [Health](operations.md#health)). |
 | `PBCM_TRUSTED_PROXIES` | Overrides `security.trusted_proxies`, comma separated (e.g. `172.16.0.0/12,::1`). An unusable entry ends the start. |
 
 ## Server
@@ -112,8 +112,8 @@ last run, not at startup.
 | Key | Description |
 | :-- | :---------- |
 | `security.allowed_networks` | CIDR networks an agent may connect to `/ws/agent` from. Empty (default) allows every address. See [Address checks](#address-checks-for-agent-connections). |
-| `security.trusted_proxies` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty (default) believes no one. **Behind a proxy, list it** — see [TLS and reverse proxies](install-server.md#tls-and-reverse-proxies). Read at startup only; overridden by `PBCM_TRUSTED_PROXIES`. |
-| `security.allow_self_signed_agent_certificates` | Accept an agent certificate this server cannot verify when dialling an outbound agent over `wss://` (default: `false`). Applies to every outbound agent alike, and only to target addresses written `wss://host:port`. Usual for a self-signed agent certificate on a home network; leave it off when the agent's certificate comes from a CA this host trusts. The PBS certificate is not affected — it is pinned by its fingerprint. See [TLS to an outbound agent](install-server.md#tls-to-an-outbound-agent). |
+| `security.trusted_proxies` | Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the server believes: IP addresses, CIDR networks (v4 or v6), or `loopback`, `linklocal`, `uniquelocal`. Empty (default) believes no one. **Behind a proxy, list it** — see [Reverse proxy](security.md#reverse-proxy). Read at startup only; overridden by `PBCM_TRUSTED_PROXIES`. |
+| `security.allow_self_signed_agent_certificates` | Accept an agent certificate this server cannot verify when dialling an outbound agent over `wss://` (default: `false`). Applies to every outbound agent alike, and only to target addresses written `wss://host:port`. Usual for a self-signed agent certificate on a home network; leave it off when the agent's certificate comes from a CA this host trusts. The PBS certificate is not affected — it is pinned by its fingerprint. See [TLS to an outbound agent](security.md#tls-to-an-outbound-agent). |
 | `security.hsts` | Send `Strict-Transport-Security` (default: `false`). **Only switch this on behind TLS.** The header tells browsers to refuse `http://` for this host from then on, they remember it for months, and turning the header off again does not undo it — on a plain-HTTP installation it locks your users out. |
 
 ### Stored secrets
@@ -146,7 +146,7 @@ The `tunnel:` section is written with its defaults on first start, which is why
 | :-- | :---------- |
 | `serverUrl` | HTTP(S) URL of the management server (e.g. `https://backup-server:3000`). The agent derives the WebSocket address itself: `http`/`https` become `ws`/`wss` and `/ws/agent` is appended. **Leave unset for outbound mode** — its absence is what puts the agent into it. |
 | `listenPort` | TCP port of the local Web UI and, in outbound mode, of the `/ws/register` and `/ws/agent` endpoints the server dials (default: `3001`). A changed port must also appear in the client's target address on the server. Overridden by `PBCM_CLIENT_PORT`. The container's health check follows the port either way. |
-| `tls.cert` / `tls.key` | Serve the agent's web server over TLS: paths to the certificate and its private key (default: unset, plain HTTP). Relative paths resolve against the agent's directory. An unreadable file stops the start — there is no fallback to HTTP. In outbound mode the client's target address on the server must then be written `wss://host:port`. See [TLS to an outbound agent](install-server.md#tls-to-an-outbound-agent). |
+| `tls.cert` / `tls.key` | Serve the agent's web server over TLS: paths to the certificate and its private key (default: unset, plain HTTP). Relative paths resolve against the agent's directory. An unreadable file stops the start — there is no fallback to HTTP. In outbound mode the client's target address on the server must then be written `wss://host:port`. See [TLS to an outbound agent](security.md#tls-to-an-outbound-agent). |
 | `allowSelfSignedCertificates` | Accept a PBCM server certificate that does not validate (self-signed), for registration and the WebSocket connection (default: `false`). The PBS certificate is not affected; it is pinned by its fingerprint. |
 | `allowedNetworks` | Outbound mode only: CIDR networks the **server** may dial this agent from, checked on `/ws/register` and `/ws/agent`. Empty (default) allows every address. The local Web UI on the same port is not restricted by it — it is guarded by the setup PIN instead. |
 | `enableStatusPage` | Serve the status page at `/status` (default: `true`). |
@@ -179,35 +179,10 @@ with a warning.
 
 ### Address checks for agent connections
 
-Three settings decide where an agent connection may come from, and they answer different
-questions:
-
-| Setting | Scope | Question |
-| :------ | :---- | :------- |
-| `security.allowed_networks` (server) | all agents | May *any* agent connect from this network? |
-| `clients.inbound_allowed_ip` (per client, set with the registration token and editable in the client editor) | one client | Does this address belong to *this* token? |
-| `allowedNetworks` (client) | one agent's listener | May the server dial this agent from this network? |
-
-The address the two server-side checks look at is the connection's peer — or, when that
-peer is listed in `security.trusted_proxies`, the address the proxy forwarded. A forwarded
-address from anyone else is ignored, so it cannot be used to slip past either check.
-
-All three are opt-in and mean the same thing when unset: no restriction. An empty network
-list allows every address, and a client whose `inbound_allowed_ip` is `NULL` is not checked
-against an address at all — its token alone admits it, from anywhere the server-wide
-`allowed_networks` permits.
-
-The per-client check is switched on in the client editor ("Restrict connections to an IP or
-network"); the field is required only while that box is ticked. A registration token may
-carry the value instead, in which case the client starts out restricted. A token without
-one leaves the column `NULL`: the address an agent happens to register from is not a
-decision anyone made, and binding a client to it is how a container on a bridge network
-locks itself out the next time its subnet changes.
-
-Leave the check off for hosts whose address is assigned by their environment — containers,
-DHCP without a reservation. Turn it on where the address is fixed and the token would
-otherwise be usable from anywhere: it is the only check that ties an address to *one*
-client rather than to all of them.
+`security.allowed_networks`, a client's allowed IP or network and the agent's
+`allowedNetworks` decide where an agent connection may come from. What each of the three
+asks, and when to leave the per-client check off, is in
+[Security](security.md#address-checks-for-agent-connections).
 
 ### Client identity
 

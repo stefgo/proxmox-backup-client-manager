@@ -1,7 +1,7 @@
 import net from "net";
 import crypto, { randomUUID } from "crypto";
 import { Client as SshClient } from "ssh2";
-import type { TunnelState, TunnelStatus, TunnelTestResult } from "@pbcm/shared";
+import { WS_EVENTS, type TunnelState, type TunnelStatus, type TunnelTestResult } from "@pbcm/shared";
 import { logger } from "@pbcm/shared/node";
 import { appConfig } from "../config/AppConfig.js";
 import {
@@ -130,7 +130,7 @@ export class TunnelService {
     private static broadcast(clientId: string) {
         try {
             ProxyService.broadcastToDashboard({
-                type: "TUNNEL_UPDATE",
+                type: WS_EVENTS.TUNNEL_UPDATE,
                 payload: this.getStatus(clientId),
             });
         } catch (e) {

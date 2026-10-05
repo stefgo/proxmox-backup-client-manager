@@ -116,6 +116,12 @@ describe('a request body', () => {
         });
     });
 
+    it('goes out with PATCH as with PUT', async () => {
+        fetchMock.mockResolvedValue(json({ id: 1, name: 'b' }));
+        await expect(api.patch('/api/v1/thing/1', { name: 'b' }, Thing)).resolves.toEqual({ id: 1, name: 'b' });
+        expect(sentInit()).toMatchObject({ method: 'PATCH', body: '{"name":"b"}' });
+    });
+
     // Fastify refuses an empty body that claims to be JSON.
     it('is left out entirely, header included, when there is none', async () => {
         fetchMock.mockResolvedValue(json({}));

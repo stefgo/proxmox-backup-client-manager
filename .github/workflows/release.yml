@@ -42,8 +42,10 @@ jobs:
         steps:
             - name: Reject any branch but main
               if: github.ref_name != 'main'
+              env:
+                  REF_NAME: ${{ github.ref_name }}
               run: |
-                  echo "::error::A release is only intended on 'main' (chosen: '${{ github.ref_name }}')."
+                  echo "::error::A release is only intended on 'main' (chosen: '$REF_NAME')."
                   exit 1
 
     checks:
@@ -104,7 +106,9 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   FORCE_MAJOR: ${{ inputs.bump == 'major' }}
-              run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
+                  # Unquoted below on purpose: empty, it must add no argument at all.
+                  DRY_RUN_FLAG: ${{ inputs.dry_run && '--dry-run' || '' }}
+              run: npx semantic-release $DRY_RUN_FLAG
 
             # The tag comes from the successCmd of @semantic-release/exec, i.e. from
             # semantic-release itself. The previous version compared HEAD before and
@@ -160,7 +164,9 @@ jobs:
             # and what does not, instead of leaving a red job to be interpreted.
             - name: Explain a half-finished release
               if: failure() && steps.release.outputs.tag != ''
+              env:
+                  TAG: ${{ steps.release.outputs.tag }}
               run: |
-                  echo "::error::${{ steps.release.outputs.tag }} exists as a tag, a GitHub release and a changelog entry, but its images do not."
-                  echo "Fix the cause, then re-run 'Build Images' on the tag: gh workflow run build.yml --ref ${{ steps.release.outputs.tag }}"
+                  echo "::error::$TAG exists as a tag, a GitHub release and a changelog entry, but its images do not."
+                  echo "Fix the cause, then re-run 'Build Images' on the tag: gh workflow run build.yml --ref $TAG"
                   echo "No second release is needed -- the version is already created."

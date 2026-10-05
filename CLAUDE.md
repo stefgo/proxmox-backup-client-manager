@@ -23,7 +23,7 @@ npm run dev:client   # Client agent in watch mode
 npm run clean        # Remove all build artifacts
 npm run lint         # ESLint over shared, client and server/backend
 npm run lint:frontend # ESLint over server/frontend (its own config)
-npm test             # Vitest, once, over shared and server/frontend
+npm test             # Vitest, once, over shared, server/frontend, client and server/backend
 npm run test:watch   # ... in watch mode
 ```
 
@@ -47,6 +47,8 @@ npm run typecheck -w server/frontend       # tsc against the installed UI librar
 npm run typecheck:local-ui -w server/frontend  # ... against a sibling checkout
 npm run build -w shared                    # Rebuild shared types after changes
 npm run typecheck -w shared                # tsc over shared including its tests
+npm run typecheck -w client                # ... over the agent including its tests
+npm run typecheck -w server/backend        # ... over the backend including its tests
 ```
 
 The tests cover logic only, so `typecheck` stays the safety net for everything that
@@ -55,21 +57,30 @@ renders — run it after any change that touches the UI library's API.
 ### Testing
 
 Vitest, configured once in [`vitest.config.mts`](vitest.config.mts) at the root with
-one project per workspace that has tests (`shared`, `frontend`). `npm test` runs both.
+one project per workspace (`shared`, `frontend`, `client`, `backend`). `npm test` runs
+all four.
 
 - **A test lives next to its module**: `foo.ts` → `foo.test.ts`.
-- **Logic only.** Both projects run in the `node` environment; there is no DOM and
+- **Logic only.** Every project runs in the `node` environment; there is no DOM and
   no Testing Library. Logic that sits inside a hook or a component is moved into a
   module of its own first — `features/clients/lib/archivePaths.ts` and `jobForm.ts` came
-  out of `useJobForm` that way — and tested there.
-- **The frontend tests read `shared` from source**, through the `development` export
-  condition. They need no `npm run build -w shared` and never see a stale `dist`.
-- **`shared` builds with `tsconfig.build.json`**, which leaves `*.test.ts` out of
-  `dist`. `tsconfig.json` still includes them — it is what the editor and
-  `npm run typecheck -w shared` read. Vitest does not check types, so that script
-  (and the frontend's `typecheck`) is what does.
+  out of `useJobForm` that way — and tested there. The same holds for a class with side
+  effects in `client` or `server/backend`: what `Scheduler` decides lives in
+  `features/SchedulePlan.ts`.
+- **The tests read `shared` from source**, through the `development` export
+  condition, which every project but `shared` sets. They need no
+  `npm run build -w shared` and never see a stale `dist`.
+- **`shared`, `client` and `server/backend` build with `tsconfig.build.json`**, which
+  leaves `*.test.ts` out of `dist`. `tsconfig.json` still includes them — it is what the
+  editor and `npm run typecheck -w <workspace>` read. Vitest does not check types, so
+  that script (and the frontend's `typecheck`) is what does.
+- **A backend test never opens the installation's files.** `core/Database.ts` opens
+  `server/data/server.db` and `config/AppConfig.ts` reads — and may write — `config.yaml`
+  the moment they are imported; the agent's `core/Config.ts` and `core/Identity.ts` do the
+  same on their side. A test of a module that imports one of them replaces it with
+  `vi.mock`. `server/backend/src/testing/memoryDatabase.ts` gives an in-memory database
+  on the current schema; the directory is left out of the build.
 - **A comment that describes an edge case is a test that is missing.** Write it.
-- `client` and `server/backend` have no tests yet.
 
 ### Docker (development)
 ```bash
@@ -112,14 +123,17 @@ WebSocket updates from `/ws/dashboard` are written into the cache by `WebSocketP
 the frontend does not poll (no refetch on focus, no retry). The rule each message applies
 is a pure function in `lib/cacheUpdates.ts`, written with `setQueryData` and an updater,
 so an entry nobody has read is not created by a message. A socket reconnect invalidates
-the whole cache once -- there is no `resyncKey` to list in an effect.
+everything the server does not push on connect (`isPushedOnConnect` in `lib/queryKeys.ts`)
+-- there is no `resyncKey` to list in an effect. A new cache area the server pushes on
+connect has to be added there. The `case` labels and the backend's senders name a message
+by `WS_EVENTS`, never by a string literal.
 
 `isPending` is what a route waits on before it says "not found". A hand-kept `loaded`
 flag next to a list is how that used to be done; do not bring it back.
 
 ### Routing
 
-One route tree, `features/app/routes.tsx` (`createBrowserRouter`), and three things read
+One route tree, `features/app/routes.tsx` (`createBrowserRouter`), and four things read
 off it rather than kept beside it:
 
 - **Paths** live in `lib/paths.ts`: `ROUTES` holds every pattern once, `paths` builds the
@@ -130,6 +144,13 @@ off it rather than kept beside it:
 - **Back** is the parent in the tree, through `useBackPath()`. **Nothing goes into
   `location.state`**; what has to survive the round trip (the open tab, a search) is passed
   along as the query string, so it survives a reload too.
+- **The breadcrumb** in a page's header (`HeaderBreadcrumb`, `lib/breadcrumb.ts`) is read
+  off the same handles as the document title. A page below a list wraps its heading in it.
+
+`/` focuses the search of the list on screen (`useSearchHotkey`, once in `AppLayout`).
+Escape on a page that is no editor leads back through `useEscapeToLeave`, never a listener
+of the page's own. `useNow()` is one shared clock in milliseconds; no component keeps a
+timer for a distance.
 
 A form is a route, never a state flag of the page that opens it. A route whose subject
 does not exist throws `NotFoundError` once its list is no longer pending; the area's
@@ -273,7 +294,8 @@ See `docs/development.md` for the workflow details.
   `server/backend` as Node TypeScript (typescript-eslint recommended, no type
   information) and ignores `server/frontend`; the frontend's own config adds the
   `react-hooks` and `react-refresh` plugins. A new Node workspace is covered by the
-  root config without another file. `prefer-const` runs with `ignoreReadBeforeAssign`,
+  root config without another file. Errors fail the run; no rule is downgraded to a
+  warning. `prefer-const` runs with `ignoreReadBeforeAssign`,
   for the `let` a closure reads before anything assigns it.
 - **UI components**: `@stefgo/react-ui-components` (4.x) – custom external library,
   published to GitHub Packages; `npm install` needs `NPM_TOKEN` in the environment.
@@ -315,7 +337,11 @@ Detailed documentation lives in `/docs/`:
 - `install-server.md` – Server installation, Docker Compose only
 - `install-client.md` – Client agent installation, Docker Compose only
 - `setup.md` – Configuration reference: `config.yaml` (server and client), env vars,
-  address checks, client identity
+  client identity
+- `security.md` – Reverse proxy, TLS, address checks, stored secrets, agent capabilities
+- `operations.md` – Images and tags, upgrading, backup, health, logs, re-registering
+- `upgrade-notes.md` – What a release changes for a running installation, newest first;
+  **a change an operator has to act on gets an entry here**
 - `development.md` – Dev environment, release pipeline, the documentation site itself
 - `index.md` – Landing page of the published site; **not** a copy of the README, and
   the only page that exists solely for the site

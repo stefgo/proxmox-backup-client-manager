@@ -25,6 +25,10 @@ import { useClients } from '../../../queries/clients';
 import { STATUS_DOT, STATUS_TONE } from '../../../components/statusTone';
 import { paths } from '../../../lib/paths';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
+import { useBackPath } from '../../../hooks/useBackPath';
+import { useEscapeToLeave } from '../../../hooks/useEscapeToLeave';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
+import { ENTITY_HEADER } from '../../../components/entityHeader';
 
 
 const NO_SNAPSHOTS: Snapshot[] = [];
@@ -41,6 +45,9 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
     // The forms reached from here are routes one level below this page. The query goes
     // along, so closing one comes back to the snapshot list as it was searched.
     const open = (pathname: string) => navigate({ pathname, search });
+    // Escape leaves for the repository list, as on the client page. Without the query: the
+    // snapshot search is this page's own.
+    useEscapeToLeave(useBackPath({ keepSearch: false }));
 
     // `isPending`, not `isFetching`: a refetch keeps the list it already shows on screen.
     const snapshotQuery = useRepositorySnapshots(repo.id);
@@ -76,7 +83,8 @@ export const RepositoryOverview = ({ repo }: RepositoryOverviewProps) => {
         <div className="space-y-6 h-full flex flex-col">
             <EntityHeader
                 leading={<StatusDot size="md" {...STATUS_DOT[statusTone]} label={isLoading ? REPOSITORY_STATUS.LOADING : repo.status} />}
-                title={`${repo.baseUrl}:${repo.datastore}`}
+                title={<HeaderBreadcrumb>{`${repo.baseUrl}:${repo.datastore}`}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={
                     repo.status === REPOSITORY_STATUS.OFFLINE
                         ? <Badge variant="warning">Offline</Badge>
