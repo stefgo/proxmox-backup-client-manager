@@ -309,8 +309,18 @@ jobs:
 
             # The agent starts unregistered and idles -- exactly the state a fresh
             # installation is in before anyone has pointed it at a server.
+            #
+            # Started the way compose.yaml starts it: the capabilities of a backup and a
+            # restore and no others, a read-only root file system, /tmp in memory and a
+            # volume for the data directory. An image that needs more than that fails
+            # here, before anything is tagged.
             - name: Start the client image
-              run: docker run -d --name pbcm-smoke-client -p 3001:3001 "$CLIENT_REF"
+              run: |
+                  docker run -d --name pbcm-smoke-client -p 3001:3001 \
+                    --cap-drop ALL --cap-add DAC_READ_SEARCH --cap-add DAC_OVERRIDE \
+                    --cap-add CHOWN --cap-add FOWNER --cap-add FSETID --cap-add MKNOD \
+                    --cap-add SETFCAP --security-opt no-new-privileges:true \
+                    --read-only --tmpfs /tmp -v /app/client/data "$CLIENT_REF"
 
             - name: Wait for both to report healthy
               run: |
@@ -343,6 +353,11 @@ jobs:
             # The other half of that rule: from outside the container the route must not
             # answer. Asked only now, once the agent is known to be listening, so a refusal
             # here cannot be a server that has not started yet.
+            # The agent is a wrapper around this program; an image in which it does not
+            # start is healthy and useless.
+            - name: proxmox-backup-client starts in the agent image
+              run: docker exec pbcm-smoke-client proxmox-backup-client version
+
             - name: Agent health route is not reachable from outside
               run: |
                   if curl -sS http://127.0.0.1:3001/api/health | grep -q '"status":"ok"'; then
@@ -360,7 +375,7 @@ jobs:
 
             - name: Clean up
               if: always()
-              run: docker rm -f pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true
+              run: docker rm -fv pbcm-smoke-server pbcm-smoke-client 2>/dev/null || true
 
     # Nothing above carries a tag: every job so far pushed by digest only. This is
     # where a build becomes something a user can pull, and it runs **after** the
