@@ -33,6 +33,7 @@ client/src/
 │   ├── Executor.ts         # Run orchestration and the concurrency queue
 │   ├── Handlers.ts         # WebSocket message routing
 │   ├── Scheduler.ts        # Minute loop that starts jobs whose next run is due
+│   ├── SchedulePlan.ts     # What that loop decides about one job, as pure functions
 │   ├── TunnelClient.ts     # Requests a tunnel lease and rewrites PBS_REPOSITORY
 │   └── execution/          # The steps of a single run
 │       ├── CommandBuilder.ts
