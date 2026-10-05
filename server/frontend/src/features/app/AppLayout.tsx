@@ -23,6 +23,7 @@ import { useGlobalJobs } from '../../queries/jobs';
 import { useUIStore } from '../../stores/useUIStore';
 import { useUnseen } from '../../queries/history';
 import { useJobResultToasts } from '../../hooks/useJobResultToasts';
+import { useSearchHotkey } from '../../hooks/useSearchHotkey';
 
 type PageNav = NonNullable<DashboardPage['nav']>;
 
@@ -63,6 +64,7 @@ export function AppLayout() {
 
     // In the shell rather than a page: a run outlives the page it was started from.
     useJobResultToasts();
+    useSearchHotkey();
 
     // The browser tab names the area and what is open in it. Here rather than in each
     // page: the route tree says what a page is, and the three lists that name a subject
