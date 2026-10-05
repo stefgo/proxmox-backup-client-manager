@@ -296,6 +296,8 @@ the agent run its scheduled backups with no server in reach.
 - **Damaged files are set aside, not overwritten**: a `jobs.json` that does not parse is
   renamed to `jobs.json.corrupt-<timestamp>` and reported in the log; entries that do not
   parse are dropped and the original file is kept the same way. Restore from there by hand.
+  An `identity.json` that does not parse, or is not the pair, is set aside likewise; the
+  agent then starts unregistered.
 - **Retention**: a run stays until the server has acknowledged it. Of the acknowledged
   ones, the newest 50 are kept — as many as the agent's own `HISTORY` answer returns — and
   the rest are deleted after each acknowledgement. Queued and running runs are always kept.
