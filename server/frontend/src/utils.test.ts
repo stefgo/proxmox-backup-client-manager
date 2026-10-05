@@ -18,7 +18,7 @@ describe('formatDate', () => {
 });
 
 describe('formatRelativeDate', () => {
-    const now = new Date('2026-10-03T12:00:00Z');
+    const now = new Date('2026-10-03T12:00:00Z').getTime();
 
     it('reads a timestamp of the server as a distance', () => {
         expect(formatRelativeDate('2026-10-03 11:57:00', now)).toBe('3 minutes ago');
