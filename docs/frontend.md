@@ -32,7 +32,8 @@ src/
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
 ├── hooks/            # Global Custom Hooks (job result toasts, URL search parameters, useBackPath,
-│                     #   useEntityForm, useUnsavedChangesGuard)
+│                     #   useEntityForm, useUnsavedChangesGuard, useEscapeToLeave,
+│                     #   useSearchHotkey, useNow)
 ├── lib/              # Non-React modules
 │   ├── api.ts             # The one place a response is read: api.get(path, schema), …
 │   ├── apiFetch.ts        # The session half underneath it: the cookie and the 401 → logout
@@ -147,6 +148,38 @@ route gets its title in the tree** — no page sets `document.title`.
 
 The webhook editor is called *Webhook*, not by the webhook's name: the shell does not read
 the webhook list, and does not start to for a title.
+
+### The breadcrumb
+
+A page below a list shows the way back as its heading: `Clients › web01 › Edit`.
+`breadcrumb` in `lib/breadcrumb.ts` reads the same handles as the title, outermost first,
+and gives each the address of its route. It names a page with `ownName` from
+`lib/pageTitle.ts`, so trail and title cannot disagree. Every link but the last leads
+somewhere; a page with nothing above it (a list, the dashboard) has no trail.
+
+`AppLayout` hands the trail to the pages through `BreadcrumbContext`. The client and
+repository pages and every editor show it as the title of their first card or header
+(`features/app/HeaderBreadcrumb.tsx`), wrapped around the heading the page had before.
+Below the `sm` breakpoint the page keeps that heading, behind a `‹` that leads to the link
+above it (`parentCrumb`). `current` replaces the trail's last word where the heading says
+more: the webhook editor is *Edit nightly-report*, not *Webhook*. The trail has the size of
+a card title; an `EntityHeader` gets it through `ENTITY_HEADER` (`components/entityHeader.ts`).
+
+The links are router links, so leaving a changed editor through one asks like every other
+way out. **A new page below a list wraps its heading in `HeaderBreadcrumb`**; the trail
+itself comes from the route's handle.
+
+### Keys
+
+- **`/` puts the cursor into the search of the list on screen** (`hooks/useSearchHotkey`,
+  mounted once in `AppLayout`). The search field of every `DataMultiView` is a `searchbox`,
+  and the hook focuses the first visible one -- no ref through each list. `isSearchHotkey`
+  (`lib/searchHotkey.ts`) is the rule: a bare slash, not one typed into a field and not one
+  with a modifier. While a dialog is open the key is left to it.
+- **`Escape` on a page that is no editor leads back** (`hooks/useEscapeToLeave`): the
+  client page, the repository page, the restore form. It does nothing while the focus is in
+  a field, so Escape in a list's search box leaves nothing. An editor's Escape belongs to
+  `useUnsavedChangesGuard`, which asks first.
 
 ### Not found
 
@@ -433,7 +466,9 @@ is missing, which is every dashboard reached over plain HTTP.
   inside English labels. Everything that is looked up rather than glanced at -- a run's
   start, a snapshot, a token's expiry -- stays a date.
 - **A distance needs `useNow()`**, which renews once a minute. The dashboard does not poll,
-  so nothing else would re-render it.
+  so nothing else would re-render it. It is one clock for the whole page (`lib/clock.ts`,
+  read through `useSyncExternalStore`): every reader gets the same number of milliseconds
+  on the same tick, and the timer runs only while something reads it.
 
 ### Talking to the server (`lib/api.ts`)
 
