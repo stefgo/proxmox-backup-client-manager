@@ -266,19 +266,17 @@ exempt from the cancellation, exactly as in `build.yml`.
 ### build.yml — the job graph
 
 ```
-verify  ──►  prepare  ──┬──►  build-client   (matrix: amd64 · arm64, native runners)  ──┐
-  │                     │                                                               │
-(ci.yml)                └──►  build-server   (matrix: amd64 · arm64, native runners)  ──┤
-                                                                                        ▼
-                                            everything above pushes by digest,        smoke
-                                            nothing carries a tag yet                   │
-                                                                                        ▼
-                                                                                     publish
-                                                                          (manifest + every tag)
+verify  ──►  prepare  ──►  build   (matrix: server · client × amd64 · arm64, native runners)
+  │                          │
+(ci.yml)                     ▼
+                           smoke     everything above pushes by digest,
+                             │       nothing carries a tag yet
+                             ▼
+                          publish    (manifest + every tag)
 ```
 
 **Nothing is tagged until the smoke test has passed.** That is the shape of this
-workflow: all four build jobs push their layers to GHCR by digest and stop there,
+workflow: all four builds push their layers to GHCR by digest and stop there,
 `smoke` starts those digests, and only `publish` attaches `dev`, `sha-…`, `1.5.0`
 and `latest`. While tagging happened in the build jobs, `latest` moved to an image
 nobody had ever started and the smoke test could only report the fact afterwards.
@@ -294,13 +292,15 @@ nobody had ever started and the smoke test could only report the fact afterwards
   once: an `env` entry cannot reference another entry of the same block, and a
   job's `env` cannot read the `env` context at all. It can read `needs`, which is
   the route taken.
-- **`build-client`** builds the two agent images on native runners
-  (`ubuntu-latest` and `ubuntu-24.04-arm`), no QEMU, under two separate image
-  names. See [Architectures](#architectures-multi-arch) for why they are not one
+- **`build`** is one matrix job over image (`server`, `client`) and architecture
+  (`amd64`, `arm64`), four builds on native runners (`ubuntu-latest` and
+  `ubuntu-24.04-arm`), no QEMU. The Dockerfile follows from the image
+  (`docker/Dockerfile.<image>`); the image name is the one thing the matrix
+  spells out per combination, because the two agent builds go to two separate
+  names while the two server builds later become one multi-arch manifest. See
+  [Architectures](#architectures-multi-arch) for why the agent is not one
   manifest.
-- **`build-server`** builds the same way and is what later becomes a real
-  multi-arch manifest.
-- Both push with `push-by-digest=true`, and both hand their digest on as a
+- Every build pushes with `push-by-digest=true` and hands its digest on as a
   workflow artefact — an empty file whose *name* is the digest, because a matrix
   job cannot set an output of its own.
 - **`smoke`** starts each digest and asks it whether it is alive. See
@@ -375,7 +375,7 @@ These files ensure that all TypeScript modules (`shared`, `client`, `server/fron
 ### Architectures (Multi-Arch)
 
 - **Server**: Supports both `linux/amd64` and `linux/arm64`. This is enabled because the server relies solely on Node.js.
-- **Client**: Built per architecture from its own Dockerfile (`Dockerfile.client` for `linux/amd64`, `Dockerfile.client.arm64` for `linux/arm64`) and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package.
+- **Client**: Built per architecture from one `Dockerfile.client` and published under two separate image names. They stay two image names rather than one manifest because the binary differs in origin: `amd64` installs `proxmox-backup-client` from the official `download.proxmox.com/debian/pbs-client` repository, while `arm64` installs a community build (wofferl/proxmox-backup-arm64), since Proxmox publishes no arm64 package. The Dockerfile holds one stage per architecture (`runner-amd64`, `runner-arm64`) and starts its `runner` stage from the one BuildKit's `TARGETARCH` names, so `docker build --platform linux/arm64 -f docker/Dockerfile.client .` builds the ARM64 image without a further argument.
 
 ## Commits and Versioning
 

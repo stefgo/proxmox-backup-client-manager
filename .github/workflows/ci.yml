@@ -54,8 +54,10 @@ jobs:
             # simply never be pruned, and nothing would turn red.
             - name: Cleanup covers every published image
               run: |
-                  published=$(grep -oE '(image_name|client_image): *pbcm-[a-z0-9-]+|/pbcm-[a-z0-9-]+' \
-                      .github/workflows/build.yml | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
+                  # build.yml spells each image name once, in prepare, behind the
+                  # registry and the owner -- hence the leading slash.
+                  published=$(grep -oE '/pbcm-[a-z0-9-]+' .github/workflows/build.yml \
+                      | grep -oE 'pbcm-[a-z0-9-]+' | sort -u)
                   covered=$(sed -n 's/^ *packages: *//p' .github/workflows/cleanup-packages.yml \
                       | tr ',' '\n' | tr -d ' ' | grep -E '^pbcm-' | sort -u)
                   if [ -z "$published" ]; then
