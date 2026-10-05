@@ -66,6 +66,35 @@ services:
     # reach the forward, so host networking is required. The ports: block above is then
     # ignored — pick a free port via PBCM_CLIENT_PORT if 3001 is taken on the host.
     # network_mode: host
+    #
+    # The agent runs as root, because a backup reads files whatever their owner and a
+    # restore puts owners and modes back. What root may do beyond that is taken away:
+    # - cap_drop: ALL, then only what proxmox-backup-client needs. A backup needs
+    #   DAC_READ_SEARCH alone -- without it files of other users are left out of the
+    #   snapshot, and the run still ends well. The other six are for restores:
+    #   DAC_OVERRIDE writes into directories of other users, CHOWN and FOWNER put owners
+    #   and modes back, FSETID keeps a setgid bit, MKNOD creates device nodes and SETFCAP
+    #   file capabilities. An agent that only ever backs up can do without those six.
+    #   Gone are, among others, NET_RAW, NET_BIND_SERVICE, SETUID, SETGID, SYS_CHROOT and
+    #   KILL. A job's hook scripts run under the same limits.
+    # - no-new-privileges stops setuid binaries from raising privileges again.
+    # - read_only: the agent writes config.yaml, its data volume and the paths mounted for
+    #   a restore, nothing else. /tmp holds a run's keyfile and stays in memory.
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_READ_SEARCH
+      - DAC_OVERRIDE
+      - CHOWN
+      - FOWNER
+      - FSETID
+      - MKNOD
+      - SETFCAP
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     volumes:
       # Persist client configuration
       - ./client-config.yaml:/app/client/config.yaml
