@@ -73,6 +73,22 @@ services:
         ports:
             # The local Web UI, needed once to register the agent
             - "3001:3001"
+        # Root in the container keeps only what a backup and a restore need
+        cap_drop:
+            - ALL
+        cap_add:
+            - DAC_READ_SEARCH
+            - DAC_OVERRIDE
+            - CHOWN
+            - FOWNER
+            - FSETID
+            - MKNOD
+            - SETFCAP
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             - ./client-config.yaml:/app/client/config.yaml
             - ./client-data:/app/client/data

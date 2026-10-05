@@ -370,7 +370,7 @@ The production container images are based on multi-stage builds in the following
 - `docker/Dockerfile.server`
 - `docker/Dockerfile.client`
 
-These files ensure that all TypeScript modules (`shared`, `client`, `server/frontend`, `server/backend`) are built inside a `builder` stage first. The compiled files and production-only dependencies (`npm ci --omit=dev`) are then copied into the final, lightweight `runner` image (based on `debian:bookworm-slim` or `node:22-bookworm-slim`).
+These files ensure that all TypeScript modules (`shared`, `client`, `server/frontend`, `server/backend`) are built inside a `builder` stage first. The compiled files and production-only dependencies (`npm ci --omit=dev`) are then copied into the final, lightweight `runner` image (`node:22-bookworm-slim`; `node:22-trixie-slim` for the ARM64 agent).
 
 ### Architectures (Multi-Arch)
 

@@ -39,8 +39,8 @@ before you deploy:
 
 | | Base | Source of the CLI |
 | :-- | :--- | :---------------- |
-| `pbcm-client` (amd64) | `debian:bookworm-slim` | The official Proxmox repository `download.proxmox.com/debian/pbs-client`, installed with `apt`. |
-| `pbcm-client-arm64` | `debian:trixie-slim` | The community `.deb` from [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64), pinned to release `4.1.4-1`. |
+| `pbcm-client` (amd64) | `node:22-bookworm-slim` | The official Proxmox repository `download.proxmox.com/debian/pbs-client`, installed with `apt`. |
+| `pbcm-client-arm64` | `node:22-trixie-slim` | The community `.deb` from [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64), pinned to release `4.1.4-1`. |
 
 **Proxmox publishes no ARM64 build of `proxmox-backup-client`.** The
 [wofferl/proxmox-backup-arm64](https://github.com/wofferl/proxmox-backup-arm64) project
@@ -88,6 +88,23 @@ services:
         image: ghcr.io/stefgo/pbcm-client:latest
         ports:
             - "3001:3001"
+        # What root in this container may do: a backup and a restore, nothing else.
+        # See "What the agent container may do" below.
+        cap_drop:
+            - ALL
+        cap_add:
+            - DAC_READ_SEARCH # backup: read files of every owner
+            - DAC_OVERRIDE    # restore, as are the five below
+            - CHOWN
+            - FOWNER
+            - FSETID
+            - MKNOD
+            - SETFCAP
+        security_opt:
+            - no-new-privileges:true
+        read_only: true
+        tmpfs:
+            - /tmp
         volumes:
             # Configuration, created in step 1. The agent writes back to it only the
             # serverUrl of a web UI registration.
@@ -126,7 +143,46 @@ Two consequences worth deciding on deliberately:
 
 Unlike the server, the agent runs as **root** in its container, on purpose: a backup has
 to read files whatever their owner, and a restore sets owners and modes back. The mounts
-above are what limits it, not the user it runs as.
+above are what limits it, together with the capabilities below, not the user it runs as.
+
+### What the agent container may do
+
+Root in a container still holds a set of Linux capabilities, and Docker's default set
+includes several a backup agent has no use for. The Compose file above drops all of them and
+adds back only what `proxmox-backup-client` needs:
+
+| Capability | Needed for | Without it |
+| :-- | :-- | :-- |
+| `DAC_READ_SEARCH` | Backup: reading files and directories of every owner. | Files the agent may not read are **left out of the snapshot**; the log says `access denied`, the run still succeeds. |
+| `DAC_OVERRIDE` | Restore: writing into directories of other users. | The restore fails with `Permission denied`. |
+| `CHOWN` | Restore: putting owners back. | The restore fails at the first file that is not root's (`failed to set ownership`). |
+| `FOWNER` | Restore: setting the mode of a file that belongs to someone else. | The restore fails (`failed to change file mode`). |
+| `FSETID` | Restore: keeping a setgid bit. | The restore succeeds and the bit is silently gone. |
+| `MKNOD` | Restore: creating device nodes. | The restore fails at the first device node. |
+| `SETFCAP` | Restore: putting file capabilities back. | Not measured; the kernel refuses to write the `security.capability` attribute without it. |
+
+All rows but the last were measured with a backup and a restore against a Proxmox Backup
+Server. **An agent that only ever backs up needs `DAC_READ_SEARCH` alone** — remove the
+other six from `cap_add`, and add them again before a restore.
+
+What is gone compared to Docker's default: `NET_RAW`, `NET_BIND_SERVICE`, `SETUID`, `SETGID`,
+`SETPCAP`, `SYS_CHROOT`, `KILL` and `AUDIT_WRITE`. The tunnel of an outbound client needs
+none of them: on the agent's side it is a plain TCP connection, not an `ssh` process.
+
+The other three settings:
+
+- **`no-new-privileges`** stops setuid binaries from raising privileges again.
+- **`read_only`** leaves the agent `config.yaml`, its data volume and whatever you mounted
+  writable for a restore. Nothing else in the image can be changed.
+- **`tmpfs: /tmp`** is where a run's encryption keyfile lives for the length of the run. In
+  memory, it never reaches a disk.
+
+!!! note "Hook scripts run under the same limits"
+
+    A job's pre- and post-scripts are started by the agent and inherit its capabilities and
+    its read-only file system. A script that needs more — mounting a snapshot, say — needs
+    the capability added to `cap_add`, and a script that writes needs a mounted path or
+    `/tmp` to write to.
 
 ## 3. Register the agent
 
@@ -286,6 +342,12 @@ docker compose up -d
 ```
 
 In the same window as the server update.
+
+An installation from before the Compose file restricted the container keeps running as it
+did. To adopt the restrictions, copy `cap_drop`, `cap_add`, `security_opt`, `read_only` and
+`tmpfs` from [step 2](#2-write-the-compose-file) into your file and run
+`docker compose up -d`. If your jobs call hook scripts, read
+[What the agent container may do](#what-the-agent-container-may-do) first.
 
 An agent that still has its `clientId` and `authToken` in `client-config.yaml` moves them
 into `identity.json` in its data volume on the first start, and removes the two keys and
