@@ -185,6 +185,34 @@ server.setNotFoundHandler(async (request, reply) => {
     return reply.sendFile("index.html");
 });
 
+// Docker waits 10 seconds after SIGTERM before it kills the container (exit code 137).
+const SHUTDOWN_TIMEOUT_MS = 5000;
+let shuttingDown = false;
+
+const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.log.info("Shutting down server...");
+    TokenCleanupService.stopScheduler();
+    JobHistoryCleanupService.stopScheduler();
+    TunnelService.shutdown();
+    // close() waits for every socket to finish its closing handshake. A peer that never
+    // answers must not hold the process until Docker kills it.
+    setTimeout(() => {
+        server.log.warn("Shutdown timed out, exiting with connections still open");
+        process.exit(0);
+    }, SHUTDOWN_TIMEOUT_MS).unref();
+    server.close(() => {
+        process.exit(0);
+    });
+};
+
+// Registered before listen(): node runs as PID 1 in the container, where a SIGTERM without
+// a handler is ignored -- one that arrived while the server was still starting would
+// otherwise go unanswered.
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
 // Start
 clearHealthFile();
 try {
@@ -213,19 +241,6 @@ try {
 ClientConnector.connectAll().catch((err) =>
     server.log.error({ err }, "Failed to connect outbound clients on startup"),
 );
-
-const shutdown = () => {
-    server.log.info("Shutting down server...");
-    TokenCleanupService.stopScheduler();
-    JobHistoryCleanupService.stopScheduler();
-    TunnelService.shutdown();
-    server.close(() => {
-        process.exit(0);
-    });
-};
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
 
 // Registered only after listen() succeeded, so a failed startup (migration,
 // OIDC, port already taken) still fails fast instead of being swallowed here.
