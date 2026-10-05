@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import { queryKeys } from './queryKeys';
+import { isPushedOnConnect, queryKeys } from './queryKeys';
 
 const CLIENT = '11111111-1111-4111-8111-111111111111';
 
@@ -66,6 +66,33 @@ describe('queryKeys', () => {
         expect(reaches(lists, queryKeys.history.list({ page: 3, pageSize: 50, status: 'failed' }))).toBe(true);
         expect(reaches(lists, queryKeys.history.seen())).toBe(false);
         expect(reaches(lists, queryKeys.history.latest())).toBe(false);
+    });
+});
+
+describe('isPushedOnConnect', () => {
+    it('names what the server sends on every connect', () => {
+        expect(isPushedOnConnect(queryKeys.clients.list())).toBe(true);
+    });
+
+    // Below `clients.all`, but tied to one client and not part of the list sent on connect.
+    it('leaves out what is kept per client', () => {
+        expect(isPushedOnConnect(queryKeys.clients.jobs(CLIENT))).toBe(false);
+        expect(isPushedOnConnect(queryKeys.clients.history(CLIENT))).toBe(false);
+        expect(isPushedOnConnect(queryKeys.clients.tunnel(CLIENT))).toBe(false);
+        expect(isPushedOnConnect(queryKeys.clients.fs(CLIENT, '/home'))).toBe(false);
+    });
+
+    // These are broadcast when they change, but not sent to a socket that connects.
+    it('leaves out what has to be read again after a reconnect', () => {
+        expect(isPushedOnConnect(queryKeys.jobs.list())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.history.latest())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.history.list({ page: 1, pageSize: 20 }))).toBe(false);
+        expect(isPushedOnConnect(queryKeys.history.seen())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.repositories.list())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.settings.schedulerStatus())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.webhooks.list())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.users.list())).toBe(false);
+        expect(isPushedOnConnect(queryKeys.tokens.list())).toBe(false);
     });
 });
 

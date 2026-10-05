@@ -489,9 +489,13 @@ list. `CLIENTS_UPDATE` is the one that sets its entry outright: it carries the w
 webhooks reads them again now, any other finds them stale when it opens. A `JOB_UPDATE`
 that reports a successful run does the same to every repository's snapshots.
 
-**After a reconnect the whole cache is invalidated once**, in `socket.onopen`. What the
-server pushed while the socket was down is lost, and only `CLIENTS_UPDATE` is sent again
-on connect. Everything on screen is read again; the rest is read when it is next shown.
+**After a reconnect everything the server does not push on connect is invalidated once**,
+in `socket.onopen`. What the server pushed while the socket was down is lost, and only
+`CLIENTS_UPDATE` is sent again on connect. `isPushedOnConnect` in `lib/queryKeys.ts` names
+that one entry -- `clients.list()`, not `clients.all`, because a client's jobs, history and
+directory listings live below it and are not sent. Everything else on screen is read again;
+the rest is read when it is next shown. A cache area the server starts pushing on connect
+has to be added to `PUSHED_ON_CONNECT`, and `queryKeys.test.ts` holds the list.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
 `GET /api/v1/jobs` returns nothing for an offline client. Without the broadcast, a

@@ -123,7 +123,10 @@ WebSocket updates from `/ws/dashboard` are written into the cache by `WebSocketP
 the frontend does not poll (no refetch on focus, no retry). The rule each message applies
 is a pure function in `lib/cacheUpdates.ts`, written with `setQueryData` and an updater,
 so an entry nobody has read is not created by a message. A socket reconnect invalidates
-the whole cache once -- there is no `resyncKey` to list in an effect.
+everything the server does not push on connect (`isPushedOnConnect` in `lib/queryKeys.ts`)
+-- there is no `resyncKey` to list in an effect. A new cache area the server pushes on
+connect has to be added there. The `case` labels and the backend's senders name a message
+by `WS_EVENTS`, never by a string literal.
 
 `isPending` is what a route waits on before it says "not found". A hand-kept `loaded`
 flag next to a list is how that used to be done; do not bring it back.

@@ -70,3 +70,18 @@ export const queryKeys = {
         list: () => ['users', 'list'] as const,
     },
 };
+
+/**
+ * What the server sends by itself on every socket connect: the client list, and nothing
+ * else (`WebSocketController.handleDashboardConnection`). After a reconnect it is current
+ * without being asked for; everything else may have changed while the socket was down and
+ * is read again.
+ *
+ * `clients.list()` and not `clients.all`: a client's jobs, history and directory listings
+ * live below `clients.all` and are not sent on connect.
+ */
+const PUSHED_ON_CONNECT: readonly (readonly string[])[] = [queryKeys.clients.list()];
+
+export function isPushedOnConnect(queryKey: readonly unknown[]): boolean {
+    return PUSHED_ON_CONNECT.some((prefix) => prefix.every((part, i) => queryKey[i] === part));
+}

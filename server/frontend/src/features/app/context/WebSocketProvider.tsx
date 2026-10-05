@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { queryClient } from '../../../lib/queryClient';
-import { JOB_STATUS } from '@pbcm/shared';
-import { queryKeys } from '../../../lib/queryKeys';
+import { JOB_STATUS, WS_EVENTS } from '@pbcm/shared';
+import { isPushedOnConnect, queryKeys } from '../../../lib/queryKeys';
 import {
     applyRunToLatest,
     applySchedulerUpdate,
@@ -74,19 +74,19 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             // proxy and server access log this connection passed through.
             const wsUrl = `${protocol}//${window.location.host}/ws/dashboard`;
 
-            console.log('Connecting to WebSocket:', wsUrl);
             const socket = new WebSocket(wsUrl);
             socketRef.current = socket;
 
             socket.onopen = () => {
-                console.log('WebSocket connected');
                 setIsConnected(true);
                 disarmLostTimer();
                 setIsLost(false);
-                // What the server pushed while the socket was down is lost, and only
-                // CLIENTS_UPDATE is sent again on connect. Everything on screen is read
-                // again; the rest is marked stale and read when it is next shown.
-                if (hasConnected) queryClient.invalidateQueries();
+                // What the server pushed while the socket was down is lost. The client
+                // list arrives again by itself; everything else on screen is read again,
+                // and the rest is marked stale and read when it is next shown.
+                if (hasConnected) {
+                    void queryClient.invalidateQueries({ predicate: (query) => !isPushedOnConnect(query.queryKey) });
+                }
                 hasConnected = true;
                 if (reconnectTimeoutRef.current) {
                     clearTimeout(reconnectTimeoutRef.current);
@@ -102,14 +102,14 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                 switch (message.type) {
                     // The whole list, so it may also be what fills the entry first.
-                    case 'CLIENTS_UPDATE':
+                    case WS_EVENTS.CLIENTS_UPDATE:
                         queryClient.setQueryData(clientListOptions.queryKey, message.payload);
                         break;
 
                     // The server caches an agent's jobs only while it is connected, so
                     // this is what tells an already-open dashboard that a client came
                     // online (or dropped) and its job list changed with it.
-                    case 'JOBS_UPDATE': {
+                    case WS_EVENTS.JOBS_UPDATE: {
                         const { clientId, jobs } = message.payload;
                         queryClient.setQueryData(
                             globalJobsOptions.queryKey,
@@ -122,7 +122,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     }
 
                     // Tunnel state is runtime-only on the server; merge it into the client it belongs to.
-                    case 'TUNNEL_UPDATE':
+                    case WS_EVENTS.TUNNEL_UPDATE:
                         queryClient.setQueryData(
                             clientListOptions.queryKey,
                             (clients) => clients && mergeTunnelState(clients, message.payload),
@@ -132,7 +132,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // Both state and a moment: the cache takes the run as the new state of
                     // its row, and the event is for whoever reacts to it happening -- the
                     // result toasts, a page that reloads its snapshots after a backup.
-                    case 'JOB_UPDATE': {
+                    case WS_EVENTS.JOB_UPDATE: {
                         const { clientId } = message.payload;
                         const job = historyUpdateFrom(message.payload.job);
                         queryClient.setQueryData(
@@ -167,11 +167,11 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // Streamed rather than stored: these arrive many times a second for
                     // one visible component, and a cache entry would re-render every
                     // subscriber per chunk. See lib/realtimeEvents.ts.
-                    case 'LOG_UPDATE':
+                    case WS_EVENTS.LOG_UPDATE:
                         emit('logUpdate', message.payload);
                         break;
 
-                    case 'JOB_NEXT_RUN_UPDATE': {
+                    case WS_EVENTS.JOB_NEXT_RUN_UPDATE: {
                         const { clientId, jobId, nextRunAt } = message.payload;
                         queryClient.setQueryData(
                             globalJobsOptions.queryKey,
@@ -185,7 +185,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     }
 
                     // Every dashboard receives every user's; only this user's own concerns this tab.
-                    case 'HISTORY_SEEN':
+                    case WS_EVENTS.HISTORY_SEEN:
                         if (message.payload.username === usernameRef.current) {
                             const { seenAt, unseenFailed, unseenMissed } = message.payload;
                             queryClient.setQueryData(historySeenOptions.queryKey, { seenAt, unseenFailed, unseenMissed });
@@ -201,12 +201,12 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
 
                     // No payload: the list changed. A page that shows it reads it again
                     // now; otherwise it is only marked stale for the next one that does.
-                    case 'WEBHOOKS_UPDATE':
+                    case WS_EVENTS.WEBHOOKS_UPDATE:
                         queryClient.invalidateQueries({ queryKey: webhookListOptions.queryKey });
                         break;
 
                     // One scheduler at a time, whenever a run starts or ends or its timer moves.
-                    case 'SCHEDULER_STATUS_UPDATE':
+                    case WS_EVENTS.SCHEDULER_STATUS_UPDATE:
                         queryClient.setQueryData(
                             schedulerStatusOptions.queryKey,
                             (schedulers) => schedulers && applySchedulerUpdate(schedulers, message.payload),
@@ -222,13 +222,11 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
             socket.onclose = (event) => {
                 if (isClosing) return; // Ignore intentional closure
 
-                console.log('WebSocket disconnected', event.code, event.reason);
                 setIsConnected(false);
                 armLostTimer();
                 socketRef.current = null;
 
                 if (event.code === 4001 || event.code === 4003) {
-                    console.log('Authentication failed, stopping reconnection attempts');
                     return;
                 }
 

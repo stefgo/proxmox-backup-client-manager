@@ -31,7 +31,14 @@ export const WS_EVENTS = {
 
     GET_VERSION: "GET_VERSION", // Client <-> Server
 
-    // Server -> Dashboard (scheduler)
+    // Server -> Dashboard. LOG_UPDATE and JOB_NEXT_RUN_UPDATE above are passed on under
+    // the name the agent sent them with; the union is in dashboardMessages.ts.
+    CLIENTS_UPDATE: "CLIENTS_UPDATE",
+    JOBS_UPDATE: "JOBS_UPDATE",
+    TUNNEL_UPDATE: "TUNNEL_UPDATE",
+    JOB_UPDATE: "JOB_UPDATE",
+    HISTORY_SEEN: "HISTORY_SEEN",
+    WEBHOOKS_UPDATE: "WEBHOOKS_UPDATE",
     SCHEDULER_STATUS_UPDATE: "SCHEDULER_STATUS_UPDATE",
 
     // Internal

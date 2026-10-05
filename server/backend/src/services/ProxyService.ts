@@ -138,7 +138,7 @@ export class ProxyService {
      */
     private static broadcastJobs(clientId: string, jobs: BackupJob[]) {
         this.broadcastToDashboard({
-            type: "JOBS_UPDATE",
+            type: WS_EVENTS.JOBS_UPDATE,
             payload: { clientId, jobs: jobs.map(redactJob) },
         });
     }
@@ -162,7 +162,7 @@ export class ProxyService {
 
         // Broadcast to dashboard
         this.broadcastToDashboard({
-            type: "JOB_NEXT_RUN_UPDATE",
+            type: WS_EVENTS.JOB_NEXT_RUN_UPDATE,
             payload: { clientId, jobId, nextRunAt },
         });
     }
@@ -354,7 +354,7 @@ export class ProxyService {
     static broadcastClientUpdate() {
         try {
             this.broadcastToDashboard({
-                type: "CLIENTS_UPDATE",
+                type: WS_EVENTS.CLIENTS_UPDATE,
                 payload: this.getClientsWithStatus(),
             });
         } catch (e) {

@@ -68,7 +68,7 @@ export class WebSocketController {
 
         // Send initial state
         const initial: DashboardMessage = {
-            type: "CLIENTS_UPDATE",
+            type: WS_EVENTS.CLIENTS_UPDATE,
             payload: ProxyService.getClientsWithStatus(),
         };
         socket.send(JSON.stringify(initial));

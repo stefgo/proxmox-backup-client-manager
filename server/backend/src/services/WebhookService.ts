@@ -1,4 +1,5 @@
 import {
+    WS_EVENTS,
     SAMPLE_WEBHOOK_CLIENT,
     buildWebhookContext,
     renderTemplate,
@@ -111,7 +112,7 @@ function recordResult(webhook: Webhook, status: number | null, error: string | n
         logger.warn({ err, webhook: webhook.name }, "Could not store the webhook result");
         return;
     }
-    ProxyService.broadcastToDashboard({ type: "WEBHOOKS_UPDATE" });
+    ProxyService.broadcastToDashboard({ type: WS_EVENTS.WEBHOOKS_UPDATE });
 }
 
 async function deliver(webhook: Webhook, event: WebhookEvent, clientId: string): Promise<void> {
