@@ -25,6 +25,9 @@ The full documentation is published at
 - [Installing the Server](https://stefgo.github.io/proxmox-backup-client-manager/install-server/) - Running the control plane with Docker Compose.
 - [Installing a Client Agent](https://stefgo.github.io/proxmox-backup-client-manager/install-client/) - Running an agent on a machine you back up.
 - [Configuration](https://stefgo.github.io/proxmox-backup-client-manager/setup/) - Every `config.yaml` key and environment variable.
+- [Security](https://stefgo.github.io/proxmox-backup-client-manager/security/) - Reverse proxy, TLS, address checks, stored secrets and what the agent container may do.
+- [Operations](https://stefgo.github.io/proxmox-backup-client-manager/operations/) - Images and tags, upgrading, backup, health and logs.
+- [Upgrade Notes](https://stefgo.github.io/proxmox-backup-client-manager/upgrade-notes/) - What a release changes and what to do about it.
 - [Webhooks](https://stefgo.github.io/proxmox-backup-client-manager/webhooks/) - Reporting runs and lost clients to external services, and the template language.
 - [API Documentation](https://stefgo.github.io/proxmox-backup-client-manager/api/) - Full specification of the REST and WebSocket APIs.
 - [Frontend Architecture](https://stefgo.github.io/proxmox-backup-client-manager/frontend/) - Overview of the React application structure, state management, and design system.

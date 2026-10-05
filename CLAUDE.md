@@ -337,7 +337,11 @@ Detailed documentation lives in `/docs/`:
 - `install-server.md` – Server installation, Docker Compose only
 - `install-client.md` – Client agent installation, Docker Compose only
 - `setup.md` – Configuration reference: `config.yaml` (server and client), env vars,
-  address checks, client identity
+  client identity
+- `security.md` – Reverse proxy, TLS, address checks, stored secrets, agent capabilities
+- `operations.md` – Images and tags, upgrading, backup, health, logs, re-registering
+- `upgrade-notes.md` – What a release changes for a running installation, newest first;
+  **a change an operator has to act on gets an entry here**
 - `development.md` – Dev environment, release pipeline, the documentation site itself
 - `index.md` – Landing page of the published site; **not** a copy of the README, and
   the only page that exists solely for the site

@@ -94,6 +94,17 @@ PBCM sets up and tears down around the run.
     [:octicons-arrow-right-24: Configuration](setup.md) ·
     [:octicons-arrow-right-24: SSH Reverse Tunnel](tunnel.md)
 
+-   :material-shield-check: **Run it**
+
+    ---
+
+    What protects an installation, how to upgrade and back it up, and what each
+    release changes for one that already runs.
+
+    [:octicons-arrow-right-24: Security](security.md) ·
+    [:octicons-arrow-right-24: Operations](operations.md) ·
+    [:octicons-arrow-right-24: Upgrade Notes](upgrade-notes.md)
+
 -   :material-sitemap: **Understand it**
 
     ---
