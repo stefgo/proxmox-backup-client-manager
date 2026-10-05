@@ -1,5 +1,5 @@
 import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StatCard, ActionButton, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
@@ -19,6 +19,7 @@ import { RepositorySnapshotList } from '../../repositories/components/Repository
 
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { useBackPath } from '../../../hooks/useBackPath';
+import { useEscapeToLeave } from '../../../hooks/useEscapeToLeave';
 import { CLIENT_TABS, paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
@@ -104,17 +105,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
      * Escape leaves for the list, exactly as in the client editor. The job editor and the
      * restore form are routes of their own and handle their own Escape.
      */
-    const requestClose = useCallback(() => navigate(back), [navigate, back]);
-
-    // Not while a select, a dialog or an autocomplete is using Escape for itself.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape' || e.defaultPrevented) return;
-            requestClose();
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [requestClose]);
+    useEscapeToLeave(back);
 
     const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
 

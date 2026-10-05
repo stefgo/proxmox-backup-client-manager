@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoadingIndicator } from '@stefgo/react-ui-components';
@@ -9,6 +9,7 @@ import { NotFoundCard } from '../../components/NotFoundCard';
 import { QueryError } from '../../components/QueryError';
 import { useAuth } from '../auth/AuthContext';
 import { useBackPath } from '../../hooks/useBackPath';
+import { useEscapeToLeave } from '../../hooks/useEscapeToLeave';
 import { NotFoundError } from '../../lib/notFound';
 import { ROUTES, paths } from '../../lib/paths';
 import { queryKeys } from '../../lib/queryKeys';
@@ -266,15 +267,8 @@ function SnapshotRestoreRoute({ repo, backupId, selectedClient }: SnapshotRestor
     const { clients } = useClients();
     const { data, isPending, error } = useRepositorySnapshots(repo.id);
 
-    // Escape does what the form's own X does. Not while a select uses it for itself.
-    useEffect(() => {
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape' || e.defaultPrevented) return;
-            navigate(back);
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [navigate, back]);
+    // Escape does what the form's own X does.
+    useEscapeToLeave(back);
 
     if (isPending) return <LoadingIndicator label="Loading snapshot…" />;
     // A list that could not be read says nothing about whether the snapshot exists.
