@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from 'react';
 import { SessionUserSchema } from '@pbcm/shared';
-import { setUnauthorizedHandler, hasSessionFlag } from '../../lib/apiFetch';
+import { setUnauthorizedHandler, hasSessionFlag, clearSessionFlag } from '../../lib/apiFetch';
 import { api, publicApi } from '../../lib/api';
 import { queryClient } from '../../lib/queryClient';
 import { AuthContext } from './AuthContext';
@@ -8,6 +8,9 @@ import { AuthContext } from './AuthContext';
 interface AuthProviderProps {
     children: ReactNode;
 }
+
+/** setTimeout stores its delay as a signed 32-bit integer; longer delays fire at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /**
  * Holds whether someone is logged in — never the credential itself.
@@ -23,6 +26,7 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(hasSessionFlag);
     const [username, setUsername] = useState<string | null>(null);
+    const [expiresAt, setExpiresAt] = useState<number | null>(null);
 
     const login = useCallback(() => {
         setIsAuthenticated(true);
@@ -31,6 +35,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const logout = useCallback(() => {
         setIsAuthenticated(false);
         setUsername(null);
+        setExpiresAt(null);
+        // Dropped here as well as by the server: if the logout request below does not get
+        // through, a reload would otherwise find the flag and render the dashboard again.
+        clearSessionFlag();
         // What the cache holds was read with this session. The next one may be another
         // user's, and must not start out with the previous one's lists on screen.
         queryClient.clear();
@@ -58,7 +66,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         let cancelled = false;
         api.get('/api/v1/me', SessionUserSchema)
             .then((user) => {
-                if (!cancelled) setUsername(user.username);
+                if (cancelled) return;
+                setUsername(user.username);
+                setExpiresAt(user.expiresAt ? Date.parse(user.expiresAt) : null);
             })
             .catch(() => {
                 // A 401 already triggered the logout through apiFetch; anything else
@@ -69,6 +79,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             cancelled = true;
         };
     }, [isAuthenticated]);
+
+    // A 401 only arrives with the next request. An open dashboard fed by the WebSocket may
+    // not send one for a long time, so the expiry is also acted on when it comes.
+    useEffect(() => {
+        if (expiresAt === null) return;
+        const delay = expiresAt - Date.now();
+        if (delay > MAX_TIMER_MS) return;
+        const timer = setTimeout(logout, Math.max(delay, 0));
+        return () => clearTimeout(timer);
+    }, [expiresAt, logout]);
 
     return (
         <AuthContext.Provider value={{ isAuthenticated, username, login, logout }}>

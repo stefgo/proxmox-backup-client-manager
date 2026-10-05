@@ -120,7 +120,8 @@ Browser sessions are carried by a cookie, not by a token the page holds.
 | `pbcm_session` | The JWT          | `HttpOnly`, `SameSite=Strict`, `Secure` over HTTPS |
 | `pbcm_auth`    | `1`, no secret   | `SameSite=Strict` — readable, so the UI knows whether to render the login form |
 
-`Max-Age` on both follows `jwtExpiresIn`. `Secure` is set only when the request arrived
+`Max-Age` on both is what is left until the token's `exp`, so cookie and token end in the
+same second. `Secure` is set only when the request arrived
 over HTTPS: hardcoded, it would make the browser discard the cookie on a plain-HTTP
 installation, and the login would appear to succeed while every following request came
 back `401`.
@@ -201,14 +202,21 @@ session impossible to log out of.
 
 `GET /v1/me`
 
-**Description:** Who the session belongs to. The dashboard used to base64-decode the JWT
-in the browser to get this; with the token in an `HttpOnly` cookie it comes from the
-server that issued it instead.
+**Description:** Who the session belongs to, and until when it is valid. The dashboard used
+to base64-decode the JWT in the browser to get this; with the token in an `HttpOnly` cookie
+it comes from the server that issued it instead.
+
+| Field       | Type           | Description                                 |
+| :---------- | :------------- | :------------------------------------------ |
+| `username`  | string         | The signed-in user.                         |
+| `id`        | number         | The user's id.                              |
+| `expiresAt` | string \| null | ISO 8601 time at which the session expires. |
 
 ```json
 {
     "username": "admin",
-    "id": 1
+    "id": 1,
+    "expiresAt": "2026-09-12T06:00:00.000Z"
 }
 ```
 

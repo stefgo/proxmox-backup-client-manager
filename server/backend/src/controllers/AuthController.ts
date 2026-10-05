@@ -18,14 +18,8 @@ export class AuthController {
         const { username, password } = parsed.data;
         const result = AuthService.checkLocalAuth(username, password);
 
-        if (result.error) {
-            return reply.code(401).send({ error: result.error });
-        }
-
-        // checkLocalAuth returns a user whenever it reports no error; said here because
-        // the two halves of its result are not tied together in the type.
         if (!result.user) {
-            return reply.code(401).send({ error: "Invalid credentials" });
+            return reply.code(401).send({ error: result.error });
         }
 
         const token = request.server.jwt.sign({
@@ -54,16 +48,20 @@ export class AuthController {
     }
 
     /**
-     * Who the current session belongs to.
+     * Who the current session belongs to, and until when it is valid.
      *
      * The dashboard used to read this by base64-decoding the JWT in the browser. That
      * stopped being possible when the token moved into an httpOnly cookie — which is the
-     * point of the cookie, and a good reason for the name to come from the server that
-     * issued it rather than from a payload the page picks apart itself.
+     * point of the cookie, and a good reason for the answer to come from the server that
+     * issued the session rather than from a payload the page picks apart itself.
      */
     static async me(request: FastifyRequest, _reply: FastifyReply) {
-        const user = request.user as { username?: string; id?: number };
-        return { username: user?.username ?? null, id: user?.id ?? null };
+        const { id, username, exp } = request.user;
+        return {
+            id,
+            username,
+            expiresAt: typeof exp === "number" ? new Date(exp * 1000).toISOString() : null,
+        };
     }
 
     static async oidcLogin(request: FastifyRequest, reply: FastifyReply) {

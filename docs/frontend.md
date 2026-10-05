@@ -181,6 +181,11 @@ The session is a cookie the browser manages, and `AuthProvider`
   `username`, `login()`, `logout()`. `login` takes no argument — by the time it is called
   the server has already set the cookies. `username` comes from `GET /api/v1/me`, because
   the page can no longer read it out of the JWT.
+- **Expiry**: `/api/v1/me` also answers `expiresAt`. `AuthProvider` sets a timer for it and
+  logs out when it fires — an open dashboard fed by the WebSocket may not send a request,
+  and so not see a 401, for a long time. `logout()` drops the `pbcm_auth` flag itself
+  (`clearSessionFlag`) as well as asking the server to, so a logout request that does not
+  get through cannot leave a reload looking signed in.
 - **Local login**: `POST /api/login` with `credentials: 'same-origin'` → server sets both
   cookies → `login()`. `Login.tsx` is the one page using `publicApi` rather than `api`,
   so a wrong password does not get turned into a logout.

@@ -18,6 +18,8 @@ import "@fastify/jwt";
 declare module "@fastify/jwt" {
     interface FastifyJWT {
         payload: { username: string; id: number; tv: number };
-        user: { username: string; id: number; tv: number };
+        // iat and exp are added by the signer, so a verified token carries them even though
+        // the payload handed to sign() does not.
+        user: { username: string; id: number; tv: number; iat?: number; exp?: number };
     }
 }
