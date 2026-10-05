@@ -36,6 +36,7 @@ import {
     type WebhookDraft,
 } from '../lib/webhookForm';
 import { WebhookDeliveryBadge } from './WebhookDeliveryBadge';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 /**
  * The element of `ROUTES.webhookNew` and `ROUTES.webhook`. The webhook is read from the list --
@@ -109,12 +110,14 @@ const WebhookEditor = ({ webhook }: { webhook: Webhook | null }) => {
 
     const error = form.saveError ?? form.formError ?? testError;
 
+    const heading = webhook ? `Edit ${webhook.name}` : 'Add Webhook';
+
     return (
         <Card
             title={
                 <>
                     <WebhookIcon size={18} className="text-text-muted" />
-                    {webhook ? `Edit ${webhook.name}` : 'Add Webhook'}
+                    <HeaderBreadcrumb current={heading}>{heading}</HeaderBreadcrumb>
                 </>
             }
             action={<ActionButton icon={X} tooltip="Close" onClick={close} />}

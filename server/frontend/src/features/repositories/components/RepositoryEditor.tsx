@@ -22,6 +22,7 @@ import {
     storedRepositoryDraft,
     type RepositoryDraft,
 } from '../lib/repositoryForm';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 interface RepositoryEditorProps {
     /** The repository to edit. Absent for a new one. The route keys the editor by its id. */
@@ -240,11 +241,14 @@ export const RepositoryEditor = ({ repository, onSave }: RepositoryEditorProps) 
     return (
         <Card
             className="flex flex-col"
-            title={repository ? 'Edit Repository' : 'Add Repository'}
+            title={
+                repository
+                    ? <HeaderBreadcrumb>Edit Repository</HeaderBreadcrumb>
+                    : <HeaderBreadcrumb current="Add Repository">Add Repository</HeaderBreadcrumb>
+            }
             action={
                 <ActionButton icon={X} tooltip="Close" onClick={close} />
             }
-            classNames={{ headerTitle: 'text-xl font-bold' }}
         >
             <form onSubmit={handleSubmit} className="flex flex-col">
                 <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-4">

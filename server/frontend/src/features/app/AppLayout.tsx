@@ -4,8 +4,10 @@ import { ConnectionBanner, Dashboard, DashboardNavGroup, DashboardPage, LoadingI
 
 import { useAuth } from '../auth/AuthContext';
 import { useWebSocket } from './context/WebSocketContext';
+import { BreadcrumbContext } from './context/BreadcrumbContext';
 import { navEntries, type RouteHandle } from './routes';
 import { APP_NAME, routeTitle, type TitleSubject } from '../../lib/pageTitle';
+import { breadcrumb } from '../../lib/breadcrumb';
 import {
     activeJobCount,
     clientCount,
@@ -66,10 +68,11 @@ export function AppLayout() {
     useJobResultToasts();
     useSearchHotkey();
 
-    // The browser tab names the area and what is open in it. Here rather than in each
-    // page: the route tree says what a page is, and the three lists that name a subject
-    // are in the shell's cache anyway.
-    const title = useMemo(() => {
+    // The browser tab names the area and what is open in it, and the breadcrumb in a page's
+    // header says the same as a way back. Here rather than in each page: the route tree
+    // says what a page is, and the three lists that name a subject are in the shell's
+    // cache anyway.
+    const { title, crumbs } = useMemo(() => {
         const { clientId, repoId, jobId } = matches[matches.length - 1]?.params ?? {};
         const nameOf = (subject: TitleSubject) => {
             switch (subject) {
@@ -85,7 +88,11 @@ export function AppLayout() {
                     return globalJobs.find((j) => j.clientId === clientId && j.id === jobId)?.name;
             }
         };
-        return routeTitle(matches.map((match) => match.handle as RouteHandle | undefined), nameOf);
+        const handles = matches.map((match) => match.handle as RouteHandle | undefined);
+        return {
+            title: routeTitle(handles, nameOf),
+            crumbs: breadcrumb(matches.map(({ pathname }, i) => ({ pathname, handle: handles[i] })), nameOf),
+        };
     }, [matches, clients, repos, globalJobs]);
 
     // Taken back when the shell goes: the login page behind a logout is not the page
@@ -179,9 +186,11 @@ export function AppLayout() {
                 navGroups={NAV_GROUPS}
                 currentPath={pathname}
             >
-                <Suspense fallback={<LoadingIndicator />}>
-                    <Outlet />
-                </Suspense>
+                <BreadcrumbContext.Provider value={crumbs}>
+                    <Suspense fallback={<LoadingIndicator />}>
+                        <Outlet />
+                    </Suspense>
+                </BreadcrumbContext.Provider>
             </Dashboard>
         </StatusDotProvider>
     );

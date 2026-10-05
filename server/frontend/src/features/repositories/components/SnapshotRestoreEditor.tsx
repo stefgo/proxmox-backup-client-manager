@@ -29,6 +29,7 @@ import {
     restoreRules,
     type RestoreDraft,
 } from '../lib/restoreForm';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 interface SnapshotRestoreEditorProps {
     onCancel: () => void;
@@ -139,9 +140,8 @@ export const SnapshotRestoreEditor = ({ onCancel, snapshot, repo, clients = EMPT
     return (
         <Card
             className="flex flex-col"
-            title="Restore Snapshot"
+            title={<HeaderBreadcrumb current="Restore Snapshot">Restore Snapshot</HeaderBreadcrumb>}
             action={<ActionButton icon={X} tooltip="Close" onClick={onCancel} />}
-            classNames={{ headerTitle: 'text-xl font-bold' }}
         >
             <form onSubmit={handleSubmit} className="flex flex-col">
                 <div className="p-6 flex-1 overflow-y-auto flex flex-col gap-6">

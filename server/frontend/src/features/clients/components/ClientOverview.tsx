@@ -20,6 +20,8 @@ import { RepositorySnapshotList } from '../../repositories/components/Repository
 import { useSearchQueryParam } from '../../../hooks/useSearchQueryParam';
 import { useBackPath } from '../../../hooks/useBackPath';
 import { useEscapeToLeave } from '../../../hooks/useEscapeToLeave';
+import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
+import { ENTITY_HEADER } from '../../../components/entityHeader';
 import { CLIENT_TABS, paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
@@ -137,7 +139,8 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                         label={client.status}
                     />
                 }
-                title={client.displayName || client.hostname}
+                title={<HeaderBreadcrumb>{client.displayName || client.hostname}</HeaderBreadcrumb>}
+                classNames={ENTITY_HEADER}
                 meta={
                     <>
                         <Badge variant="info">{isInbound ? 'Inbound' : 'Outbound'}</Badge>
