@@ -1,5 +1,4 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { appConfig } from "../config/AppConfig.js";
 
 /**
  * The browser session, as two cookies.
@@ -24,29 +23,17 @@ export const SESSION_COOKIE = "pbcm_session";
 export const SESSION_FLAG_COOKIE = "pbcm_auth";
 
 /**
- * Turns the configured `jwtExpiresIn` into seconds for the cookie's `Max-Age`.
+ * Seconds until the token expires, for the cookies' `Max-Age`.
  *
- * The cookie must not outlive the token it carries: a browser holding a cookie the server
- * rejects looks logged in and fails on every action. Anything unparseable falls back to
- * the same 12 hours the config schema defaults to.
+ * Taken from the token that was just signed rather than parsed out of `jwtExpiresIn`:
+ * the cookie must not outlive the token it carries — a browser holding a cookie the
+ * server rejects looks logged in and fails on every action — and reading `exp` agrees
+ * with the signer for every format it accepts, not only the ones a parser here knows.
  */
-function maxAgeSeconds(): number {
-    const raw = appConfig.jwtExpiresIn;
-    const match = /^(\d+)\s*([smhd])?$/.exec(raw.trim());
-    if (!match) return 12 * 3600;
-
-    const value = Number(match[1]);
-    switch (match[2]) {
-        case "s":
-            return value;
-        case "m":
-            return value * 60;
-        case "d":
-            return value * 86400;
-        case "h":
-        default:
-            return value * 3600;
-    }
+function maxAgeSeconds(request: FastifyRequest, token: string): number {
+    const { exp } = request.server.jwt.decode<{ exp?: number }>(token) ?? {};
+    if (typeof exp !== "number") return 0;
+    return Math.max(0, exp - Math.floor(Date.now() / 1000));
 }
 
 /**
@@ -64,14 +51,14 @@ function isSecureRequest(request: FastifyRequest): boolean {
     return request.protocol === "https";
 }
 
-/** Issues both cookies for a freshly authenticated user. */
+/** Issues both cookies for a freshly signed session token. */
 export function setSessionCookies(
     request: FastifyRequest,
     reply: FastifyReply,
     token: string,
 ): void {
     const secure = isSecureRequest(request);
-    const maxAge = maxAgeSeconds();
+    const maxAge = maxAgeSeconds(request, token);
 
     reply.setCookie(SESSION_COOKIE, token, {
         httpOnly: true,

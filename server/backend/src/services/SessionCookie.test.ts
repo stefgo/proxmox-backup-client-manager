@@ -1,13 +1,7 @@
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import Fastify from "fastify";
-import { describe, expect, it, vi } from "vitest";
-
-// SessionCookie still reads the lifetime from the configuration, and AppConfig reads
-// config.yaml when it is imported. The lifetime itself is not tested here: it is about to be
-// taken from the token instead, and the test belongs to that change.
-vi.mock("../config/AppConfig.js", () => ({ appConfig: { jwtExpiresIn: "2h" } }));
-
+import { describe, expect, it } from "vitest";
 import {
     clearSessionCookies,
     SESSION_COOKIE,
@@ -19,12 +13,12 @@ import {
  * A server with the two plugins the cookies need and nothing else. `trustProxy` lets a
  * request say it arrived over https, the way one does behind a listed proxy.
  */
-async function buildServer() {
+async function buildServer(expiresIn: string | null = "2h") {
     const server = Fastify({ trustProxy: true });
     await server.register(cookie);
     await server.register(jwt, { secret: "test-secret" });
     server.get("/login", (request, reply) => {
-        const token = server.jwt.sign({ id: 1, username: "admin", tv: 0 });
+        const token = server.jwt.sign({ id: 1, username: "admin", tv: 0 }, expiresIn ? { expiresIn } : undefined);
         setSessionCookies(request, reply, token);
         return { token };
     });
@@ -55,6 +49,25 @@ describe("setSessionCookies", () => {
         expect(flag.value).toBe("1");
         expect(flag.httpOnly).toBeUndefined();
         expect(flag).toMatchObject({ sameSite: "Strict", path: "/" });
+    });
+
+    it("lets both cookies expire with the token", async () => {
+        const server = await buildServer("2h");
+        const response = await server.inject({ method: "GET", url: "/login" });
+
+        for (const name of [SESSION_COOKIE, SESSION_FLAG_COOKIE]) {
+            const { maxAge } = byName(response.cookies, name);
+            // The second may turn between signing and setting the cookie.
+            expect(maxAge).toBeGreaterThanOrEqual(7199);
+            expect(maxAge).toBeLessThanOrEqual(7200);
+        }
+    });
+
+    it("does not keep a cookie for a token without an expiry", async () => {
+        const server = await buildServer(null);
+        const response = await server.inject({ method: "GET", url: "/login" });
+
+        expect(byName(response.cookies, SESSION_COOKIE).maxAge).toBe(0);
     });
 
     it("marks the cookies Secure only when the request came over https", async () => {
