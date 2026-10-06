@@ -366,18 +366,31 @@ async function registerPages(fastify: FastifyInstance, routes: WebRoutes) {
         },
     );
 
-    if (routes.statusPage) registerStatusApi(fastify);
+    if (routes.statusPage) registerStatusApi(fastify, routes);
     if (routes.registerPage) registerRegisterApi(fastify, routes);
 }
 
 /** The endpoints only the status page calls. */
-function registerStatusApi(fastify: FastifyInstance) {
+function registerStatusApi(fastify: FastifyInstance, routes: WebRoutes) {
     // Check current connection status
     fastify.get(
         "/api/status/connection",
         async (_request: FastifyRequest, _reply: FastifyReply) => {
             return {
                 connected: Connection.isConnected(),
+            };
+        },
+    );
+
+    // Return config-derived mode info for the status page
+    fastify.get(
+        "/api/status/config",
+        async (_request: FastifyRequest, _reply: FastifyReply) => {
+            return {
+                hasRegistrationSecret: !!getRegistrationSecret(),
+                registerPageOpen: isRegisterPageOpen(routes),
+                hasAuthToken: isRegistered(),
+                hasServerUrl: !!getServerUrl(),
             };
         },
     );
