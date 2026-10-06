@@ -146,7 +146,7 @@ Which routes it serves is settled at startup from `config.yaml` (`getWebRoutes()
 
 | Routes | Served when |
 | :----- | :---------- |
-| `/status`, `/api/status/connection`, `POST /api/connect` | `enableStatusPage` (default `true`) |
+| `/status`, `/api/status/connection`, `/api/status/config`, `POST /api/connect` | `enableStatusPage` (default `true`) |
 | `/register`, `POST /api/register` | `enableRegisterPage` (default `true`); answer `404` once the agent is registered |
 | `/`, `/api/status/server`, `/api/status/auth`, the static files | either page is enabled |
 | `/ws/register`, `/ws/agent` | outbound mode: no `serverUrl` |
