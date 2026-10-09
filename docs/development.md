@@ -627,7 +627,7 @@ gh workflow run cleanup-packages.yml -f dry_run=false
 
 ### Registry authentication
 
-The builds install `@stefgo/react-ui-components` from GitHub Packages, which
+The builds install `@stefgo/react-ui-components` and `@stefgo/js-template-engine` from GitHub Packages, which
 refuses anonymous reads even for public packages. The Dockerfiles therefore
 expect a BuildKit secret named `npm_token`:
 
