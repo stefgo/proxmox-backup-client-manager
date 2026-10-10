@@ -1,3 +1,112 @@
+# [1.7.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.6.0...v1.7.0) (2026-10-10)
+
+
+### Bug Fixes
+
+* **backend:** Bound the server shutdown to five seconds ([c0bd84e](https://github.com/stefgo/proxmox-backup-client-manager/commit/c0bd84e147c5ed7bb0ffb4bf58cec4128de99214))
+* **backend:** Take the cookie lifetime from the token it carries ([f97cdf6](https://github.com/stefgo/proxmox-backup-client-manager/commit/f97cdf6175a8e7411e9c6f7f7dcdf2a0443bce1a))
+* **client:** Set a damaged identity aside instead of discarding it ([135b760](https://github.com/stefgo/proxmox-backup-client-manager/commit/135b76050997c44aa1a8a49c94b52b29215173e5))
+* **client:** Ship the font with the agent's pages ([d534439](https://github.com/stefgo/proxmox-backup-client-manager/commit/d534439d6a69928f67179e681a9df13f6a0ceb64))
+* **docker:** Build the agent on the Node image and restrict its container ([691b0a8](https://github.com/stefgo/proxmox-backup-client-manager/commit/691b0a859e32fe5122675fdef3759e65568eea32))
+* **frontend:** Align the status badge with the text of its table row ([f5d313c](https://github.com/stefgo/proxmox-backup-client-manager/commit/f5d313c32bd7580f1fd42c8cd4a54c1006d11e36))
+* **frontend:** Copy the registration token without the clipboard API ([08c10b6](https://github.com/stefgo/proxmox-backup-client-manager/commit/08c10b689d81163814527172a8d2ed1b1f87dfe8))
+* **frontend:** Do not call the job list empty while clients are offline ([4bcc97a](https://github.com/stefgo/proxmox-backup-client-manager/commit/4bcc97a891311fbb90ec049eaf95d4acccbb4f8a))
+* **frontend:** Drop the bold weight from the status badges ([5faec52](https://github.com/stefgo/proxmox-backup-client-manager/commit/5faec52ea4fbf442380b575647abf3c5297bbbbe))
+* **frontend:** Drop the upper case from the badges ([040621d](https://github.com/stefgo/proxmox-backup-client-manager/commit/040621d9a9aa965532bdda134987cd6a38abd4a8))
+* **frontend:** Filter the webhook list in the view like every other list ([3357971](https://github.com/stefgo/proxmox-backup-client-manager/commit/33579719a7c18ed5ea1fbdf09359d3f7ed7e6ed8))
+* **frontend:** Format snapshot sizes with formatBytes ([db4de69](https://github.com/stefgo/proxmox-backup-client-manager/commit/db4de690865d87e201ff9fc42bd98c78a78bd8d5))
+* **frontend:** Invalidate after a reconnect only what the server does not push ([d183b7b](https://github.com/stefgo/proxmox-backup-client-manager/commit/d183b7b229b7af883aad3894389aec1ab3496a22))
+* **frontend:** Judge a webhook's last delivery the same way in the list and the editor ([abd5be6](https://github.com/stefgo/proxmox-backup-client-manager/commit/abd5be6d8e6b0b035ee062df1795674e52786f62))
+* **frontend:** Keep Escape in a field from leaving the page ([6379d2b](https://github.com/stefgo/proxmox-backup-client-manager/commit/6379d2bc9f415adfd099c1c08078efc59e91754b))
+* **frontend:** Say that a running job is waiting for output ([8ad9e05](https://github.com/stefgo/proxmox-backup-client-manager/commit/8ad9e05d055b10517bcb7476b5edfedd61dec533))
+* **frontend:** Show a failed settings load instead of the defaults ([7343fb5](https://github.com/stefgo/proxmox-backup-client-manager/commit/7343fb5fd7bca1549d1dfd2cc6c00f72c9dfcb85))
+* **frontend:** Show loading and error state for the client and repository lists ([ef0f780](https://github.com/stefgo/proxmox-backup-client-manager/commit/ef0f780ffc7114761885fd52f63323e9d317438e))
+* **frontend:** Start every badge with a capital letter ([0f8daef](https://github.com/stefgo/proxmox-backup-client-manager/commit/0f8daef5d245b145cbd6c1446286022111c68b8b))
+* **jobs:** Keep the client name when a newer run replaces a job's row ([be19952](https://github.com/stefgo/proxmox-backup-client-manager/commit/be199521cbb4ee42d3feba3950038957b7d8aa68))
+* **server:** Accept a repository update that carries no secret ([870f546](https://github.com/stefgo/proxmox-backup-client-manager/commit/870f546829fe788ce7e74da4ec2e6192bf13989e))
+* Ship the font instead of loading it from Google ([23853ed](https://github.com/stefgo/proxmox-backup-client-manager/commit/23853edb2affcf4c41952f44cba842d936e90dce))
+* **webhooks:** Reject a header line with a blank name ([225263f](https://github.com/stefgo/proxmox-backup-client-manager/commit/225263f562d1349eaa53e9819f0ff8a9269407cd))
+
+
+### Code Refactoring
+
+* **api:** Parse every server response and dashboard message against a shared schema ([b82afb4](https://github.com/stefgo/proxmox-backup-client-manager/commit/b82afb49b2c8d126a4c86af8754dc9af97dcc2f3))
+
+
+### Features
+
+* Ask a repository for one client's snapshots only ([c409e2f](https://github.com/stefgo/proxmox-backup-client-manager/commit/c409e2f4c6692ee9064d6b22554830ceea7378c2))
+* **backend:** Add an endpoint to abort a run ([7587165](https://github.com/stefgo/proxmox-backup-client-manager/commit/7587165b213f4a1e9040e19d4318573dcaed78f5))
+* **client:** Abort a running backup or restore on request ([8bfd6ee](https://github.com/stefgo/proxmox-backup-client-manager/commit/8bfd6ee2750a31345d5927fedb4fe5ae95ff3b21))
+* **client:** Show the connection mode on the agent's status page ([5b64f77](https://github.com/stefgo/proxmox-backup-client-manager/commit/5b64f775630b888314d793627de1a5b3a2a2a865))
+* Filter and page the history on the server ([97fca03](https://github.com/stefgo/proxmox-backup-client-manager/commit/97fca031a71308bb3e4289a2b4a8d6980c4becf8))
+* **frontend:** Abort a running job from the history and the job list ([f37333e](https://github.com/stefgo/proxmox-backup-client-manager/commit/f37333eb17ab556a087f2692561a4ac7d8c7e581))
+* **frontend:** Add a dashboard page as the start page ([649678a](https://github.com/stefgo/proxmox-backup-client-manager/commit/649678a44266b2333d664515520d1e809379c6c7))
+* **frontend:** Bound the run log, follow live output and copy it ([7861b58](https://github.com/stefgo/proxmox-backup-client-manager/commit/7861b58e6973a60ada294e8443852ea183f2104a))
+* **frontend:** Bring the restore form in line with the other editors ([e3708dc](https://github.com/stefgo/proxmox-backup-client-manager/commit/e3708dcca8e177fd03369ee3f6afeb37fb52277e))
+* **frontend:** Count errors and warnings on a dashboard card ([cf875a9](https://github.com/stefgo/proxmox-backup-client-manager/commit/cf875a92e890bd0677b706b496056f6c930d49d4))
+* **frontend:** Define the columns of six lists once ([e14a254](https://github.com/stefgo/proxmox-backup-client-manager/commit/e14a2547bac439a013cc1a072c00f70b15b70e1b))
+* **frontend:** Define the columns of the job list once ([545f90b](https://github.com/stefgo/proxmox-backup-client-manager/commit/545f90b368bac3e7a1610847c143eaad9b84fe18))
+* **frontend:** Describe paths, sidebar and back in one route tree ([d482287](https://github.com/stefgo/proxmox-backup-client-manager/commit/d4822877c0a8be8f85db2fb6efbf3d8d069c4956))
+* **frontend:** Drop the heading above the dashboard's problem lists ([855dd62](https://github.com/stefgo/proxmox-backup-client-manager/commit/855dd62432a78e8d92de582926e2cbad646c2268))
+* **frontend:** Focus the search of the list on screen with a slash ([7e6fc20](https://github.com/stefgo/proxmox-backup-client-manager/commit/7e6fc201459f2de80828d75f632bd93e1df47f78))
+* **frontend:** Hand the sidebar its badges in words ([1957387](https://github.com/stefgo/proxmox-backup-client-manager/commit/1957387faae25d99c9863c9bc4d4888eb4705341))
+* **frontend:** Link client names and the restore notice to the client page ([0d3e4fa](https://github.com/stefgo/proxmox-backup-client-manager/commit/0d3e4fa9ede5657946989558c0e4a02552508b42))
+* **frontend:** Preview a schedule's next runs and let its interval be emptied ([84db1a9](https://github.com/stefgo/proxmox-backup-client-manager/commit/84db1a98cdab46dbbb99359c1586f99eea10a9c7))
+* **frontend:** Rebuild the user dialog on the library's Modal ([f879316](https://github.com/stefgo/proxmox-backup-client-manager/commit/f87931657155b7bf596229553425ff498c7b7dd7))
+* **frontend:** Run the client editor on the form hook ([cc46ed6](https://github.com/stefgo/proxmox-backup-client-manager/commit/cc46ed6d464b866f7e8bfe9fce7561043b9441d7))
+* **frontend:** Run the job editor on the form hook ([3a067fa](https://github.com/stefgo/proxmox-backup-client-manager/commit/3a067fa07205e35a10fd83c015fc387e8345fcd9))
+* **frontend:** Run the repository editor on the form hook ([2822831](https://github.com/stefgo/proxmox-backup-client-manager/commit/282283137108c1f18e82d1d46b2ad7a0eb09bdec))
+* **frontend:** Run the tunnel card on the form hook ([f26edd3](https://github.com/stefgo/proxmox-backup-client-manager/commit/f26edd33ded9bb987a190bf991838f55493de2a4))
+* **frontend:** Run the webhook editor on the form hook ([e9b9c8e](https://github.com/stefgo/proxmox-backup-client-manager/commit/e9b9c8e9dcc0e712fd0220a67b95b0bc0c5db9e6))
+* **frontend:** Say the sidebar's counts in words ([ff69179](https://github.com/stefgo/proxmox-backup-client-manager/commit/ff69179f50bb9d78b6406f061ed0605155f611f9))
+* **frontend:** Set the dashboard off in a sidebar group of its own ([a7967b5](https://github.com/stefgo/proxmox-backup-client-manager/commit/a7967b566f4dab345425b355356994fc27adc3ac))
+* **frontend:** Set the document title per route ([c043e0d](https://github.com/stefgo/proxmox-backup-client-manager/commit/c043e0df43726dea0cf34eb3a426ae47c0bdaf89))
+* **frontend:** Show a breadcrumb as the heading of every page below a list ([960af41](https://github.com/stefgo/proxmox-backup-client-manager/commit/960af4159cc2a7d78b28754d7525892e1b3a8f89))
+* **frontend:** Show a failed read the same way on every page ([a4e7f0e](https://github.com/stefgo/proxmox-backup-client-manager/commit/a4e7f0e1feae401ef9e39da3c40adeef101394e9))
+* **frontend:** Show a run's duration next to its start time ([50e82c6](https://github.com/stefgo/proxmox-backup-client-manager/commit/50e82c6b1ed72a437bcf4a7dd6f8dc914a7e1a4e))
+* **frontend:** Show duration and size in a history row ([d8e7d97](https://github.com/stefgo/proxmox-backup-client-manager/commit/d8e7d97b2fc263728211bddac850629eaf6ce1d1))
+* **frontend:** Show duration and size of the last run in the job list view ([e60782c](https://github.com/stefgo/proxmox-backup-client-manager/commit/e60782cf470cf255f25b58f23e6e27890ef3d60b))
+* **frontend:** Show every empty list with an icon and a message ([bb5c382](https://github.com/stefgo/proxmox-backup-client-manager/commit/bb5c38222c0cfaa17750a6fc4721b0e1e072fe40))
+* **frontend:** Show history and snapshots of an offline client ([701d1e3](https://github.com/stefgo/proxmox-backup-client-manager/commit/701d1e396ba4003a3170f55ef7b1c45c89d53a5f))
+* **frontend:** Show the last run and its status in separate columns ([988ed86](https://github.com/stefgo/proxmox-backup-client-manager/commit/988ed86f9dfa35bb1a06240e2b9e74cc006a6e89))
+* **frontend:** Show the last run in the job lists ([dd53d22](https://github.com/stefgo/proxmox-backup-client-manager/commit/dd53d22c4a06ef8cf196b39e481a78ace5ede2f3))
+* **frontend:** Show the online status as a badge and use one badge size ([02b9b00](https://github.com/stefgo/proxmox-backup-client-manager/commit/02b9b00ebdaf741f6c4cc73c404c2c08ff85b6aa))
+* **frontend:** Write dates in the browser's locale and distances as such ([c6fd981](https://github.com/stefgo/proxmox-backup-client-manager/commit/c6fd98112a24511cf264ca941591fd2552a755e5))
+* Mark failed and missed runs as seen ([b6d21e6](https://github.com/stefgo/proxmox-backup-client-manager/commit/b6d21e69d82750d7025ccbe52d5ced4bbf56149e))
+* Report a missed schedule as a run of its own ([47068fb](https://github.com/stefgo/proxmox-backup-client-manager/commit/47068fb9ab48348b27b30ef3e79f34c8ba4b4581))
+* Report when the session expires and log out at that time ([9f3f095](https://github.com/stefgo/proxmox-backup-client-manager/commit/9f3f095a74472702a0ab83df63047b102834e3cb))
+* Search the history instead of picking a client ([d4df449](https://github.com/stefgo/proxmox-backup-client-manager/commit/d4df449d51281806595aa18b502f8d1a1b3caf85))
+* **webhooks:** Add a truncate filter to the body template ([dfc0995](https://github.com/stefgo/proxmox-backup-client-manager/commit/dfc0995a98ba5946b4e08e704c531b22bcad1971))
+
+
+### Performance Improvements
+
+* **frontend:** Share one clock between everything that shows a distance ([a65dda7](https://github.com/stefgo/proxmox-backup-client-manager/commit/a65dda700b2f012cef613cd1373f2d71df34668b))
+
+
+### BREAKING CHANGES
+
+* `GET /api/v1/history` answers with
+`{ "items": [...], "total": n }` instead of an array. `total` counts every
+run the filter matches, across all pages. It is the one list with an
+envelope, because it is the one delivered in pages;
+`GET /api/v1/history/latest` stays a bare array.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **frontend:** The dashboard URLs `/client/:clientId/...` and
+`/repository/:repoId/...` are now `/clients/:clientId/...` and
+`/repositories/:repoId/...`. The old forms are not redirected; a bookmark to
+one shows the not-found page.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+* **api:** `GET /api/v1/history` and the latest-history-per-job endpoint
+answer with a bare array instead of `{ success, count, data }`, and report
+failures as `{ error }` like every other endpoint. A caller reading `.data`
+now reads the response itself.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.6.0](https://github.com/stefgo/proxmox-backup-client-manager/compare/v1.5.0...v1.6.0) (2026-10-03)
 
 
