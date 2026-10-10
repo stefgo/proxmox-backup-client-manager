@@ -235,18 +235,34 @@ Environment variables of note:
 
 `semantic-release` owns the version. It runs from
 [`release.yml`](.github/workflows/release.yml), which is **`workflow_dispatch`
-only and refuses any branch but `main`**: a release is an action, not a side
-effect of pushing. It derives the next number from the commit types since the
-last tag, writes `CHANGELOG.md` and the root `package.json`, and pushes the tag.
+only and releases from `main` (a release) or `dev` (a beta, `x.y.z-beta.n`)**: a
+release is an action, not a side effect of pushing. It derives the next number
+from the commit types since the last tag, writes `CHANGELOG.md` and the root
+`package.json`, and pushes the tag.
 **Never bump a version or create a `v*` tag by hand.**
 
-- The workflow takes two inputs. **`dry_run`** (default on) prints the next
-  version and changes nothing. **`bump`** (`auto` | `major`) is the *only* way a
-  major version is created -- no commit text can produce one. A run that was
-  asked for and produces no release **fails**, rather than going green with no
-  result.
+The workflow calls
+[stefgo/release-workflows](https://github.com/stefgo/release-workflows), which
+carries semantic-release and its configuration for every stefgo project. There
+is no `release` entry in `package.json` and no semantic-release package
+installed here.
+
+- The workflow takes two inputs. **`dry_run`** (default on) shows the next
+  version and the complete notes and changes nothing. **`bump`** (`auto` |
+  `patch` | `minor` | `major`) takes the step from the commit types or is the
+  step itself, whatever the commits say. `major` is the *only* way a major
+  version is created -- no commit text can produce one. A run that was asked for
+  and produces no release **fails**, rather than going green with no result.
+- **Every release needs hand-written notes in `.release/next.md`** -- what is
+  new, what an upgrade needs. They go above the generated list of commits;
+  without them the workflow refuses. A beta keeps the text, the release from
+  `main` empties the file. Write it as part of the change that deserves a
+  sentence, not at release time.
+- **`dev` is merged into `main` with its history -- never squashed or rebased**
+  -- and `main` back into `dev` before the next beta. The workflow checks both
+  and refuses otherwise.
 - **A `BREAKING CHANGE:` footer raises the minor position, not the major one**
-  (`releaseRules` on the commit-analyzer). It still renders as its own
+  (`breaking: minor` in `release.yml`). It still renders as its own
   `BREAKING CHANGES` section in the changelog.
 - **The commit message is the only input the version comes from**, so it is
   checked like code -- but by `.githooks/commit-msg`, not by CI. The commitlint

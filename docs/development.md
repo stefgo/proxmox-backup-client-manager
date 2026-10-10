@@ -225,7 +225,7 @@ a topic branch gets.
 | Push to `main` | the same, tagged `:main`. **No version.** |
 | Push or pull request touching `docs/` | `docs.yml` builds the site with `--strict`; `build.yml` skips it via `paths-ignore` |
 | … when that push is on `main` | `docs.yml` deploys it to GitHub Pages as well |
-| *Actions ▸ Create Release ▸ Run workflow* on `main` | `release.yml`: branch guard → `ci.yml` → semantic-release → tag → dispatches `build.yml` on the tag ref and waits for it |
+| *Actions ▸ Create Release ▸ Run workflow* on `main` or `dev` | `release.yml`: preflight → `ci.yml` → semantic-release → tag → dispatches `build.yml` on the tag ref and waits for it |
 | Nightly at 02:00 UTC | `cleanup-packages.yml` prunes GHCR |
 
 Three of the six are described in their own right further down:
@@ -452,18 +452,30 @@ Should a single commit need to stay out of the version calculation, the string
 
 `semantic-release` owns the version number; nobody tags by hand. A release is an
 **action, not a side effect of pushing**: it is started from
-*Actions ▸ Create Release ▸ Run workflow*, and only on `main` --
+*Actions ▸ Create Release ▸ Run workflow* -- on `main` for a release, on `dev`
+for a beta (`1.6.0-beta.1`, published as a prerelease). Every other branch is
+rejected.
+
 [`release.yml`](https://github.com/stefgo/proxmox-backup-client-manager/blob/main/.github/workflows/release.yml)
-rejects every other branch. The rejection is its own `guard` job, ahead of the
-checks: the condition is known the moment the workflow is dispatched, so a
-mis-click costs a second instead of a full typecheck, lint and test cycle. Past the
-guard, a release is gated by exactly the `ci.yml` checks a pull request gets.
+offers the inputs and names the checks and the build. What a release is, how its
+version is found and how its notes are put together is the same for all stefgo
+projects and lives in
+[release-workflows](https://github.com/stefgo/release-workflows), which this
+workflow calls; semantic-release is installed from there, not from this
+repository.
+
+The rejection is its own `preflight` job, ahead of the checks: the branch, the
+hand-written notes and the state of `dev` against `main` are known the moment the
+workflow is dispatched, so a mis-click costs seconds instead of a full typecheck,
+lint and test cycle. Past it, a release is gated by exactly the `ci.yml` checks a
+pull request gets.
 
 ```
-Actions ▸ Create Release ▸ Run workflow   (main)
-  └─► release.yml → semantic-release
+Actions ▸ Create Release ▸ Run workflow   (main or dev)
+  └─► preflight → ci.yml → semantic-release
         ├─ commits CHANGELOG.md + package.json   [skip ci]  (no second build)
         ├─ pushes tag v1.5.0
+        ├─ fast-forwards dev to the release commit   (from main only)
         └─ gh workflow run build.yml --ref v1.5.0
               └─► build.yml → images to GHCR
                     └─ gh run watch --exit-status   (the release job waits)
@@ -488,19 +500,31 @@ Images* on the tag, and a second release is not needed.
 
 The workflow takes two inputs:
 
-- **`dry_run`** (default **on**) -- runs `semantic-release --dry-run`: the next
-  version number appears in the log, nothing is written, no tag, no image. Turn
+- **`dry_run`** (default **on**) -- the next version number and the complete
+  notes appear in the run's summary, nothing is written, no tag, no image. Turn
   it off to release for real. The default is deliberately the harmless one; a
   mis-click costs a dry run instead of moving `latest` for every self-hoster.
-- **`bump`** (`auto` | `major`) -- `auto` derives the bump from the commit types.
-  `major` forces one. This is the **only** way a major version comes about; no
-  commit text can produce one.
+- **`bump`** (`auto` | `patch` | `minor` | `major`) -- `auto` derives the step
+  from the commit types. Any other value *is* the step, whatever the commits
+  say: it may be lower than they call for, and it releases from a state holding
+  nothing but `docs:` commits -- which is what the dry run is there to catch.
+  `major` is the **only** way a major version comes about; no commit text can
+  produce one.
 
-`bump: major` works through a second `analyzeCommits` plugin
-(`@semantic-release/exec`, see `package.json`), because semantic-release reduces
-the results of all such plugins to the *highest* release type. It is independent
-of the commits, so a forced major would also produce `2.0.0` from a state holding
-nothing but `docs:` commits -- which is what the dry run is there to catch.
+**Every release is described by hand.** `.release/next.md` holds what is new and
+what an upgrade needs; the text is placed above the generated list of commits, in
+the GitHub release and in `CHANGELOG.md`. A release with nothing written there is
+refused. A beta keeps the text, so it grows from the first beta to the release;
+the release from `main` empties the file again and drops the entries of its betas
+from `CHANGELOG.md`. `.release/footer.md` names the images and is appended to
+every release page.
+
+**`dev` is merged into `main` with its history** -- no squash, no rebase -- and
+`main` is merged back into `dev` before the next beta. semantic-release finds a
+version through the tags a branch contains, so the workflow refuses a release
+whose beta is not part of `main`, and a beta while the last release is not part
+of `dev`. After a release it fast-forwards `dev` itself when `dev` has nothing
+`main` lacks.
 
 **A release run that produces nothing fails.** With an automatic trigger "nothing
 to do" is the normal case; for a run someone asked for it is an error, and the
@@ -537,6 +561,7 @@ Which tag ends up where:
 | Push to `main` | `main`, `sha-<short>` | no |
 | Push to `dev` | `dev`, `sha-<short>` | no |
 | Release tag `v1.5.0` | `1.5.0`, `1.5`, `latest` | **yes** |
+| Beta tag `v1.6.0-beta.1` | `1.6.0-beta.1` | no |
 | Dispatch on a branch | `<branch>`, `sha-<short>` | no |
 
 `:main` and `:dev` are rolling pointers without a version: `:main` is the state
