@@ -9,3 +9,8 @@ dev keeps the text; the stable release from main empties this file again.
 
 Nothing inside an HTML comment is published.
 -->
+
+No change in behaviour. The webhook template engine now comes from a package the stefgo
+projects share, and the dependencies were brought up to date.
+
+Nothing has to be done on an upgrade.
