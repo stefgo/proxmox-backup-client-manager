@@ -29,62 +29,11 @@
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@eslint/js": "^10.0.1",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/exec": "^7.1.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.6",
-    "@semantic-release/npm": "^13.2.0",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
     "playwright": "^1.64.0",
     "rimraf": "^6.1.3",
-    "semantic-release": "^25.0.9",
     "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
-  },
-  "release": {
-    "branches": [
-      "main"
-    ],
-    "plugins": [
-      [
-        "@semantic-release/commit-analyzer",
-        {
-          "releaseRules": [
-            {
-              "breaking": true,
-              "release": "minor"
-            }
-          ]
-        }
-      ],
-      [
-        "@semantic-release/exec",
-        {
-          "analyzeCommitsCmd": "test \"$FORCE_MAJOR\" = \"true\" && echo major || true",
-          "successCmd": "echo \"tag=v${nextRelease.version}\" >> $GITHUB_OUTPUT"
-        }
-      ],
-      "@semantic-release/release-notes-generator",
-      "@semantic-release/changelog",
-      [
-        "@semantic-release/npm",
-        {
-          "npmPublish": false
-        }
-      ],
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "package.json",
-            "package-lock.json",
-            "CHANGELOG.md"
-          ],
-          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        }
-      ],
-      "@semantic-release/github"
-    ]
   }
 }

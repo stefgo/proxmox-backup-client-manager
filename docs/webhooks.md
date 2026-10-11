@@ -179,8 +179,9 @@ nested `$if`s.
 **`$map`** — one item per element of an array, rendered with `each(name)`, in which `name`
 is the element; `each(name, index)` adds its position, counted from 0. The path names the
 array without braces (`"{{…}}"` is accepted too) and may carry filters. Anything but an array
-gives `[]`. A name may not be `event`, `client`, `webhook` or one already in use. A job run
-carries no arrays today, so `$map` is there for the day it does.
+gives `[]`. A name may not be `event`, `client`, `webhook` or one already in use. The array a
+run carries is `event.data.snapshot.archives`; the Log Notifier [example](#examples) turns it
+into the rows of a table.
 
 **`$join`** — renders what it holds and joins the resulting array into text, separated by
 `with` (nothing when left out). That is how several parts become one message:
@@ -272,6 +273,122 @@ posted to the server root, with the topic in it:
         "detail": "{{event.detail}}",
         "data": "{{event.data}}"
     }
+}
+```
+
+**[Log Notifier](https://github.com/stefgo/ha-log-notifier) for Home Assistant** — URL
+`https://<ha>/api/lognotifier/ingest/<channel token>`, event kinds `job.*`, minimum level
+`info` — a successful run is `info`. Log Notifier reads PBCM's levels as its own and renders
+`content` and the values in `blocks` as Markdown. The template picks the title's icon by
+outcome, says in one sentence how the run ended and puts the error, the client, the job, the
+run's times and the event itself into `blocks` — for a backup also its snapshot, with one
+table row per archive:
+
+```json
+{
+    "level": "{{event.level}}",
+    "title": {
+        "$join": [
+            {
+                "$if": "event.kind == 'job.succeeded'",
+                "then": "✅",
+                "else": { "$if": "event.kind == 'job.failed'", "then": "❌", "else": "⚠️" }
+            },
+            " {{client.name}}: {{event.message}}"
+        ]
+    },
+    "content": {
+        "$join": [
+            "Backup job **{{event.data.jobName}}** on **{{client.name}}** ",
+            {
+                "$if": "event.kind == 'job.succeeded'",
+                "then": "completed successfully.",
+                "else": {
+                    "$if": "event.kind == 'job.failed'",
+                    "then": "failed.",
+                    "else": "did not complete (status **{{event.data.status}}**)."
+                }
+            }
+        ]
+    },
+    "blocks": [
+        {
+            "$if": "event.detail",
+            "then": {
+                "type": "text",
+                "text": "❗ **Error:** {{event.detail}}"
+            }
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Client", "value": "{{client.name}}" },
+                    { "label": "Hostname", "value": "{{client.hostname | default('–')}}" }
+                ],
+                [
+                    { "label": "Job", "value": "{{event.data.jobName}}" },
+                    { "label": "Type", "value": "{{event.data.type | upper}}" }
+                ],
+                [
+                    { "label": "Start", "value": "{{event.data.startTime}}", "format": "datetime" },
+                    { "label": "End", "value": "{{event.data.endTime | default('–')}}", "format": "datetime" },
+                    { "label": "Duration", "value": "{{event.data.durationSeconds | default('–')}} s" }
+                ],
+                [
+                    { "label": "Status", "value": "{{event.data.status}}" },
+                    { "label": "Exit code", "value": "{{event.data.exitCode | default('–')}}" },
+                    { "label": "Run ID", "value": "{{event.data.runId}}" }
+                ]
+            ]
+        },
+        {
+            "$if": "event.data.snapshot",
+            "then": {
+                "type": "fields",
+                "rows": [
+                    [
+                        { "label": "Snapshot", "value": "{{event.data.snapshot.id}}", "span": 2 },
+                        { "label": "Size (logical)", "value": "{{event.data.snapshot.size}} bytes" }
+                    ]
+                ]
+            },
+            "else": {
+                "$if": "event.data.snapshotError",
+                "then": {
+                    "type": "text",
+                    "text": "⚠️ **Snapshot could not be read:** {{event.data.snapshotError}}"
+                }
+            }
+        },
+        {
+            "$if": "event.data.snapshot.archives",
+            "then": {
+                "type": "table",
+                "columns": [
+                    "Name",
+                    { "label": "Size (bytes)", "align": "right" },
+                    "Encryption"
+                ],
+                "rows": {
+                    "$map": "event.data.snapshot.archives",
+                    "each(a)": ["{{a.name}}", "{{a.size}}", "{{a.cryptMode}}"]
+                }
+            }
+        },
+        {
+            "type": "fields",
+            "rows": [
+                [
+                    { "label": "Webhook", "value": "{{webhook.name}}" },
+                    { "label": "Event ID", "value": "{{event.id}}" }
+                ]
+            ]
+        }
+    ],
+    "source": "PBCM",
+    "tags": ["pbcm", "{{event.data.type}}", "{{event.kind}}", "{{client.name}}"],
+    "timestamp": "{{event.occurredAt}}"
 }
 ```
 

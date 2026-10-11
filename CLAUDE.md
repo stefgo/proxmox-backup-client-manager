@@ -235,18 +235,34 @@ Environment variables of note:
 
 `semantic-release` owns the version. It runs from
 [`release.yml`](.github/workflows/release.yml), which is **`workflow_dispatch`
-only and refuses any branch but `main`**: a release is an action, not a side
-effect of pushing. It derives the next number from the commit types since the
-last tag, writes `CHANGELOG.md` and the root `package.json`, and pushes the tag.
+only and releases from `main` (a release) or `dev` (a beta, `x.y.z-beta.n`)**: a
+release is an action, not a side effect of pushing. It derives the next number
+from the commit types since the last tag, writes `CHANGELOG.md` and the root
+`package.json`, and pushes the tag.
 **Never bump a version or create a `v*` tag by hand.**
 
-- The workflow takes two inputs. **`dry_run`** (default on) prints the next
-  version and changes nothing. **`bump`** (`auto` | `major`) is the *only* way a
-  major version is created -- no commit text can produce one. A run that was
-  asked for and produces no release **fails**, rather than going green with no
-  result.
+The workflow calls
+[stefgo/release-workflows](https://github.com/stefgo/release-workflows), which
+carries semantic-release and its configuration for every stefgo project. There
+is no `release` entry in `package.json` and no semantic-release package
+installed here.
+
+- The workflow takes two inputs. **`dry_run`** (default on) shows the next
+  version and the complete notes and changes nothing. **`bump`** (`auto` |
+  `patch` | `minor` | `major`) takes the step from the commit types or is the
+  step itself, whatever the commits say. `major` is the *only* way a major
+  version is created -- no commit text can produce one. A run that was asked for
+  and produces no release **fails**, rather than going green with no result.
+- **Every release needs hand-written notes in `.release/next.md`** -- what is
+  new, what an upgrade needs. They go above the generated list of commits;
+  without them the workflow refuses. A beta keeps the text, the release from
+  `main` empties the file. Write it as part of the change that deserves a
+  sentence, not at release time.
+- **`dev` is merged into `main` with its history -- never squashed or rebased**
+  -- and `main` back into `dev` before the next beta. The workflow checks both
+  and refuses otherwise.
 - **A `BREAKING CHANGE:` footer raises the minor position, not the major one**
-  (`releaseRules` on the commit-analyzer). It still renders as its own
+  (`breaking: minor` in `release.yml`). It still renders as its own
   `BREAKING CHANGES` section in the changelog.
 - **The commit message is the only input the version comes from**, so it is
   checked like code -- but by `.githooks/commit-msg`, not by CI. The commitlint
@@ -284,6 +300,25 @@ last tag, writes `CHANGELOG.md` and the root `package.json`, and pushes the tag.
   file; the backend has none, because nothing reads it.
 
 See `docs/development.md` for the workflow details.
+
+### The release notes are part of the commit
+
+Before every commit, read `.release/next.md` and bring it up to date with what the commit
+changes — in the same commit, not at release time.
+
+- A commit that changes what a user sees or has to do — a feature, a fix, a changed
+  default, a renamed setting, anything an upgrade needs — is reflected in the text. A
+  `feat`, `fix` or `perf` commit that leaves the file untouched needs a reason.
+- A commit that changes nothing for a user (`ci`, `test`, `refactor`, `docs`, `chore`,
+  most of `build`) leaves the file alone. No line is added for the sake of it.
+- Revise the text as a whole instead of appending a line per commit: it describes the
+  release, not its history. Merge what belongs together, and remove a sentence a later
+  commit made untrue — a feature taken back before the release is not in its notes.
+- Write for someone who uses the project, in their terms: what is new, why it matters,
+  what an upgrade needs. No file names and no internals; the list of commits below the
+  text already names every change.
+- The text goes below the HTML comment at the top of the file, with `###` headings. If
+  the file holds only the comment, the text starts with this commit.
 
 ## Code Style
 
