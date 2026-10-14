@@ -10,7 +10,13 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
-No change in behaviour. The webhook template engine now comes from a package the stefgo
-projects share, and the dependencies were brought up to date.
+### Wrapped text in tables sits closer
 
-Nothing has to be done on an upgrade.
+Text that wraps onto a second line in a table cell now sits as closely as text anywhere else
+in the application; its lines were further apart than the text's size called for. Rows of a
+single line are a little lower than before.
+
+### Upgrading
+
+Nothing has to be done. The webhook template engine now comes from a package the stefgo
+projects share, and the dependencies were brought up to date.
