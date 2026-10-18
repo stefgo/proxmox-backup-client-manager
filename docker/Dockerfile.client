@@ -67,7 +67,7 @@ RUN echo "deb http://download.proxmox.com/debian/pbs-client bookworm main" > /et
 # wget nor curl in the image, and mounting the package from here instead of copying it
 # keeps it out of the runner's layers.
 FROM scratch AS pbs-client-arm64
-ADD https://github.com/wofferl/proxmox-backup-arm64/releases/download/4.1.4-1/proxmox-backup-client_4.1.4-1_arm64.deb \
+ADD https://github.com/wofferl/proxmox-backup-arm64/releases/download/4.2.8-1/proxmox-backup-client_4.2.8-1_arm64.deb \
     /proxmox-backup-client.deb
 
 # The Debian release is the one the package above is built for.
