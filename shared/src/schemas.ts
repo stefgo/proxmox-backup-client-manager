@@ -225,6 +225,13 @@ export const ClientSchema = z.object({
      */
     ipAddress: z.string().optional(),
     /**
+     * Inbound clients only: until when the registration token issued for this client is
+     * valid, or null when none is open. Set while the client waits for its first agent, and
+     * again when an agent is to be registered anew. Expired tokens keep their date, so the
+     * client page can say that it ran out.
+     */
+    registrationExpiresAt: z.string().nullish(),
+    /**
      * Whether SSH credentials are stored for this client, so its jobs and restores may
      * choose the tunnel. Independent of `connectionMode`: the tunnel is a route to the
      * PBS, the mode is who dials the WebSocket, every combination of the two is valid,
@@ -430,41 +437,29 @@ export const RegistrationResponseSchema = z.object({
     clientId: z.string(),
 });
 
-/** A registration token as the list shows it: by its hash, never the token itself. */
-export const TokenSchema = z.object({
-    /** SHA-256 of the token, hex. Also what `DELETE /api/v1/tokens/:tokenHash` takes. */
-    tokenHash: z.string(),
-    createdAt: z.string(),
-    expiresAt: z.string(),
-    /** Null for a token nobody has redeemed yet. */
-    usedAt: z.string().nullish(),
-    /** Applied to the client this token registers. */
-    displayName: z.string().optional(),
-    /** Where the token may be redeemed from, and what the client is pinned to afterwards. */
-    allowedIp: z.string().optional(),
+/**
+ * `POST /api/v1/clients/inbound`. The client exists from here on and waits for its agent.
+ * The display name is required: until the agent reports a hostname it is the only thing the
+ * client is known by. `inboundAllowedIp` is where the agent may register from and connect
+ * from afterwards; without it neither is checked.
+ */
+export const CreateInboundClientSchema = z.object({
+    displayName: z.string().trim().min(1, { error: "Enter a display name" }).max(100),
+    inboundAllowedIp: Ipv4OrCidrSchema.optional(),
 });
 
 /**
- * The optional body of `POST /api/v1/tokens`.
- *
- * Both values are decisions only an operator can make, and the token is the one
- * moment one is present: the agent registers unattended, so anything it is not
- * told here has to be corrected by hand afterwards.
+ * A registration token, in the one response that carries it in the clear. The server keeps
+ * only its hash on the client it was issued for, so this is the only time it can be shown.
  */
-export const CreateRegistrationTokenSchema = z.object({
-    displayName: z.string().trim().min(1).max(100).optional(),
-    allowedIp: Ipv4OrCidrSchema.optional(),
-});
-
-/**
- * `POST /api/v1/tokens`: the one response that carries the token in the clear. The server
- * stores only its hash, so this is the only time it can be shown.
- */
-export const CreatedTokenSchema = z.object({
+export const RegistrationTokenSchema = z.object({
     token: z.string(),
     expiresAt: z.string(),
-    displayName: z.string().optional(),
-    allowedIp: z.string().optional(),
+});
+
+/** `POST /api/v1/clients/inbound`: the client that now waits, and the token for its agent. */
+export const CreatedInboundClientSchema = RegistrationTokenSchema.extend({
+    id: z.uuid(),
 });
 
 export const SnapshotSchema = z.object({
@@ -862,8 +857,6 @@ const RetentionValueSchema = z
  * must be numbers, and `security` decides which networks may register a client.
  */
 export const CleanupSettingsSchema = z.looseObject({
-    token_retention_days: RetentionValueSchema.optional(),
-    token_cleanup_interval_hours: RetentionValueSchema.optional(),
     retention_job_history_days: RetentionValueSchema.optional(),
     retention_job_history_count: RetentionValueSchema.optional(),
     job_history_cleanup_interval_hours: RetentionValueSchema.optional(),
@@ -1000,8 +993,6 @@ const StoredSettingValueSchema = z.preprocess(
  * so a key an operator added by hand has to survive the round trip.
  */
 export const AppSettingsSchema = z.looseObject({
-    token_retention_days: StoredSettingValueSchema.default("30"),
-    token_cleanup_interval_hours: StoredSettingValueSchema.default("24"),
     retention_job_history_days: StoredSettingValueSchema.default("90"),
     retention_job_history_count: StoredSettingValueSchema.default("50"),
     job_history_cleanup_interval_hours: StoredSettingValueSchema.default("24"),
@@ -1074,8 +1065,6 @@ export const AppConfigSchema = z.looseObject({
     port: z.number().int().min(1).max(65535).optional(),
     oidc: blockOrMissing(OidcConfigSchema.optional()),
     settings: AppSettingsSchema.default({
-        token_retention_days: "30",
-        token_cleanup_interval_hours: "24",
         retention_job_history_days: "90",
         retention_job_history_count: "50",
         job_history_cleanup_interval_hours: "24",

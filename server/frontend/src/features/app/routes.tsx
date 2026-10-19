@@ -2,7 +2,6 @@ import type { RouteObject } from 'react-router-dom';
 import {
     Activity,
     HardDrive,
-    Key,
     LayoutDashboard,
     Monitor,
     Server as ServerIcon,
@@ -20,7 +19,6 @@ import {
     HistoryOverview,
     ManagedJobs,
     Settings,
-    TokenOverview,
     UserOverview,
     WebhookEditorRoute,
     WebhookOverview,
@@ -154,12 +152,6 @@ export const shellRoutes: RouteObject[] = [
         handle: nav({ id: 'users', groupId: 'administration', placement: 'mobile-more', label: 'Users', icon: Users }),
         errorElement: <RouteError />,
         element: <UserOverview />,
-    },
-    {
-        path: ROUTES.tokens,
-        handle: nav({ id: 'tokens', groupId: 'administration', placement: 'mobile-more', label: 'Client Tokens', icon: Key }),
-        errorElement: <RouteError />,
-        element: <TokenOverview />,
     },
     {
         path: ROUTES.webhooks,

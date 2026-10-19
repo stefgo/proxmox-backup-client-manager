@@ -143,7 +143,7 @@ PBCM sets up and tears down around the run.
 - **Global history & sync** — execution history from all clients, collected into one view.
 - **Real-time monitoring** — live log streams and status updates over WebSockets.
 - **File browser** — browse a client's remote file system for selective backups and restores.
-- **Secure communication** — agents authenticate with short-lived registration tokens,
+- **Secure communication** — agents register with a short-lived token issued for their client,
   and every job pins the PBS certificate fingerprint.
 - **Reachability** — clients with no route to the PBS back up through an
   [SSH reverse tunnel](tunnel.md), opened per run.

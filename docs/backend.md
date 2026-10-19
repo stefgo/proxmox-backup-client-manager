@@ -28,10 +28,9 @@ Controllers handle HTTP requests and responses. They enforce input parsing, dele
 | Controller                  | Responsibility                                                             |
 | :-------------------------- | :------------------------------------------------------------------------- |
 | `AuthController.ts`         | Local login, OIDC flow (login, callback, config endpoint).                 |
-| `ClientController.ts`       | Client list, update, delete, file system browsing, version, history.       |
+| `ClientController.ts`       | Client list, adding an inbound client (which then waits for its agent) or an outbound one, issuing a registration token, the agent's public self-registration (`register`), update, delete, file system browsing, version, history. |
 | `JobController.ts`          | Job CRUD, manual backup/restore triggers, aborting a run, encryption key generation. |
 | `RepositoryController.ts`   | PBS repository CRUD, status check, snapshot listing, certificate probe, fingerprint distribution. |
-| `TokenController.ts`        | Registration token management, public client registration endpoint.         |
 | `UserController.ts`         | User CRUD.                                                                  |
 | `SettingsController.ts`     | Cleanup settings read/write, manual cleanup runs, scheduler status.         |
 | `HistoryController.ts`      | Global job history across all clients; what each user has marked as seen. |
@@ -48,15 +47,14 @@ Services contain the heavy business logic of the application. They are designed 
 - **`SettingsService.ts`**: Manages global application settings and persistence.
 - **`FingerprintObservations.ts`**: In-memory record of fingerprints reported by agents (`FINGERPRINT_OBSERVED`). Deliberately never written into the repository config — a single compromised client must not be able to set the value every other client then trusts.
 - **`ScheduledJob.ts`**: The timer, the bookkeeping and the status of one server scheduler. Every run — the timer's and a manual one — goes through `run()`, which keeps the scheduler's row in `scheduler_state` and pushes `SCHEDULER_STATUS_UPDATE` to the dashboards. A run that throws is recorded as `failed` with its error and logged; there is no activity list to report it to. The timer is a chain of timeouts rather than an interval, so the first run after a restart can be placed one interval after the last run started (at once if overdue) instead of one after startup; a scheduler that has never run keeps the run it had planned (`next_run_at`, capped at one interval from now), so restarting more often than the interval does not keep pushing its first run away; with none planned, it is one interval after startup. Waits longer than `setTimeout` allows (~24.8 days) are taken in steps.
-- **`TokenCleanupService.ts`**: Scheduler `token-cleanup`. Removes registration tokens that have been invalid (used or expired) for longer than `token_retention_days`, every `token_cleanup_interval_hours` (`0` switches the timer off).
 - **`JobHistoryCleanupService.ts`**: Scheduler `job-history-cleanup`. Removes job history older than `retention_job_history_days`, always keeping the newest `retention_job_history_count` entries per client (at least one); `0` days means no age limit. Runs every `job_history_cleanup_interval_hours`.
 
-  Both are started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. After a signal the server closes its connections and exits with code 0; one that does not finish closing is given `SHUTDOWN_TIMEOUT_MS` (5 s), so the process ends before Docker's 10 s grace period would kill it, and a second signal changes nothing. `SettingsService.updateSettings` restarts the one whose keys changed.
+  It is started in `index.ts` after `SchedulerStateRepository.markInterrupted()` and stopped on `SIGINT`/`SIGTERM` and on an uncaught exception. After a signal the server closes its connections and exits with code 0; one that does not finish closing is given `SHUTDOWN_TIMEOUT_MS` (5 s), so the process ends before Docker's 10 s grace period would kill it, and a second signal changes nothing. `SettingsService.updateSettings` restarts it when one of its keys changed. A `token-cleanup` scheduler existed until the registration tokens became a property of their client (migration 21).
 - **`ClientConnector.ts`**: Dials outbound clients — registration through the agent's `/ws/register`, then a session over `/ws/agent`. Its `RECONNECT_DELAYS` ladder is the same one the agent uses in the other direction, because the two ends of one link should not behave differently.
 - **`TunnelService.ts`**: Establishes and tears down the SSH reverse tunnel on a client's request. See [tunnel.md](tunnel.md).
 - **`WebhookService.ts`**: Sends the webhooks — the server is the only sender. `dispatch(clientId, events)` hands events to every enabled webhook whose filters they pass; one queue per webhook keeps a target's events in order, with retries after 1 s and 5 s on no answer, 5xx and 429, and at most 100 waiting. The outcome goes into the webhook's `last_*` columns (migration 15) and `WEBHOOKS_UPDATE` to the dashboards. Runs come from `AgentMessageRouter`: `JobHistoryRepository.upsertStatus` and `upsertHistoryBatch` answer the runs a write gave a final state they did not have before, so a run is reported once whether it arrives live, with the history sync, or both. See [webhooks.md](webhooks.md).
 - **`ClientConnectionWatch.ts`**: `client.disconnected` once an agent's connection has stayed closed for 120 s, `client.reconnected` when it is back after that was reported. Fed by `AgentSession` — a close counts only when `ProxyService.unregisterClient` removed the current socket, not one a newer connection replaced. In memory only: a server restart forgets who was away.
-- **`SecretCrypto.ts`**: Encrypts every secret the server has to read back at rest (AES-256-GCM): the SSH private keys of the tunnels, the PBS token secrets of the repositories and the auth tokens of outbound clients (migration 18). The key is derived via HKDF from `secretKey` in `config.yaml` and deliberately **not** from `jwtSecret` — rotating the secret that signs sessions must not make every stored secret unreadable. `encryptSecret` refuses while that key was generated on this start and could not be written to `config.yaml`: it would be gone after the restart, and everything encrypted with it. Inbound clients' auth tokens are not encrypted but hashed (SHA-256, `hashToken`), like the registration tokens: the server only has to recognise them.
+- **`SecretCrypto.ts`**: Encrypts every secret the server has to read back at rest (AES-256-GCM): the SSH private keys of the tunnels, the PBS token secrets of the repositories and the auth tokens of outbound clients (migration 18). The key is derived via HKDF from `secretKey` in `config.yaml` and deliberately **not** from `jwtSecret` — rotating the secret that signs sessions must not make every stored secret unreadable. `encryptSecret` refuses while that key was generated on this start and could not be written to `config.yaml`: it would be gone after the restart, and everything encrypted with it. Inbound clients' auth tokens are not encrypted but hashed (SHA-256, `hashToken` in `ClientRepository`), like the registration tokens: the server only has to recognise them.
 - **`JobSecrets.ts`**: Keeps a job's two secrets — the repository's token secret and the encryption key — between server and agent. `redactJob` strips them from every job that goes to a browser (`GET /v1/jobs`, `GET /v1/clients/:id/jobs`, `JOBS_UPDATE`); `completeJobSecrets` fills them back in on a save, from the managed repository and from the job the agent stores. The job cache in `ProxyService` keeps them, because the backfill and the repository distribution send whole jobs back to the agent.
 
 **Certificate probing lives in `shared/`, not here.** `probeCertificate` in `shared/src/node/certProbe.ts` measures the TLS certificate of a PBS
@@ -208,7 +206,7 @@ new route that hands a job to a browser has to pass it through `redactJob`.
 The backend relies on **SQLite3** wrapped with `better-sqlite3` for fast, synchronous database operations.
 
 - The `core/` directory handles initializing the DB file location and running schema migrations via **Umzug**.
-- It stores: User credentials, client tokens, registered clients, PBS repository configurations, job configurations (cache), complete job histories, and the state of the server schedulers.
+- It stores: User credentials, clients (with the hash and expiry of an open registration token, migration 21), PBS repository configurations, job configurations (cache), complete job histories, and the state of the server schedulers.
 
 #### `scheduler_state`
 
@@ -217,12 +215,12 @@ history.
 
 | Column | Meaning |
 | :----- | :------ |
-| `scheduler` | Primary key: `token-cleanup`, `job-history-cleanup`. |
+| `scheduler` | Primary key: `job-history-cleanup`. The row of the removed `token-cleanup` was deleted by migration 21. |
 | `running_since`, `running_trigger` | Set while a run is in progress, cleared when it ends. Kept apart from `last_*` so the last run stays visible during a run. |
 | `last_started_at`, `last_finished_at`, `last_trigger` | The last finished run; `last_finished_at` is `NULL` for an interrupted one. |
 | `last_status` | `success`, `partial`, `failed` or `interrupted`. |
 | `last_result`, `last_error` | JSON result (`{ removed }`) or the error message. |
-| `state` | JSON the scheduler carries from one run to the next; unused by both cleanups. |
+| `state` | JSON the scheduler carries from one run to the next; unused by the cleanup. |
 | `next_run_at` | The run the timer has planned (migration 13); `NULL` while the scheduler is off. Read at startup only while there is no last run. |
 
 A row that still carries `running_since` at startup belongs to a run the previous process

@@ -27,7 +27,7 @@ import {
     type SettingsValues,
     settingsFrom,
 } from '../features/settings/sections';
-import { JobHistorySection, TokenRetentionSection } from '../features/settings/components/SettingsSections';
+import { JobHistorySection } from '../features/settings/components/SettingsSections';
 import { schedulerStatusOptions } from '../queries/scheduler';
 import { SettingsResponseSchema } from '@pbcm/shared';
 
@@ -124,8 +124,6 @@ export default function Settings() {
 
     const renderSection = (id: SectionId) => {
         switch (id) {
-            case 'tokens':
-                return <TokenRetentionSection values={draft} onChange={change} />;
             case 'job-history':
                 return <JobHistorySection values={draft} onChange={change} />;
         }

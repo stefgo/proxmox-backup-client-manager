@@ -9,22 +9,26 @@ interface StepInboundDetailsProps {
 }
 
 /**
- * What the agent cannot tell the server about itself.
- *
- * Both values are carried by the registration token, because this step is the
- * only moment an operator is present: the agent registers unattended, and
- * anything not decided here has to be corrected by hand afterwards.
+ * The client that is created at once and waits for its agent, with the token the agent
+ * registers with. The name is required -- until the agent reports a hostname it is all the
+ * client is known by; the address is optional.
  */
 export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsProps) => {
     const ipInvalid = !isAllowedIpValid(form.allowedIp);
 
     return (
         <div className="space-y-4">
+            <p className="text-sm text-text-muted">
+                The client is added now and waits for its agent. The token you get next
+                registers the agent under it.
+            </p>
             <Input
-                label="Display Name (optional)"
+                label="Display Name"
                 value={form.displayName}
                 onChange={(e) => onPatch({ displayName: e.target.value })}
-                placeholder="The agent's hostname is used if left empty"
+                placeholder="pve-01"
+                hint="What the client is listed as. The agent reports its hostname when it registers."
+                required
             />
             <Input
                 label="Allowed IP or Network (optional)"
@@ -32,16 +36,14 @@ export const StepInboundDetails = ({ form, onPatch, error }: StepInboundDetailsP
                 onChange={(e) => onPatch({ allowedIp: e.target.value })}
                 placeholder="192.168.1.50 or 192.168.1.0/24"
                 error={ipInvalid ? 'Enter an IPv4 address or a network in CIDR notation.' : undefined}
-                hint="Where the token may be redeemed from, and what the client stays restricted to afterwards. Leave it empty to accept connections from any address — the client editor can add the restriction later."
+                hint="Where the agent may register from, and what the client stays restricted to afterwards. Leave it empty to accept connections from any address — the client editor can add the restriction later."
             />
 
-            {/* Doubly true in this mode: no client is set up with a tunnel, and an
-                inbound one does not even exist as a row until its agent has redeemed
-                the token — there would be nothing to attach the credentials to. */}
+            {/* The wizard sets up the connection and nothing else: the tunnel stays
+                revisable for the client's whole life, so it is offered on its own. */}
             <p className="text-xs text-text-muted">
                 If this host cannot reach a PBS itself, add an SSH tunnel from the client
-                list once the agent has registered; each job and restore then chooses
-                whether to take it.
+                list; each job and restore then chooses whether to take it.
             </p>
 
             {error && <div className="text-sm text-error break-words">{error}</div>}

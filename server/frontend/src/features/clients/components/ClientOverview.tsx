@@ -1,9 +1,9 @@
-import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network } from 'lucide-react';
+import { HardDrive, Activity, FileBox, MoreVertical, Edit, Network, KeyRound, Hourglass } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { StatCard, ActionButton, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot, PAGE_SIZE } from '@stefgo/react-ui-components';
-import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
-import { EMPTY_VALUE, formatRelativeDate, getErrorMessage } from '../../../utils';
+import { StatCard, ActionButton, Button, EmptyState, LoadingIndicator, TabList, TabPanel, useTabs, StatusDot, PAGE_SIZE } from '@stefgo/react-ui-components';
+import { BackupJob, Client, CLIENT_STATUS, CONNECTION_MODE, type RegistrationToken } from '@pbcm/shared';
+import { EMPTY_VALUE, describeFailure, formatDate, formatRelativeDate, getErrorMessage } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
 import { ClientJobList } from './ClientJobList';
 import { ConnectionBadge } from './ConnectionBadge';
@@ -25,6 +25,10 @@ import { ENTITY_HEADER } from '../../../components/entityHeader';
 import { CLIENT_TABS, paths } from '../../../lib/paths';
 import { ActionMenu, Badge, EntityHeader, type EntityDetail, MenuItem, useActionMenu, useConfirm, useToast } from '@stefgo/react-ui-components';
 import { describeDeleteJob } from '../../jobs/confirmations';
+import { describeReregister } from '../confirmations';
+import { awaitsRegistration, registrationNotice, registrationTokenState } from '../lib/registration';
+import { RegistrationTokenModal } from './RegistrationTokenModal';
+import { issueRegistrationToken } from '../../../queries/clients';
 import { STORAGE_KEYS } from '../../../lib/storageKeys';
 
 
@@ -81,7 +85,7 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
 
     const { menuState, triggerRef, openMenu, closeMenu } = useActionMenu<string>();
 
-    const { confirm } = useConfirm();
+    const { confirm, alert } = useConfirm();
     const { show } = useToast();
 
     const handleTriggerJob = async (jobId: string) => {
@@ -103,13 +107,37 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         });
     };
 
+    // The token the server just issued, the one time it is shown.
+    const [issuedToken, setIssuedToken] = useState<RegistrationToken | null>(null);
+
+    // A client that waits has nothing to lose by a new token, so it goes out at once.
+    const handleNewToken = async () => {
+        try {
+            setIssuedToken(await issueRegistrationToken(client.id));
+        } catch (e: unknown) {
+            await alert(describeFailure('No token was issued', e));
+        }
+    };
+
+    // A registered one asks first: the agent that registers with the token takes it over.
+    // A refusal keeps the dialog open, with the server's reason in it.
+    const handleReregister = () =>
+        confirm({
+            ...describeReregister(client),
+            onConfirm: async () => setIssuedToken(await issueRegistrationToken(client.id)),
+        });
+
     /**
      * Escape leaves for the list, exactly as in the client editor. The job editor and the
-     * restore form are routes of their own and handle their own Escape.
+     * restore form are routes of their own and handle their own Escape. Off while the token
+     * is on screen: that dialog refuses Escape, because the token is shown once.
      */
-    useEscapeToLeave(back);
+    useEscapeToLeave(back, { enabled: !issuedToken });
 
     const isInbound = client.connectionMode !== CONNECTION_MODE.OUTBOUND;
+    const waiting = awaitsRegistration(client);
+    const tokenState = registrationTokenState(client.registrationExpiresAt);
+    const notice = waiting ? registrationNotice(client) : null;
 
     /**
      * What the header row has no room for. All of it opens on request, so a closed header
@@ -126,7 +154,18 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
         ...(isInbound && client.ipAddress
             ? [{ label: 'Last IP', value: client.ipAddress }]
             : []),
-        ...(isOnline ? [] : [{ label: 'Last Seen', value: formatRelativeDate(client.lastSeen, now) }]),
+        ...(isOnline || waiting ? [] : [{ label: 'Last Seen', value: formatRelativeDate(client.lastSeen, now) }]),
+        ...(tokenState === 'none'
+            ? []
+            : [
+                  {
+                      label: 'Registration Token',
+                      value:
+                          tokenState === 'open'
+                              ? `valid until ${formatDate(client.registrationExpiresAt)}`
+                              : 'expired',
+                  },
+              ]),
     ];
 
     return (
@@ -144,7 +183,11 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 meta={
                     <>
                         <Badge variant="info">{isInbound ? 'Inbound' : 'Outbound'}</Badge>
-                        {!isOnline && <Badge variant="warning">Offline</Badge>}
+                        {waiting ? (
+                            <Badge variant="info">Awaiting registration</Badge>
+                        ) : (
+                            !isOnline && <Badge variant="warning">Offline</Badge>
+                        )}
                         {/*
                           * The same badge the list shows. `client` comes from the cache
                           * via the route, so the tunnel state here follows the socket
@@ -187,10 +230,37 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                             >
                                 {client.tunnelConfigured ? 'Edit Tunnel' : 'Add Tunnel'}
                             </MenuItem>
+                            {isInbound && (
+                                <MenuItem
+                                    icon={KeyRound}
+                                    onClick={waiting ? () => void handleNewToken() : handleReregister}
+                                >
+                                    {waiting ? 'New Token' : 'Re-register Agent'}
+                                </MenuItem>
+                            )}
                         </ActionMenu>
                     </div>
                 }
             />
+
+            {/* Above the tabs rather than in their place, as the offline client keeps them:
+                the snapshots come from the repositories, the history from the server. */}
+            {notice && (
+                <div role="status" className="flex gap-3 rounded-md border border-border bg-card p-4">
+                    <Hourglass size={18} className="mt-0.5 shrink-0 text-warning" />
+                    <div className="min-w-0">
+                        <div className="font-medium text-text-primary">{notice.title}</div>
+                        {notice.lines.map((line) => (
+                            <p key={line} className="mt-1 text-sm text-text-muted">{line}</p>
+                        ))}
+                        <div className="mt-3">
+                            <Button variant="primary" icon={KeyRound} onClick={() => void handleNewToken()}>
+                                {tokenState === 'open' ? 'Generate New Token' : 'Generate Token'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* The stat cards are the tab list: `tabProps` is what makes them announce
                 themselves as tabs and puts the arrow keys on the row. Shown offline too:
@@ -308,6 +378,13 @@ export const ClientOverview = ({ client }: ClientOverviewProps) => {
                 </TabPanel>
             </div>
 
+            {issuedToken && (
+                <RegistrationTokenModal
+                    token={issuedToken.token}
+                    expiresAt={issuedToken.expiresAt}
+                    onClose={() => setIssuedToken(null)}
+                />
+            )}
         </div >
     );
 };

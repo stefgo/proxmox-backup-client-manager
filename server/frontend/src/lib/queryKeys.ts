@@ -61,10 +61,6 @@ export const queryKeys = {
         cleanup: () => ['settings', 'cleanup'] as const,
         schedulerStatus: () => ['settings', 'scheduler-status'] as const,
     },
-    tokens: {
-        all: ['tokens'] as const,
-        list: () => ['tokens', 'list'] as const,
-    },
     users: {
         all: ['users'] as const,
         list: () => ['users', 'list'] as const,

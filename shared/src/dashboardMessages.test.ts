@@ -49,7 +49,7 @@ const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     WEBHOOKS_UPDATE: { type: "WEBHOOKS_UPDATE" },
     SCHEDULER_STATUS_UPDATE: {
         type: "SCHEDULER_STATUS_UPDATE",
-        payload: { scheduler: "token-cleanup", status },
+        payload: { scheduler: "job-history-cleanup", status },
     },
 };
 

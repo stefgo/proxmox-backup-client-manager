@@ -23,7 +23,6 @@ export const STORAGE_KEYS = {
     jobsView: 'pbcm.jobs.view',
     repositoriesView: 'pbcm.repositories.view',
     usersView: 'pbcm.users.view',
-    tokensView: 'pbcm.tokens.view',
     webhooksView: 'pbcm.webhooks.view',
     /** One list on two pages, a client's and a repository's, and one setting for both. */
     snapshotsView: 'pbcm.snapshots.view',

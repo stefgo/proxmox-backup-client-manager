@@ -1,12 +1,18 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { randomUUID } from "crypto";
+import crypto, { randomUUID } from "crypto";
 import { ProxyService } from "../services/ProxyService.js";
 import {
     WS_EVENTS,
     CONNECTION_MODE,
     ClientUpdateSchema,
+    CreateInboundClientSchema,
     CreateOutboundClientSchema,
+    RegistrationPayloadSchema,
+    firstIssue,
+    isIpInCidr,
+    type CreatedInboundClient,
     type ReconnectResult,
+    type RegistrationToken,
 } from "@pbcm/shared";
 import { ClientRepository } from "../repositories/ClientRepository.js";
 import { ClientConnectionWatch } from "../services/ClientConnectionWatch.js";
@@ -15,7 +21,127 @@ import { TunnelService } from "../services/TunnelService.js";
 import { logger } from "@pbcm/shared/node";
 import { secretKeyPersisted } from "../config/AppConfig.js";
 
+/** How long a registration token is valid once issued. */
+const REGISTRATION_TOKEN_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Issues a registration token for an inbound client and stores its hash on the row. The
+ * returned value is the one time the token exists in the clear.
+ */
+function openRegistration(clientId: string): RegistrationToken {
+    const token = crypto.randomBytes(16).toString("hex");
+    const expiresAt = new Date(Date.now() + REGISTRATION_TOKEN_TTL_MS).toISOString();
+    ClientRepository.setRegistrationToken(clientId, token, expiresAt);
+    return { token, expiresAt };
+}
+
 export class ClientController {
+    /**
+     * Creates an inbound client that waits for its agent, and the token the agent registers
+     * with. The client is there from now on -- in the list, under the name given here --
+     * and the token is a property of it, not an object of its own.
+     */
+    static async createInbound(request: FastifyRequest, reply: FastifyReply) {
+        const parsed = CreateInboundClientSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const id = randomUUID();
+        ClientRepository.createPendingInbound(
+            id,
+            parsed.data.displayName,
+            parsed.data.inboundAllowedIp ?? null,
+        );
+        const registration = openRegistration(id);
+        ProxyService.broadcastClientUpdate();
+        return { id, ...registration } satisfies CreatedInboundClient;
+    }
+
+    /**
+     * Issues a new registration token for an inbound client, replacing one that was still
+     * open. For a client that waits, this is a token that has not run out; for a registered
+     * one, the way to put a reinstalled agent back under the same client. The agent that is
+     * connected now keeps its auth token until another agent registers with this one.
+     */
+    static async issueRegistrationToken(request: FastifyRequest, reply: FastifyReply) {
+        const { clientId } = request.params as { clientId: string };
+        const client = ClientRepository.findById(clientId);
+        if (!client) {
+            return reply.code(404).send({ error: "Client not found" });
+        }
+        if (client.connection_mode !== CONNECTION_MODE.INBOUND) {
+            return reply.code(400).send({ error: "Only inbound clients register with a token" });
+        }
+        const registration = openRegistration(clientId);
+        ProxyService.broadcastClientUpdate();
+        return registration;
+    }
+
+    /**
+     * An agent registers with the token issued for its client. Unauthenticated: the token
+     * is the credential, and it is good for one registration only.
+     */
+    static async register(request: FastifyRequest, reply: FastifyReply) {
+        // The one unauthenticated endpoint with a body, so the shape is checked before
+        // anything else happens. Ahead of the token lookup on purpose: a malformed request
+        // should not learn from the status code whether the token it sent exists.
+        const parsed = RegistrationPayloadSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.code(400).send({ error: firstIssue(parsed.error) });
+        }
+        const { token } = parsed.data;
+        const hostname = parsed.data.hostname || "unknown";
+
+        const client = ClientRepository.findByValidRegistrationToken(token);
+        if (!client) {
+            return reply.code(403).send({ error: "Invalid or expired token" });
+        }
+
+        // A client bound to a network may only be registered from inside it. Checked before
+        // anything is written: the agent consumes its one-time secret on a successful call,
+        // so a rejection has to leave the token unused.
+        if (client.inbound_allowed_ip && !isIpInCidr(request.ip, client.inbound_allowed_ip)) {
+            request.log.warn({
+                msg: "Registration denied: address outside the client's network",
+                ip: request.ip,
+                expected: client.inbound_allowed_ip,
+            });
+            return reply.code(403).send({
+                error: "Registration is not allowed from this address",
+            });
+        }
+
+        try {
+            const reregistered = client.auth_token !== null;
+
+            // The server issues the auth token. The client id is the one the token was issued
+            // for: taking it from the caller would let anyone holding a token name another
+            // client and take over its backups.
+            const authToken = crypto.randomBytes(64).toString("hex");
+
+            if (!ClientRepository.completeRegistration(client.id, token, hostname, authToken)) {
+                return reply.code(403).send({ error: "Invalid or expired token" });
+            }
+
+            // The agent that was connected under this client presents an auth token that is
+            // no longer stored; it goes now rather than at its next reconnect.
+            if (reregistered) {
+                const socket = ProxyService.getClientSocket(client.id);
+                if (socket) {
+                    socket.close(4000, "Client re-registered");
+                    ProxyService.unregisterClient(client.id, socket);
+                }
+            }
+
+            ProxyService.broadcastClientUpdate();
+
+            return { token: authToken, clientId: client.id };
+        } catch (e: unknown) {
+            request.log.error({ err: e }, "Registration failed");
+            return reply.code(500).send({ error: "Registration failed" });
+        }
+    }
+
     /**
      * Creates an outbound client — the connection and nothing else.
      *

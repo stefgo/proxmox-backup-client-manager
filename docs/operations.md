@@ -162,12 +162,18 @@ move a host on purpose:
 2. Delete `identity.json` from the data volume, e.g.
    `docker run --rm -v pbcm-client_client-data:/data alpine rm /data/identity.json`
    (the volume name depends on your Compose project).
-3. Start it again — a new setup PIN is printed — and register as in
-   [Register the agent](install-client.md#3-register-the-agent).
-4. Delete the old client row in the dashboard.
+3. For an inbound client, open it in the dashboard and choose **Re-register Agent**: it issues
+   a registration token that puts the agent back under the **same** client — same id, so the
+   same PBS `--backup-id` and snapshot group, the same tunnel and history. The jobs live on
+   the agent and have to be set up again.
+4. Start the container again — a new setup PIN is printed — and register with that token as
+   in [Register the agent](install-client.md#3-register-the-agent).
+
+An outbound client, or an inbound one you want to start over, is added anew in the wizard
+instead; delete the old client row in the dashboard afterwards.
 
 !!! warning "The `clientId` is the PBS `--backup-id`"
 
     It decides which snapshots the UI groups under this client. A new id starts a new
     snapshot group in PBS and orphans everything backed up so far. Never edit it by hand,
-    and re-register only when you mean to.
+    and add a host anew only when you mean to — **Re-register Agent** keeps the id.

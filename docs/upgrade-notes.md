@@ -12,6 +12,26 @@ the server** whatever the release.
 
 Not yet part of a release; in the `main` and `dev` images.
 
+### Registration tokens belong to their client
+
+Adding an inbound client creates the client at once; it waits for its agent, and the
+registration token is stored with it. The list of registration tokens and its settings tab
+are gone.
+
+- **Tokens issued before the upgrade no longer register an agent.** Add the client again in
+  the wizard, or open a waiting client and generate a new token. Agents that are registered
+  are not affected.
+- **`GET`/`POST /api/v1/tokens` and `DELETE /api/v1/tokens/:tokenHash` are removed**, and so
+  is `POST /api/v1/settings/cleanup/invalid-tokens`. A script that issued tokens uses
+  `POST /api/v1/clients/inbound` with a `displayName` (and optionally `inboundAllowedIp`,
+  formerly `allowedIp`), which answers with the client's id and its token;
+  `POST /api/v1/clients/:clientId/registration-token` issues a new one. See
+  [API](api.md#create-inbound-client). `POST /api/v1/settings/cleanup` no longer answers
+  with `tokens`.
+- **`token_retention_days` and `token_cleanup_interval_hours` do nothing any more.** Left in
+  `config.yaml`, they are logged as unknown at startup; delete them.
+- `POST /api/v1/register` is unchanged for the agent, and the agent needs no update for it.
+
 ### The agent container is restricted, and its image has a new base
 
 The shipped `compose.yaml` now starts the agent with `cap_drop: ALL`, seven capabilities

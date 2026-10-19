@@ -15,7 +15,6 @@ import { initOIDC, appConfig, serverPort, trustedProxies } from "./config/AppCon
 import { AuthService } from "./services/AuthService.js";
 import apiRoutes from "./routes/api.js";
 import { WebSocketController, type AgentQuery } from "./controllers/WebSocketController.js";
-import { TokenCleanupService } from "./services/TokenCleanupService.js";
 import { JobHistoryCleanupService } from "./services/JobHistoryCleanupService.js";
 import { SchedulerStateRepository } from "./repositories/SchedulerStateRepository.js";
 import { ClientConnector } from "./services/ClientConnector.js";
@@ -33,7 +32,6 @@ await AuthService.initializeAdmin(); // Ensure admin user
 // A run still marked as in progress died with the previous process; record it as such
 // before the timers read the last run to place their first one.
 SchedulerStateRepository.markInterrupted();
-TokenCleanupService.startScheduler();
 JobHistoryCleanupService.startScheduler();
 
 import { loggerOptions } from "@pbcm/shared/node";
@@ -193,7 +191,6 @@ const shutdown = () => {
     if (shuttingDown) return;
     shuttingDown = true;
     server.log.info("Shutting down server...");
-    TokenCleanupService.stopScheduler();
     JobHistoryCleanupService.stopScheduler();
     TunnelService.shutdown();
     // close() waits for every socket to finish its closing handshake. A peer that never
@@ -255,7 +252,6 @@ process.on("unhandledRejection", (reason) => {
 // the supervisor restart us (compose.yaml: restart: unless-stopped).
 process.on("uncaughtException", (err) => {
     server.log.fatal({ err }, "Uncaught exception, terminating");
-    TokenCleanupService.stopScheduler();
     JobHistoryCleanupService.stopScheduler();
     TunnelService.shutdown();
     // Give the pino transport worker a moment to flush before we go.

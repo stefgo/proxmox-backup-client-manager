@@ -7,6 +7,7 @@ import type { EntityForm } from '../../../hooks/useEntityForm';
 import { formatRelativeDate } from '../../../utils';
 import { useNow } from '../../../hooks/useNow';
 import { isOutbound as isOutboundClient, type ClientDraft, type ClientUpdateInput } from '../lib/clientForm';
+import { awaitsRegistration } from '../lib/registration';
 import { HeaderBreadcrumb } from '../../app/HeaderBreadcrumb';
 
 interface ClientIdentityCardProps {
@@ -37,6 +38,7 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
     const { draft, set, errors, isSaving } = form;
     const now = useNow();
     const isOutbound = isOutboundClient(client);
+    const waiting = awaitsRegistration(client);
     const allowedIpTrimmed = draft.allowedIp.trim();
 
     /**
@@ -78,7 +80,7 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                             invites the question whether it is stale. */}
                         {client.status !== CLIENT_STATUS.ONLINE && (
                             <div className="text-xs font-normal text-text-muted mt-1">
-                                Last seen {formatRelativeDate(client.lastSeen, now)}
+                                {waiting ? 'Awaiting registration' : `Last seen ${formatRelativeDate(client.lastSeen, now)}`}
                             </div>
                         )}
                     </div>
@@ -158,7 +160,13 @@ export const ClientIdentityCard = ({ client, form, onSubmit, action }: ClientIde
                         placeholder={client.hostname}
                         disabled={isSaving}
                         error={errors.displayName}
-                        hint={`Leave empty to use the hostname (${client.hostname})`}
+                        hint={
+                            waiting
+                                ? 'The agent reports its hostname when it registers.'
+                                : `Leave empty to use the hostname (${client.hostname})`
+                        }
+                        // Until the agent reports a hostname the name is all the client is known by.
+                        required={waiting}
                         autoFocus
                     />
 

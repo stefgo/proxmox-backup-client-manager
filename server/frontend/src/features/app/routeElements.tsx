@@ -99,6 +99,9 @@ export function AddClientRoute() {
         <AddClientWizard
             onClose={() => navigate(back)}
             onCreated={() => queryClient.invalidateQueries({ queryKey: queryKeys.clients.list() })}
+            // Replaces the wizard in the history: Back from the new client goes to the list,
+            // not into a wizard whose token is gone.
+            onInboundCreated={(clientId) => navigate(paths.client(clientId), { replace: true })}
         />
     );
 }

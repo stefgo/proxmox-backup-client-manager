@@ -109,7 +109,7 @@ Two kinds of state, kept apart:
 
 - **Server data** lives in the TanStack Query cache and is read through the hooks in
   `server/frontend/src/queries/` -- one module per area (`clients`, `clientDetail`,
-  `jobs`, `repositories`, `history`, `webhooks`, `scheduler`, `fileSystem`, `tokens`,
+  `jobs`, `repositories`, `history`, `webhooks`, `scheduler`, `fileSystem`,
   `users`). `lib/queryClient.ts` holds the one `QueryClient`, `lib/queryKeys.ts` every key.
   **No component and no store fetches a list by itself**; a new endpoint that is read
   gets a query there.
@@ -210,7 +210,7 @@ Any type, schema, or constant used across workspaces lives in `shared/`. After m
 ### Backend Route Structure
 
 - Unauthenticated: `POST /api/login`, `/api/auth/*` (OIDC)
-- Protected (JWT required): `/api/v1/users`, `/api/v1/clients`, `/api/v1/repositories`, `/api/v1/tokens`, job/history/snapshot endpoints
+- Protected (JWT required): `/api/v1/users`, `/api/v1/clients`, `/api/v1/repositories`, job/history/snapshot endpoints
 - WebSocket: `/ws/dashboard` (browser), `/ws/agent` (client agent)
 
 ### Configuration

@@ -1,13 +1,7 @@
 import type { AppConfig } from "../config/AppConfig.js";
 import { appConfig, updateConfig } from "../config/AppConfig.js";
 import { logger } from "@pbcm/shared/node";
-import { TokenCleanupService } from "./TokenCleanupService.js";
 import { JobHistoryCleanupService } from "./JobHistoryCleanupService.js";
-
-const TOKEN_CLEANUP_KEYS = new Set([
-    "token_retention_days",
-    "token_cleanup_interval_hours",
-]);
 
 const JOB_HISTORY_CLEANUP_KEYS = new Set([
     "retention_job_history_days",
@@ -96,9 +90,6 @@ export class SettingsService {
 
             // An interval or a retention value changed: the timer starts over from the
             // new settings, so a changed interval takes effect without a restart.
-            if (changed(TOKEN_CLEANUP_KEYS, previousSettings, newSettings)) {
-                TokenCleanupService.restartScheduler();
-            }
             if (changed(JOB_HISTORY_CLEANUP_KEYS, previousSettings, newSettings)) {
                 JobHistoryCleanupService.restartScheduler();
             }

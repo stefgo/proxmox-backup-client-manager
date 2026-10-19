@@ -165,7 +165,9 @@ changed afterwards**.
     route back — this is the mode for agents behind NAT or a firewall.
 
     1. In the dashboard, **+ Add Client → Inbound**. Give it a display name; optionally
-       restrict it to one IP or network. You get a short-lived **registration token**.
+       restrict it to one IP or network. **Add Client & Generate Token** adds the client — it
+       waits for its agent — and shows a **registration token**, once, valid for 30 minutes.
+       If it runs out, the client's page generates a new one.
     2. Start the container and read the **setup PIN** from its log:
 
         ```bash

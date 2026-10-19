@@ -1,9 +1,9 @@
-import { History, KeyRound, type LucideIcon } from 'lucide-react';
+import { History, type LucideIcon } from 'lucide-react';
 
 /** The settings block as the API sends it: every value a string, whatever it means. */
 export type SettingsValues = Record<string, string>;
 
-export type SectionId = 'tokens' | 'job-history';
+export type SectionId = 'job-history';
 
 export interface SectionDef {
     id: SectionId;
@@ -18,12 +18,6 @@ export interface SectionDef {
 
 export const SECTIONS: readonly SectionDef[] = [
     {
-        id: 'tokens',
-        label: 'Client Tokens',
-        icon: KeyRound,
-        keys: ['token_retention_days', 'token_cleanup_interval_hours'],
-    },
-    {
         id: 'job-history',
         label: 'Job History',
         icon: History,
@@ -35,8 +29,6 @@ export const SECTION_IDS: readonly SectionId[] = SECTIONS.map((s) => s.id);
 
 /** What a section shows until the server has answered -- the server's own defaults. */
 export const DEFAULT_SETTINGS: SettingsValues = {
-    token_retention_days: '30',
-    token_cleanup_interval_hours: '24',
     retention_job_history_days: '90',
     retention_job_history_count: '50',
     job_history_cleanup_interval_hours: '24',

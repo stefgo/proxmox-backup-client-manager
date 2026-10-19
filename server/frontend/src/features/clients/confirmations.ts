@@ -28,3 +28,17 @@ export function describeRemoveTunnel(): ConfirmOptions {
         variant: 'danger'
     };
 }
+
+/**
+ * Before a new registration token is issued for a client whose agent is registered. Nothing
+ * changes yet -- the risk is in what comes next: the first agent that registers with the
+ * token takes the client over, and the one connected now is cut off at that moment.
+ */
+export function describeReregister(client: Client): ConfirmOptions {
+    return {
+        title: `Register a new agent for "${client.displayName || client.hostname}"?`,
+        description:
+            'A new registration token is issued for this client. The agent connected now keeps working until an agent registers with the token; from then on only that agent is accepted, under the same client with its tunnel and history. Jobs live on the agent: a reinstalled one starts without them. Use this after reinstalling the agent or moving it to another host.',
+        confirmLabel: 'Generate token',
+    };
+}

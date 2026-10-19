@@ -19,6 +19,9 @@
     - [Delete User](#delete-user)
 - [Clients](#-clients)
     - [List Clients](#list-clients)
+    - [Create Inbound Client](#create-inbound-client)
+    - [Issue A Registration Token](#issue-a-registration-token)
+    - [Register Client (Public)](#register-client-public)
     - [Update Client](#update-client)
     - [Get Client History](#get-client-history)
     - [Get Client File System](#get-client-file-system)
@@ -46,11 +49,6 @@
     - [Update Repository](#update-repository)
     - [Delete Repository](#delete-repository)
     - [List Snapshots](#list-snapshots)
-- [Registration Tokens](#-registration-tokens)
-    - [List Tokens](#list-tokens)
-    - [Create Token](#create-token)
-    - [Delete Token](#delete-token)
-    - [Register Client (Public)](#register-client-public)
 - [Webhooks](#-webhooks)
     - [List Webhooks](#list-webhooks)
     - [Create Webhook](#create-webhook)
@@ -61,7 +59,6 @@
     - [Get Cleanup Settings](#get-cleanup-settings)
     - [Update Cleanup Settings](#update-cleanup-settings)
     - [Run Maintenance](#run-maintenance)
-    - [Clean Up Invalid Tokens](#clean-up-invalid-tokens)
     - [Clean Up Job History](#clean-up-job-history)
     - [Scheduler Status](#scheduler-status)
 - [Reachability](#-reachability)
@@ -388,17 +385,18 @@ it comes from the server that issued it instead.
 
 `GET /v1/clients`
 
-**Description:** Retrieves a list of all registered clients with their connection status.
+**Description:** Retrieves a list of all clients with their connection status — including inbound clients that still wait for their agent.
 
 #### Response (Array of Client objects)
 
 | Field         | Type   | Description                                        |
 | :------------ | :----- | :------------------------------------------------- |
 | `id`          | string | UUID of the client.                                |
-| `hostname`    | string | Hostname of the client machine.                    |
+| `hostname`    | string | Hostname of the client machine. Empty for an inbound client whose agent has not registered yet. |
 | `displayName` | string | Optional custom display name for the client.       |
 | `status`      | string | Connection status: `"online"` or `"offline"`.      |
-| `lastSeen`    | string | ISO 8601 timestamp of the last connection.         |
+| `lastSeen`    | string \| null | ISO 8601 timestamp of the last connection. `null` for an inbound client whose agent has not registered yet — the dashboard shows it as *Awaiting registration*. |
+| `registrationExpiresAt` | string \| null | Inbound clients: until when the registration token issued for the client is valid, or `null` when none is open. Set while the client waits for its agent and after [a new token was issued](#issue-a-registration-token); cleared by the registration that uses it. A token that ran out keeps its date. |
 | `version`     | string | Version of the client agent (if reported).         |
 | `timezone`    | string \| null | IANA time zone the agent reported on its last connect: the clock it repeats job schedules on. `null` until it has connected, or for an agent that predates the field. |
 
@@ -645,6 +643,112 @@ the client, which discards its job history.
 ```
 
 ---
+
+### Create Inbound Client
+
+`POST /v1/clients/inbound`
+
+**Description:** Adds a client whose agent dials the server (inbound mode). The client exists
+from this call on — in the list, under the name given here — and waits for its agent. The
+response carries the registration token the agent registers with
+([Register Client](#register-client-public)); it is the only place the token appears in the
+clear, the server stores just its SHA-256 hash on the client. The token is valid for 30
+minutes and for one registration; a new one is issued with
+[Issue A Registration Token](#issue-a-registration-token). A tunnel can be set up for the
+client before its agent registers; jobs live on the agent and wait for it.
+
+#### Request Body
+
+| Field              | Type   | Required | Description |
+| :----------------- | :----- | :------- | :---------- |
+| `displayName`      | string | **Yes**  | Name the client is listed under, at most 100 characters. Until the agent reports its hostname it is all the client is known by. |
+| `inboundAllowedIp` | string | No       | IPv4 address or CIDR network. Registration is refused with **403** from anywhere else, and the client stays restricted to it afterwards. Without it neither is checked. |
+
+```json
+{ "displayName": "pbs-node-01", "inboundAllowedIp": "192.168.1.0/24" }
+```
+
+#### Response
+
+```json
+{
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "token": "a1b2c3d4e5...",
+    "expiresAt": "2023-10-27T14:45:00.000Z"
+}
+```
+
+- **400** — `displayName` empty or longer than 100 characters, or `inboundAllowedIp` not an IPv4 address or network.
+
+### Issue A Registration Token
+
+`POST /v1/clients/:clientId/registration-token`
+
+**Description:** Issues a new registration token for an inbound client and replaces one that
+was still open. For a client that waits for its agent, this is the way past a token that ran
+out. For a registered client, it puts a reinstalled or moved agent back under the same client
+— with its id, tunnel and history; jobs live on the agent, so a reinstalled one starts without
+them. The agent connected now keeps working until an agent registers with the new token, and
+is cut off at that moment. Like on
+[Create Inbound Client](#create-inbound-client), the response is the only place the token
+appears in the clear.
+
+```json
+{ "token": "a1b2c3d4e5...", "expiresAt": "2023-10-27T14:45:00.000Z" }
+```
+
+- **400** — the client is an outbound client; those register through the server dialling them.
+- **404** — no such client.
+
+### Register Client (Public)
+
+`POST /v1/register`
+
+**Description:** Public endpoint used by the client agent to register itself.
+
+#### Request Body
+
+| Field      | Type   | Required | Description                                 |
+| :--------- | :----- | :------- | :------------------------------------------ |
+| `token`    | string | **Yes**  | The registration token issued for the client, unused and not expired. |
+| `hostname` | string | No       | Hostname of the client device.              |
+
+The agent brings no identity of its own. The **server** issues both `clientId` — the id of
+the client the token was issued for — and the permanent `token` below, and the agent stores
+them together in `identity.json` in its data directory. An id chosen by the caller used to be
+accepted here, which let anyone holding a registration token name an existing client and take
+over its row.
+
+A client created with an `inboundAllowedIp` is registered only from there: from anywhere else
+the call answers **403** and the token stays valid. An unknown, used, replaced or expired
+token gets **403** as well. The allowed address is never taken from the agent.
+
+With a token issued for a client that is already registered, the new agent takes the client
+over: its hostname is stored, the previous auth token stops being accepted, and a connected
+agent is closed with `4000 Client re-registered`.
+
+**Example Request:**
+
+```json
+{
+    "token": "a1b2c3d4e5...",
+    "hostname": "backup-client-01"
+}
+```
+
+#### Response
+
+Both values belong together: every later connection is checked as a pair, so an agent
+that stores only one of them cannot connect.
+
+**Example Response:**
+
+```json
+{
+    "token": "f8a9b2...",
+    "clientId": "550e8400-..."
+}
+```
 
 ### Create Outbound Client
 
@@ -1482,143 +1586,6 @@ reported, not queued.
 
 ---
 
-## 🎫 Registration Tokens
-
-### List Tokens
-
-`GET /v1/tokens`
-
-**Description:** Lists active client registration tokens, by their hash: the token itself is not stored and cannot be listed.
-
-#### Response (Array of Token objects)
-
-| Field       | Type   | Description                                     |
-| :---------- | :----- | :---------------------------------------------- |
-| `tokenHash` | string | SHA-256 of the token, hex.                      |
-| `createdAt` | string | ISO 8601 timestamp of creation.                 |
-| `expiresAt` | string | ISO 8601 timestamp of expiry.                   |
-| `usedAt`    | string | ISO 8601 timestamp of when it was used (optional). |
-| `displayName` | string | Name applied to the client this token registers (optional). |
-| `allowedIp` | string | IPv4 address or CIDR network the token may be redeemed from (optional). |
-
-**Example Response:**
-
-```json
-[
-    {
-        "tokenHash": "9f86d081884c...",
-        "createdAt": "2023-10-27T10:00:00Z",
-        "expiresAt": "2023-10-27T14:00:00Z",
-        "usedAt": null,
-        "displayName": "pbs-node-01",
-        "allowedIp": "192.168.1.0/24"
-    }
-]
-```
-
-### Create Token
-
-`POST /v1/tokens`
-
-**Description:** Generates a new short-lived token for client registration.
-
-The response is the only place the token appears in the clear: the server stores just its SHA-256 hash, and [List Tokens](#list-tokens) returns that hash.
-
-#### Request Body (optional)
-
-Both fields carry a decision the agent cannot make for itself — it registers
-unattended, so anything not set here has to be corrected by hand afterwards.
-
-| Field         | Type   | Required | Description                                                        |
-| :------------ | :----- | :------- | :----------------------------------------------------------------- |
-| `displayName` | string | No       | Applied to the client on registration.                              |
-| `allowedIp`   | string | No       | IPv4 address or CIDR network. Registration is refused with **403** from anywhere else, and the client stays pinned to it afterwards. Without it the client is pinned to the address it registered from. |
-
-```json
-{
-    "displayName": "pbs-node-01",
-    "allowedIp": "192.168.1.0/24"
-}
-```
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "token": "a1b2c3d4e5...",
-    "expiresAt": "2023-10-27T14:45:00.000Z",
-    "displayName": "pbs-node-01",
-    "allowedIp": "192.168.1.0/24"
-}
-```
-
-### Delete Token
-
-`DELETE /v1/tokens/:tokenHash`
-
-**Description:** Manually invalidates/deletes a registration token.
-
-#### Path Parameters
-
-| Parameter   | Type   | Required | Description                                       |
-| :---------- | :----- | :------- | :------------------------------------------------ |
-| `tokenHash` | string | **Yes**  | The `tokenHash` of the token, as the list returns it. |
-
-#### Response
-
-**Example Response:**
-
-```json
-{
-    "status": "deleted"
-}
-```
-
-A token that does not exist answers `404` with `{ "error": "Token not found" }`.
-
-### Register Client (Public)
-
-`POST /v1/register`
-
-**Description:** Public endpoint used by the client agent to register itself.
-
-#### Request Body
-
-| Field      | Type   | Required | Description                                 |
-| :--------- | :----- | :------- | :------------------------------------------ |
-| `token`    | string | **Yes**  | A valid, unused registration token.         |
-| `hostname` | string | No       | Hostname of the client device.              |
-
-The agent brings no identity of its own. The **server** issues both `clientId` and the
-permanent `token` below, and the agent stores them together in `identity.json` in its
-data directory. An id chosen by the caller used to be accepted here, which let anyone
-holding a registration token name an existing client and take over its row.
-
-**Example Request:**
-
-```json
-{
-    "token": "a1b2c3d4e5...",
-    "hostname": "backup-client-01"
-}
-```
-
-#### Response
-
-Both values belong together: every later connection is checked as a pair, so an agent
-that stores only one of them cannot connect.
-
-**Example Response:**
-
-```json
-{
-    "token": "f8a9b2...",
-    "clientId": "550e8400-..."
-}
-```
-
 ---
 
 ## 🪝 Webhooks
@@ -1762,8 +1729,6 @@ A target that refuses is still a **200**: the test ran, and the result says how 
 
 ```json
 {
-    "token_retention_days": "30",
-    "token_cleanup_interval_hours": "24",
     "retention_job_history_days": "90",
     "retention_job_history_count": "50",
     "job_history_cleanup_interval_hours": "24"
@@ -1772,10 +1737,10 @@ A target that refuses is still a **200**: the test ran, and the result says how 
 
 The response also carries `security` and any key an operator added to the `settings`
 block by hand. An interval of `"0"` switches that cleanup's timer off; the manual endpoints
-below keep working. `retention_invalid_tokens_days` and `retention_invalid_tokens_count`
-are gone: the first is now `token_retention_days` (its value is not carried over), the
-second has no successor. Left in `config.yaml`, both are ignored and logged as unknown at
-startup.
+below keep working. `token_retention_days` and `token_cleanup_interval_hours` went with the list of
+registration tokens — a token is a property of its client now and leaves nothing to clean
+up. Left in `config.yaml`, they and the older `retention_invalid_tokens_*` keys are ignored
+and logged as unknown at startup.
 
 ### Update Cleanup Settings
 
@@ -1798,28 +1763,13 @@ moves at once (see [Scheduler Status](#scheduler-status)).
 
 **Description:** Manually triggers the cleanup/maintenance task based on current settings.
 
-Runs both cleanups below, one after the other, each recorded as a manual run of its
-scheduler, and answers with what each removed:
+Runs every cleanup the server has — since the registration tokens went, the job history
+alone — recorded as a manual run of its scheduler, and answers with what it removed:
 
 ```json
 {
     "success": true,
-    "tokens": 2,
     "history": 14
-}
-```
-
-### Clean Up Invalid Tokens
-
-`POST /v1/settings/cleanup/invalid-tokens`
-
-**Description:** Removes registration tokens that have been invalid (used or expired) for
-longer than the saved `token_retention_days`. Recorded as a manual run of the
-`token-cleanup` scheduler. The settings page runs this from its Client Tokens tab.
-
-```json
-{
-    "removed": 2
 }
 ```
 
@@ -1849,7 +1799,7 @@ beyond it.
 ```json
 {
     "schedulers": {
-        "token-cleanup": {
+        "job-history-cleanup": {
             "isRunning": false,
             "nextRun": "2026-09-24T16:11:22.336Z",
             "lastRun": {
@@ -1860,11 +1810,6 @@ beyond it.
                 "result": { "removed": 0 },
                 "error": null
             }
-        },
-        "job-history-cleanup": {
-            "isRunning": false,
-            "nextRun": null,
-            "lastRun": null
         }
     }
 }

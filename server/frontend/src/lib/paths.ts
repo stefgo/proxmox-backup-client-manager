@@ -38,7 +38,6 @@ export const ROUTES = {
 
     history: '/history',
     users: '/users',
-    tokens: '/tokens',
 
     webhooks: '/webhooks',
     webhookNew: '/webhooks/new',

@@ -83,29 +83,26 @@ at startup.
 
 | Key | Default | Description |
 | :-- | :------ | :---------- |
-| `settings.token_retention_days` | `30` | Days an invalid (used or expired) token stays in the database. |
-| `settings.token_cleanup_interval_hours` | `24` | Hours between two automatic token cleanups. `0` switches the timer off. |
 | `settings.retention_job_history_days` | `90` | Days a job history entry stays in the database. `0` means no age limit. |
 | `settings.retention_job_history_count` | `50` | Keep at least this many history entries per client (at least 1). |
 | `settings.job_history_cleanup_interval_hours` | `24` | Hours between two automatic job history cleanups. `0` switches the timer off. |
 
-Both cleanups can also be run from their tab on the settings page, which shows their last
-run, the next one and its result. The first run after a restart comes one interval after the
+The cleanup can also be run from its tab on the settings page, which shows its last run, the
+next one and its result. The first run after a restart comes one interval after the
 last run, not at startup.
 
 !!! warning "What `0` means depends on the key"
 
-    An interval of `0` switches that timer off. A token retention of `0` days removes every
-    invalid token on the next run. A job history retention of `0` days only drops the age
-    limit; the per-client count still applies.
+    An interval of `0` switches the timer off. A job history retention of `0` days only drops
+    the age limit; the per-client count still applies.
 
-!!! note "Renamed keys"
+!!! note "Removed keys"
 
-    `retention_invalid_tokens_days` became `token_retention_days` and
-    `retention_invalid_tokens_count` was dropped. The server ignores both, logs them as
-    unknown keys at startup, and does **not** carry the old value over: an installation
-    that had `retention_invalid_tokens_days: "0"` gets `30` and has to set
-    `token_retention_days: "0"` again. Remove the old keys from `config.yaml` by hand.
+    `token_retention_days`, `token_cleanup_interval_hours` and the older
+    `retention_invalid_tokens_days` / `retention_invalid_tokens_count` are gone: a
+    registration token is a property of its client and leaves nothing to clean up. The
+    server ignores them and logs them as unknown keys at startup. Remove them from
+    `config.yaml` by hand.
 
 ### Security
 

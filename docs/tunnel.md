@@ -104,7 +104,8 @@ is fixed for good, and nothing else.
 
 **+ Add Client** in the clients area opens the wizard. Its first step is the connection mode, because
 it cannot be changed afterwards. **Inbound** then takes a display name and an optional allowed
-IP and issues a registration token; the client exists once its agent redeems it. **Outbound**
+IP, adds the client at once and shows its registration token; the client waits until its
+agent registers with it, and a tunnel can be set up for it meanwhile. **Outbound**
 takes the agent's target address, its setup PIN (or `PBCM_REGISTRATION_SECRET`) and a display name, and **Create**
 dials the agent and registers it.
 

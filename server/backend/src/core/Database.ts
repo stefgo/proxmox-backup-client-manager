@@ -30,6 +30,7 @@ import { migration17 } from "./migrations/17_user_token_version.js";
 import { migration18 } from "./migrations/18_protect_secrets.js";
 import { migration19 } from "./migrations/19_drop_webhook_client_ids.js";
 import { migration20 } from "./migrations/20_history_seen_runs.js";
+import { migration21 } from "./migrations/21_client_registration_token.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src/core -> server/data
@@ -156,6 +157,11 @@ const migrator = new Umzug<Database.Database>({
             name: "20_history_seen_runs",
             up: migration20.up,
             down: migration20.down,
+        },
+        {
+            name: "21_client_registration_token",
+            up: migration21.up,
+            down: migration21.down,
         },
     ],
     context: db,

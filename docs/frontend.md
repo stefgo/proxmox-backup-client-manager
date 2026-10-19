@@ -16,18 +16,17 @@ src/
 │   ├── jobs/         # Global job list views
 │   ├── repositories/ # PBS Repository management & snapshot browser
 │   ├── settings/     # Settings sections (one tab each), their fields and manual runs
-│   ├── tokens/       # Registration token management
 │   └── users/        # User management
 ├── pages/            # Main pages (Entry points for routes)
 │   ├── Login.tsx
 │   └── Settings.tsx
 ├── queries/          # Server data: one module per area, read through the query cache
-│   ├── clients.ts        # Client list, one client, a client's tunnel configuration
+│   ├── clients.ts        # Client list, one client, a client's tunnel configuration, inbound create and registration tokens
 │   ├── clientDetail.ts   # A client's jobs, history and snapshots
 │   ├── jobs.ts           # Jobs across all clients, their latest runs, start and delete
 │   ├── repositories.ts   # Repositories, their status, their snapshots
 │   ├── history.ts        # The history list, what is unseen, and marking it as seen
-│   ├── webhooks.ts, scheduler.ts, fileSystem.ts, tokens.ts, users.ts
+│   ├── webhooks.ts, scheduler.ts, fileSystem.ts, users.ts
 ├── stores/           # Client-only state (Zustand)
 │   └── useUIStore.ts     # Sidebar collapsed or not, persisted
 ├── components/       # Cross-feature components (LoadingIndicator), the discard question
@@ -92,7 +91,6 @@ shell.
 | `/repositories/:repoId/restore/:backupType/:backupId/:backupTime` | `SnapshotRestoreEditor` | Restores a snapshot, to a client picked in the form. |
 | `/history`                              | `HistoryOverview`       | Global execution history.                       |
 | `/users`                                | `UserOverview`          | User management.                                |
-| `/tokens`                               | `TokenOverview`         | Registration tokens.                            |
 | `/webhooks`                             | `WebhookOverview`       | Webhooks, with their last delivery.             |
 | `/webhooks/new`, `/webhooks/:webhookId` | `WebhookEditorRoute`    | Webhook editor with live preview and a test sent by the server. |
 | `/settings`                             | `Settings`              | Cleanup settings and scheduler status, one tab per cleanup. |
@@ -256,7 +254,7 @@ kinds of entry deviate:
 |---|---|---|
 | Client list, jobs, latest runs, seen state, scheduler status | `Infinity` | The socket writes every change into them. |
 | History pages | `0` | Read again each time they are opened; a `JOB_UPDATE` marks them stale, since a page the server cut cannot be patched in place. |
-| Tokens, directory listings | `0` | Nothing pushes into them; read again each time they are opened. |
+| Directory listings | `0` | Nothing pushes into them; read again each time they are opened. |
 | A client's tunnel configuration | `gcTime: 0` | Seeds a form, so it is dropped when the form closes. |
 
 **The keys are hierarchical.** `invalidateQueries({ queryKey: queryKeys.clients.all })`
@@ -850,15 +848,17 @@ Built on `Wizard` and `Stepper` from `@stefgo/react-ui-components`. The flow for
 after step 1:
 
 ```
-1 Connection ┬─ inbound  → 2 Client (name, allowed IP/CIDR) → [Create] → token dialog
+1 Connection ┬─ inbound  → 2 Client (name, allowed IP/CIDR) → [Add Client & Generate Token] → token dialog → client page
              └─ outbound → 2 Client (name, address, secret) → [Create]
 ```
 
-The inbound branch ends *at* step 2: **Create** issues the registration token and
-shows it in a `Modal` (`InboundTokenDialog.tsx`), and closing that dialog leaves
-the wizard. The token is deliberately not a step — it exists on the server from
-the moment it appears, so there is nothing left to go back to, and a step that
-issued it on entry issued a second one on every remount.
+The inbound branch ends *at* step 2: **Add Client & Generate Token** creates the client
+(`POST /v1/clients/inbound`), which then waits for its agent, and shows its registration
+token in a `RegistrationTokenModal`; closing that dialog opens the new client's page in
+place of the wizard. The token is deliberately not a step — the client exists on the server
+from the moment it appears, so there is nothing left to go back to, and a step that created
+it on entry created a second one on every remount. The display name is required
+(`isInboundComplete`): until the agent reports its hostname it is all the client is known by.
 
 The wizard covers **one** question: how the server and the agent reach each other. An SSH
 tunnel is no part of it — that is the route to the PBS, it stays revisable for the client's
@@ -866,19 +866,19 @@ whole life, and it is added afterwards from the client list. Tying it to the wiz
 reversible decision to an irreversible one and made it look like a property of the mode.
 
 - `AddClientWizard.tsx` — the framing `Card`, the step lists per branch, and both
-  create requests (`POST /v1/tokens` for inbound, `POST /v1/clients/outbound` for
-  outbound). It is the `/clients/new` route — a page in the dashboard work area,
-  not a modal, like the two editors. Its `onClose` / `onCreated` come from the
-  route, which navigates back and refetches the list. The step index is
+  create requests (`createInboundClient` in `queries/clients.ts` for inbound,
+  `POST /v1/clients/outbound` for outbound). It is the `/clients/new` route — a page in the dashboard work area,
+  not a modal, like the two editors. Its `onClose` / `onCreated` / `onInboundCreated` come from
+  the route, which navigates back, refetches the list or opens the new client. The step index is
   **controlled** here: swapping the step array is the branch, and only this
   component knows it happened.
 - `useAddClientForm.ts` — all form state, one level above the steps. `Wizard`
   renders the current step alone, so a step holding its own inputs would lose
   them on the way back. Inbound and outbound are separate objects, so switching
   the mode and switching back costs nothing.
-- `InboundTokenDialog.tsx` — the issued token, in a modal. The backdrop does not
-  dismiss it: the token list stores the token hashed, so this is the only time it
-  is shown in full.
+- `../RegistrationTokenModal.tsx` — the issued token, in a modal, shared with the client
+  page. Neither the backdrop nor Escape dismisses it: the server keeps the token hashed,
+  so this is the only time it is shown in full.
 - `steps/` — one file per step, all presentational. Both branches are two steps
   long: the connection mode, then either the inbound registration details or the
   outbound agent's address and secret. **Create** ends either one. A failure is
@@ -886,9 +886,23 @@ reversible decision to an irreversible one and made it look like a property of t
   clamps its controlled step index, because going back and picking the other mode
   swaps the array underneath it.
 
-Inbound registration details (display name, allowed IP or CIDR network) are carried
-by the **registration token**, since the agent registers unattended — see
-`POST /api/v1/tokens` in `api.md`.
+The inbound details (display name, allowed IP or CIDR network) are stored on the client
+right away; the agent, registering unattended, only presents the token — see
+`POST /api/v1/clients/inbound` in `api.md`.
+
+### A client that waits for its agent
+
+An inbound client created in the wizard has no hostname and has never been seen
+(`awaitsRegistration` in `features/clients/lib/registration.ts`). The list says *Awaiting
+registration*, and the client page shows a notice above its tabs (`registrationNotice`):
+whether the token issued for it is still valid, with a button for a new one, which goes out
+without asking. The header shows *Awaiting registration* in place of *Offline* and, in its
+details, until when the token is valid. A tunnel can be added already; jobs wait for the
+agent, because they live on it. For a registered inbound client the menu's **Re-register
+Agent** issues a token too, after asking (`describeReregister`): the agent that registers
+with it takes the client over, and the one connected until then is cut off at that moment.
+Both show the token once in the `RegistrationTokenModal`; while it is on screen,
+`useEscapeToLeave` is off.
 
 ### ClientOverview (`features/clients`)
 
@@ -1029,7 +1043,7 @@ Project-level reusable classes defined via `@layer components`:
 
 All forms use the `Input` and `Select` components from the library, which provide consistent label, hint, error, disabled, and dark mode styling out of the box. Native `<input>` elements are only used for checkboxes.
 
-`UserDialog` is the library's `Modal` and holds its draft through `useEntityForm` (`features/users/lib/userForm.ts`); `TokenModal` and the detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
+`UserDialog` is the library's `Modal` and holds its draft through `useEntityForm` (`features/users/lib/userForm.ts`); `RegistrationTokenModal` and the detail headers (ClientOverview, RepositoryOverview) use the `Card` component for consistent framing.
 
 - **Dark Mode**: the library's `ThemeProvider`, mounted in `App` with `STORAGE_KEYS.theme`, toggles the `dark` class on `<html>`; `useTheme()` comes from the library as well. There is **no `dark:`
   variant anywhere in `src/`** — and that is the point: every role is defined once in the

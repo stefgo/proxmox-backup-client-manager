@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, X } from 'lucide-react';
 import { ActionButton, Card, Wizard, WizardStep } from '@stefgo/react-ui-components';
-import { CONNECTION_MODE, CreatedTokenSchema } from '@pbcm/shared';
+import { CONNECTION_MODE, type CreatedInboundClient } from '@pbcm/shared';
 import { api } from '../../../../lib/api';
-import { useAddClientForm, isAllowedIpValid, isTargetAddressInvalid } from './useAddClientForm';
+import { createInboundClient } from '../../../../queries/clients';
+import { useAddClientForm, isInboundComplete, isTargetAddressInvalid } from './useAddClientForm';
 import { StepConnectionMode } from './steps/StepConnectionMode';
 import { StepInboundDetails } from './steps/StepInboundDetails';
-import { InboundTokenDialog } from './InboundTokenDialog';
+import { RegistrationTokenModal } from '../RegistrationTokenModal';
 import { StepOutboundDetails } from './steps/StepOutboundDetails';
 import { HeaderBreadcrumb } from '../../../app/HeaderBreadcrumb';
 import { isEditing } from '../../../../hooks/useEscapeToLeave';
@@ -16,6 +17,8 @@ interface AddClientWizardProps {
     onClose: () => void;
     /** A client was created and the list should catch up. */
     onCreated: () => void;
+    /** Leaves the flow onto the inbound client it created, once its token has been seen. */
+    onInboundCreated: (clientId: string) => void;
 }
 
 /**
@@ -37,34 +40,32 @@ interface AddClientWizardProps {
  * `Wizard` renders the current step alone, so a step holding its own inputs
  * would lose them on the way back.
  */
-export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) => {
+export const AddClientWizard = ({ onClose, onCreated, onInboundCreated }: AddClientWizardProps) => {
     const { mode, setMode, inbound, patchInbound, outbound, patchOutbound } = useAddClientForm();
     const [index, setIndex] = useState(0);
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [created, setCreated] = useState<CreatedInboundClient | null>(null);
 
     /**
-     * Issues the registration token — the inbound flow's create step.
+     * Creates the inbound client, which then waits for its agent, and its registration
+     * token — the inbound flow's create step.
      *
      * It lives here and not in a step because it is the wizard's terminal
      * action: the token comes back once, goes into the dialog, and the form
-     * behind it is done. A step that issued it on entry would issue a second
-     * one on every remount.
+     * behind it is done. A step that created the client on entry would create a
+     * second one on every remount.
      */
     const handleCreateInbound = async () => {
         setCreating(true);
         setError(null);
         try {
-            const data = await api.post(
-                '/api/v1/tokens',
-                {
-                    displayName: inbound.displayName.trim() || undefined,
-                    allowedIp: inbound.allowedIp.trim() || undefined,
-                },
-                CreatedTokenSchema,
-                { fallback: 'Could not create a token' },
+            setCreated(
+                await createInboundClient({
+                    displayName: inbound.displayName.trim(),
+                    inboundAllowedIp: inbound.allowedIp.trim() || undefined,
+                }),
             );
-            patchInbound({ token: data.token, expiresAt: data.expiresAt });
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -130,8 +131,8 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
         {
             id: 'inbound-details',
             label: 'Agent',
-            description: 'Get client token',
-            canContinue: isAllowedIpValid(inbound.allowedIp),
+            description: 'Name and token',
+            canContinue: isInboundComplete(inbound),
             content: <StepInboundDetails form={inbound} onPatch={patchInbound} error={error} />,
         },
     ];
@@ -177,14 +178,21 @@ export const AddClientWizard = ({ onClose, onCreated }: AddClientWizardProps) =>
                 onChange={setIndex}
                 onCancel={onClose}
                 onFinish={mode === CONNECTION_MODE.INBOUND ? handleCreateInbound : handleCreateOutbound}
-                finishLabel="Create"
+                finishLabel={mode === CONNECTION_MODE.INBOUND ? 'Add Client & Generate Token' : 'Create'}
                 finishIcon={KeyRound}
                 isFinishing={creating}
             />
 
-            {/* The token exists on the server from here on — the dialog is the
-                only place it is ever shown in full, so closing it ends the flow. */}
-            {inbound.token && <InboundTokenDialog form={inbound} onClose={onClose} />}
+            {/* The client and its token exist on the server from here on — the dialog
+                is the only place the token is ever shown in full, so closing it ends the
+                flow, on the new client's page. */}
+            {created && (
+                <RegistrationTokenModal
+                    token={created.token}
+                    expiresAt={created.expiresAt}
+                    onClose={() => onInboundCreated(created.id)}
+                />
+            )}
         </Card>
     );
 };

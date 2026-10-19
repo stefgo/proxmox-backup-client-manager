@@ -311,14 +311,14 @@ describe('recentRuns', () => {
 
 describe('applySchedulerUpdate', () => {
     const idle = { isRunning: false, nextRun: '2026-09-29T00:00:00.000Z', lastRun: null };
-    const schedulers: SchedulerStatuses = { 'token-cleanup': idle, 'job-history-cleanup': idle };
+    const schedulers: SchedulerStatuses = { 'job-history-cleanup': idle };
 
-    it('replaces the scheduler the update names and keeps the other', () => {
+    it('replaces the scheduler the update names and leaves the cache it came from alone', () => {
         const after = applySchedulerUpdate(schedulers, {
-            scheduler: 'token-cleanup',
+            scheduler: 'job-history-cleanup',
             status: { ...idle, isRunning: true },
         });
-        expect(after['token-cleanup'].isRunning).toBe(true);
-        expect(after['job-history-cleanup']).toBe(schedulers['job-history-cleanup']);
+        expect(after['job-history-cleanup'].isRunning).toBe(true);
+        expect(schedulers['job-history-cleanup'].isRunning).toBe(false);
     });
 });

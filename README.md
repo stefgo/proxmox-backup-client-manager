@@ -12,7 +12,7 @@ The **Proxmox Backup Client Manager** (PBCM) is a centralized management system 
 - **Global History & Sync:** Centralized job execution history synchronized from all clients for a unified overview.
 - **Real-time Monitoring:** View live log streams and status updates of ongoing backup and restore runs via WebSockets.
 - **File Browser:** Browse the remote file system of your clients directly from the web interface for selective backups or restores.
-- **Secure Communication:** Use secure WebSocket connections between clients and the server, authenticated via short-lived registration tokens.
+- **Secure Communication:** Use secure WebSocket connections between clients and the server, registered with a short-lived token issued for each client.
 - **Offline-capable Agents:** Each agent keeps its jobs in its own data files and runs them on schedule while the server is unreachable; its run history is kept until the server has received it.
 - **Webhooks:** Report failed, aborted or successful runs, and clients that lost their connection, to chat, push or incident services with a JSON body you write yourself. Runs that end while the server is unreachable are reported once the agent is back.
 - **Authentication:** Supports local admin authentication and OIDC (OpenID Connect) for Single Sign-On.
@@ -106,7 +106,7 @@ services:
 
 1. Copy `client/config.example.yaml` to `client-config.yaml`. The agent's identity is issued by the server at registration and kept in its data volume, not in this file.
 2. Run `docker compose up -d`, then read the setup PIN from `docker compose logs pbcm-client`.
-3. Open `http://<this-host>:3001/register` and enter the server URL, a registration token from the dashboard, and the PIN.
+3. Open `http://<this-host>:3001/register` and enter the server URL, the registration token the dashboard showed when you added the client, and the PIN.
 
 Note that a job's source paths are **container** paths: with the mount above, `/etc` is configured as `/mnt/host/etc`.
 

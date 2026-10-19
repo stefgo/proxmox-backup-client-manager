@@ -8,7 +8,6 @@ import {
     HistoryEntrySchema,
     SchedulerStatusSchema,
     SnapshotSchema,
-    TokenSchema,
     WebhookSchema,
 } from "./schemas.js";
 
@@ -163,10 +162,7 @@ export const DistributeResultSchema = z.object({
 /** `GET /api/v1/repositories/:repositoryId/snapshots`. */
 export const SnapshotListSchema = z.array(SnapshotSchema);
 
-// ── Tokens, users, session ───────────────────────────────────────────────────
-
-/** `GET /api/v1/tokens`. */
-export const TokenListSchema = z.array(TokenSchema);
+// ── Users, session ───────────────────────────────────────────────────────────
 
 /** One row of `GET /api/v1/users`; the password hash is not among the columns. */
 export const UserSchema = z.object({

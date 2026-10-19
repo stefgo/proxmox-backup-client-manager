@@ -4,7 +4,6 @@ import { UserController } from "../controllers/UserController.js";
 import { ClientController } from "../controllers/ClientController.js";
 import { JobController } from "../controllers/JobController.js";
 import { RepositoryController } from "../controllers/RepositoryController.js";
-import { TokenController } from "../controllers/TokenController.js";
 import { SettingsController } from "../controllers/SettingsController.js";
 import { HistoryController } from "../controllers/HistoryController.js";
 import { TunnelController } from "../controllers/TunnelController.js";
@@ -93,12 +92,20 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                 // Clients
                 protectedRoutes.get("/clients", ClientController.list);
                 protectedRoutes.post(
+                    "/clients/inbound",
+                    ClientController.createInbound,
+                );
+                protectedRoutes.post(
                     "/clients/outbound",
                     ClientController.createOutbound,
                 );
                 protectedRoutes.post(
                     "/clients/:clientId/reconnect",
                     ClientController.reconnect,
+                );
+                protectedRoutes.post(
+                    "/clients/:clientId/registration-token",
+                    ClientController.issueRegistrationToken,
                 );
 
                 // SSH reverse tunnel — optional, and available in both connection modes
@@ -244,14 +251,6 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     RepositoryController.distribute,
                 );
 
-                // Registration Tokens
-                protectedRoutes.get("/tokens", TokenController.list);
-                protectedRoutes.post("/tokens", TokenController.create);
-                protectedRoutes.delete(
-                    "/tokens/:tokenHash",
-                    TokenController.delete,
-                );
-
                 // Webhooks -- kept and sent here.
                 protectedRoutes.get("/webhooks", WebhookController.list);
                 protectedRoutes.post("/webhooks", WebhookController.create);
@@ -280,10 +279,6 @@ export default async function apiRoutes(fastify: FastifyInstance) {
                     SettingsController.runMaintenance,
                 );
                 protectedRoutes.post(
-                    "/settings/cleanup/invalid-tokens",
-                    SettingsController.cleanupInvalidTokens,
-                );
-                protectedRoutes.post(
                     "/settings/cleanup/job-history",
                     SettingsController.cleanupJobHistory,
                 );
@@ -294,7 +289,7 @@ export default async function apiRoutes(fastify: FastifyInstance) {
             });
 
             // Register Client (Public but API)
-            v1.post("/register", TokenController.register);
+            v1.post("/register", ClientController.register);
 
             // "Is there a PBCM server at this URL?" -- the agent's status and register
             // pages call this against its configured server

@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { Plus, Monitor, Trash2, Edit, PlugZap, Network } from 'lucide-react';
 import { Client, CLIENT_STATUS, CONNECTION_MODE } from '@pbcm/shared';
 import { formatRelativeDate } from '../../../utils';
+import { awaitsRegistration } from '../lib/registration';
 import { useNow } from '../../../hooks/useNow';
 import { Badge, Button, DataAction, DataMultiView, EmptyState, StatusDot, type DataColumnDef, PAGE_SIZE, listPagination, actionsColumn, listGroups } from '@stefgo/react-ui-components';
 import { ConnectionBadge } from './ConnectionBadge';
@@ -121,6 +122,9 @@ export const ClientList = ({ clients, setSelectedClient, deleteClient, editClien
             table: { cellClassName: 'align-top text-sm text-text-primary' },
             render: (client, view) => {
                 if (client.status === CLIENT_STATUS.ONLINE) return <Badge variant="success">Online</Badge>;
+                if (awaitsRegistration(client)) {
+                    return <span className="text-sm text-text-muted whitespace-nowrap">Awaiting registration</span>;
+                }
                 if (view === 'list') {
                     return <span className="text-sm text-text-muted">{formatRelativeDate(client.lastSeen, now)}</span>;
                 }

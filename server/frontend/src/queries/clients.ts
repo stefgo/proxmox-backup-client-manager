@@ -1,9 +1,12 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     ClientListSchema,
+    CreatedInboundClientSchema,
+    RegistrationTokenSchema,
     TunnelInfoSchema,
     TunnelTestResultSchema,
     type Client,
+    type CreateInboundClient,
     type TunnelCreateSchema,
     type TunnelInfo,
     type TunnelUpdateSchema,
@@ -48,6 +51,32 @@ export function useClient(clientId: string | null | undefined): Client | undefin
 export function getCachedClient(clientId: string): Client | undefined {
     return queryClient.getQueryData(clientListOptions.queryKey)?.find((c) => c.id === clientId);
 }
+
+/**
+ * Creates an inbound client that waits for its agent, with the token the agent registers
+ * with. The one answer that carries the token in the clear, so it is handed to the caller
+ * and kept nowhere. The list is read again afterwards: the server broadcasts the new client
+ * too, which a socket that is down would miss.
+ */
+export const createInboundClient = async (input: CreateInboundClient) => {
+    const created = await api.post('/api/v1/clients/inbound', input, CreatedInboundClientSchema, {
+        fallback: 'Failed to create the client',
+    });
+    void queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey });
+    return created;
+};
+
+/**
+ * Issues a new registration token for an inbound client: for one that still waits, or to
+ * put a reinstalled agent back under one that is registered. Replaces a token still open.
+ */
+export const issueRegistrationToken = async (clientId: string) => {
+    const issued = await api.post(`/api/v1/clients/${clientId}/registration-token`, undefined, RegistrationTokenSchema, {
+        fallback: 'Failed to issue a registration token',
+    });
+    void queryClient.invalidateQueries({ queryKey: clientListOptions.queryKey });
+    return issued;
+};
 
 export interface ClientUpdate {
     displayName?: string;

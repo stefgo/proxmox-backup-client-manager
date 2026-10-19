@@ -1,7 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { CleanupSettingsSchema, firstIssue, type SchedulerStatuses } from "@pbcm/shared";
 import { SettingsService } from "../services/SettingsService.js";
-import { TokenCleanupService } from "../services/TokenCleanupService.js";
 import { JobHistoryCleanupService } from "../services/JobHistoryCleanupService.js";
 
 export class SettingsController {
@@ -37,14 +36,15 @@ export class SettingsController {
         }
     }
 
-    /** Both cleanups, one after the other, each recorded as a manual run of its scheduler. */
+    /**
+     * Every cleanup the server runs -- since the registration tokens went, the job history
+     * alone -- recorded as a manual run of its scheduler.
+     */
     static async runMaintenance(request: FastifyRequest, reply: FastifyReply) {
         try {
-            const tokens = await TokenCleanupService.run("manual");
             const history = await JobHistoryCleanupService.run("manual");
             return reply.send({
                 success: true,
-                tokens: tokens.removed,
                 history: history.removed,
             });
         } catch (e) {
@@ -55,20 +55,8 @@ export class SettingsController {
         }
     }
 
-    // One cleanup each, for the settings tab that shapes it. runMaintenance above stays
-    // for callers that want both at once.
-    static async cleanupInvalidTokens(request: FastifyRequest, reply: FastifyReply) {
-        try {
-            const { removed } = await TokenCleanupService.run("manual");
-            return reply.send({ removed });
-        } catch (e) {
-            request.log.error(e);
-            return reply
-                .code(500)
-                .send({ error: "Failed to clean up invalid tokens" });
-        }
-    }
-
+    // The cleanup on its own, for the settings tab that shapes it. runMaintenance above
+    // stays for callers that ask for every cleanup at once.
     static async cleanupJobHistory(request: FastifyRequest, reply: FastifyReply) {
         try {
             const { removed } = await JobHistoryCleanupService.run("manual");
@@ -85,7 +73,6 @@ export class SettingsController {
     static async getSchedulerStatus(_request: FastifyRequest, reply: FastifyReply) {
         return reply.send({
             schedulers: {
-                "token-cleanup": TokenCleanupService.getStatus(),
                 "job-history-cleanup": JobHistoryCleanupService.getStatus(),
             } satisfies SchedulerStatuses,
         });

@@ -284,6 +284,7 @@ export class ProxyService {
             connectionMode: client.connection_mode || CONNECTION_MODE.INBOUND,
             outboundTargetAddress: client.outbound_target_address,
             inboundAllowedIp: client.inbound_allowed_ip,
+            registrationExpiresAt: client.registration_expires_at,
             // Keyed on the tunnel itself, not on the connection mode: a tunnel is optional
             // in either mode, so an inbound client can have one and an outbound one can do
             // without. Whether a given run takes it is the job's own setting.

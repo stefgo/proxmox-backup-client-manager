@@ -27,9 +27,9 @@ import {
     ArchiveSchema,
     EncryptionConfigSchema,
     ScheduleConfigSchema,
-    TokenSchema,
-    CreateRegistrationTokenSchema,
-    CreatedTokenSchema,
+    RegistrationTokenSchema,
+    CreatedInboundClientSchema,
+    CreateInboundClientSchema,
     SnapshotSchema,
     RunSnapshotDetailsSchema,
     AuthPayloadSchema,
@@ -108,11 +108,9 @@ export type RepositoryInput = z.input<typeof RepositoryInputSchema>;
 /** A client as the server sends it; see `ClientViewSchema` for why that is not `ClientSchema`. */
 export type Client = z.infer<typeof ClientViewSchema>;
 
-export type Token = z.infer<typeof TokenSchema>;
-export type CreatedToken = z.infer<typeof CreatedTokenSchema>;
-export type CreateRegistrationToken = z.infer<
-    typeof CreateRegistrationTokenSchema
->;
+export type RegistrationToken = z.infer<typeof RegistrationTokenSchema>;
+export type CreatedInboundClient = z.infer<typeof CreatedInboundClientSchema>;
+export type CreateInboundClient = z.infer<typeof CreateInboundClientSchema>;
 
 export type ScheduleConfig = z.infer<typeof ScheduleConfigSchema>;
 export type Archive = z.infer<typeof ArchiveSchema>;
@@ -306,7 +304,6 @@ export type SchedulerRunStatus = (typeof SCHEDULER_RUN_STATUSES)[number];
 
 /** What each scheduler reports as the result of a run. */
 export interface SchedulerRunResults {
-    "token-cleanup": { removed: number };
     "job-history-cleanup": { removed: number };
 }
 

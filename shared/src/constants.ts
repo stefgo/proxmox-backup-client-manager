@@ -138,7 +138,7 @@ export const REPOSITORY_STATUS = {
  * The background jobs the server runs on a timer. Each keeps one row in `scheduler_state`:
  * its last finished run and whatever it has to remember from one run to the next.
  */
-export const SCHEDULER_IDS = ["token-cleanup", "job-history-cleanup"] as const;
+export const SCHEDULER_IDS = ["job-history-cleanup"] as const;
 
 /** Whether the timer started a run or a user did, through the settings page. */
 export const SCHEDULER_TRIGGERS = ["schedule", "manual"] as const;

@@ -135,7 +135,7 @@ at the same datastore — that token can only reach the client's own backups: gr
 `Datastore.Modify` or `Datastore.Prune`. A token shared by all clients lets one compromised
 host read or delete every other host's backups.
 
-With a repository in place, the server can hand out registration tokens and you can
+With a repository in place, you can add clients and
 [install the first client](install-client.md).
 
 ## Operating it

@@ -64,7 +64,13 @@ Once TLS is in front of it you can switch on `security.hsts` in the config.
 
 ## Agent registration
 
-- A registration token is valid once. The server keeps its SHA-256 hash, not the token.
+- A registration token is issued for one client, is valid for 30 minutes and for one
+  registration, and is replaced by the next token issued for that client. It registers an
+  agent under that client and no other. The server keeps its SHA-256 hash, not the token.
+- *Re-register Agent* issues such a token for a client that is already registered. The
+  agent that registers with it takes the client over, and the previous auth token is refused
+  from that moment — so it is a session action that asks first, and the new agent still needs
+  its own setup PIN.
 - Every registration additionally needs the agent's **setup PIN** from its log, or its
   `PBCM_REGISTRATION_SECRET` — someone who can reach the agent's port cannot point it at a
   server of their own. See [Client identity](setup.md#client-identity).
@@ -81,7 +87,7 @@ questions:
 | Setting | Scope | Question |
 | :------ | :---- | :------- |
 | `security.allowed_networks` (server) | all agents | May *any* agent connect from this network? |
-| `clients.inbound_allowed_ip` (per client, set with the registration token and editable in the client editor) | one client | Does this address belong to *this* token? |
+| `clients.inbound_allowed_ip` (per client, set when the client is added and editable in the client editor) | one client | Does this address belong to *this* client? It also decides where its registration token may be used. |
 | `allowedNetworks` (client) | one agent's listener | May the server dial this agent from this network? |
 
 The address the two server-side checks look at is the connection's peer — or, when that
@@ -94,9 +100,9 @@ against an address at all — its token alone admits it, from anywhere the serve
 `allowed_networks` permits.
 
 The per-client check is switched on in the client editor ("Restrict connections to an IP or
-network"); the field is required only while that box is ticked. A registration token may
-carry the value instead, in which case the client starts out restricted. A token without
-one leaves the column `NULL`: the address an agent happens to register from is not a
+network"); the field is required only while that box is ticked. The wizard can
+set the value when it adds the client, which then starts out restricted — its registration
+token is accepted only from there, too. Without one the column stays `NULL`: the address an agent happens to register from is not a
 decision anyone made, and binding a client to it is how a container on a bridge network
 locks itself out the next time its subnet changes.
 
