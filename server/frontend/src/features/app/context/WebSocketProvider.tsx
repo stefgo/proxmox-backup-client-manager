@@ -7,7 +7,7 @@ import {
     applyRunToLatest,
     applySchedulerUpdate,
     mergeTunnelState,
-    replaceClientJobs,
+    applyClientJobs,
     setJobNextRun,
     upsertRun,
 } from '../../../lib/cacheUpdates';
@@ -110,10 +110,10 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                     // this is what tells an already-open dashboard that a client came
                     // online (or dropped) and its job list changed with it.
                     case WS_EVENTS.JOBS_UPDATE: {
-                        const { clientId, jobs } = message.payload;
+                        const { clientId, jobs, known } = message.payload;
                         queryClient.setQueryData(
                             globalJobsOptions.queryKey,
-                            (all) => all && replaceClientJobs(all, clientId, jobs),
+                            (all) => all && applyClientJobs(all, clientId, jobs, known),
                         );
                         // Only where the client's own list has been read: an entry made
                         // here would pass for a fetched one on a page that never asked.
@@ -175,7 +175,7 @@ export const WebSocketProvider = ({ children }: WebSocketProviderProps) => {
                         const { clientId, jobId, nextRunAt } = message.payload;
                         queryClient.setQueryData(
                             globalJobsOptions.queryKey,
-                            (all) => all && setJobNextRun(all, clientId, jobId, nextRunAt),
+                            (all) => all && { ...all, jobs: setJobNextRun(all.jobs, clientId, jobId, nextRunAt) },
                         );
                         queryClient.setQueryData(
                             clientJobsOptions(clientId).queryKey,

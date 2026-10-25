@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCheck, CircleCheck, Database, HardDrive, Monitor, TriangleAlert } from 'lucide-react';
+import { REPOSITORY_STATUS } from '@pbcm/shared';
+import { CheckCheck, CircleCheck, Database, HardDrive, Monitor, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Button, Card, EmptyState, LoadingIndicator, StatCard, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { useClients } from '../../../queries/clients';
 import { useRepositories } from '../../../queries/repositories';
@@ -14,18 +15,30 @@ import { ROUTES } from '../../../lib/paths';
 import {
     activeJobCount,
     clientCount,
+    clientSummary,
     formatOnlineCount,
+    hasOfflineClient,
     problemSummary,
     repositoryCount,
+    repositorySummary,
 } from '../lib/dashboard';
+import { BACKUP_STATUS } from '../lib/findings';
+import { useBackupOverview } from '../hooks/useBackupOverview';
+import { FindingList } from './FindingList';
+import { BackupStatusList } from './BackupStatusList';
+
+const QUIET = 'text-text-muted';
 
 /**
- * The start page: what is there, and what went wrong.
+ * The start page: how the backups are doing, and what needs a look.
  *
- * Three cards are the counts the sidebar shows as badges, each the way to its list. The
- * fourth counts what the user has yet to mark as seen -- the runs that failed, and the
- * scheduled runs an agent reported as missed -- and the section below lists them.
- * Everything that went well is on the pages the cards lead to.
+ * The first card is the backups' status, by their worst finding; the findings themselves are
+ * listed below the cards under "Needs attention", each the way to where it can be dealt
+ * with. A finding is a state -- it goes once the problem does. The next three cards are the
+ * counts the sidebar shows as badges, each the way to its list. The last counts what the user
+ * has yet to mark as seen -- the runs that failed, and the scheduled runs an agent reported as
+ * missed -- and the section of the same name lists them. At the bottom, "Backup status" is
+ * the last run of every job, problems first.
  *
  * A run stays in that list until the user marks it as seen, here or in the history; that
  * a later run of the same job went well does not take it away. The mark is the user's
@@ -39,6 +52,7 @@ export const DashboardOverview = () => {
     const { clients, isPending: clientsPending, error: clientsError } = useClients();
     const { repositories, isPending: reposPending, error: reposError } = useRepositories();
     const { jobs, isPending: jobsPending, error: jobsError } = useGlobalJobs();
+    const backups = useBackupOverview();
 
     const [page, setPage] = useState(1);
     // Asked for by a click on the card. Only decides anything while there is nothing to list.
@@ -76,22 +90,34 @@ export const DashboardOverview = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                <StatCard
+                    label="Backups"
+                    value={BACKUP_STATUS[backups.status].label}
+                    sub={backups.summary}
+                    icon={ShieldCheck}
+                    classNames={{ icon: BACKUP_STATUS[backups.status].tone }}
+                />
                 <StatCard
                     label="Hosts online"
                     value={clientsError ? '–' : formatOnlineCount(clientCount(clients))}
-                    sub="Clients"
+                    sub={clientsError ? 'Not known' : clientSummary(clients)}
                     icon={Monitor}
                     onClick={() => navigate(ROUTES.clients)}
-                    classNames={{ icon: 'text-text-muted' }}
+                    classNames={{ icon: !clientsError && hasOfflineClient(clients) ? 'text-warning' : QUIET }}
                 />
                 <StatCard
                     label="Repositories online"
                     value={reposError ? '–' : formatOnlineCount(repositoryCount(repositories))}
-                    sub="Repositories"
+                    sub={reposError ? 'Not known' : repositorySummary(repositories)}
                     icon={Database}
                     onClick={() => navigate(ROUTES.repositories)}
-                    classNames={{ icon: 'text-text-muted' }}
+                    classNames={{
+                        icon:
+                            !reposError && repositories.some((r) => r.status === REPOSITORY_STATUS.OFFLINE)
+                                ? 'text-warning'
+                                : QUIET,
+                    }}
                 />
                 <StatCard
                     label="Jobs active"
@@ -99,7 +125,7 @@ export const DashboardOverview = () => {
                     sub="On clients that are online"
                     icon={HardDrive}
                     onClick={() => navigate(ROUTES.jobs)}
-                    classNames={{ icon: 'text-text-muted' }}
+                    classNames={{ icon: QUIET }}
                 />
                 <StatCard
                     label="Errors / Warnings"
@@ -112,7 +138,7 @@ export const DashboardOverview = () => {
                     aria-expanded={showProblems}
                     aria-controls="dashboard-problems-section"
                     classNames={{
-                        icon: failed > 0 ? 'text-error' : missed > 0 ? 'text-warning' : 'text-text-muted',
+                        icon: failed > 0 ? 'text-error' : missed > 0 ? 'text-warning' : QUIET,
                     }}
                 />
             </div>
@@ -120,6 +146,12 @@ export const DashboardOverview = () => {
             {clientsError && <QueryError title="Could not load the clients" error={clientsError} />}
             {reposError && <QueryError title="Could not load the repositories" error={reposError} />}
             {jobsError && <QueryError title="Could not load the jobs" error={jobsError} />}
+
+            {backups.findings.length > 0 && (
+                <Card title="Needs attention" titleAs="h2">
+                    <FindingList findings={backups.findings} />
+                </Card>
+            )}
 
             {showProblems && (
                 <section
@@ -172,6 +204,8 @@ export const DashboardOverview = () => {
                     )}
                 </section>
             )}
+
+            {!backups.runsPending && <BackupStatusList runs={backups.runs} error={backups.runsError} />}
         </div>
     );
 };

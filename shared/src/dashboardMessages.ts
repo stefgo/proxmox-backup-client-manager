@@ -29,10 +29,14 @@ export const DashboardMessageSchema = z.discriminatedUnion("type", [
     /**
      * One client's job configs. The cache exists only while its agent is connected, so this
      * is sent on connect, on disconnect (empty list) and after every job change.
+     *
+     * `known` tells the two empty lists apart: true while the server holds the agent's
+     * list -- an empty one means the client has no job -- and false once the agent is gone
+     * and nothing about its jobs is known.
      */
     z.object({
         type: z.literal(WS_EVENTS.JOBS_UPDATE),
-        payload: z.object({ clientId: z.string(), jobs: z.array(BackupJobViewSchema) }),
+        payload: z.object({ clientId: z.string(), jobs: z.array(BackupJobViewSchema), known: z.boolean() }),
     }),
     /** One client's tunnel runtime state. */
     z.object({ type: z.literal(WS_EVENTS.TUNNEL_UPDATE), payload: TunnelStateSchema }),

@@ -1,4 +1,5 @@
-import { CLIENT_STATUS, REPOSITORY_STATUS } from '@pbcm/shared';
+import { CLIENT_STATUS, REPOSITORY_STATUS, type Client } from '@pbcm/shared';
+import { awaitsRegistration } from '../../clients/lib/registration';
 
 /**
  * The numbers the dashboard's cards and the sidebar's badges both show. Counted here, once,
@@ -23,6 +24,36 @@ export const repositoryCount = (repositories: readonly WithStatus[]): OnlineCoun
     online: repositories.filter((r) => r.status === REPOSITORY_STATUS.ONLINE).length,
     total: repositories.length,
 });
+
+/**
+ * What the "Hosts online" card says below its number: who is missing. A client that still
+ * waits for its agent is not offline, it has never been there, and is named apart.
+ */
+export function clientSummary(clients: readonly Pick<Client, 'status' | 'connectionMode' | 'lastSeen'>[]): string {
+    if (clients.length === 0) return 'None added yet';
+    const awaiting = clients.filter(awaitsRegistration).length;
+    const offline = clients.filter((c) => c.status !== CLIENT_STATUS.ONLINE && !awaitsRegistration(c)).length;
+    const parts = [
+        offline > 0 ? `${offline} offline` : null,
+        awaiting > 0 ? `${awaiting} awaiting registration` : null,
+    ].filter((part) => part !== null);
+    return parts.length > 0 ? parts.join(' · ') : 'All connected';
+}
+
+/** Whether a client is offline although it has been registered: what the card's icon warns of. */
+export const hasOfflineClient = (clients: readonly Pick<Client, 'status' | 'connectionMode' | 'lastSeen'>[]): boolean =>
+    clients.some((c) => c.status !== CLIENT_STATUS.ONLINE && !awaitsRegistration(c));
+
+/**
+ * What the "Repositories online" card says below its number. One whose check has not
+ * answered yet is neither online nor offline, and the card says so rather than count it.
+ */
+export function repositorySummary(repositories: readonly WithStatus[]): string {
+    if (repositories.length === 0) return 'None added yet';
+    const offline = repositories.filter((r) => r.status === REPOSITORY_STATUS.OFFLINE).length;
+    if (offline > 0) return `${offline} not answering`;
+    return repositories.every((r) => r.status === REPOSITORY_STATUS.ONLINE) ? 'All answering' : 'Checking…';
+}
 
 /** `3 / 5`, as a card and a badge write it. */
 export const formatOnlineCount = ({ online, total }: OnlineCount): string => `${online} / ${total}`;

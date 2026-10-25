@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
     activeJobCount,
     clientCount,
+    clientSummary,
+    hasOfflineClient,
     describeActiveJobs,
     describeOnlineCount,
     describeUnseen,
     formatOnlineCount,
     problemSummary,
     repositoryCount,
+    repositorySummary,
 } from './dashboard';
 
 const clients = [
@@ -71,5 +74,39 @@ describe('describeUnseen', () => {
 
     it('says nothing when nothing is left', () => {
         expect(describeUnseen(0, 0)).toBeUndefined();
+    });
+});
+
+describe('clientSummary', () => {
+    const at = '2026-10-25T10:00:00.000Z';
+
+    it('names the offline clients apart from those that wait for their agent', () => {
+        const clients = [
+            { status: 'online', connectionMode: 'inbound', lastSeen: at },
+            { status: 'offline', connectionMode: 'inbound', lastSeen: at },
+            { status: 'offline', connectionMode: 'inbound', lastSeen: null },
+        ] as const;
+        expect(clientSummary(clients)).toBe('1 offline · 1 awaiting registration');
+        expect(hasOfflineClient(clients)).toBe(true);
+    });
+
+    it('does not warn of a client that has never been there', () => {
+        const clients = [{ status: 'offline', connectionMode: 'inbound', lastSeen: null }] as const;
+        expect(clientSummary(clients)).toBe('1 awaiting registration');
+        expect(hasOfflineClient(clients)).toBe(false);
+    });
+
+    it('says when everyone is there, and when there is nobody', () => {
+        expect(clientSummary([{ status: 'online', connectionMode: 'outbound', lastSeen: at }])).toBe('All connected');
+        expect(clientSummary([])).toBe('None added yet');
+    });
+});
+
+describe('repositorySummary', () => {
+    it('counts what does not answer before what is still being checked', () => {
+        expect(repositorySummary([{ status: 'offline' }, { status: 'loading' }])).toBe('1 not answering');
+        expect(repositorySummary([{ status: 'online' }, { status: 'loading' }])).toBe('Checking…');
+        expect(repositorySummary([{ status: 'online' }])).toBe('All answering');
+        expect(repositorySummary([])).toBe('None added yet');
     });
 });

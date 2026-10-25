@@ -7,6 +7,7 @@ import {
     mergeTunnelState,
     recentRuns,
     replaceClientJobs,
+    applyClientJobs,
     setJobNextRun,
     upsertRun,
     type GlobalJob,
@@ -240,6 +241,29 @@ describe('replaceClientJobs', () => {
     it('adds the jobs of a client the list did not hold yet', () => {
         const after = replaceClientJobs([], CLIENT_A, [backupJob('job-1')]);
         expect(after).toEqual([globalJob(CLIENT_A, 'job-1')]);
+    });
+});
+
+describe('applyClientJobs', () => {
+    it('takes a client whose list the server holds among the known ones, also with no job', () => {
+        const after = applyClientJobs({ jobs: [], known: [CLIENT_B] }, CLIENT_A, [], true);
+        expect(after).toEqual({ jobs: [], known: [CLIENT_B, CLIENT_A] });
+    });
+
+    it('forgets a client whose agent went away, with its jobs', () => {
+        const after = applyClientJobs(
+            { jobs: [globalJob(CLIENT_A, 'job-1')], known: [CLIENT_A, CLIENT_B] },
+            CLIENT_A,
+            [],
+            false,
+        );
+        expect(after).toEqual({ jobs: [], known: [CLIENT_B] });
+    });
+
+    it('names a client once, however often it reports', () => {
+        const once = applyClientJobs({ jobs: [], known: [] }, CLIENT_A, [backupJob('job-1')], true);
+        const twice = applyClientJobs(once, CLIENT_A, [backupJob('job-1')], true);
+        expect(twice.known).toEqual([CLIENT_A]);
     });
 });
 

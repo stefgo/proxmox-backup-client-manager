@@ -72,7 +72,7 @@ export class ProxyService {
             // The cache is the only source /api/v1/jobs has, so an emptied entry has to
             // reach the dashboards too -- otherwise they keep showing jobs that a reload
             // would no longer return.
-            this.broadcastJobs(clientId, []);
+            this.broadcastJobs(clientId, [], false);
             // The agent is gone, so no answer is coming. Failing the callers now beats
             // leaving each of them to discover it separately when its timeout expires.
             this.rejectPendingFor(clientId, "Client disconnected");
@@ -123,7 +123,7 @@ export class ProxyService {
             // This is the only notification the dashboards get about the job cache: it
             // fills on connect, and a dashboard that was already open would otherwise
             // keep the empty list it fetched while the client was still offline.
-            this.broadcastJobs(clientId, this.jobCache.get(clientId) ?? []);
+            this.broadcastJobs(clientId, this.jobCache.get(clientId) ?? [], true);
         } catch (e: unknown) {
             logger.error(
                 { clientId, err: e instanceof Error ? e.message : String(e) },
@@ -134,12 +134,13 @@ export class ProxyService {
 
     /**
      * One client's cached job list, in the shape a `GET /api/v1/jobs` entry has -- without
-     * secrets, like every other way a job reaches a browser (see JobSecrets).
+     * secrets, like every other way a job reaches a browser (see JobSecrets). `known` is
+     * false for the empty list of an agent that went away: it has jobs, they are not known.
      */
-    private static broadcastJobs(clientId: string, jobs: BackupJob[]) {
+    private static broadcastJobs(clientId: string, jobs: BackupJob[], known: boolean) {
         this.broadcastToDashboard({
             type: WS_EVENTS.JOBS_UPDATE,
-            payload: { clientId, jobs: jobs.map(redactJob) },
+            payload: { clientId, jobs: jobs.map(redactJob), known },
         });
     }
 

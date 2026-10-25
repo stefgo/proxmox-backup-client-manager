@@ -10,22 +10,29 @@ import {
 import type { z } from 'zod';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
-import type { GlobalJob, SessionHistoryItem } from '../lib/cacheUpdates';
+import type { GlobalJob, GlobalJobList, SessionHistoryItem } from '../lib/cacheUpdates';
 import { forgetJobRunAsked, markJobRunAsked } from '../hooks/useJobResultToasts';
 
 const NO_JOBS: GlobalJob[] = [];
+const NO_CLIENTS: string[] = [];
 const NO_RUNS: SessionHistoryItem[] = [];
 
 /**
- * Every client's jobs, flattened. Never stale by age: `JOBS_UPDATE` replaces a client's
- * jobs whenever it connects, drops or changes them, and `JOB_NEXT_RUN_UPDATE` moves a
- * single job's next run.
+ * Every client's jobs, flattened, and the clients the server answered for. Never stale by
+ * age: `JOBS_UPDATE` replaces a client's jobs whenever it connects, drops or changes them,
+ * and `JOB_NEXT_RUN_UPDATE` moves a single job's next run.
+ *
+ * The server answers only for the clients whose agent is connected and has sent its list,
+ * so the clients it names are the ones whose jobs are known -- with none among them too.
  */
 export const globalJobsOptions = queryOptions({
     queryKey: queryKeys.jobs.list(),
-    queryFn: async (): Promise<GlobalJob[]> => {
+    queryFn: async (): Promise<GlobalJobList> => {
         const perClient = await api.get('/api/v1/jobs', GlobalJobListSchema, { fallback: 'Failed to fetch jobs' });
-        return perClient.flatMap(({ clientId, jobs }) => jobs.map((job) => ({ ...job, clientId })));
+        return {
+            jobs: perClient.flatMap(({ clientId, jobs }) => jobs.map((job) => ({ ...job, clientId }))),
+            known: perClient.map(({ clientId }) => clientId),
+        };
     },
     staleTime: Infinity,
 });
@@ -40,11 +47,12 @@ export const latestPerJobOptions = queryOptions({
 
 /**
  * `isPending` is true until the list has answered once, also with an error: only then is
- * a job that is not in it really gone.
+ * a job that is not in it really gone. `knownClients` are the clients whose list the
+ * server holds.
  */
 export function useGlobalJobs() {
-    const { data = NO_JOBS, isPending, error } = useQuery(globalJobsOptions);
-    return { jobs: data, isPending, error };
+    const { data, isPending, error } = useQuery(globalJobsOptions);
+    return { jobs: data?.jobs ?? NO_JOBS, knownClients: data?.known ?? NO_CLIENTS, isPending, error };
 }
 
 export function useLatestPerJob() {
@@ -106,8 +114,9 @@ export function useDeleteJob() {
         mutationFn: ({ clientId, jobId }: JobRef) =>
             api.delete(`/api/v1/clients/${clientId}/jobs/${jobId}`, { fallback: 'Failed to delete job' }),
         onSuccess: (_, { clientId, jobId }) => {
-            queryClient.setQueryData(globalJobsOptions.queryKey, (jobs) =>
-                jobs?.filter((j) => !(j.clientId === clientId && j.id === jobId)),
+            queryClient.setQueryData(
+                globalJobsOptions.queryKey,
+                (list) => list && { ...list, jobs: list.jobs.filter((j) => !(j.clientId === clientId && j.id === jobId)) },
             );
             queryClient.setQueryData<BackupJob[]>(queryKeys.clients.jobs(clientId), (jobs) =>
                 jobs?.filter((j) => j.id !== jobId),

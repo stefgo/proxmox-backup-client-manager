@@ -22,7 +22,7 @@ const status = { isRunning: false, nextRun: null, lastRun: null };
 /** One valid message per type. A type added to the union has to be added here. */
 const VALID: { [T in DashboardMessage["type"]]: unknown } = {
     CLIENTS_UPDATE: { type: "CLIENTS_UPDATE", payload: [client] },
-    JOBS_UPDATE: { type: "JOBS_UPDATE", payload: { clientId: "c1", jobs: [job] } },
+    JOBS_UPDATE: { type: "JOBS_UPDATE", payload: { clientId: "c1", jobs: [job], known: true } },
     TUNNEL_UPDATE: {
         type: "TUNNEL_UPDATE",
         payload: { clientId: "c1", status: "up", activeLeases: 1, forwards: [{ target: "pbs:8007", port: 40001 }] },
@@ -96,7 +96,7 @@ describe("DashboardMessageSchema", () => {
     // the editor refuses today must not take the client's whole job list off the screen.
     it("accepts a job that would not pass the editor's input rules", () => {
         const legacy = { ...job, id: "not-a-uuid", archives: [{ path: "relative", name: ".hidden" }] };
-        const message = { type: "JOBS_UPDATE", payload: { clientId: "c1", jobs: [legacy] } };
+        const message = { type: "JOBS_UPDATE", payload: { clientId: "c1", jobs: [legacy], known: true } };
         expect(DashboardMessageSchema.safeParse(message).success).toBe(true);
     });
 

@@ -43,6 +43,33 @@ export function replaceClientJobs(jobs: GlobalJob[], clientId: string, clientJob
 }
 
 /**
+ * The job list across all clients as the cache holds it: the jobs, and the clients whose
+ * list the server holds. Only for those is a missing job a statement -- an online client in
+ * `known` without a job has none; one not in it has not reported yet.
+ */
+export interface GlobalJobList {
+    jobs: GlobalJob[];
+    known: string[];
+}
+
+/**
+ * Takes one JOBS_UPDATE into the list. `known` is false for the empty list the server sends
+ * when an agent drops: its jobs go, and so does its place among the clients that reported.
+ */
+export function applyClientJobs(
+    list: GlobalJobList,
+    clientId: string,
+    clientJobs: BackupJob[],
+    known: boolean,
+): GlobalJobList {
+    const others = list.known.filter((id) => id !== clientId);
+    return {
+        jobs: replaceClientJobs(list.jobs, clientId, clientJobs),
+        known: known ? [...others, clientId] : others,
+    };
+}
+
+/**
  * The agent recalculated when a job runs next; `null` means it is not scheduled.
  *
  * Works on both job lists: in the one across all clients a row names its client and has

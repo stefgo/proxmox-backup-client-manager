@@ -10,6 +10,20 @@ dev keeps the text; the stable release from main empties this file again.
 Nothing inside an HTML comment is published.
 -->
 
+### The dashboard shows how the backups are doing
+
+A new first card sums up the state of every backup: *Healthy*, *Degraded* or *Critical*.
+Below the cards, *Needs attention* lists what is wrong right now: a client that is offline,
+a repository that does not answer, a job whose last run failed, was aborted or missed, a
+scheduled run that is overdue, a broken SSH tunnel, or a client without a backup job. Each
+line leads to where it can be fixed, and disappears once it is fixed. There is nothing to
+mark as seen, unlike *Errors / Warnings*, which keeps listing failed runs until someone has
+looked at them.
+
+At the bottom, *Backup status* shows the last run of every job, problems first, then the
+backups that have gone longest without a new one. It replaces *Last Activity* on the *Jobs*
+page, whose list already shows each job's last run.
+
 ### A new client is there before its agent
 
 Adding an inbound client now creates it right away, under the name you give it, marked
