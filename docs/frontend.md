@@ -72,7 +72,7 @@ shell.
 | Path                                    | Component               | Description                                     |
 | :-------------------------------------- | :---------------------- | :---------------------------------------------- |
 | `/login`                                | `Login`                 | Authentication page (local & OIDC).             |
-| `/`                                     | `DashboardOverview`     | The dashboard: three counts and what needs attention. First in the sidebar, in a group of its own without a title, and where the login lands. |
+| `/`                                     | `DashboardOverview`     | The dashboard: how the backups are doing, what needs attention, and the last run of every job. First in the sidebar, in a group of its own without a title, and where the login lands. |
 | `/clients`                              | `ManagedClients`        | Client list.                                    |
 | `/clients/new`                          | `AddClientWizard`       | Adds a client, starting with the connection mode. |
 | `/clients/:clientId`                    | `ClientOverview`        | Detail view of a client; `?tab=` names the open tab. |
@@ -81,7 +81,7 @@ shell.
 | `/clients/:clientId/jobs/new`           | `ClientJobEditor`       | New job for this client.                        |
 | `/clients/:clientId/jobs/:jobId`        | `ClientJobEditor`       | Edit a job; closes onto the client.             |
 | `/clients/:clientId/restore/:repoId/:backupType/:backupTime` | `SnapshotRestoreEditor` | Restores one of the client's snapshots. |
-| `/jobs`                                 | `ManagedJobs`           | Global job list, plus each job's last run.      |
+| `/jobs`                                 | `ManagedJobs`           | Global job list, with each job's last run.      |
 | `/jobs/new`                             | `ClientJobEditor`       | New job, client picked in the form.             |
 | `/jobs/:clientId/:jobId`                | `ClientJobEditor`       | Same editor; closes onto `/jobs`.               |
 | `/repositories`                         | `ManagedRepositories`   | Repository list.                                |
@@ -330,7 +330,7 @@ Both job lists — the one across all clients and the one on the client page —
 view adds two fields the table has no room for, "Duration" and "Size", both from
 `runSummary` in `features/history/lib/runSummary.ts` — so the size is there for a backup
 that succeeded, as in the history. Both lists read `GET /api/v1/history/latest`
-through `useLatestPerJob()`, the cache entry "Last Activity" shows and `JOB_UPDATE` keeps
+through `useLatestPerJob()`, the cache entry the dashboard's "Backup status" shows and `JOB_UPDATE` keeps
 current. `lastRunByJob` keys it by client *and* job, since two clients may hold the same job
 id. The badge is `statusBadgeVariant` from `features/history/lib/statusBadge.ts`, the same
 mapping the history uses.
@@ -363,12 +363,18 @@ The tab lists every run, restores included; `clientTab(clientId, 'history')` in
 `/` is a page of its own, `DashboardOverview`. It reads only what the shell has cached
 anyway, plus one page of the history.
 
+- **"Backups"**, the first card, is the status the findings add up to (`backupStatus` in
+  `lib/findings.ts`): *Critical* with an error among them, *Degraded* with warnings only,
+  *Healthy* with none, *Unknown* while the clients load or none is registered. It leads
+  nowhere; the findings are below it.
 - **Three `StatCard`s**, each the way to its list: "Hosts online" (`/clients`),
   "Repositories online" (`/repositories`), "Jobs active" (`/jobs`). The numbers come from
   `lib/dashboard.ts` -- `clientCount`, `repositoryCount`, `activeJobCount` -- and
   `AppLayout` builds the sidebar's badges from the same functions, so a card and its
   badge cannot disagree. "Jobs active" is the jobs on online clients; there is no total,
-  because the server knows a client's jobs only while its agent is connected.
+  because the server knows a client's jobs only while its agent is connected. Below the
+  number, `clientSummary` and `repositorySummary` say who is missing; a client that still
+  awaits its agent is named apart and does not turn the icon yellow.
 - A fourth card, **"Errors / Warnings"**, counts what the user has yet to mark as seen:
   the failed runs and the missed ones, from `useUnseen` (`problemSummary` says below the
   number what it is made of). The section of the same name is rendered only while it has
@@ -396,6 +402,42 @@ The count is never raised in the browser. A run that fails or is missed invalida
 (`refreshUnseen`, called by the result toasts): an agent that reconnects sends a run again,
 and a count kept here would say two for what the server holds as one.
 
+**Needs attention** lists the findings, one per line, each a link to where it can be dealt
+with and with how long it has lasted below (`FindingList`). The card is there only while
+there is a finding. `buildFindings` in `lib/findings.ts` makes them, through
+`hooks/useBackupOverview.ts`, out of what the cache holds -- clients, repositories, jobs and
+the last run of every job:
+
+| Finding | Severity | When |
+| :--- | :--- | :--- |
+| `client-offline` | error | A registered client is not connected. A client that awaits its agent is none. |
+| `repository-offline` | error | A repository's check did not answer. `unknown` and `loading` say nothing yet. |
+| `run-failed` | error | The last run of a job failed. |
+| `tunnel-error` | warning | A client's SSH tunnel is in `error`. |
+| `client-without-jobs` | warning | An online client whose list the server holds has no job. |
+| `run-aborted`, `run-missed` | warning | The last run of a job was aborted or missed. |
+| `run-overdue` | warning | A scheduled job's `nextRunAt` passed more than `MISSED_AFTER_MS` ago and no run is under way: the agent's scheduler has stopped moving it on. |
+
+**A finding is a state, a run under "Errors / Warnings" an event.** The finding goes once
+the problem does -- a later run that succeeds takes `run-failed` with it -- while the run
+stays in "Errors / Warnings" until it is marked as seen. An offline client gets
+`client-offline` and none of its own besides: the server does not know its jobs while it is
+away. Its failed runs are still found, since they come from the server's history.
+
+`client-without-jobs` needs to tell "no job" from "not reported yet", which an empty list
+cannot. The jobs entry therefore holds, next to the jobs, the clients whose list the server
+holds (`GlobalJobList.known`): the clients `GET /api/v1/jobs` answers for, and those whose
+`JOBS_UPDATE` carries `known: true` (`applyClientJobs` in `lib/cacheUpdates.ts`). The empty
+list the server sends when an agent drops carries `known: false`.
+
+**Backup status**, at the bottom, is the last run of every job (`GET /api/v1/history/latest`
+through `useLatestPerJob`), problems first and within each the oldest first
+(`byBackupStatus` in `lib/backupStatus.ts`), so among the successes the backup that has gone
+longest without a new one is on top. `existingJobRuns` leaves out the runs of deleted jobs,
+as far as that can be told: only for a client whose list the server holds is a job that is
+not in it gone. It used to be "Last Activity" on the Jobs page, whose list has the same
+runs as columns.
+
 **Missed runs come from the agent**, as history entries with the status `missed` (see
 [client.md](client.md)). The dashboard used to work them out itself from `nextRunAt`; that
 is gone, so a missed run is an event that can be marked, not a state that disappears when
@@ -422,8 +464,8 @@ row to `abort`. A list whose rows do not name their client (a client's own page)
 
 ### Job history rows (`features/history/components/BaseHistoryList.tsx`)
 
-Every history list — "Recent Activity" of a client, the History page, "Last Activity" under
-Jobs — renders through `BaseHistoryList`, so the following holds in all of them:
+Every history list — "Recent Activity" of a client, the History page, "Backup status" on
+the dashboard — renders through `BaseHistoryList`, so the following holds in all of them:
 
 - **What a row says unopened.** Below the name: the event kind and, for a successful backup,
   the size of its snapshot; at the right the start and how long the run took, as one
@@ -531,7 +573,8 @@ the rest is read when it is next shown. A cache area the server starts pushing o
 has to be added to `PUSHED_ON_CONNECT`, and `queryKeys.test.ts` holds the list.
 
 `JOBS_UPDATE` is there because the server's job cache is tied to the agent connection --
-`GET /api/v1/jobs` returns nothing for an offline client. Without the broadcast, a
+`GET /api/v1/jobs` returns nothing for an offline client. Its `known` flag says whether an
+empty list is the client's (it has no job) or the server's (the agent is gone). Without the broadcast, a
 dashboard that was already open kept the list it fetched on mount, and the sidebar's job
 count stayed at whatever it was when the page loaded.
 

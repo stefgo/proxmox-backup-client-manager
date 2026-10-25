@@ -1288,8 +1288,8 @@ A failure answers with `{ "error": "…" }` and the matching status, as everywhe
 
 **Description:** The newest history entry of every job, one per client and job, newest first.
 Entries that belong to no job are left out. Unlike a page of [Get Global History](#get-global-history),
-this includes jobs that have not run for a long time. The Jobs page shows it as
-"Last Activity".
+this includes jobs that have not run for a long time. The dashboard shows it as
+"Backup status", and the job lists show it as each job's last run.
 
 #### Response
 
@@ -1882,7 +1882,7 @@ A connection without a valid session is closed with `4001 Unauthorized`
 | Event                | Payload Structure                                                     | Description                              |
 | :------------------- | :-------------------------------------------------------------------- | :--------------------------------------- |
 | `CLIENTS_UPDATE`     | `Client[]`                                                            | Full list of clients and statuses. Also the first message after the handshake. |
-| `JOBS_UPDATE`        | `{ clientId: string, jobs: BackupJob[] }`                             | One client's job configs; the cache only exists while its agent is connected, so this fires on connect, on disconnect (empty list) and after every job change. |
+| `JOBS_UPDATE`        | `{ clientId: string, jobs: BackupJob[], known: boolean }`             | One client's job configs; the cache only exists while its agent is connected, so this fires on connect, on disconnect (empty list) and after every job change. `known` is `false` only for the empty list on disconnect: the client's jobs are not known, rather than none. |
 | `TUNNEL_UPDATE`      | `TunnelState`                                                         | One client's tunnel runtime state: status, active leases, forwards, last error. |
 | `JOB_UPDATE`         | `{ clientId: string, job: StatusUpdatePayload }`                      | Updates for running jobs.                |
 | `LOG_UPDATE`         | `{ clientId: string, jobId: string, output: string, stream: string }` | Live log output.                         |
