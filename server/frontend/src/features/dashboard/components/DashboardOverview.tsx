@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { REPOSITORY_STATUS } from '@pbcm/shared';
 import { CheckCheck, CircleCheck, Database, HardDrive, Monitor, ShieldCheck, TriangleAlert } from 'lucide-react';
-import { Button, Card, EmptyState, LoadingIndicator, StatCard, PAGE_SIZE } from '@stefgo/react-ui-components';
+import { Button, Card, EmptyState, LoadingIndicator, StatCard, StatCardGrid, PAGE_SIZE } from '@stefgo/react-ui-components';
 import { useClients } from '../../../queries/clients';
 import { useRepositories } from '../../../queries/repositories';
 import { useGlobalJobs } from '../../../queries/jobs';
@@ -90,7 +90,7 @@ export const DashboardOverview = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            <StatCardGrid>
                 <StatCard
                     label="Backups"
                     value={BACKUP_STATUS[backups.status].label}
@@ -141,7 +141,7 @@ export const DashboardOverview = () => {
                         icon: failed > 0 ? 'text-error' : missed > 0 ? 'text-warning' : QUIET,
                     }}
                 />
-            </div>
+            </StatCardGrid>
 
             {clientsError && <QueryError title="Could not load the clients" error={clientsError} />}
             {reposError && <QueryError title="Could not load the repositories" error={reposError} />}

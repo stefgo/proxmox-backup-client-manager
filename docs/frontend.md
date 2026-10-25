@@ -363,6 +363,10 @@ The tab lists every run, restores included; `clientTab(clientId, 'history')` in
 `/` is a page of its own, `DashboardOverview`. It reads only what the shell has cached
 anyway, plus one page of the history.
 
+The five cards sit in the library's `StatCardGrid`, which picks the columns by the row's
+own width, not the window's: beside an open sidebar in a 1280px window they go 3 + 2, five
+across only where a card has room for "Degraded" beside its icon.
+
 - **"Backups"**, the first card, is the status the findings add up to (`backupStatus` in
   `lib/findings.ts`): *Critical* with an error among them, *Degraded* with warnings only,
   *Healthy* with none, *Unknown* while the clients load or none is registered. It leads
