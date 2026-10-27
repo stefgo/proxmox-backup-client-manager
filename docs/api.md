@@ -7,6 +7,7 @@
 ## 📖 Table of Contents
 
 - [Health](#-health)
+- [Status](#-status)
 - [Authentication](#-authentication)
     - [Login](#login)
     - [OIDC Configuration](#oidc-configuration)
@@ -105,6 +106,84 @@ reporting success even if the route were gone. Under `/api`, an unknown path ret
 PBCM server at this URL" for the agent's status page, and touches nothing. This one
 answers "can this instance serve requests" and checks the database. Keeping them apart matters: if `ping` reported the database, a server with a
 broken one would tell the operator that the address is wrong.
+
+---
+
+## 📊 Status
+
+`GET /api/v1/status`
+
+**Description:** What the dashboard shows, for a reader that is not a browser -- Home Assistant, a monitoring system, a script: the overall verdict and every line of **Needs attention**, in the dashboard's order and with the dashboard's text. The server computes both with the same functions the dashboard uses.
+
+**Authentication:** a session, like every other route, **or** the status token sent as `Authorization: Bearer <token>` -- `statusToken` in `config.yaml` or `PBCM_STATUS_TOKEN` (`_FILE`), see [Configuration](setup.md#authentication). The token opens this route and no other, and only reads. Without one configured, a session is needed. At most **60 requests a minute** per client IP.
+
+### Response
+
+```json
+{
+  "app": "pbcm",
+  "version": "1.4.0",
+  "status": "degraded",
+  "checkedAt": "2026-10-27T10:00:00.000Z",
+  "counts": {
+    "error": 0,
+    "warning": 1
+  },
+  "summary": {
+    "clients": {
+      "online": 3,
+      "total": 3
+    },
+    "repositories": {
+      "online": 1,
+      "total": 1
+    },
+    "jobsActive": 5
+  },
+  "findings": [
+    {
+      "id": "run-missed:6c1e…:9a0d…",
+      "type": "run-missed",
+      "severity": "warning",
+      "text": "The last run of \"Nightly\" on pve1 was missed",
+      "since": "2026-10-27T02:05:00.000Z"
+    }
+  ]
+}
+```
+
+| Field | |
+| :---- | :-- |
+| `status` | `healthy`, `degraded`, `critical` or `unknown` -- the dashboard's first card. |
+| `counts` | How many of `findings` are errors and warnings. |
+| `summary` | The key figures of the dashboard's cards. |
+| `findings[].id` | Stays the same while a finding lasts; never derived from its text. |
+| `findings[].type` | What kind of finding it is. |
+| `findings[].since` | Since when it stands, where the server knows it; otherwise `null`. |
+
+The **Errors / Warnings** card is not part of it: what is unseen is a login's own. Whether a repository answers is asked of it as the dashboard asks, but kept for 30 seconds, so a reader that polls does not knock on every Proxmox Backup Server each time.
+
+| Status | Meaning |
+| :----- | :------ |
+| `200` | The report |
+| `401` | Neither a valid session nor the status token |
+| `429` | More than 60 requests in a minute |
+| `503` | `{"status":"unknown"}`: the report could not be put together |
+
+A sensor in Home Assistant:
+
+```yaml
+rest:
+  - resource: https://backup.example.com/api/v1/status
+    headers:
+      Authorization: !secret pbcm_status_token   # "Bearer <token>"
+    scan_interval: 60
+    sensor:
+      - name: pbcm Health
+        unique_id: pbcm_health
+        value_template: "{{ value_json.status }}"
+        json_attributes: [counts, summary, findings, checkedAt]
+```
 
 ---
 

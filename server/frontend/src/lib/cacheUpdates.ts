@@ -1,3 +1,4 @@
+import { jobIdOf } from '@pbcm/shared';
 import type {
     BackupJob,
     Client,
@@ -108,9 +109,9 @@ export type SessionHistoryItem =
           displayName: string | null;
       });
 
-/** The job a history row belongs to, null for a row that belongs to none. */
-export const jobIdOf = (item: SessionHistoryItem): string | null =>
-    'jobId' in item ? item.jobId : item.jobConfigId;
+// The job a history row belongs to, null for a row that belongs to none. Lives in shared,
+// where the findings read it too.
+export { jobIdOf };
 
 const isSameJob = (a: SessionHistoryItem, b: SessionHistoryItem) =>
     a.clientId === b.clientId && jobIdOf(a) === jobIdOf(b);

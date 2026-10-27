@@ -1,18 +1,6 @@
-/**
- * A timestamp as the server and the agents send it, as a `Date` -- `null` for none and for
- * one that does not parse.
- *
- * SQLite's default format, `YYYY-MM-DD HH:MM:SS`, carries no zone and is UTC. Read as it
- * stands it would be taken for local time, and a run would start hours off.
- */
-export function parseTimestamp(value: Date | string | number | null | undefined): Date | null {
-    if (value === null || value === undefined || value === '') return null;
-    const date =
-        typeof value === 'string' && value.includes(' ') && !value.includes('T')
-            ? new Date(value.replace(' ', 'T') + 'Z')
-            : new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-}
+// Lives in shared, where the findings read timestamps too.
+import { parseTimestamp } from '@pbcm/shared';
+export { parseTimestamp };
 
 const pad = (value: number) => String(value).padStart(2, '0');
 

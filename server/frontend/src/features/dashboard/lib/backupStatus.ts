@@ -1,5 +1,5 @@
 import { JOB_STATUS } from '@pbcm/shared';
-import { jobIdOf, type GlobalJob, type SessionHistoryItem } from '../../../lib/cacheUpdates';
+import type { SessionHistoryItem } from '../../../lib/cacheUpdates';
 import { parseTimestamp } from '../../../lib/time';
 
 /**
@@ -7,24 +7,8 @@ import { parseTimestamp } from '../../../lib/time';
  * findings judge.
  */
 
-/**
- * Leaves out the runs of deleted jobs -- as far as that can be told. The server knows a
- * client's jobs only while its agent is connected and has sent its list (`knownClients`),
- * so "not in the list" means deleted only for such a client. Any other client keeps its rows.
- */
-export function existingJobRuns(
-    latest: readonly SessionHistoryItem[],
-    jobs: readonly GlobalJob[],
-    knownClients: readonly string[],
-): SessionHistoryItem[] {
-    const known = new Set(knownClients);
-    const existing = new Set(jobs.filter((job) => job.id).map((job) => `${job.clientId}/${job.id}`));
-    return latest.filter((row) => {
-        if (!known.has(row.clientId)) return true;
-        const jobId = jobIdOf(row);
-        return jobId !== null && existing.has(`${row.clientId}/${jobId}`);
-    });
-}
+// Lives in shared, where the server's status report leaves out the same runs.
+export { existingJobRuns } from '@pbcm/shared';
 
 /** How loudly a last run asks for a look; the lower, the higher up the list. */
 const RANK: Record<string, number> = {

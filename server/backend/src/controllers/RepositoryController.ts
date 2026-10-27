@@ -20,6 +20,7 @@ import {
 } from "../repositories/RepositoryConfigRepository.js";
 import { FingerprintObservations } from "../services/FingerprintObservations.js";
 import { ProxyService } from "../services/ProxyService.js";
+import { pbsAuthHeader, RepositoryStatusService } from "../services/RepositoryStatusService.js";
 
 /**
  * Decides whether a job's embedded repository copy belongs to the given repository.
@@ -33,15 +34,6 @@ function jobUsesRepository(job: BackupJob, repo: RepositoryRow): boolean {
     return (
         jobRepo.baseUrl === repo.base_url && jobRepo.datastore === repo.datastore
     );
-}
-
-/**
- * The Authorization header for the PBS API. The secret is decrypted here, for this one
- * request, and nowhere else in this controller.
- */
-function pbsAuthHeader(repo: RepositoryRow): string {
-    const secret = RepositoryConfigRepository.findSecret(repo.id) ?? "";
-    return `PBSAPIToken ${repo.username}!${repo.tokenname || "token"}:${secret}`;
 }
 
 export class RepositoryController {
@@ -219,31 +211,8 @@ export class RepositoryController {
                 .send({ error: "Repository record is incomplete" });
         }
 
-        try {
-            let baseUrl = repo.base_url;
-            if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
-
-            const url = `${baseUrl}/api2/json/admin/datastore/${repo.datastore}/status`;
-            const authHeader = pbsAuthHeader(repo);
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const res = await fetch(url, {
-                headers: { Authorization: authHeader },
-                signal: controller.signal,
-            });
-
-            clearTimeout(timeoutId);
-
-            if (res.ok) {
-                return { status: REPOSITORY_STATUS.ONLINE };
-            } else {
-                return { status: REPOSITORY_STATUS.OFFLINE };
-            }
-        } catch {
-            return { status: REPOSITORY_STATUS.OFFLINE };
-        }
+        // Asked now, uncached: the dashboard asks again when it wants a fresh answer.
+        return { status: await RepositoryStatusService.check(repo) };
     }
 
     static async create(request: FastifyRequest, reply: FastifyReply) {
