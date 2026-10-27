@@ -1,14 +1,9 @@
-import { CONNECTION_MODE, type Client } from '@pbcm/shared';
+import type { Client } from '@pbcm/shared';
 import { formatDate } from '../../../utils';
 import { parseTimestamp } from '../../../lib/time';
 
-/**
- * Whether an inbound client still waits for its first agent. It is created when its token
- * is issued and has been seen by nobody since; an outbound client is only stored once the
- * server has reached its agent, so it never waits.
- */
-export const awaitsRegistration = (client: Pick<Client, 'connectionMode' | 'lastSeen'>): boolean =>
-    client.connectionMode !== CONNECTION_MODE.OUTBOUND && !client.lastSeen;
+// Lives in shared, where the findings use it too.
+export { awaitsRegistration } from '@pbcm/shared';
 
 /** Where a client's registration token stands: none open, valid, or run out. */
 export type RegistrationTokenState = 'none' | 'open' | 'expired';
