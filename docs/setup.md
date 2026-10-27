@@ -48,6 +48,7 @@ environment:
 | :------------------ | :---------- |
 | `PBCM_SERVER_PORT`  | Overrides `port` from `config.yaml`. An unusable value ends the start. The container's health check follows the port either way, whether it comes from here or from `config.yaml` (see [Health](operations.md#health)). |
 | `PBCM_TRUSTED_PROXIES` | Overrides `security.trusted_proxies`, comma separated (e.g. `172.16.0.0/12,::1`). An unusable entry ends the start. |
+| `PBCM_STATUS_TOKEN`, `PBCM_STATUS_TOKEN_FILE` | Overrides `statusToken`; `_FILE` names a file that holds it (a Docker secret). Setting both, or a value shorter than 32 characters, ends the start. |
 
 ## Server
 
@@ -74,6 +75,7 @@ environment:
 | `jwtSecret` | (root) | Signs the session tokens. Generated automatically if absent. **Losing it invalidates every session.** |
 | `secretKey` | (root) | Encrypts every secret the server stores and has to read back: the SSH keys of the tunnels, the PBS token secrets of the repositories and the auth tokens of outbound clients. Generated automatically if absent; do **not** copy it between installations. **Losing or changing it** means entering every repository secret and tunnel key again and registering every outbound client again. See [below](#stored-secrets). |
 | `jwtExpiresIn` | (root) | How long a login stays valid, in any span `@fastify/jwt` accepts (default: `12h`). Before this had a default, a token signed without one never expired. |
+| `statusToken` | (root) | What a reader without a session sends as `Authorization: Bearer <token>` to read [`GET /api/v1/status`](api.md#-status). At least 32 characters, e.g. `openssl rand -base64 32`. Opens that route and no other, and only reads. Unset (default), the route needs a session. `PBCM_STATUS_TOKEN` (`_FILE`) wins; a value from the environment is never written into `config.yaml`. Read at startup only. |
 
 ### Retention
 

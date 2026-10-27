@@ -14,3 +14,4 @@ export * from "./runSnapshot.js";
 export * from "./webhookEvent.js";
 export * from "./webhookTemplate.js";
 export * from "./backupFindings.js";
+export * from "./statusReport.js";

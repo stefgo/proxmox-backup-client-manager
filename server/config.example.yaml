@@ -41,6 +41,13 @@ secretKey:
 # session cookies carry the same lifetime.
 jwtExpiresIn: "12h"
 
+# The token a reader without a session -- Home Assistant, a monitoring system -- sends as
+# "Authorization: Bearer <token>" to read GET /api/v1/status, the dashboard's verdict and
+# findings. It opens that route and no other. At least 32 characters, e.g. from
+# `openssl rand -base64 32`. PBCM_STATUS_TOKEN or PBCM_STATUS_TOKEN_FILE win over it.
+# Left out, the route needs a session like every other.
+# statusToken: ""
+
 # General server settings
 # The values below are the same ones the server falls back to when a key is missing, so
 # this block documents the defaults rather than changing them. What a "0" means depends on
