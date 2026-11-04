@@ -349,6 +349,10 @@ What it does here:
 - **Monday** brings the updates as pull requests: every minor and patch update
   together in one, each major update in its own. An npm release is taken only
   once it is three days old -- a hijacked release is usually pulled sooner.
+- **The lock file is refreshed every Monday** as well, in a pull request of
+  its own. It takes the newest version every range allows, and so fixes a
+  vulnerability in a package that only comes in through another one -- Renovate
+  cannot fix those directly. It is the one update that does not wait three days.
 - **A security update** comes at once, outside the Monday window, as soon as
   GitHub reports a vulnerable version. That needs *Dependabot alerts* on;
   *Dependabot security updates* stay off, or the same fix would arrive twice.
