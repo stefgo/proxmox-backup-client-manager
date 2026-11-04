@@ -282,6 +282,10 @@ installed here.
 - **`feat!: …` does not work** and is rejected by the local `no-breaking-bang`
   rule: the Angular preset's `headerPattern` contains no `!`, so such a commit is
   read as typeless and triggers nothing. Use the footer.
+- **Dependency updates come from Renovate** as `ci(deps):` / `chore(deps):`
+  commits on `dev`, which release nothing. Its rules live in
+  `stefgo/renovate-config` (preset `:react`), not here; `.github/renovate.json5`
+  only connects the repository.
 - The **root `package.json` is the single source of truth** for the version.
   The workspace manifests keep their own `1.0.0`; they are private and never
   published, and nothing reads them.

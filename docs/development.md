@@ -220,7 +220,7 @@ a topic branch gets.
 | :--- | :--- |
 | Push to a topic branch | `ci.yml` — typecheck, lint and test |
 | Pull request | `ci.yml`, plus commitlint over the pull request's commit range |
-| Dependabot pull request | the same, and `dependabot-auto-merge.yml` merges it into `dev` once those checks pass |
+| Renovate pull request | the same; Renovate merges it into `dev` itself once every check has passed |
 | Push to `dev` | `build.yml` (which calls `ci.yml`): images `:dev` and `:sha-<short>`, smoke test. **No version.** |
 | Push to `main` | the same, tagged `:main`. **No version.** |
 | Push or pull request touching `docs/` | `docs.yml` builds the site with `--strict`; `build.yml` skips it via `paths-ignore` |
@@ -334,34 +334,46 @@ Concurrency follows the same split: a second push to `dev` cancels the build sti
 running, because its image is about to be pointless — but a tag build is never
 cancelled, since its image is the artefact of a release.
 
-### Action updates
+### Dependency updates
 
-`dependabot.yml` watches the actions — and only the actions; the npm side is left
-out on purpose, and the file says why. It opens one grouped pull request a month,
-prefixed `ci:` so the bump releases nothing.
+[Renovate](https://docs.renovatebot.com/) keeps the actions, the npm packages of
+every workspace, the Node version in `.nvmrc` and the base images of the
+Dockerfiles current. It does not run in this repository: one runner in
+[stefgo/renovate-config](https://github.com/stefgo/renovate-config) serves every
+connected repository, and its preset holds the rules. `.github/renovate.json5`
+only connects this repository (`github>stefgo/renovate-config:react`) and holds
+what is particular to it.
 
-That much was already true while six actions drifted up to two major versions
-behind. Opening the pull request was never the problem: **this repository is
-maintained without pull requests**, so the monthly one waited, exactly as the
-commitlint step in `ci.yml` waited for a pull request that never came. An update
-that is opened and never merged is not a slower update, it is none.
+What it does here:
 
-`dependabot-auto-merge.yml` closes that loop. It fires on a pull request whose
-actor is `dependabot[bot]` and puts it into auto-merge, so GitHub merges it as
-soon as the checks are green and leaves it open when they are not.
+- **Monday** brings the updates as pull requests: every minor and patch update
+  together in one, each major update in its own. An npm release is taken only
+  once it is three days old -- a hijacked release is usually pulled sooner.
+- **A security update** comes at once, outside the Monday window, as soon as
+  GitHub reports a vulnerable version. That needs *Dependabot alerts* on;
+  *Dependabot security updates* stay off, or the same fix would arrive twice.
+- **A new Node major is never merged on its own** -- in `.nvmrc`, in the base
+  images (`node:22-bookworm-slim`, `node:22-trixie-slim`) or in a workflow. Node
+  moves deliberately, together with `engines`.
+- The commits are `ci(deps):` for a single action and `chore(deps):` for
+  everything else. Neither releases anything.
 
-Two deliberate choices in it:
+This repository is still maintained without pull requests, and an update that is
+opened and never merged is not a slower update, it is none -- the lesson of six
+actions that drifted two majors behind. So **Renovate merges a pull request
+itself** (squashed) on its first daily run after every check on it is green, and
+leaves a red one open for a human. Because the merge comes from the app rather
+than `GITHUB_TOKEN`, it starts `build.yml` like any other push.
 
-- **It targets `dev`, not `main`.** `ci.yml` runs on the pull request, but an
-  action bump is mostly about actions `ci.yml` never touches —
-  `docker/build-push-action`, the artifact pair, `metadata-action`. The only thing
-  that exercises those is `build.yml`, and `build.yml` runs *after* a merge, not
-  before one. On `dev` that means a bad bump breaks the developer image and the
-  smoke test says so, which is what the dev channel is for; `main` stays the state
-  released to everyone until `dev` is merged into it.
-- **It needs "Allow auto-merge" enabled** under *Settings ▸ General ▸ Pull
-  Requests*. Without that setting the step fails loudly rather than falling back to
-  merging unchecked — the backlog is the better of those two outcomes.
+**It targets `dev`, not `main`.** `ci.yml` runs on the pull request, but much of
+what an update touches -- `docker/build-push-action`, the artifact pair, the base
+images -- is exercised only by `build.yml`, and that runs *after* a merge. On
+`dev` a bad update breaks the developer image and the smoke test says so; `main`
+stays the state released to everyone until `dev` is merged into it.
+
+The *Dependency Dashboard* issue lists what is pending, waiting or held back;
+ticking an update there starts it on the next run. To run Renovate sooner:
+*Actions ▸ Renovate ▸ Run workflow* in `stefgo/renovate-config`.
 
 ## Build Management
 
@@ -396,6 +408,9 @@ that ships nothing to a user is recorded. A documentation commit *should* be a
 
 A scope is optional and free-form (`fix(client): …`); there is no `scope-enum`
 and no plan for one.
+
+Renovate's commits (`ci(deps):`, `chore(deps):`) never pass the local hook: the
+prefixes are set in its preset, and `ci.yml` lints them on the pull request.
 
 **Write commit messages in English**, subject and body. They become `CHANGELOG.md`
 and the GitHub release notes, which are read by the same audience as these pages.
